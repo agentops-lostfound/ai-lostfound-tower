@@ -3,6 +3,7 @@
 python -m unittest discover -s tests -v
 """
 import json
+import os
 import sys
 import types
 import unittest
@@ -549,6 +550,35 @@ class ImproveLoopTest(unittest.TestCase):
                     f["value"] = f["value"] or "가죽"
         st = il.run_loop(broken, il.simulated_runner(broken), p95_limit=3, max_rounds=3)
         self.assertFalse(any(h["adopted"] for h in st.history))
+
+
+
+class TowerDemoTest(unittest.TestCase):
+    def test_summary_fits_discord_and_has_no_pii(self):
+        from tools import tower_demo
+        d = tower_demo.run_demo()
+        text = tower_demo.summary_text(d, reviewer_on=False)
+        self.assertLessEqual(len(text), 2000)
+        self.assertEqual(find_pii(text), [])
+        self.assertIn("안전 위반 **0건**", text)
+        self.assertIn("가짜 부품 기준", text)
+
+    def test_send_details_three_channels(self):
+        from unittest import mock
+        from tools import tower_demo
+        sent = []
+        with mock.patch("discord_ops.reporter._post", lambda ch, t, b: sent.append((ch, len(b))) or True):
+            ok = tower_demo.send_details(tower_demo.run_demo())
+        self.assertEqual(ok, [True, True, True])
+        self.assertEqual([c for c, _ in sent], ["progress", "alert", "score"])
+        self.assertTrue(all(n < 4096 for _, n in sent))
+
+    def test_cp949_pipe_does_not_crash(self):
+        import subprocess
+        env = dict(os.environ, PYTHONIOENCODING="cp949")
+        r = subprocess.run([sys.executable, str(ROOT / "tools" / "tower_demo.py")], capture_output=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+        self.assertIn("관제탑", r.stdout.decode("utf-8"))
 
 
 if __name__ == "__main__":

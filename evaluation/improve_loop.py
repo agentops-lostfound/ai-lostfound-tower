@@ -238,7 +238,17 @@ def run_loop(truths, runner, proposer=rule_proposer, config=None, target=80.0, m
     return st
 
 
+def _utf8_stdout() -> None:
+    """Windows에서 출력이 파이프로 넘어가면(봇·스크립트가 실행할 때) cp949라 이모지가 깨지거나 오류가 난다 → UTF-8로 고정"""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_stdout()
     ap = argparse.ArgumentParser(description="AI 자기 개선 회차")
     ap.add_argument("--key", type=Path, default=None, help="정답지 CSV(--demo 에서 빼면 연습용 가짜 정답지 70장 사용)")
     ap.add_argument("--demo", action="store_true", help="가짜 비전으로 실행(진짜 비전 연결 전 연습)")

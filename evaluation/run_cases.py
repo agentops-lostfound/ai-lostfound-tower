@@ -60,7 +60,17 @@ def run_all(spec: dict, reporter: Reporter, reviewer=None) -> dict:
             "robot": robot_score(trials)}
 
 
+def _utf8_stdout() -> None:
+    """Windows에서 출력이 파이프로 넘어가면(봇·스크립트가 실행할 때) cp949라 이모지가 깨지거나 오류가 난다 → UTF-8로 고정"""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_stdout()
     ap = argparse.ArgumentParser(description="시험 사례 10개 실행")
     ap.add_argument("--send", action="store_true", help="디스코드로 전송(.env 웹후크 필요)")
     ap.add_argument("--round", type=int, default=1, help="회차 번호")
