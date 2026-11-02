@@ -407,5 +407,76 @@ class ReviewerTest(unittest.TestCase):
         self.assertFalse(be.robot_moved())
 
 
+
+class FakeLangGraph:
+    """langgraph.graph 의 StateGraph·START·END 를 흉내 내는 아주 작은 가짜(연결 순서만 시험)."""
+    START, END = "__start__", "__end__"
+
+    class StateGraph:
+        def __init__(self, schema):
+            self.nodes, self.edges, self.cond = {}, {}, {}
+
+        def add_node(self, name, fn):
+            self.nodes[name] = fn
+
+        def add_edge(self, a, b):
+            self.edges[a] = b
+
+        def add_conditional_edges(self, a, router, mapping):
+            self.cond[a] = (router, mapping)
+
+        def compile(self):
+            g = self
+
+            class App:
+                visited = []
+
+                def invoke(self, state):
+                    cur = g.edges[FakeLangGraph.START]
+                    while cur != FakeLangGraph.END:
+                        App.visited.append(cur)
+                        state.update(g.nodes[cur](state))
+                        if cur in g.cond:
+                            router, mapping = g.cond[cur]
+                            cur = mapping[router(state)]
+                        else:
+                            cur = g.edges[cur]
+                    return state
+            return App()
+
+
+class GraphTest(unittest.TestCase):
+    def setUp(self):
+        fake = types.ModuleType("langgraph.graph")
+        fake.StateGraph, fake.START, fake.END = FakeLangGraph.StateGraph, FakeLangGraph.START, FakeLangGraph.END
+        sys.modules.update({"langgraph": types.ModuleType("langgraph"), "langgraph.graph": fake})
+
+    def tearDown(self):
+        for k in ("langgraph", "langgraph.graph"):
+            sys.modules.pop(k, None)
+
+    def test_graph_matches_plain_flow(self):
+        from agents import graph
+        cases = [{}, {"quiz_passed": False}, {"visitor_id_match": False}, {"staff_confirmed": False}]
+        for kw in cases:
+            for grasp in ((True,), (False, True), (False, False)):
+                b1, b2 = backend(grasp=grasp), backend(grasp=grasp)
+                a = run_return(ReturnRequest("T", "A-1", **kw), b1, Reporter())
+                app = graph.build_graph()
+                g = graph.run_return_graph(ReturnRequest("T", "A-1", **kw), b2, Reporter(), app=app)
+                self.assertEqual((a.decision, a.reason, a.steps), (g.decision, g.reason, g.steps), (kw, grasp))
+                self.assertEqual(b1.calls, b2.calls)
+
+    def test_graph_stops_at_gate(self):
+        from agents import graph
+        app = graph.build_graph()
+        type(app).visited = []
+        graph.run_return_graph(ReturnRequest("T", "A-1", consent=False), backend(), Reporter(), app=app)
+        self.assertEqual(type(app).visited, ["web_gate"])
+        type(app).visited = []
+        graph.run_return_graph(ReturnRequest("T", "A-1"), backend(), Reporter(), app=app)
+        self.assertEqual(type(app).visited, ["web_gate", "visit_gate", "locate", "approach", "grasp", "deliver"])
+
+
 if __name__ == "__main__":
     unittest.main()

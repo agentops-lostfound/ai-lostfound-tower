@@ -1,0 +1,3 @@
+# AI 관제탑(LF-14·16) — 시험(unittest)은 이 패키지 없이도 돌아간다
+langgraph
+mcp
