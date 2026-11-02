@@ -1,0 +1,33 @@
+# 비밀값
+.env
+.env.*
+!.env.example
+
+# 파이썬
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 노드
+node_modules/
+dist/
+
+# 데이터·모델 (원본은 저장소 밖에 보관)
+data/raw/
+data/images/
+*.jpg
+*.jpeg
+*.png
+!docs/images/*.png
+*.pt
+*.onnx
+*.db
+*.sqlite3
+
+# 편집기·OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
