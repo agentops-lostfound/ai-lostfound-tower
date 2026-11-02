@@ -7,12 +7,14 @@
 | `run_cases.py` | 사례 10개 실행 → 점수판(#📈평가-점수 형식) |
 | `answer_key_template.csv` | 정답지 예시(지갑 2개 × 5장). 엑셀에서 열어 같은 칸으로 작성 → "CSV UTF-8"로 저장 |
 | `answer_key.py` | 정답지 검사: 파일 이름 규칙·값 목록·가시성·세션 누수·검증용/최종 묶음 완비 |
+| `improve_loop.py` | AI 자기 개선 회차: 개선용 오차 → 개선안 2개(변경 하나씩) → 검증용으로 채택 판정 → #📈평가-점수 기록 → 멈춤 조건. 지금은 `--demo`(가짜 비전) |
 | `eval_vision.py` | 비전 결과(JSON) + 정답지 → 묶음별 비전 점수와 틀린 사진 목록. '최종'은 `--final` 필요 |
 
 ```
 python evaluation/run_cases.py          # 화면 출력
 python evaluation/run_cases.py --send   # 디스코드 전송(.env 웹후크)
 python evaluation/answer_key.py evaluation/answer_key_template.csv
+python evaluation/improve_loop.py --demo --p95-limit 3        # 연습용 정답지 70장 + 가짜 비전
 python evaluation/eval_vision.py --key 정답지.csv --preds 비전결과.json --split 개선용
 ```
 - 정답지·배점·채점 코드·데이터 분할은 개선 에이전트가 바꿀 수 없다(PR 확인을 거쳐 사람만 수정)

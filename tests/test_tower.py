@@ -479,5 +479,77 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(type(app).visited, ["web_gate", "visit_gate", "locate", "approach", "grasp", "deliver"])
 
 
+
+class ImproveLoopTest(unittest.TestCase):
+    def setUp(self):
+        from evaluation import improve_loop as il
+        self.il = il
+        self.truths = il.demo_truths()
+
+    def test_tool_limits(self):
+        il = self.il
+        cfg = dict(il.DEFAULT_CONFIG)
+        self.assertEqual(il.apply_change(cfg, "set_crop_config", 0.2)["crop_margin"], 0.2)
+        for tool, value in (("set_crop_config", 0.9), ("set_crop_config", "넓게"), ("select_model", "gpt-9"),
+                            ("set_feature_prompt", "새지침"), ("edit_answer_key", 1), ("set_score_weights", [1, 1, 1, 1])):
+            with self.assertRaises(ValueError, msg=(tool, value)):
+                il.apply_change(cfg, tool, value)
+        self.assertEqual(cfg, il.DEFAULT_CONFIG)   # 원래 설정은 그대로
+
+    def test_proposer_sees_only_improve_split_and_one_change(self):
+        il = self.il
+        seen = []
+
+        def spy(config, result, mistakes, tried):
+            seen.extend(mistakes)
+            return il.rule_proposer(config, result, mistakes, tried)
+        st = il.run_loop(self.truths, il.simulated_runner(self.truths), proposer=spy, p95_limit=3, max_rounds=3)
+        self.assertTrue(seen)
+        val_ids = {t["photo_id"] for t in self.truths if t["split"] != "개선용"}
+        self.assertFalse(any(m.split(":")[0] in val_ids for m in seen))   # 검증용·최종 사진은 안 보임
+        for h in st.history:
+            for pr in h.get("proposals", []):
+                cand = il.apply_change(h["base_config"], pr["tool"], pr["value"])
+                self.assertEqual(len(il.changed_keys(h["base_config"], cand)), 1)
+
+    def test_adopts_and_reaches_target(self):
+        il = self.il
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "r.jsonl"
+            rep = Reporter()
+            st = il.run_loop(self.truths, il.simulated_runner(self.truths), p95_limit=3, reporter=rep, log_path=log)
+            self.assertIn("목표", st.stop_reason)
+            self.assertTrue(any(h["adopted"] for h in st.history))
+            self.assertEqual(len(log.read_text(encoding="utf-8").splitlines()), len(st.history))
+            self.assertEqual(len(rep.messages), sum(1 for h in st.history if "chosen" in h))
+            self.assertEqual(rep.blocked, [])
+
+    def test_no_p95_limit_never_adopts(self):
+        il = self.il
+        st = il.run_loop(self.truths, il.simulated_runner(self.truths), p95_limit=None, max_rounds=5)
+        self.assertFalse(any(h["adopted"] for h in st.history))
+        self.assertEqual(st.stop_reason, "3회 연속 채택 실패")
+        self.assertEqual(st.config, il.DEFAULT_CONFIG)
+
+    def test_small_gain_rejected(self):
+        il = self.il
+        base = {"score": 78.29, "C": 1.0, "P": 0.9, "fabricated_rate": 0.1}
+        cand = {"score": 81.23, "C": 1.0, "P": 0.9, "fabricated_rate": 0.1, "p95": 1.0}
+        self.assertFalse(should_adopt(base, cand, 3, True)[0])   # +2.94점은 3점 미만이라 거절
+
+    def test_incomplete_eval_blocks_adoption(self):
+        il = self.il
+        broken = [t for t in self.truths if t["split"] != "검증용"] + \
+                 [t for t in self.truths if t["split"] == "검증용"][:1]
+        for t in broken:
+            if t["split"] == "검증용":
+                for f in t["fields"].values():
+                    f["visibility"] = "보임"
+                    f["value"] = f["value"] or "가죽"
+        st = il.run_loop(broken, il.simulated_runner(broken), p95_limit=3, max_rounds=3)
+        self.assertFalse(any(h["adopted"] for h in st.history))
+
+
 if __name__ == "__main__":
     unittest.main()
