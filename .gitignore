@@ -14,7 +14,11 @@ __pycache__/
 node_modules/
 dist/
 
-# 데이터·모델 (원본은 저장소 밖에 보관)
+# 데이터·모델 (원본은 저장소 밖에 보관, Hugging Face Hub로 공유)
+datasets/
+models/
+runs/
+*.mp4
 data/raw/
 data/images/
 *.jpg

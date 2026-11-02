@@ -1,0 +1,5 @@
+# 비전 학습·추론 (교육원 PC, 집 PC)
+-r ../requirements.txt
+ultralytics>=8.4  # YOLO26 지원 버전(추정) — 설치 후 `yolo version` 확인
+onnx
+openvino
