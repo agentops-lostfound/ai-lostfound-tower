@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -24,7 +25,7 @@ SYSTEM = (
 
 
 class OllamaReviewer:
-    def __init__(self, url: str | None = None, model: str | None = None, timeout: float = 20.0, on_error: str = "hold"):
+    def __init__(self, url: str | None = None, model: str | None = None, timeout: float | None = None, on_error: str = "hold"):
         try:   # .env 의 OLLAMA_URL·MAIN_AI_MODEL 읽기(없어도 기본값으로 동작)
             from tools.envfile import load_env
             load_env()
@@ -33,7 +34,8 @@ class OllamaReviewer:
         self.url = (url or os.environ.get("OLLAMA_URL") or "http://localhost:11434").rstrip("/")
         self.model = model or os.environ.get("MAIN_AI_MODEL") or "qwen3-vl:4b"
         self.keep_alive = os.environ.get("OLLAMA_KEEP_ALIVE") or "5m"
-        self.timeout = timeout
+        self.timeout = timeout or float(os.environ.get("REVIEWER_TIMEOUT") or 60)   # 첫 호출은 모델을 GPU에 올리느라 느림
+        self.durations: list[float] = []   # 호출마다 걸린 초(평균·최대 측정용)
         self.on_error = on_error if on_error in ("ok", "hold") else "hold"
 
     def _ask(self, summary: dict) -> str:
@@ -48,7 +50,17 @@ class OllamaReviewer:
         with urllib.request.urlopen(req, timeout=self.timeout) as res:
             return json.loads(res.read().decode("utf-8"))["message"]["content"]
 
+    def warmup(self) -> float:
+        """모델을 미리 GPU에 올려 둔다(첫 호출 지연을 측정에서 빼기 위해). 걸린 초를 돌려준다."""
+        t = time.perf_counter()
+        try:
+            self._ask({"case": "warmup"})
+        except Exception:
+            pass
+        return round(time.perf_counter() - t, 2)
+
     def __call__(self, summary: dict) -> tuple[str, str]:
+        t = time.perf_counter()
         try:
             data = json.loads(self._ask(summary))
             verdict = data.get("verdict")
@@ -57,3 +69,5 @@ class OllamaReviewer:
             return verdict, str(data.get("note", ""))[:200]
         except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, json.JSONDecodeError) as e:
             return self.on_error, f"LLM 검토 실패({type(e).__name__})"
+        finally:
+            self.durations.append(round(time.perf_counter() - t, 2))

@@ -72,10 +72,14 @@ def main(argv: list[str] | None = None) -> int:
     if a.reviewer:
         from agents.llm_reviewer import OllamaReviewer
         reviewer = OllamaReviewer()
+        print(f"LLM 준비(모델 올리기): {reviewer.warmup()}초 · 모델 {reviewer.model} · 시간 한도 {reviewer.timeout:.0f}초")
     rep = run_all(spec, flow, reviewer)
     if a.reviewer:
         holds = [r for r in rep['results'] if '검토 보류' in r['reason']]
         print(f"LLM 검토: 보류 {len(holds)}건 (기대가 '반환'인데 보류면 잘못된 보류 → 많으면 검토를 끄는 것이 낫다)")
+        d = reviewer.durations
+        if d:
+            print(f"LLM 응답 시간: 평균 {sum(d)/len(d):.1f}초 · 최대 {max(d):.1f}초 · {len(d)}회")
     for r in rep["results"]:
         mark = "✅" if r["decision"] == r["expected"] else "❌"
         print(f"{mark} {r['case_id']} {r['kind']}: 기대 {r['expected']} / 결과 {r['decision']} ({r['reason']})")
