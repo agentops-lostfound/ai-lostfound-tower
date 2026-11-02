@@ -251,11 +251,11 @@ class CasesTest(unittest.TestCase):
         self.assertEqual(rep["supervisor"]["score"], 100.0)
         picked = {r["case_id"]: r["picked"] for r in rep["results"]}
         self.assertEqual(picked["C05"], "W05")    # 비슷한 물건 중 정확한 쪽
-        self.assertEqual(picked["C06"], "W06A")   # 똑같은 제품 중 스티커 있는 쪽
+        self.assertEqual(picked["C06"], "W06")   # 똑같은 제품 중 스티커 있는 쪽
 
     def test_wrong_object_is_failure(self):
         spec = json.loads((ROOT / "evaluation" / "test_cases.json").read_text(encoding="utf-8"))
-        spec["objects"]["W06B"] = dict(spec["objects"]["W06A"])     # 스티커까지 같게 → 구별 불가
+        spec["objects"]["W07"] = dict(spec["objects"]["W06"])     # 스티커까지 같게 → 구별 불가
         rep = run_cases.run_all(spec, Reporter())
         c06 = next(r for r in rep["results"] if r["case_id"] == "C06")
         self.assertEqual(c06["decision"], DECISION_STAFF)            # 다른 물건을 주지 않고 직원 확인
@@ -290,6 +290,121 @@ class McpServerTest(unittest.TestCase):
         finally:
             for k in ("mcp", "mcp.server", "mcp.server.fastmcp"):
                 sys.modules.pop(k, None)
+
+
+
+class AnswerKeyTest(unittest.TestCase):
+    def setUp(self):
+        from evaluation import answer_key
+        self.ak = answer_key
+        self.truths = answer_key.to_truths(answer_key.load(ROOT / "evaluation" / "answer_key_template.csv"))
+
+    def test_template_is_valid(self):
+        errs, warns = self.ak.check(self.truths)
+        self.assertEqual(errs, [])
+        self.assertEqual(warns, [])
+
+    def test_session_leak_detected(self):
+        t = [dict(x) for x in self.truths]
+        t[3] = dict(t[3], photo_id="wallet_W01_s3_009.jpg", session="s3")   # 검증용 사진을 개선용 세션으로
+        errs, _ = self.ak.check(t)
+        self.assertTrue(any("데이터 누수" in e for e in errs))
+
+    def test_bad_values(self):
+        import copy
+        t = copy.deepcopy(self.truths)
+        t[0]["fields"]["color"] = {"value": "보라", "visibility": "보임"}
+        t[1]["fields"]["shape"] = {"value": "", "visibility": "보임"}
+        t[2]["fields"]["mark"]["visibility"] = "보여요"
+        t[4]["category"] = "USB"
+        errs, _ = self.ak.check(t)
+        joined = " ".join(errs)
+        for word in ("색 목록", "정답 값이 비었음", "중 하나여야", "파일 이름 품목"):
+            self.assertIn(word, joined)
+
+    def test_incomplete_val_split(self):
+        import copy
+        t = copy.deepcopy(self.truths)
+        for x in t:
+            if x["split"] == "검증용":
+                for f in x["fields"].values():
+                    f["visibility"] = "보임"
+                    f["value"] = f["value"] or "가죽"
+        errs, _ = self.ak.check(t)
+        self.assertTrue(any("검증용" in e and "안 보임" in e for e in errs))
+
+
+class EvalVisionTest(unittest.TestCase):
+    def test_perfect_and_final_guard(self):
+        import tempfile
+        from evaluation import answer_key, eval_vision
+        key = ROOT / "evaluation" / "answer_key_template.csv"
+        truths = answer_key.to_truths(answer_key.load(key))
+        preds = {}
+        for t in truths:   # 정답과 똑같이 답하고, 안 보이는 항목은 보류
+            preds[t["photo_id"]] = {"category": t["category"], **{f: (s["value"] if s["visibility"] == "보임" else "확인 불가")
+                                                                for f, s in t["fields"].items()}}
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "preds.json"
+            p.write_text(json.dumps(preds, ensure_ascii=False), encoding="utf-8")
+            r = eval_vision.run(key, p, "개선용")
+            self.assertEqual(r["score"], 100.0)
+            self.assertEqual(r["mistakes"], [])
+            with self.assertRaises(SystemExit):
+                eval_vision.run(key, p, "최종")
+            self.assertEqual(eval_vision.run(key, p, "최종", final=True)["photos"], 2)
+            first = truths[0]["photo_id"]
+            preds[first]["material"] = "가죽"   # 안 보이는데 단정
+            p.write_text(json.dumps(preds, ensure_ascii=False), encoding="utf-8")
+            r2 = eval_vision.run(key, p, "개선용")
+            self.assertTrue(any("지어냄" in m for m in r2["mistakes"]))
+            self.assertLess(r2["P"], 1.0)
+
+
+class ReviewerTest(unittest.TestCase):
+    def fake(self, content=None, exc=None):
+        from unittest import mock
+        import io
+
+        class Res(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def urlopen(req, timeout=0):
+            if exc:
+                raise exc
+            body = json.loads(req.data.decode("utf-8"))
+            self.assertEqual(body["format"], "json")
+            return Res(json.dumps({"message": {"content": content}}).encode("utf-8"))
+        return mock.patch("urllib.request.urlopen", urlopen)
+
+    def test_ok_and_hold(self):
+        from agents.llm_reviewer import OllamaReviewer
+        with self.fake('{"verdict": "ok", "note": "이상 없음"}'):
+            self.assertEqual(OllamaReviewer()({"case": "x"}), ("ok", "이상 없음"))
+        with self.fake('{"verdict": "hold", "note": "상태가 이상함"}'):
+            self.assertEqual(OllamaReviewer()({"case": "x"})[0], "hold")
+
+    def test_errors_become_hold(self):
+        import urllib.error
+        from agents.llm_reviewer import OllamaReviewer
+        with self.fake(exc=urllib.error.URLError("꺼짐")):
+            self.assertEqual(OllamaReviewer()({})[0], "hold")
+        with self.fake("승인합니다"):   # JSON 아님
+            self.assertEqual(OllamaReviewer()({})[0], "hold")
+        with self.fake('{"verdict": "approve"}'):   # 정해진 값 아님
+            self.assertEqual(OllamaReviewer()({})[0], "hold")
+
+    def test_reviewer_in_flow(self):
+        from agents.llm_reviewer import OllamaReviewer
+        be = backend()
+        with self.fake('{"verdict": "hold", "note": "기록 확인 필요"}'):
+            out = run_return(ReturnRequest("T", "A-1"), be, Reporter(), reviewer=OllamaReviewer())
+        self.assertEqual(out.decision, DECISION_STAFF)
+        self.assertFalse(be.robot_moved())
 
 
 if __name__ == "__main__":
