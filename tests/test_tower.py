@@ -378,6 +378,7 @@ class ReviewerTest(unittest.TestCase):
                 raise exc
             body = json.loads(req.data.decode("utf-8"))
             self.assertEqual(body["format"], "json")
+            self.assertIs(body["think"], False)   # 생각 모드 기본 끔
             return Res(json.dumps({"message": {"content": content}}).encode("utf-8"))
         return mock.patch("urllib.request.urlopen", urlopen)
 

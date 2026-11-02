@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.reviewer:
         from agents.llm_reviewer import OllamaReviewer
         reviewer = OllamaReviewer()
-        print(f"LLM 준비(모델 올리기): {reviewer.warmup()}초 · 모델 {reviewer.model} · 시간 한도 {reviewer.timeout:.0f}초")
+        print(f"LLM 준비(모델 올리기): {reviewer.warmup()}초 · 모델 {reviewer.model} · 생각 모드 {'켬' if reviewer.think else '끔'} · 시간 한도 {reviewer.timeout:.0f}초")
     rep = run_all(spec, flow, reviewer)
     if a.reviewer:
         holds = [r for r in rep['results'] if '검토 보류' in r['reason']]

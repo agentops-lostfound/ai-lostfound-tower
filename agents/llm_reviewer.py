@@ -34,13 +34,15 @@ class OllamaReviewer:
         self.url = (url or os.environ.get("OLLAMA_URL") or "http://localhost:11434").rstrip("/")
         self.model = model or os.environ.get("MAIN_AI_MODEL") or "qwen3-vl:4b"
         self.keep_alive = os.environ.get("OLLAMA_KEEP_ALIVE") or "5m"
+        # qwen3-vl:4b 는 생각(thinking) 모드가 기본으로 켜져 있어 답마다 약 10초 걸림(시연 PC 측정) → 기본 끔
+        self.think = (os.environ.get("REVIEWER_THINK") or "false").strip().lower() == "true"
         self.timeout = timeout or float(os.environ.get("REVIEWER_TIMEOUT") or 60)   # 첫 호출은 모델을 GPU에 올리느라 느림
         self.durations: list[float] = []   # 호출마다 걸린 초(평균·최대 측정용)
         self.on_error = on_error if on_error in ("ok", "hold") else "hold"
 
     def _ask(self, summary: dict) -> str:
         body = {
-            "model": self.model, "stream": False, "format": "json", "keep_alive": self.keep_alive,
+            "model": self.model, "stream": False, "format": "json", "keep_alive": self.keep_alive, "think": self.think,
             "messages": [{"role": "system", "content": SYSTEM},
                          {"role": "user", "content": json.dumps(summary, ensure_ascii=False)}],
             "options": {"temperature": 0},
