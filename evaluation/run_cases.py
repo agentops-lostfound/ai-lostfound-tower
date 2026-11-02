@@ -80,6 +80,11 @@ def main(argv: list[str] | None = None) -> int:
         d = reviewer.durations
         if d:
             print(f"LLM 응답 시간: 평균 {sum(d)/len(d):.1f}초 · 최대 {max(d):.1f}초 · {len(d)}회")
+        st = reviewer.stats[1:]   # 첫 줄(미리 올리기)은 뺌
+        if st:
+            avg = lambda k: sum(x[k] for x in st) / len(st)
+            print(f"  내역(평균): 모델 올리기 {avg('load_s'):.1f}초 · 질문 읽기 {avg('prompt_tokens'):.0f}토큰 {avg('prompt_s'):.1f}초 · "
+                  f"답 쓰기 {avg('out_tokens'):.0f}토큰 {avg('out_s'):.1f}초 · 생각 글자 {avg('thinking_chars'):.0f}")
     for r in rep["results"]:
         mark = "✅" if r["decision"] == r["expected"] else "❌"
         print(f"{mark} {r['case_id']} {r['kind']}: 기대 {r['expected']} / 결과 {r['decision']} ({r['reason']})")

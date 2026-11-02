@@ -38,6 +38,7 @@ class OllamaReviewer:
         self.think = (os.environ.get("REVIEWER_THINK") or "false").strip().lower() == "true"
         self.timeout = timeout or float(os.environ.get("REVIEWER_TIMEOUT") or 60)   # 첫 호출은 모델을 GPU에 올리느라 느림
         self.durations: list[float] = []   # 호출마다 걸린 초(평균·최대 측정용)
+        self.stats: list[dict] = []        # Ollama가 알려 주는 시간 내역(어디서 느린지)
         self.on_error = on_error if on_error in ("ok", "hold") else "hold"
 
     def _ask(self, summary: dict) -> str:
@@ -50,7 +51,17 @@ class OllamaReviewer:
         req = urllib.request.Request(f"{self.url}/api/chat", data=json.dumps(body).encode("utf-8"),
                                      headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=self.timeout) as res:
-            return json.loads(res.read().decode("utf-8"))["message"]["content"]
+            data = json.loads(res.read().decode("utf-8"))
+        ns = 1e9   # Ollama 시간 값은 나노초
+        self.stats.append({
+            "load_s": round(data.get("load_duration", 0) / ns, 2),            # 모델 올리기
+            "prompt_tokens": data.get("prompt_eval_count", 0),
+            "prompt_s": round(data.get("prompt_eval_duration", 0) / ns, 2),   # 질문 읽기
+            "out_tokens": data.get("eval_count", 0),
+            "out_s": round(data.get("eval_duration", 0) / ns, 2),             # 답 쓰기
+            "thinking_chars": len(data["message"].get("thinking") or ""),
+        })
+        return data["message"]["content"]
 
     def warmup(self) -> float:
         """모델을 미리 GPU에 올려 둔다(첫 호출 지연을 측정에서 빼기 위해). 걸린 초를 돌려준다."""
