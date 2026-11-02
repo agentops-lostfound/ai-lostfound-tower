@@ -34,13 +34,13 @@ def build_backend(spec: dict, case: dict) -> MockBackend:
     return MockBackend(bin_items=bin_items, db=db, grasp_plan=case.get("grasp_plan", [True]))
 
 
-def run_all(spec: dict, reporter: Reporter) -> dict:
+def run_all(spec: dict, reporter: Reporter, reviewer=None) -> dict:
     results = []
     trials = []
     for case in spec["cases"]:
         be = build_backend(spec, case)
         req = ReturnRequest(case_id=case["case_id"], item_id=f"A-{case['case_id']}", **case["input"])
-        out = run_return(req, be, reporter)
+        out = run_return(req, be, reporter, reviewer=reviewer)
         picked = out.matched_object   # 검출 목록이 걸러져도 물건 ID로 확인
         delivered = be.delivered()
         right_object = (picked == case["object"]) if out.decision == DECISION_RETURNED else None
@@ -64,10 +64,18 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="시험 사례 10개 실행")
     ap.add_argument("--send", action="store_true", help="디스코드로 전송(.env 웹후크 필요)")
     ap.add_argument("--round", type=int, default=1, help="회차 번호")
+    ap.add_argument("--reviewer", action="store_true", help="Ollama LLM 검토를 켜고 실행(잘못된 보류가 몇 건인지 측정)")
     a = ap.parse_args(argv)
     spec = json.loads(CASES.read_text(encoding="utf-8"))
     flow = Reporter(dry_run=True)            # 사례별 진행 알림은 화면용으로만 모은다
-    rep = run_all(spec, flow)
+    reviewer = None
+    if a.reviewer:
+        from agents.llm_reviewer import OllamaReviewer
+        reviewer = OllamaReviewer()
+    rep = run_all(spec, flow, reviewer)
+    if a.reviewer:
+        holds = [r for r in rep['results'] if '검토 보류' in r['reason']]
+        print(f"LLM 검토: 보류 {len(holds)}건 (기대가 '반환'인데 보류면 잘못된 보류 → 많으면 검토를 끄는 것이 낫다)")
     for r in rep["results"]:
         mark = "✅" if r["decision"] == r["expected"] else "❌"
         print(f"{mark} {r['case_id']} {r['kind']}: 기대 {r['expected']} / 결과 {r['decision']} ({r['reason']})")
