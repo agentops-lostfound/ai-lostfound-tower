@@ -1,0 +1,25 @@
+{
+  "_설명": "전 과정 테스트 사례 10개(MVP 지갑). 물건 특징은 예시이며 실제 물건을 정하면 LF-10 정답지 기준으로 바꾼다. 기대 결과(expected)는 사람이 정하고 AI가 고치지 않는다.",
+  "objects": {
+    "W01": {"color": "검정", "shape": "반지갑", "mark": "별 모양 스티커", "visible_text": "ABC", "material": "가죽"},
+    "W02": {"color": "갈색", "shape": "장지갑", "mark": "없음", "visible_text": "없음", "material": "가죽"},
+    "W03": {"color": "빨강", "shape": "카드지갑", "mark": "모서리 흠집", "visible_text": "없음", "material": "천"},
+    "W04": {"color": "남색", "shape": "반지갑", "mark": "없음", "visible_text": "XYZ", "material": "가죽"},
+    "W05": {"color": "검정", "shape": "반지갑", "mark": "하트 스티커", "visible_text": "ABC", "material": "가죽"},
+    "W06": {"color": "회색", "shape": "카드지갑", "mark": "작은 원 스티커", "visible_text": "없음", "material": "천"},
+    "W07": {"color": "회색", "shape": "카드지갑", "mark": "없음", "visible_text": "없음", "material": "천"}
+  },
+  "bin": ["W01", "W02", "W03", "W04", "W05", "W06", "W07"],
+  "cases": [
+    {"case_id": "C01", "kind": "쉬운 사례", "object": "W01", "input": {}, "expected": "returned"},
+    {"case_id": "C02", "kind": "쉬운 사례", "object": "W02", "input": {}, "expected": "returned"},
+    {"case_id": "C03", "kind": "쉬운 사례", "object": "W03", "input": {}, "expected": "returned"},
+    {"case_id": "C04", "kind": "쉬운 사례(첫 집기 실패 → 재시도 성공)", "object": "W04", "input": {}, "grasp_plan": [false, true], "expected": "returned"},
+    {"case_id": "C05", "kind": "비슷한 물건(검정 반지갑 2개, 스티커만 다름)", "object": "W05", "input": {}, "expected": "returned"},
+    {"case_id": "C06", "kind": "똑같은 제품 1쌍(한쪽에만 작은 스티커)", "object": "W06", "input": {}, "expected": "returned"},
+    {"case_id": "C07", "kind": "동의 거부", "object": "W02", "input": {"consent": false}, "expected": "rejected"},
+    {"case_id": "C08", "kind": "확인 질문 오답", "object": "W03", "input": {"quiz_passed": false}, "expected": "rejected"},
+    {"case_id": "C09", "kind": "음성 입력", "object": "W04", "input": {}, "expected": "returned"},
+    {"case_id": "C10", "kind": "방문자 신분증 불일치", "object": "W01", "input": {"visitor_id_match": false}, "expected": "rejected"}
+  ]
+}

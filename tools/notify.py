@@ -44,14 +44,15 @@ def build_payload(title: str, body: str) -> dict:
     return {"embeds": [embed], "allowed_mentions": {"parse": []}}
 
 
-def notify(title: str, body: str = "") -> bool:
+def notify(title: str, body: str = "", env_key: str = "DISCORD_WEBHOOK_URL") -> bool:
+    """env_key: 웹훅 주소가 든 .env 이름(채널마다 다르게 쓸 수 있음)."""
     load_env()
-    url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+    url = os.environ.get(env_key, "").strip()
     if not url:
-        print("[notify] DISCORD_WEBHOOK_URL 이 .env 에 없습니다", file=sys.stderr)
+        print(f"[notify] {env_key} 이 .env 에 없습니다", file=sys.stderr)
         return False
     if not url.startswith("https://discord.com/api/webhooks/"):
-        print("[notify] DISCORD_WEBHOOK_URL 형식이 웹훅 주소가 아닙니다", file=sys.stderr)
+        print(f"[notify] {env_key} 형식이 웹훅 주소가 아닙니다", file=sys.stderr)
         return False
     if not title.strip() and not body.strip():
         print("[notify] 제목과 본문이 모두 비었습니다", file=sys.stderr)
