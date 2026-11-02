@@ -19,8 +19,11 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import cv2  # noqa: E402
-import numpy as np  # noqa: E402
+try:
+    import cv2  # noqa: E402
+    import numpy as np  # noqa: E402
+except ImportError as e:  # 비전 패키지가 없는 PC: 오류 대신 '건너뜀'으로 표시
+    raise unittest.SkipTest(f"비전 시험 건너뜀: {e.name} 없음 → .venv 에서 pip install -r vision/requirements.txt") from e
 
 from tools import hub_sync, notify as notify_mod  # noqa: E402
 from tools.envfile import load_env  # noqa: E402
