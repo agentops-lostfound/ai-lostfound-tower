@@ -340,7 +340,7 @@ class TestTrainPipeline(unittest.TestCase):
             self.assertEqual(m["mAP50-95_per_class"]["phone"], 0.5)
             self.assertEqual(m["images"], {"train": 1, "val": 1})
             first = (out / "data.yaml").read_text().splitlines()[0]
-            self.assertTrue(first.startswith("path: /") or first[6:8] == ":/", first)  # 절대 경로로 바뀜
+            self.assertRegex(first, r"^path: ([A-Za-z]:)?/", first)  # 절대 경로로 바뀜(리눅스 /… · Windows C:/…)
             self.assertEqual([c[0] for c in calls], ["🏋️ 학습 시작", "✅ 학습 완료"])
             self.assertIn("mAP50-95 0.700", calls[1][1])
 
