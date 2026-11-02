@@ -1,0 +1,4 @@
+# 공용 (모든 PC) — 설치 후 교육원 PC에서 `pip freeze > requirements-lock.txt` 로 정확한 버전을 기록해 공유
+numpy
+opencv-python
+huggingface_hub
