@@ -4,7 +4,7 @@
 
 ## 팀원 진행 기록
 
-- [최신 사용자 구매 후보 검수](progress/procurement-user-selection.md): 부분 합계·수량 차이·누락/호환 확인. 가격 재검증·구매 미완료.
+- [최신 사용자 구매 후보 검수](progress/procurement-user-selection.md): 확정 후보군·제시 가격·미정 수량/대안·예산 시나리오. 구매 미완료.
 
 - [SO ARM 로컬 구축·보정 인계](progress/soarm-local-handoff.md): 새 SO101 장비 최종 보정·텔레오퍼레이션 보고와 다음 검증. 클라우드 재검증·학습 미실행.
 - [구매 조사 인계 및 채택 판단](progress/procurement-handoff-2026-11-03.md): 최신 수량·다른 세션의 후보 조사·271,470원 제안 조합. 가격 재검증·구매 미완료.
