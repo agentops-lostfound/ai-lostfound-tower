@@ -120,6 +120,75 @@ class TestDbPort(unittest.TestCase):
         self.assertIn("docker compose", c.detail)
 
 
+def fake_db(version="160015", has_item=True, count=7, error=None):
+    """check_db 용 가짜 연결: SHOW server_version_num · to_regclass · count(*) 만 흉내"""
+    def connect(dsn):
+        if error:
+            raise error
+
+        class Cur:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def execute(self, sql):
+                self.row = (version,) if "server_version" in sql else (has_item,) if "to_regclass" in sql else (count,)
+
+            def fetchone(self):
+                return self.row
+
+        class Conn:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def cursor(self):
+                return Cur()
+        return Conn()
+    return connect
+
+
+DSN = {"DATABASE_URL": "postgresql://lostfound:secret-pw@127.0.0.1:5434/lostfound"}
+
+
+class TestDb(unittest.TestCase):
+    def test_team_db_ok(self):
+        c = ce.check_db(DSN, connect=fake_db())
+        self.assertEqual(c.level, ce.OK)
+        self.assertIn("물건 7개", c.detail)
+        self.assertIn("127.0.0.1:5434", c.detail)
+
+    def test_localhost_warns_slow(self):
+        """11/3 실제 사례: localhost → IPv6 먼저 시도해 접속마다 5초 지연"""
+        c = ce.check_db({"DATABASE_URL": "postgresql://u:p@localhost:5434/lostfound"}, connect=fake_db())
+        self.assertEqual(c.level, ce.WARN)
+        self.assertIn("127.0.0.1", c.detail)
+
+    def test_other_postgres_version_is_flagged(self):
+        """11/3 실제 사례: 수업용 PostgreSQL 18 이 같은 포트를 차지"""
+        c = ce.check_db({**DSN, "TOWER_DB": "1"}, connect=fake_db(version="180001"))
+        self.assertEqual(c.level, ce.FAIL)
+        self.assertIn("PostgreSQL 18", c.detail)
+
+    def test_password_rejected(self):
+        c = ce.check_db(DSN, connect=fake_db(error=Exception('FATAL: password authentication failed for user "lostfound"')))
+        self.assertEqual(c.level, ce.WARN)          # TOWER_DB 꺼져 있으면 주의
+        self.assertIn("비밀번호 거절", c.detail)
+
+    def test_down_and_missing_table_and_empty(self):
+        self.assertIn("docker compose up -d", ce.check_db(DSN, connect=fake_db(error=Exception("connection timeout expired"))).detail)
+        self.assertIn("item 표가 없음", ce.check_db(DSN, connect=fake_db(has_item=False)).detail)
+        self.assertIn("비어 있음", ce.check_db({}).detail)
+
+    def test_password_never_printed(self):
+        for kw in ({}, {"error": Exception("password authentication failed")}, {"version": "180001"}):
+            self.assertNotIn("secret-pw", ce.check_db(DSN, connect=fake_db(**kw)).line())
+
+
 class TestSummary(unittest.TestCase):
     def test_counts_and_exit_rule(self):
         checks = [ce.Check("a", ce.OK, ""), ce.Check("b", ce.WARN, ""), ce.Check("c", ce.FAIL, "")]

@@ -2,7 +2,7 @@
 
 - 기본: 가짜 연결로 약속(예외 안 던짐·상태 기록·중복 거부·DB 꺼짐 처리)을 확인 → 어느 PC에서나 돈다
 - 실제 DB 시험: `docker compose up -d` 후 LF_TEST_DSN 을 주면 진짜 PostgreSQL 로도 돈다(psycopg 필요)
-    $env:LF_TEST_DSN = "postgresql://lostfound:비밀번호@localhost:5434/lostfound"
+    $env:LF_TEST_DSN = "postgresql://lostfound:비밀번호@127.0.0.1:5434/lostfound"
     python -m unittest tests.test_db_part
 """
 import os
@@ -157,6 +157,47 @@ class RecorderServiceTest(unittest.TestCase):
         self.assertEqual(out["decision"], "returned")
         self.assertFalse(out["recorded"])
         self.assertTrue(any("기록 저장 실패" in m["title"] for m in rep.messages if m["channel"] == "alert"))
+
+
+class McpDbModeTest(unittest.TestCase):
+    """TOWER_DB=1 이면 MCP 의 db_get_item 이 DB 부품을 읽고, 비공개 특징은 여전히 빼는지"""
+
+    def test_default_backend_switch(self):
+        from agents import mcp_server
+        from agents.tools import MockBackend
+        self.assertIsInstance(mcp_server.default_backend({}), MockBackend)
+        be = mcp_server.default_backend({"TOWER_DB": "1", "DATABASE_URL": "postgresql://u:p@h/db"})
+        self.assertEqual(be.sources()["db_get_item"], "PostgresDbPart")
+        self.assertEqual(be.sources()["vision_topview"], "가짜")
+
+    def test_db_mode_tool_hides_private_features(self):
+        import types
+        registered = {}
+
+        class FakeFastMCP:
+            def __init__(self, name):
+                pass
+
+            def tool(self):
+                def deco(fn):
+                    registered[fn.__name__] = fn
+                    return fn
+                return deco
+        fake = types.ModuleType("mcp.server.fastmcp")
+        fake.FastMCP = FakeFastMCP
+        sys.modules.update({"mcp": types.ModuleType("mcp"), "mcp.server": types.ModuleType("mcp.server"),
+                            "mcp.server.fastmcp": fake})
+        try:
+            from agents import mcp_server
+            from agents.tools import MockBackend
+            be = CompositeBackend(db=PostgresDbPart("x", connect=FakeDB().connect), fallback=MockBackend())
+            mcp_server.build_server(backend=be)
+            rec = registered["db_get_item"]("A-W01")
+            self.assertEqual(rec["features"], {"color": "검정"})        # mark(확인 질문 정답)는 빠짐
+            self.assertIsNone(registered["db_get_item"]("없음"))
+        finally:
+            for k in ("mcp", "mcp.server", "mcp.server.fastmcp"):
+                sys.modules.pop(k, None)
 
 
 @unittest.skipUnless(os.environ.get("LF_TEST_DSN"), "실제 DB 시험: LF_TEST_DSN 이 없어 건너뜀")

@@ -127,6 +127,63 @@ def check_db_port(host: str = "127.0.0.1", port: int = 5434, opener: Callable | 
         return Check("팀 DB(PostgreSQL)", WARN, f"{host}:{port} 응답 없음({type(e).__name__}) → docker compose up -d (TOWER_DB=1 일 때만 필요)")
 
 
+DB_NAME = "팀 DB(PostgreSQL)"
+TEAM_DB_MAJOR = 16   # docker-compose.yml 의 pgvector/pgvector:pg16
+
+
+def _flag(env: dict, key: str) -> bool:
+    return str(env.get(key, "")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def check_db(env: dict, connect: Callable | None = None) -> Check:
+    """DATABASE_URL 로 실제 접속해 '우리 팀 DB 가 맞는지'까지 본다(비밀번호·주소는 출력하지 않음).
+
+    포트만 열려 있는지 보면 같은 포트를 쓰는 다른 PostgreSQL(예: 수업용 18)을 팀 DB 로 착각한다(11/3 실제로 겪음).
+    TOWER_DB=1 이면 실패를 ❌, 아니면 ⚠️ 로 낸다.
+    """
+    from urllib.parse import urlsplit
+    bad = FAIL if _flag(env, "TOWER_DB") else WARN
+    dsn = str(env.get("DATABASE_URL", "")).strip()
+    if not dsn:
+        return Check(DB_NAME, bad, "DATABASE_URL 비어 있음 → .env.example 처럼 채우기 (TOWER_DB=1 일 때 필요)")
+    u = urlsplit(dsn)
+    where = f"{u.hostname}:{u.port or 5432}"
+    if connect is None:
+        try:
+            import psycopg
+        except ImportError:
+            return Check(DB_NAME, bad, "psycopg 없음 → pip install -r agents/requirements.txt 후 다시 점검")
+        connect = lambda d: psycopg.connect(d, connect_timeout=3)  # noqa: E731
+    try:
+        with connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("SHOW server_version_num")
+            major = int(str(cur.fetchone()[0])[:-4] or 0)
+            cur.execute("SELECT to_regclass('public.item') IS NOT NULL")
+            has_item = bool(cur.fetchone()[0])
+            count = None
+            if has_item:
+                cur.execute("SELECT count(*) FROM item")
+                count = cur.fetchone()[0]
+    except Exception as e:
+        msg = str(e).lower()
+        if "password" in msg or "28p01" in msg:
+            why = "비밀번호 거절 → 다른 PostgreSQL 에 접속했거나(포트 확인: docker port lostfound-db) .env 비밀번호가 DB 를 처음 만들 때와 다름"
+        elif "does not exist" in msg:
+            why = "DB 또는 사용자 이름이 없음 → 다른 PostgreSQL 에 접속했을 수 있음(포트 확인: docker port lostfound-db)"
+        elif "timeout" in msg or "refused" in msg or "could not connect" in msg:
+            why = "응답 없음 → Docker Desktop 켜고 docker compose up -d"
+        else:
+            why = f"접속 실패({type(e).__name__})"
+        return Check(DB_NAME, bad, f"{where} {why}")
+    if major and major != TEAM_DB_MAJOR:
+        return Check(DB_NAME, bad, f"{where} 에 PostgreSQL {major} 이 답함 → 팀 DB(16)가 아님. 포트 확인: docker port lostfound-db")
+    if not has_item:
+        return Check(DB_NAME, bad, f"{where} 접속됨, 그런데 item 표가 없음 → 팀 DB 가 아니거나 schema.sql 이 안 들어감")
+    if u.hostname == "localhost":
+        return Check(DB_NAME, WARN, f"{where} 접속됨 · 물건 {count}개, 그런데 주소가 localhost → 접속마다 몇 초씩 늦을 수 있음. .env 의 DATABASE_URL 을 127.0.0.1 로 바꾸기")
+    return Check(DB_NAME, OK, f"{where} 접속됨 · PostgreSQL {major} · 물건 {count}개")
+
+
 def check_gpu(runner: Callable[[list[str]], str] | None = None) -> Check:
     if runner is None:
         if not shutil.which("nvidia-smi"):
@@ -152,7 +209,7 @@ def run_checks(skip_ollama: bool = False) -> list[Check]:
     if not skip_ollama:
         model = str(env.get("MAIN_AI_MODEL", "")).strip() or DEFAULT_MODEL
         checks += check_ollama(env.get("OLLAMA_URL") or "http://localhost:11434", model)
-    checks.append(check_db_port())
+    checks.append(check_db(env))
     checks.append(check_gpu())
     return checks
 
