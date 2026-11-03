@@ -5,6 +5,7 @@
 
 | 순서 | 문서 | 정하는 것 | 입력 |
 | --- | --- | --- | --- |
+| 0 | [architecture.md](architecture.md) | 전체 구조·PC 배치·관제탑 API·데이터 소유 | 결정(11/3) |
 | ① | [usecases.md](usecases.md) | 누가·무엇을·왜, 예외 흐름 | docs/contracts/mcp_tools.md, evaluation/test_cases.json |
 | ② | [components.md](components.md) | 부품·책임·하지 않는 것·의존 | ① |
 | ③ | [interfaces.md](interfaces.md) | 함수 계약·실패 시 동작 | ②, agents/*.py |

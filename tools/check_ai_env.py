@@ -34,6 +34,8 @@ DEFAULT_MODEL = "qwen3-vl:4b-instruct"
 PACKAGES = {
     "langgraph": (WARN, "LangGraph판 흐름(agents/graph.py). 일반 흐름·시험은 돌아감"),
     "mcp": (WARN, "MCP 서버(agents/mcp_server.py)"),
+    "fastapi": (WARN, "관제탑 API(agents/api.py) — 화면이 HTTP로 부를 수 없음"),
+    "uvicorn": (WARN, "관제탑 API 실행기"),
     "numpy": (WARN, "비전 채점 일부"),
 }
 WEBHOOK_KEYS = ["DISCORD_WEBHOOK_PROGRESS", "DISCORD_WEBHOOK_ALERT", "DISCORD_WEBHOOK_SCORE"]

@@ -1,7 +1,7 @@
 # ⑤ ERD — 관제탑이 남길 기록
 
 > 물건 표(ITEM)는 DB 담당(정연우 LF-8)의 것이고, 관제탑은 **읽기 + 상태 변경**만 한다.
-> RETURN_CASE · RETURN_STEP · EVAL_RUN 은 **제안**이다(지금 코드는 디스코드 글·화면 출력에만 남긴다). 확정 전까지 만들지 않는다.
+> RETURN_CASE · RETURN_STEP 은 **관제탑 소유로 확정(11/3)** — 표 정의 agents/schema.sql, 저장 agents/records.py(지금은 메모리, DB 연결 때 PostgreSQL). EVAL_RUN 은 아직 제안.
 
 ```mermaid
 erDiagram

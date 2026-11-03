@@ -12,7 +12,7 @@
 | robot | 김건태 LF-19·21, 이순필 LF-11 | `robot_approach(center)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` | → `{ok, reason}` | `{ok: false, reason}` |
 - 형식 상세: docs/contracts/mcp_tools.md 1·2장, 값 목록: agents/contracts.py
 - **예외를 던지지 말고 약속된 실패 값을 돌려준다**(흐름이 실패 값을 보고 직원 확인·정지로 보낸다). `None` 이나 다른 모양을 돌려주면 실패로 처리된다
-- 웹(김재민 LF-6·7)은 부품 묶음이 아니라 **반환 흐름을 부르는 쪽**이다: 웹이 동의·인증·확인 질문 결과를 `ReturnRequest` 에 담아 `run_return(req, backend, reporter)` 를 부른다
+- 웹·직원 화면(김재민 LF-6 등)은 부품 묶음이 아니라 **관제탑을 부르는 쪽**이다: 관문 결과를 담아 관제탑 API `POST /returns` 를 HTTP로 부른다(architecture.md 3장, 본문 예시 포함). 화면 기술은 자유
 
 ## 2. 연결 순서 (예: 비전 담당)
 1. 자기 모듈에 클래스 하나를 만든다

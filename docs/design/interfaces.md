@@ -3,6 +3,19 @@
 > 코드 기준(agents/*.py, discord_ops/reporter.py, evaluation/*.py). 함수마다 "실패하면"을 한 줄로 적었다.
 > 외부 부품 쪽 상세 입·출력은 docs/contracts/mcp_tools.md 2장이 기준이다.
 
+## 관제탑 서비스·API (agents/service.py, agents/api.py, 11/3 추가)
+```python
+class TowerService:
+    def start_return(self, payload: dict) -> dict      # Outcome.to_dict()
+        # 실패하면: 형식 오류 → RequestError(HTTP 422) / 같은 사례 번호·실행 중 → Conflict(kind=duplicate|busy, HTTP 409)
+        #          부품 예외 → 로봇 정지 시도 + decision=stopped 로 기록(예외를 밖으로 던지지 않음)
+    def get_case(self, case_id: str) -> dict | None    # 없으면 None(HTTP 404), 형식 오류 RequestError
+    def recent(self, limit: int = 20) -> list[dict]     # 단계 제외, 최대 100
+    def health(self) -> dict                            # 부품이 고장 나도 답함(sources 에 error)
+def parse_request(payload) -> ReturnRequest             # 허용 칸: case_id·item_id(영문·숫자·-·_ 32자) + 관문 6개(bool)
+```
+- 기록: `agents/records.py` Recorder(save·get·has·recent) — MemoryRecorder(지금) / PostgresRecorder(뼈대)
+
 ## 반환 흐름 (agents/supervisor.py, agents/graph.py)
 ```python
 def run_return(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None) -> Outcome:
