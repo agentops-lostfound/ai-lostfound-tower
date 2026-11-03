@@ -92,7 +92,7 @@ flowchart LR
 
 ## 5. 연결 순서 (선행 관계)
 1. 관제탑 API·흐름·기록(가짜 부품) — **완료(11/3)**
-2. DB 초안 v1(center/schema.sql) · docker compose · DB 부품(agents/db_part.py) · PostgresRecorder — **완료(11/3)**, 정연우 검토 대기
+2. DB 초안 v1(center/schema.sql) · docker compose · DB 부품(agents/db_part.py) · PostgresRecorder — **완료·확정(11/3)**, 확정 사항은 database.md 6장
 3. 비전(LF-3) → 매칭(LF-20) 연결 → 탑뷰 실측으로 매칭 가중치 조정
 4. 웹(LF-6)이 `POST /returns` 호출
 5. 로봇(LF-21 → LF-19, LF-11) 연결 → 통합 시연(LF-18)

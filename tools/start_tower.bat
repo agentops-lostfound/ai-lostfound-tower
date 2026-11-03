@@ -18,6 +18,9 @@ timeout /t 5 /nobreak >nul
 goto wait_docker
 :docker_ready
 docker compose up -d
+rem DB 바뀐 점 적용(center/migrations) + 인계 완료 30일 지난 습득자 연락처 지우기(실패해도 API 는 켬)
+python tools\db_migrate.py --apply --wait 60
+python tools\purge_contacts.py --apply
 :start_api
 echo [2/2] 관제탑 API 켜기: http://127.0.0.1:8100/docs  (끄기: Ctrl+C 또는 창 닫기)
 rem --no-access-log: 요청마다 쓰는 로그를 끈다. 이 창 안을 클릭하면 Windows 가 '선택' 모드로 바꿔, 로그를 쓰는 순간 API 가 멈춘다(11/3 겪음). 멈췄으면 Esc
