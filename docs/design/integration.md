@@ -35,6 +35,21 @@ print(be.sources())     # vision_topview: VisionPart, 나머지: 가짜
 ```
 4. 시험 통과 확인 후 PR(브랜치 `LF-번호-영문-설명`). 계약을 바꿔야 하면 PR에 이유를 적고 변재원 확인
 
+## 2-1. 비전(LF-3) 연결 — 시퀀스 결과 파일 읽기 (11/3 준비)
+- 김건태 님 `vision/sequence.py` 가 만드는 `result_with_qwen.json`(YOLO 박스 + Qwen general_items_v1, 영어 값)을
+  `agents/vision_adapter.py` 가 계약 모양 `[{box, center, features}]` 으로 바꾼다
+  - category: wallet·card_wallet→지갑, usb→USB, lip_balm→립밤, phone→모형폰, 나머지→확인 불가
+  - color: 첫 색을 계약 색 목록으로(dark brown→갈색, 목록 밖→기타, 없음→확인 불가)
+  - mark: 스티커 있음→"star sticker (front corner)", 없음→없음, 모름→확인 불가 / visible_text: 읽은 글자, 못 읽음→확인 불가
+- Qwen 이 물건당 수십 초라 반환 중에 다시 돌리지 않는다. 보관함을 찍을 때 미리 돌려 두고 관제탑은 **가장 최근 결과**만 읽는다
+```python
+from agents.backends import CompositeBackend
+from agents.vision_adapter import SequenceFileVisionPart
+be = CompositeBackend(vision=SequenceFileVisionPart("outputs/vision", max_age_s=600))  # 10분 넘은 결과는 안 씀 → 직원 확인
+```
+- **남은 맞출 점(LF-3·20)**: Qwen 의 shape·material 은 영어(bifold, leather), 접수 DB 특징은 한국어(반지갑, 가죽)라
+  매칭 점수가 낮게 나온다 → Qwen 프롬프트를 계약 값 목록(한국어)으로 고정하거나, 변환표를 늘린다(김건태 님과 결정)
+
 ## 3. 관제탑 쪽이 보장하는 것
 - 안전 관문(동의·인증·확인 질문·신분증 대조·직원 확인·매칭 확신)은 부품이 아니라 흐름이 강제한다
 - 상태 변경(`db_set_status`)이 실패하면 로봇을 움직이지 않는다 · 정지(`robot_stop`)가 실패하면 알림에 "직원 즉시 호출"
