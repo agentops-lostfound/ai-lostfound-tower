@@ -11,6 +11,8 @@
     TOWER_SEND=1      관제 채널(디스코드)로 실제 전송. 기본 0 = 화면에만
     TOWER_REVIEWER=1  LLM 검토(Ollama) 켜기. 기본 0
     TOWER_DB=1        물건 기록·상태·반환 기록을 PostgreSQL(DATABASE_URL)로. 기본 0 = 가짜 부품·메모리
+    TOWER_VISION_FILE 탑뷰 결과(result_with_qwen.json) 파일 또는 폴더 → 탑뷰 부품만 진짜 결과로(docs/design/swap_guide.md)
+    TOWER_VISION_MAX_AGE  결과를 몇 초까지 믿을지(기본 600, 0 = 검사 안 함)
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
@@ -32,6 +34,24 @@ def _flag(name: str) -> bool:
     return (os.environ.get(name) or "0").strip().lower() in ("1", "true", "yes", "on")
 
 
+def _with_vision_file(backend_factory):
+    """TOWER_VISION_FILE 이 있으면 탑뷰 부품만 진짜 결과 파일(김건태 LF-3 result_with_qwen.json)로 바꿔 끼운다.
+    build_service 에 직접 넘긴 부품(시험용)에는 쓰지 않는다."""
+    from agents.vision_adapter import vision_part_from_env
+    part = vision_part_from_env()
+    if part is None:
+        return backend_factory
+    from agents.backends import CompositeBackend
+    base = backend_factory or demo_backend_factory()
+
+    def make():
+        be = base()
+        route = getattr(be, "_route", {})
+        db = route.get("db_get_item")
+        return CompositeBackend(vision=part, db=db, fallback=getattr(be, "fallback", be))
+    return make
+
+
 def build_service(backend_factory=None) -> TowerService:
     from discord_ops.reporter import Reporter
     try:
@@ -45,6 +65,7 @@ def build_service(backend_factory=None) -> TowerService:
         reviewer = OllamaReviewer()
     recorder = None
     claims = None
+    user_factory = backend_factory is not None
     if _flag("TOWER_DB") and backend_factory is None:
         # DB 모드: 물건 기록·상태는 진짜 DB, 나머지 부품(비전·매칭·로봇)은 가짜 → 반환 기록도 DB 에 저장
         from agents.backends import CompositeBackend
@@ -57,6 +78,8 @@ def build_service(backend_factory=None) -> TowerService:
         recorder = PostgresRecorder(dsn)
         from agents.claims import PostgresClaimStore
         claims = PostgresClaimStore(dsn)
+    if not user_factory:
+        backend_factory = _with_vision_file(backend_factory)
     return TowerService(backend_factory or demo_backend_factory(), Reporter(dry_run=not _flag("TOWER_SEND")),
                         recorder=recorder, reviewer=reviewer, claims=claims)
 

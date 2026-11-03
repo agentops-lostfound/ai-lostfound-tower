@@ -47,6 +47,7 @@ from agents.backends import CompositeBackend
 from agents.vision_adapter import SequenceFileVisionPart
 be = CompositeBackend(vision=SequenceFileVisionPart("outputs/vision", max_age_s=600))  # 10분 넘은 결과는 안 씀 → 직원 확인
 ```
+- 관제탑 API·MCP 서버는 `.env` 의 `TOWER_VISION_FILE`(결과 파일 또는 폴더)만 넣으면 위처럼 끼운다(교체 안내: [swap_guide.md](swap_guide.md) 2장)
 - **남은 맞출 점(LF-3·20)**: Qwen 의 shape·material 은 영어(bifold, leather), 접수 DB 특징은 한국어(반지갑, 가죽)라
   매칭 점수가 낮게 나온다 → Qwen 프롬프트를 계약 값 목록(한국어)으로 고정하거나, 변환표를 늘린다(김건태 님과 결정)
 

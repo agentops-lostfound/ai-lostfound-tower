@@ -14,6 +14,7 @@
 | 검수 | [review.md](review.md) | 문서·코드끼리 어긋난 곳(표만) | ①~⑤ |
 | 환경 | [ai-environment.md](ai-environment.md) | AI 환경 세팅 순서·점검 | ②, ③ |
 | 연결 | [integration.md](integration.md) | 팀원 부품(모델·DB·로봇·웹) 연결 방법 | ③ |
+| 교체 | [swap_guide.md](swap_guide.md) | 가짜 부품 → 팀원 결과물 교체 순서·확인·가짜 시나리오로 찾은 한계 | integration.md |
 
 - 코드가 기준이다. 문서와 코드가 다르면 review.md 에 적고, 어느 쪽을 고칠지는 사람이 정한다.
 - 기준 입·출력 약속(agents/contracts.py, docs/contracts/mcp_tools.md)을 바꾸려면 PR에 이유를 적고 팀원 확인을 받는다.
