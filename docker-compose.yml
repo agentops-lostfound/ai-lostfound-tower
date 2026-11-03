@@ -21,6 +21,30 @@ services:
       test: ["CMD-SHELL", "pg_isready -U lostfound -d lostfound"]
       interval: 10s
       retries: 5
-
+ai-lostfound-tower/
+│
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── routes/
+│   │   ├── models/
+│   │   └── services/
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── Dockerfile
+│
+├── center/
+│   ├── schema.sql
+│   └── seed_demo.sql
+│
+├── docker-compose.yml
+├── .env
+├── .env.example
+└── README.md
 volumes:
   lostfound-db:
