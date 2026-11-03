@@ -108,6 +108,7 @@ stateDiagram-v2
 | 습득자 연락처 보관 | 물건이 **인계 완료된 뒤 30일**이 지나면 지운다(그 사이 반환 보류 등으로 상태가 바뀌면 남김). 이름·전화는 화면·로그에 찍지 않는다 | `tools/purge_contacts.py`(관제탑 켤 때 자동 실행), `contracts.CONTACT_RETENTION_DAYS` |
 | 분실인 설명 칸 | 접수 특징과 **같은 칸 이름**: `category · color · shape · mark · visible_text · material`. 다른 칸이 들어오면 DB가 거부 | DB 검사 `claim_description_keys`, `contracts.DESCRIPTION_FIELDS`·`validate_description()` |
 | 이미지 임베딩 | **MVP(지갑 1종)에서는 쓰지 않음** — 특징 JSON 매칭으로 충분. 품목이 늘면 비전 담당과 모델을 정한 뒤 `schema_vector.sql` 실행 | `center/schema_vector.sql` 머리말 |
+| 텍스트 임베딩(11/3 추가) | 분실인 말 ↔ 물건 특징 문장 비교에 **다국어 텍스트 임베딩을 쓴다**(CPU). 물건 쪽은 등록 때 계산해 저장. 모델·차원·저장 칸은 PC 실측 뒤 확정(TBD) | architecture.md 3-3, `tools/bench_embedding.py` |
 
 - 시험 `tests/test_db_decisions.py` 가 DB 검사 글자와 `contracts.py` 값이 같은지 확인한다(한쪽만 바꾸면 자동 시험 실패)
 - 확인: PostgreSQL 16 에서 새 DB(schema.sql)와 어제 만든 DB(+마이그레이션 2번 실행) 모두 검사 3개가 생기고, 잘못된 번호·모르는 설명 칸은 거부, 연락처는 30일 지난 인계 완료 물건만 지워짐
