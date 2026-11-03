@@ -29,5 +29,5 @@ cp .env.example .env   # 비밀값은 .env에만 적는다
 [CONTRIBUTING.md](CONTRIBUTING.md)를 먼저 읽어 주세요. 요약:
 - `main`에 직접 올리지 않고, 업무별 브랜치 → Pull Request → 1명 이상 확인 후 합칩니다.
 - 브랜치 이름은 `LF-번호-이름-설명`(예: `LF-3-jaemin-vision-json`), 커밋 메시지 앞에는 Jira 업무 번호를 붙입니다. 예: `LF-3 품목 인식 모델 연결`
-- PR 은 자동 시험(GitHub Actions) 통과 + 팀원 1명 승인 후 합칩니다.
+- PR 은 자동 시험(GitHub Actions)이 통과하면 올린 사람이 직접 합칩니다. 합친 브랜치는 자동으로 지워집니다.
 - 토큰·API 키·개인정보·사진 원본은 절대 올리지 않습니다.
