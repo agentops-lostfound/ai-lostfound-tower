@@ -174,7 +174,8 @@ class McpDbModeTest(unittest.TestCase):
     def test_default_backend_switch(self):
         from agents import mcp_server
         from agents.tools import MockBackend
-        self.assertIsInstance(mcp_server.default_backend({}), MockBackend)
+        self.assertIsInstance(mcp_server.default_backend({"TOWER_MATCHER": "simple"}), MockBackend)
+        self.assertEqual(mcp_server.default_backend({}).sources()["match_item"], "PolicyMatcherPart")   # 11/3 기본
         be = mcp_server.default_backend({"TOWER_DB": "1", "DATABASE_URL": "postgresql://u:p@h/db"})
         self.assertEqual(be.sources()["db_get_item"], "PostgresDbPart")
         self.assertEqual(be.sources()["vision_topview"], "가짜")

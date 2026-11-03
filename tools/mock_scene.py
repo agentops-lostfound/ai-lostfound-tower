@@ -7,7 +7,8 @@
     python tools/mock_scene.py                       # 시나리오 9개 실행 → 결과 표
     python tools/mock_scene.py --discord             # 디스코드에 붙일 짧은 요약(2조봇이 이 내용을 채팅에 답함)
     python tools/mock_scene.py --send                # AgentOps 관제 채널 3곳(진행·알림·점수)에도 전송(.env 웹후크)
-    python tools/mock_scene.py --matcher policy      # 매칭 부품을 김건태 matching/policy.py 로 바꿔 비교
+    python tools/mock_scene.py --matcher simple      # 예전 단순 비교로 돌리기(기본은 김건태 정책, 11/3)
+    python tools/mock_scene.py --compare             # 두 매칭 방식을 사례별로 나란히 비교
     python tools/mock_scene.py --write outputs/mock_scene   # 결과 파일만 만들기(API 의 TOWER_VISION_FILE 로 쓸 때)
 
 - 물건 구성은 구매 예정 목록 기준(카드지갑 여러 색, 같은 제품 2세트, USB·보조배터리). 스티커는 쓰지 않는다(11/3 결정). 특징 값은 가상(추정)이다
@@ -82,10 +83,10 @@ CASES = [
 
 # 아직 해결하지 않은 한계(매칭 부품별). 표에 ❌ 와 함께 이유를 보여 준다 — 기대 결과를 바꿔 숨기지 않는다
 # (S05 '똑같이 생긴 다른 물건을 집음'은 11/3 닮은 물건 검사로 해결 → 직원 확인)
-KNOWN_GAPS: dict[str, str] = {
-    # 기본(단순 비교) 매칭에서만 생김. --matcher policy(김건태 정책)는 색을 먼저 걸러 통과
+KNOWN_GAPS: dict[str, dict[str, str]] = {"policy": {}, "simple": {
+    # 예전 단순 비교에서만 생김. 김건태 정책(기본)은 색을 먼저 걸러 통과
     "S03": "단순 비교는 색을 5칸 중 1칸으로만 봐서, 모양 표현이 흔들리면 다른 색 지갑과 동점 → 직원 확인(안전). 정책 매칭은 통과",
-}
+}}
 
 
 def build_report(items: dict = ITEMS) -> tuple[dict, dict]:
@@ -144,7 +145,10 @@ def run_case(case: tuple, folder: Path, items: dict = ITEMS, max_age_s: float = 
             "robot_moved": any(c.startswith("robot_approach") for c in mock.calls), "steps": out.steps}
 
 
-def run_all(items: dict = ITEMS, cases=CASES, matcher=None) -> list[dict]:
+def run_all(items: dict = ITEMS, cases=CASES, matcher="policy") -> list[dict]:
+    """matcher: 'policy'(기본) · 'simple' · 매칭 부품 객체 · None(= simple)"""
+    if isinstance(matcher, str):
+        matcher = make_matcher(matcher)
     with tempfile.TemporaryDirectory() as tmp:
         return [run_case(c, Path(tmp), items, matcher=matcher) for c in cases]
 
@@ -160,11 +164,11 @@ def make_matcher(name: str):
 LABEL = {"returned": "반환", "staff_check": "직원 확인", "rejected": "거절", "stopped": "정지", "wrong_object": "다른 물건 ⚠️"}
 
 
-def table(results: list[dict]) -> str:
+def table(results: list[dict], matcher: str = "policy") -> str:
     lines = ["사례 | 상황 | 기대 | 결과 | 판정 | 이유",
              "--- | --- | --- | --- | --- | ---"]
     for r in results:
-        gap = "" if r["ok"] else KNOWN_GAPS.get(r["case_id"], "")
+        gap = "" if r["ok"] else KNOWN_GAPS.get(matcher, {}).get(r["case_id"], "")
         reason = f"{r['reason']} · 알려진 한계: {gap}" if gap else r["reason"]
         lines.append(f"{r['case_id']} | {r['kind']} | {LABEL.get(r['expected'], r['expected'])} | "
                      f"{LABEL.get(r['decision'], r['decision'])} | {'✅' if r['ok'] else '❌'} | {reason}")
@@ -173,6 +177,20 @@ def table(results: list[dict]) -> str:
     lines += ["", f"맞음 {ok}/{len(results)} · 다른 물건 집음 {wrong}건 (가짜 시나리오, 특징 값은 가상)"]
     if wrong:
         lines.append("⚠️ 다른 물건을 집은 사례가 있습니다 — 실물 시연 전에 반드시 해결")
+    return "\n".join(lines)
+
+
+def compare_text(by: dict[str, list[dict]]) -> str:
+    """매칭 방식별 결과를 사례마다 나란히(진짜 결과 파일이 생기면 같은 방식으로 비교)."""
+    names = list(by)
+    lines = ["사례 | 상황 | 기대 | " + " | ".join(names), "--- | --- | --- | " + " | ".join("---" for _ in names)]
+    for i, r in enumerate(by[names[0]]):
+        cells = [f"{'✅' if by[n][i]['ok'] else '❌'} {LABEL.get(by[n][i]['decision'], by[n][i]['decision'])}" for n in names]
+        lines.append(f"{r['case_id']} | {r['kind']} | {LABEL.get(r['expected'], r['expected'])} | " + " | ".join(cells))
+    lines.append("")
+    for n in names:
+        ok = sum(x["ok"] for x in by[n]); wrong = sum(x["decision"] == "wrong_object" for x in by[n])
+        lines.append(f"{n}: 맞음 {ok}/{len(by[n])} · 다른 물건 집음 {wrong}건")
     return "\n".join(lines)
 
 
@@ -216,18 +234,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--write", metavar="폴더", help="결과 파일만 만들고 끝(TOWER_VISION_FILE 에 그 폴더를 넣어 쓰기)")
     ap.add_argument("--discord", action="store_true", help="표 대신 디스코드용 짧은 요약 출력")
     ap.add_argument("--send", action="store_true", help="AgentOps 관제 채널 3곳에도 전송")
-    ap.add_argument("--matcher", choices=["simple", "policy"], default="simple",
-                    help="매칭 부품: simple(기존) / policy(김건태 matching/policy.py)")
+    ap.add_argument("--matcher", choices=["simple", "policy"], default="policy",
+                    help="매칭 부품: policy(기본, 김건태 matching/policy.py) / simple(예전 단순 비교)")
+    ap.add_argument("--compare", action="store_true", help="두 매칭 방식을 사례별로 나란히 비교")
     a = ap.parse_args(argv)
     if a.write:
         path = write_report(a.write)
         print(f"만듦: {path}")
         print("API 에서 쓰려면 .env 에 TOWER_VISION_FILE=" + str(path.parent) + " , TOWER_VISION_MAX_AGE=0")
         return 0
-    results = run_all(matcher=make_matcher(a.matcher))
-    text = discord_text(results) if a.discord else table(results)
-    if a.matcher != "simple":
-        text = f"[매칭 부품: {a.matcher}]\n" + text
+    if a.compare:
+        print(compare_text({"policy(기본)": run_all(matcher="policy"), "simple(예전)": run_all(matcher="simple")}))
+        return 0
+    results = run_all(matcher=a.matcher)
+    text = discord_text(results) if a.discord else table(results, a.matcher)
+    text = f"[매칭: {'김건태 정책(기본)' if a.matcher == 'policy' else '예전 단순 비교'}]\n" + text
     if find_pii(text):
         raise SystemExit("요약에 개인정보 모양이 있어 출력하지 않습니다")
     print(text)

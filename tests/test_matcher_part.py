@@ -58,8 +58,18 @@ class MatchTest(unittest.TestCase):
         self.assertIn("error", bad.last_decision)
 
     def test_env_switch(self):
-        self.assertIsNone(matcher_part_from_env({}))
+        self.assertIsInstance(matcher_part_from_env({}), PolicyMatcherPart)                  # 11/3 기본 = 정책
+        self.assertIsInstance(matcher_part_from_env({"TOWER_MATCHER": "모름"}), PolicyMatcherPart)
+        self.assertIsNone(matcher_part_from_env({"TOWER_MATCHER": " Simple "}))              # 예전 방식으로 되돌리기
         self.assertIsInstance(matcher_part_from_env({"TOWER_MATCHER": "Policy"}), PolicyMatcherPart)
+
+    def test_policy_load_failure_falls_back(self):
+        from unittest import mock
+        import io
+        with mock.patch("agents.matcher_part.PolicyMatcherPart", side_effect=ImportError("yaml")), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.assertIsNone(matcher_part_from_env({}))
+        self.assertIn("단순 비교로 대신", err.getvalue())
         from agents.mcp_server import default_backend
         self.assertEqual(default_backend({"TOWER_MATCHER": "policy"}).sources()["match_item"], "PolicyMatcherPart")
 

@@ -72,6 +72,17 @@ class SceneTest(unittest.TestCase):
         expected = 0 if all(r["ok"] for r in results) else 1
         self.assertEqual(code, expected)
 
+    def test_compare_and_default(self):
+        by = {"policy": ms.run_all(), "simple": ms.run_all(matcher="simple")}
+        self.assertTrue(all(r["ok"] for r in by["policy"]))                         # 기본(정책) 9/9
+        self.assertEqual([r["case_id"] for r in by["simple"] if not r["ok"]], ["S03"])
+        self.assertIn("S03", ms.KNOWN_GAPS["simple"])
+        self.assertIn("알려진 한계", ms.table(by["simple"], "simple"))
+        text = ms.compare_text(by)
+        self.assertIn("policy: 맞음 9/9", text); self.assertIn("simple: 맞음 8/9", text)
+        with mock.patch("sys.stdout"):
+            self.assertEqual(ms.main(["--compare"]), 0)
+
     def test_write_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(ms.main(["--write", tmp]), 0)
@@ -90,8 +101,9 @@ class VisionSwitchTest(unittest.TestCase):
     def test_mcp_default_backend(self):
         from agents.mcp_server import default_backend
         from agents.tools import MockBackend
-        self.assertIsInstance(default_backend({}), MockBackend)
+        self.assertIsInstance(default_backend({"TOWER_MATCHER": "simple"}), MockBackend)
         be = default_backend({"TOWER_VISION_FILE": "x"})
+        self.assertEqual(be.sources()["match_item"], "PolicyMatcherPart")
         self.assertEqual(be.sources()["vision_topview"], "SequenceFileVisionPart")
         self.assertEqual(be.sources()["db_get_item"], "가짜")
 

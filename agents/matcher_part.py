@@ -3,7 +3,7 @@
 한줄 설명: 관제탑의 한국어 계약 특징(지갑·검정·"star sticker")을 건태님 정책이 읽는 영어 조건으로 바꿔 판정을 받고,
 그 결과(matched / needs_confirmation / no_match)를 관제탑 약속(matched / uncertain / none + index)으로 돌려준다.
 
-켜는 법: .env 에 TOWER_MATCHER=policy (기본은 기존 단순 비교 그대로) — docs/design/swap_guide.md 3장
+11/3 부터 기본값. 예전 단순 비교로 되돌리려면 .env 에 TOWER_MATCHER=simple — docs/design/swap_guide.md 3장
 - 색은 관제탑 변환기(vision_adapter)가 이미 꾸밈말을 떼고 기본 색으로 맞춘 값(dark red → 빨강)을 넘긴다
   → 건태님 표에 없는 "dark red" 같은 값이 '색 불일치'로 제외되는 문제를 관제탑 쪽에서 피한다
 - '기타'·'확인 불가' 색은 조건으로 쓰지 않는다(모르는 것을 불일치로 보지 않음)
@@ -85,11 +85,29 @@ class PolicyMatcherPart:
                 "reasons": decision.get("reasons") or ([decision["reason"]] if decision.get("reason") else [])}
 
 
-def matcher_part_from_env(env: dict | None = None):
-    """TOWER_MATCHER=policy 면 PolicyMatcherPart, 아니면 None(기존 단순 비교 유지)."""
+DEFAULT_MATCHER = "policy"     # 11/3 결정: 스티커를 안 쓰므로 색·품목을 먼저 거르는 김건태 정책이 기본
+
+
+def matcher_name(env: dict | None = None) -> str:
+    """TOWER_MATCHER 값 → 'policy' 또는 'simple'. 비었거나 모르는 값이면 기본(policy)."""
     import os
     env = os.environ if env is None else env
-    return PolicyMatcherPart() if str(env.get("TOWER_MATCHER") or "").strip().lower() == "policy" else None
+    v = str(env.get("TOWER_MATCHER") or "").strip().lower()
+    return v if v in ("policy", "simple") else DEFAULT_MATCHER
 
 
-__all__ = ["PolicyMatcherPart", "matcher_part_from_env", "to_policy_features", "free_text", "word_overlap"]
+def matcher_part_from_env(env: dict | None = None):
+    """기본은 PolicyMatcherPart. TOWER_MATCHER=simple 이면 None(예전 단순 비교).
+    정책을 못 읽으면(pyyaml 미설치·설정 파일 오류) 예전 방식으로 돌아가고 이유를 알린다 — /health 의 sources 로 확인."""
+    if matcher_name(env) == "simple":
+        return None
+    try:
+        return PolicyMatcherPart()
+    except Exception as e:      # 관제탑이 매칭 때문에 못 켜지는 일은 없게
+        import sys
+        print(f"[매칭] 김건태 정책을 못 읽어 단순 비교로 대신합니다({type(e).__name__}) — "
+              "pip install -r agents/requirements.txt 확인", file=sys.stderr)
+        return None
+
+
+__all__ = ["PolicyMatcherPart", "matcher_part_from_env", "matcher_name", "DEFAULT_MATCHER", "to_policy_features", "free_text", "word_overlap"]
