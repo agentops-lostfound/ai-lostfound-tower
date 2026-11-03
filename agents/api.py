@@ -14,6 +14,7 @@
     TOWER_VISION_FILE 탑뷰 결과(result_with_qwen.json) 파일 또는 폴더 → 탑뷰 부품만 진짜 결과로(docs/design/swap_guide.md)
     TOWER_VISION_MAX_AGE  결과를 몇 초까지 믿을지(기본 600, 0 = 검사 안 함)
     TOWER_MATCHER=policy  매칭을 김건태 matching/policy.py 로(기본 = 기존 단순 비교)
+- 등록기계 화면: GET /places, POST /items, POST /items/{item_id}/features (안내 intake_machine/README.md)
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
@@ -69,6 +70,7 @@ def build_service(backend_factory=None) -> TowerService:
         reviewer = OllamaReviewer()
     recorder = None
     claims = None
+    intake = None
     user_factory = backend_factory is not None
     if _flag("TOWER_DB") and backend_factory is None:
         # DB 모드: 물건 기록·상태는 진짜 DB, 나머지 부품(비전·매칭·로봇)은 가짜 → 반환 기록도 DB 에 저장
@@ -82,10 +84,12 @@ def build_service(backend_factory=None) -> TowerService:
         recorder = PostgresRecorder(dsn)
         from agents.claims import PostgresClaimStore
         claims = PostgresClaimStore(dsn)
+        from agents.intake import PostgresIntakeStore
+        intake = PostgresIntakeStore(dsn)
     if not user_factory:
         backend_factory = _with_vision_file(backend_factory)
     return TowerService(backend_factory or demo_backend_factory(), Reporter(dry_run=not _flag("TOWER_SEND")),
-                        recorder=recorder, reviewer=reviewer, claims=claims)
+                        recorder=recorder, reviewer=reviewer, claims=claims, intake=intake)
 
 
 def build_app(service: TowerService | None = None):
@@ -107,6 +111,39 @@ def build_app(service: TowerService | None = None):
     def tools() -> list[dict]:
         """관제탑 도구 목록(담당·실패 규칙)"""
         return [{"name": t.name, "owner": t.owner, "summary": t.summary, "on_fail": t.on_fail} for t in TOOLS]
+
+    @app.get("/places")
+    def places(machine_id: str, limit: int = 10) -> list[dict]:
+        """등록기계 화면 2번: 이 기계 역의 추천 습득 장소(많이 고른 순). 목록에 없으면 화면에서 직접 입력"""
+        try:
+            return svc.list_places(machine_id, limit)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+    @app.post("/items")
+    def create_item(payload: dict = Body(...)) -> dict:
+        """등록기계 화면: 습득물 접수 → 접수 번호. 본문: machine_id, place_text(필수), place_id(추천 고른 경우),
+        finder {name, phone}(둘 다 선택 — 비우면 저장 안 함), photo_path(선택). 연락처는 응답에 나오지 않음"""
+        try:
+            return svc.create_item(payload)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+    @app.post("/items/{item_id}/features")
+    def set_item_features(item_id: str, payload: dict = Body(...)) -> dict:
+        """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
+        try:
+            return svc.set_item_features(item_id, payload)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
 
     @app.post("/claims")
     def create_claim(payload: dict = Body(...)) -> dict:
