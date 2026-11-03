@@ -1,7 +1,8 @@
 # main 병합 알림 (LF-17) — PR 이 main 에 합쳐질 때마다 팀 디스코드(AgentOps)에 한 줄 요약을 올린다
 # - GitHub 서버에서 돌기 때문에 교육원 PC·2조봇이 꺼져 있어도 올라간다
 # - 웹후크 주소는 저장소 비밀값 DISCORD_WEBHOOK_MERGE 에만 둔다(코드·로그에 쓰지 않음). 없으면 조용히 건너뛴다
-# - 시험: Actions 탭 → "main 병합 알림" → Run workflow (시험 메시지 1개)
+# - 시험: Actions 탭 → "main 병합 알림" → Run workflow (pr 칸을 비우면 시험 메시지 1개, 번호를 넣으면 그 PR 알림)
+# - 자동 병합(tests.yml automerge)은 GITHUB_TOKEN 병합이라 아래 pull_request 이벤트가 안 생긴다 → 자동 병합 작업이 pr 번호를 넣어 직접 실행한다
 # - 메시지에는 PR 번호·제목·담당·변경 규모만 싣는다(본문·개인정보 없음), @멘션은 울리지 않게 막는다
 name: main 병합 알림
 
@@ -10,9 +11,15 @@ on:
     types: [closed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      pr:
+        description: "알릴 PR 번호(비우면 시험 메시지)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   notify:
@@ -27,6 +34,8 @@ jobs:
           REPO: ${{ github.repository }}
           SERVER: ${{ github.server_url }}
           ACTOR: ${{ github.actor }}
+          PR_INPUT: ${{ github.event.inputs.pr }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${WEBHOOK}" ]; then
@@ -39,6 +48,14 @@ jobs:
           esac
           # GitHub 아이디 → 팀원 이름(없으면 아이디 그대로)
           NAMES='{"bjw0505-del":"변재원","rjsxo943-gif":"김건태","pil2ya":"이순필","01xooyeon":"정연우","gimjaemin4545-cmd":"김재민","github-actions[bot]":"자동 병합"}'
+          EVENT_FILE="$GITHUB_EVENT_PATH"
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${PR_INPUT:-}" ]; then
+            case "${PR_INPUT}" in *[!0-9]*) echo "pr 칸에는 숫자만"; exit 1 ;; esac
+            gh api "repos/${REPO}/pulls/${PR_INPUT}" | jq '{pull_request: .}' > pr_event.json
+            if [ "$(jq -r '.pull_request.merged' pr_event.json)" != "true" ]; then echo "PR #${PR_INPUT} 은 아직 병합되지 않아 알리지 않습니다"; exit 0; fi
+            EVENT_FILE=pr_event.json
+            EVENT_NAME=pull_request
+          fi
           if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
             PAYLOAD=$(jq -n --arg names "$NAMES" --arg actor "$ACTOR" --arg url "${SERVER}/${REPO}" '
               ($names | fromjson) as $n |
@@ -60,7 +77,7 @@ jobs:
                            ("변경: 파일 " + ($p.changed_files | tostring) + "개 (+" + ($p.additions | tostring) + " / −" + ($p.deletions | tostring) + ") · 커밋 " + ($p.commits | tostring) + "개"),
                            ("합친 사람: " + ($n[$p.merged_by.login // ""] // ($p.merged_by.login // "알 수 없음")))
                          ] | join("\n")),
-                         timestamp: $p.merged_at}]}' "$GITHUB_EVENT_PATH")
+                         timestamp: $p.merged_at}]}' "$EVENT_FILE")
           fi
           CODE=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d "$PAYLOAD" "$WEBHOOK")
           echo "디스코드 응답: HTTP ${CODE}"
