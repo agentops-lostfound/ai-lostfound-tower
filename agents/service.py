@@ -15,7 +15,7 @@ import threading
 from dataclasses import fields
 from typing import Callable
 
-from agents.contracts import DECISION_STOPPED, DECISIONS
+from agents.contracts import DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, DECISIONS
 from agents.records import MemoryRecorder, Recorder
 from agents.supervisor import Outcome, ReturnRequest, run_return
 
@@ -99,9 +99,21 @@ class TowerService:
                                         f"물건 {req.item_id}")
                 except Exception:
                     pass
+            self._team_summary(req, out)
             return out
         finally:
             self._run_lock.release()
+
+    def _team_summary(self, req: ReturnRequest, out: dict) -> None:
+        """팀 대화 채널에 반환 1건당 결과 한 줄(물건·사례 번호만). 실패해도 반환 결과에는 영향 없음."""
+        icon = {DECISION_RETURNED: "✅ 반환 완료", DECISION_REJECTED: "⛔ 반환 안 함",
+                DECISION_STAFF: "🙋 직원 확인 필요", DECISION_STOPPED: "🛑 로봇 정지"}.get(out.get("decision"), "❔")
+        saved = "" if out.get("recorded", True) else " · 기록 저장 실패"
+        try:
+            self.reporter.team(f"[{req.case_id}] 물건 {req.item_id} · {icon}",
+                               f"{out.get('reason', '')} · {out.get('seconds', 0):.1f}초{saved}")
+        except Exception:
+            pass
 
     def _crash(self, req: ReturnRequest, be, err: Exception) -> dict:
         try:
