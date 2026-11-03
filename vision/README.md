@@ -50,3 +50,7 @@ python -m unittest discover -s tests -v
 ## 탑뷰 단일 이미지 추론과 ArUco 좌표 보정 (LF-3)
 
 YOLO 검출·crop·중심 좌표·ArUco 보정은 [TOPVIEW.md](TOPVIEW.md)를 참고하세요. 기존 4종 촬영·학습 설정은 유지하며, 추가한 6종 데이터셋 예시는 별도 실험용입니다.
+
+## 현재 검출 현황
+
+USB·립밤 미검출, 신뢰도 비교 결과와 후속 학습 계획은 [DETECTION_STATUS.md](DETECTION_STATUS.md)를 참고하세요. 소수 로컬 테스트 사진에 대한 관찰이며 전체 물품 성능 평가 결과는 아닙니다.
