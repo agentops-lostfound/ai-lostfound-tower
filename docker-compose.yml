@@ -12,7 +12,7 @@ services:
       POSTGRES_DB: lostfound
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lostfound-dev}
     ports:
-      - "127.0.0.1:5433:5432"     # 이 PC 안에서만. 다른 PC에 열 때는 팀과 정한 뒤 바꾼다
+      - "127.0.0.1:5434:5432"     # 이 PC 안에서만(5433 은 교육원 PC 수업용 PostgreSQL 18 이 사용). 다른 PC에 열 때는 팀과 정한 뒤 바꾼다
     volumes:
       - lostfound-db:/var/lib/postgresql/data
       - ./center/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
