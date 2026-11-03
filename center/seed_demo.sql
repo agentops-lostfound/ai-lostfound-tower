@@ -1,0 +1,12 @@
+-- 시연 데이터(자동 생성: python center/make_demo_seed.py). 진짜 접수가 생기면 쓰지 않는다
+INSERT INTO machine VALUES ('KIOSK-A', 'kiosk', '2호선', '해운대', FALSE),
+                           ('KIOSK-B', 'kiosk', '1호선', '중앙', TRUE),
+                           ('CENTER', 'center', NULL, NULL, FALSE)
+ON CONFLICT (machine_id) DO NOTHING;
+INSERT INTO item (item_id, machine_id, place_text, status, category, features, private_features, object_id) VALUES ('A-W01', 'KIOSK-A', '시연 장소', '본센터 보관', '지갑', '{"color": "검정", "shape": "반지갑", "material": "가죽"}'::jsonb, '{"mark": "별 모양 스티커", "visible_text": "ABC"}'::jsonb, 'W01') ON CONFLICT (item_id) DO NOTHING;
+INSERT INTO item (item_id, machine_id, place_text, status, category, features, private_features, object_id) VALUES ('A-W02', 'KIOSK-A', '시연 장소', '본센터 보관', '지갑', '{"color": "갈색", "shape": "장지갑", "material": "가죽"}'::jsonb, '{"mark": "없음", "visible_text": "없음"}'::jsonb, 'W02') ON CONFLICT (item_id) DO NOTHING;
+INSERT INTO item (item_id, machine_id, place_text, status, category, features, private_features, object_id) VALUES ('A-W03', 'KIOSK-A', '시연 장소', '본센터 보관', '지갑', '{"color": "빨강", "shape": "카드지갑", "material": "천"}'::jsonb, '{"mark": "모서리 흠집", "visible_text": "없음"}'::jsonb, 'W03') ON CONFLICT (item_id) DO NOTHING;
+INSERT INTO item (item_id, machine_id, place_text, status, category, features, private_features, object_id) VALUES ('A-W04', 'KIOSK-A', '시연 장소', '본센터 보관', '지갑', '{"color": "남색", "shape": "반지갑", "material": "가죽"}'::jsonb, '{"mark": "없음", "visible_text": "XYZ"}'::jsonb, 'W04') ON CONFLICT (item_id) DO NOTHING;
+INSERT INTO item (item_id, machine_id, place_text, status, category, features, private_features, object_id) VALUES ('A-W05', 'KIOSK-A', '시연 장소', '본센터 보관', '지갑', '{"color": "검정", "shape": "반지갑", "material": "가죽"}'::jsonb, '{"mark": "하트 스티커", "visible_text": "ABC"}'::jsonb, 'W05') ON CONFLICT (item_id) DO NOTHING;
+INSERT INTO item (item_id, machine_id, place_text, status, category, features, private_features, object_id) VALUES ('A-W06', 'KIOSK-A', '시연 장소', '본센터 보관', '지갑', '{"color": "회색", "shape": "카드지갑", "material": "천"}'::jsonb, '{"mark": "작은 원 스티커", "visible_text": "없음"}'::jsonb, 'W06') ON CONFLICT (item_id) DO NOTHING;
+INSERT INTO item (item_id, machine_id, place_text, status, category, features, private_features, object_id) VALUES ('A-W07', 'KIOSK-A', '시연 장소', '본센터 보관', '지갑', '{"color": "회색", "shape": "카드지갑", "material": "천"}'::jsonb, '{"mark": "없음", "visible_text": "없음"}'::jsonb, 'W07') ON CONFLICT (item_id) DO NOTHING;

@@ -288,6 +288,11 @@ class McpServerTest(unittest.TestCase):
             self.assertFalse(any(n.startswith("robot") for n in registered))   # 로봇 도구는 열지 않음
             self.assertEqual(len(registered["vision_topview"]()), 2)
             self.assertFalse(registered["notify"]("alert", "010-1111-2222")["ok"])
+            rec = registered["db_get_item"]("A-1")                          # 비공개 특징(확인 질문 정답)은 빼고
+            self.assertNotIn("mark", rec["features"])
+            self.assertNotIn("visible_text", rec["features"])
+            self.assertEqual(rec["features"]["color"], "검정")
+            self.assertIsNone(registered["db_get_item"]("없는번호"))
         finally:
             for k in ("mcp", "mcp.server", "mcp.server.fastmcp"):
                 sys.modules.pop(k, None)
@@ -583,3 +588,95 @@ class TowerDemoTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SafetyGapTest(unittest.TestCase):
+    """설계 교차 검수(docs/design/review.md) 1·2번: 상태 변경·정지 실패 처리"""
+
+    def run_flow(self, **kw):
+        be = backend(**kw)
+        rep = Reporter()
+        out = run_return(ReturnRequest("T1", "A-1"), be, rep)
+        return out, be, rep
+
+    def test_status_fail_before_robot_blocks_robot(self):
+        out, be, rep = self.run_flow(status_fail={"반환 중"})
+        self.assertEqual(out.decision, DECISION_STAFF)
+        self.assertFalse(be.robot_moved())
+        self.assertTrue(any(m["channel"] == "alert" for m in rep.messages))
+
+    def test_status_fail_at_approval_not_approved(self):
+        out, be, _ = self.run_flow(status_fail={"승인·수령 예약"})
+        self.assertEqual(out.decision, DECISION_STAFF)
+        self.assertFalse(out.approved)
+        self.assertFalse(be.robot_moved())
+
+    def test_stop_failure_calls_staff(self):
+        out, _, rep = self.run_flow(approach_ok=False, stop_ok=False)
+        self.assertEqual(out.decision, DECISION_STOPPED)
+        self.assertIn("정지 실패", out.reason)
+        self.assertTrue(any("정지 실패" in m["title"] for m in rep.messages if m["channel"] == "alert"))
+
+    def test_stop_ok_has_no_extra_note(self):
+        out, _, _ = self.run_flow(grasp=(False, False))
+        self.assertNotIn("정지 실패", out.reason)
+
+    def test_handover_status_fail_still_returned_with_alert(self):
+        out, be, rep = self.run_flow(status_fail={"인계 완료"})
+        self.assertEqual(out.decision, DECISION_RETURNED)
+        self.assertIn("상태 기록 실패", out.reason)
+        self.assertTrue(be.delivered())
+
+    def test_backend_returning_none_is_failure(self):
+        be = backend()
+        be.db_set_status = lambda item_id, status: None    # 잘못 만든 진짜 부품
+        out = run_return(ReturnRequest("T2", "A-1"), be, Reporter())
+        self.assertEqual(out.decision, DECISION_STAFF)
+        self.assertFalse(be.robot_moved())
+
+
+class CompositeBackendTest(unittest.TestCase):
+    def test_unplugged_parts_fall_back_to_mock(self):
+        from agents.backends import CompositeBackend
+        cb = CompositeBackend(fallback=backend())
+        self.assertFalse(cb.is_all_real())
+        self.assertEqual(set(cb.sources().values()), {"가짜"})
+        out = run_return(ReturnRequest("T3", "A-1"), cb, Reporter())
+        self.assertEqual(out.decision, DECISION_RETURNED)
+
+    def test_real_part_is_used(self):
+        from agents.backends import CompositeBackend
+
+        class VisionPart:
+            def __init__(self):
+                self.called = 0
+
+            def vision_topview(self):
+                self.called += 1
+                return []
+
+        vp = VisionPart()
+        cb = CompositeBackend(vision=vp, fallback=backend())
+        self.assertEqual(cb.sources()["vision_topview"], "VisionPart")
+        self.assertEqual(cb.sources()["match_item"], "가짜")
+        out = run_return(ReturnRequest("T4", "A-1"), cb, Reporter())
+        self.assertEqual(vp.called, 1)
+        self.assertEqual(out.decision, DECISION_STAFF)    # 진짜 비전이 0개 → 직원 확인
+
+    def test_missing_method_rejected(self):
+        from agents.backends import CompositeBackend, check_part
+
+        class HalfDb:
+            def db_get_item(self, item_id):
+                return None
+        self.assertEqual(check_part(HalfDb(), "db"), ["db_set_status"])
+        with self.assertRaises(TypeError):
+            CompositeBackend(db=HalfDb())
+        with self.assertRaises(ValueError):
+            check_part(HalfDb(), "camera")
+
+    def test_mock_satisfies_protocol(self):
+        from agents.backends import Backend, CompositeBackend
+        self.assertIsInstance(MockBackend(), Backend)
+        self.assertTrue(all(callable(getattr(CompositeBackend(), m)) for m in
+                            ("vision_topview", "match_item", "db_get_item", "robot_stop")))

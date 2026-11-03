@@ -82,6 +82,18 @@ class Ctx:
         return True   # True = 여기서 끝
 
 
+def _stop(c: Ctx) -> str:
+    """로봇 정지. 정지 자체가 실패하면 알림 문구에 붙일 말을 돌려준다(약속: 정지 실패 → 직원 호출)."""
+    r = c.backend.robot_stop()
+    return "" if isinstance(r, dict) and r.get("ok") else " · 정지 실패 — 직원 즉시 호출"
+
+
+def _set_status(c: Ctx, status: str) -> bool:
+    """상태 변경. 실패하면 False(약속: 상태 변경 실패 → 로봇을 움직이지 않음)."""
+    r = c.backend.db_set_status(c.req.item_id, status)
+    return isinstance(r, dict) and bool(r.get("ok"))
+
+
 # 각 단계는 끝났으면 True, 다음 단계로 가면 False 를 돌려준다
 def web_gate(c: Ctx) -> bool:
     """1. 웹 단계: 코드로 강제하는 관문 → 메인 AI 승인"""
@@ -99,8 +111,9 @@ def web_gate(c: Ctx) -> bool:
         verdict, note = c.reviewer({"case": req.case_id, "item_id": req.item_id, "status": c.item.get("status")})
         if verdict != "ok":
             return c.finish(DECISION_STAFF, f"메인 AI 검토 보류: {note}", alert=True)
+    if not _set_status(c, "승인·수령 예약"):
+        return c.finish(DECISION_STAFF, "상태 기록 실패 — 승인 보류", alert=True)
     c.out.approved = True
-    be.db_set_status(req.item_id, "승인·수령 예약")
     c.step("메인 AI 승인 · 수령 예약")
     return False
 
@@ -139,11 +152,12 @@ def locate(c: Ctx) -> bool:
 
 def approach(c: Ctx) -> bool:
     """4. 사전 접근(일반 위치 제어)"""
-    c.backend.db_set_status(c.req.item_id, "반환 중")
+    if not _set_status(c, "반환 중"):
+        return c.finish(DECISION_STAFF, "상태 기록 실패 — 로봇을 움직이지 않음", alert=True)
     r = c.backend.robot_approach(c.detections[c.match["index"]]["center"])
     if not r["ok"]:
-        c.backend.robot_stop()
-        return c.finish(DECISION_STOPPED, f"사전 접근 실패: {r['reason']}", alert=True)
+        note = _stop(c)
+        return c.finish(DECISION_STOPPED, f"사전 접근 실패: {r['reason']}{note}", alert=True)
     c.step("사전 접근 완료")
     return False
 
@@ -157,18 +171,19 @@ def grasp(c: Ctx) -> bool:
             c.step("집기 성공", f"{attempt}번째 시도")
             return False
         c.reporter.progress(c.req.case_id, "집기 실패", f"{attempt}번째 시도: {v['reason']}")
-    c.backend.robot_stop()
-    return c.finish(DECISION_STOPPED, "집기 실패 — 정지, 직원 호출", alert=True)
+    note = _stop(c)
+    return c.finish(DECISION_STOPPED, f"집기 실패 — 정지, 직원 호출{note}", alert=True)
 
 
 def deliver(c: Ctx) -> bool:
     """6. 바구니 전달(일반 위치 제어)"""
     d = c.backend.robot_deliver()
     if not d["ok"]:
-        c.backend.robot_stop()
-        return c.finish(DECISION_STOPPED, f"바구니 전달 실패: {d['reason']}", alert=True)
-    c.backend.db_set_status(c.req.item_id, "인계 완료")
+        note = _stop(c)
+        return c.finish(DECISION_STOPPED, f"바구니 전달 실패: {d['reason']}{note}", alert=True)
     c.step("바구니 전달 완료")
+    if not _set_status(c, "인계 완료"):   # 물건은 이미 전달됨 → 결정은 반환, 기록만 직원이 바로잡음
+        return c.finish(DECISION_RETURNED, "반환 완료 · 상태 기록 실패 — 직원 확인", alert=True)
     return c.finish(DECISION_RETURNED, "반환 완료")
 
 

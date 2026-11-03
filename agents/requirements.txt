@@ -1,3 +1,8 @@
 # AI 관제탑(LF-14·16) — 시험(unittest)은 이 패키지 없이도 돌아간다
 langgraph
 mcp
+# 관제탑 API(LF-14) — 화면들이 HTTP로 부르는 입구
+fastapi
+uvicorn
+# DB 부품·반환 기록(PostgreSQL) — TOWER_DB=1 일 때
+psycopg[binary]

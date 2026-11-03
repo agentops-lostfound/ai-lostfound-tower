@@ -16,6 +16,7 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from agents.contracts import public_card  # noqa: E402
 from agents.tools import TOOLS, MockBackend  # noqa: E402
 
 # AI가 직접 부를 수 있는 도구(읽기·비교·알림만). 로봇·상태 변경은 제외
@@ -50,8 +51,11 @@ def build_server(backend=None, reporter=None):
 
     @app.tool()
     def db_get_item(item_id: str) -> dict | None:
-        """접수 번호로 물건 기록을 읽는다"""
-        return be.db_get_item(item_id)
+        """접수 번호로 물건 기록을 읽는다(비공개 특징 = 확인 질문 정답은 빼고 돌려준다)"""
+        rec = be.db_get_item(item_id)
+        if rec is None:
+            return None
+        return {**rec, "features": public_card(rec.get("features") or {})}
 
     @app.tool()
     def notify(channel: str, text: str) -> dict:

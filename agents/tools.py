@@ -2,7 +2,7 @@
 
 한줄 설명: 메인 AI가 누를 수 있는 "버튼" 목록을 정하고, 진짜 모듈이 나오기 전까지 같은 입·출력을 흉내 내는 가짜 부품을 준다.
 
-- 진짜 부품으로 바꿀 때는 MockBackend 와 같은 이름·입력·출력을 가진 클래스를 만들어 넘기면 된다.
+- 진짜 부품으로 바꿀 때는 MockBackend 와 같은 이름·입력·출력을 가진 클래스를 만들어 agents/backends.py 의 CompositeBackend 에 꽂는다.
 - 도구 설명(TOOLS)은 docs/contracts/mcp_tools.md 와 같아야 한다.
 """
 from __future__ import annotations
@@ -89,6 +89,8 @@ class MockBackend:
     grasp_plan: list[bool] = field(default_factory=lambda: [True])
     approach_ok: bool = True
     deliver_ok: bool = True
+    stop_ok: bool = True
+    status_fail: set = field(default_factory=set)   # 실패시킬 상태 이름(시험용, 예: {"반환 중"})
     calls: list[str] = field(default_factory=list)
     _grasp_no: int = 0
     _last_grasp: bool = False
@@ -116,6 +118,8 @@ class MockBackend:
         self.calls.append(f"db_set_status:{status}")
         if item_id not in self.db:
             return robot_result(False, "물건 기록 없음")
+        if status in self.status_fail:
+            return robot_result(False, "DB 쓰기 실패")
         self.db[item_id]["status"] = status
         return robot_result(True)
 
@@ -140,7 +144,7 @@ class MockBackend:
 
     def robot_stop(self) -> dict:
         self.calls.append("robot_stop")
-        return robot_result(True)
+        return robot_result(self.stop_ok, "정지 명령 실패")
 
     def robot_moved(self) -> bool:
         return any(c.startswith("robot_") and c != "robot_stop" for c in self.calls)

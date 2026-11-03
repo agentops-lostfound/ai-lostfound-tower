@@ -5,7 +5,7 @@
 - Ollama(PC에서 AI 모델을 돌리는 프로그램)의 /api/chat 에 요청한다. 인터넷·유료 API가 필요 없다.
 - .env: OLLAMA_URL(기본 http://localhost:11434), MAIN_AI_MODEL(기본 qwen3-vl:4b-instruct), OLLAMA_KEEP_ALIVE(기본 5m)
 - 비전에 쓰는 Qwen3-VL-4B를 그대로 쓴다. 시연 PC(RTX 3050 6GB)에 글자 전용 모델을 하나 더 올리면 메모리가 모자라기 때문(4B Q4 약 3.3GB, 최소 6GB 권장)
-- LLM에는 개인정보를 보내지 않는다(접수 번호·상태·공개 특징·매칭 점수만).
+- LLM에는 개인정보를 보내지 않는다(지금 보내는 값: 사례 번호·접수 번호·상태).
 - LLM이 응답하지 않거나 형식이 틀리면 on_error 값(기본 "hold" = 직원 확인)으로 처리한다.
 - 코드 기본은 꺼짐(run_return 의 reviewer=None). 시연 PC 측정(instruct판)에서 잘못된 보류 0건 · 평균 2.7초라 시연에서는 켜도 된다.
   켤 때는 시작 전에 `python evaluation/run_cases.py --reviewer` 로 모델을 미리 올려 둔다(처음 올리기 약 7초). Ollama가 꺼져 있으면 모든 반환이 직원 확인으로 넘어간다
