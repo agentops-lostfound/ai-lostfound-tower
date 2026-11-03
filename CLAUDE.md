@@ -23,6 +23,7 @@ Codex 는 같은 내용의 `AGENTS.md` 를 읽는다. 규칙을 바꾸면 두 �
 - 전체 시험: `python -m unittest discover -s tests`
 - 관제탑 시연 요약: `python tools/tower_demo.py` (관제 채널 전송은 `--send`, LLM 검토는 `--reviewer`)
 - 시험 사례 10개: `python evaluation/run_cases.py`
+- 가짜 보관함 시나리오 8개(부품 교체 확인용): `python tools/mock_scene.py` — 안내 docs/design/swap_guide.md
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 정답지 검사: `python evaluation/answer_key.py 정답지.csv`
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
