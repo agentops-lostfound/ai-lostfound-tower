@@ -15,6 +15,12 @@ from agents.service import (  # noqa: E402
 from discord_ops.reporter import Reporter  # noqa: E402
 
 
+def schema_text():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "center", "schema.sql"), encoding="utf-8") as f:
+        return f.read()
+
+
 def ok_payload(case="R1", item="A-W01", **over):
     p = {"case_id": case, "item_id": item, **{g: True for g in GATE_FIELDS}}
     p.update(over)
@@ -151,10 +157,25 @@ class RecordTest(unittest.TestCase):
             r.save("A-1", {"case_id": "R1", "decision": "returned", "reason": ""})
 
     def test_schema_matches_record_columns(self):
-        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agents", "schema.sql")
-        sql = open(path, encoding="utf-8").read()
+        sql = schema_text()
+        block = sql[sql.index("CREATE TABLE IF NOT EXISTS return_case"):sql.index("CREATE TABLE IF NOT EXISTS return_step")]
         for col in ("case_id", "item_id", "decision", "reason", "approved", "matched_object", "seconds", "created_at"):
-            self.assertIn(col, sql)
+            self.assertIn(col, block)
+
+    def test_schema_checks_match_contracts(self):
+        """DB 의 CHECK 목록이 contracts.py 상수와 같아야 한다(한쪽만 바꾸는 실수 방지)"""
+        import re
+        from agents.contracts import DECISIONS, ITEM_STATUS
+        sql = schema_text()
+        status = re.search(r"CHECK \(status IN \((.*?)\)\)", sql, re.S).group(1)
+        self.assertEqual(re.findall(r"'([^']+)'", status), ITEM_STATUS)
+        decision = re.search(r"CHECK \(decision IN \((.*?)\)\)", sql, re.S).group(1)
+        self.assertEqual(re.findall(r"'([^']+)'", decision), DECISIONS)
+
+    def test_schema_has_no_resident_number_column(self):
+        sql = schema_text().lower()
+        for word in ("resident", "rrn", "jumin"):
+            self.assertNotIn(word, sql)
 
 
 class ApiRoutesTest(unittest.TestCase):

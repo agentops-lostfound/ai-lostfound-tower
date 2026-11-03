@@ -10,7 +10,7 @@
 | ② | [components.md](components.md) | 부품·책임·하지 않는 것·의존 | ① |
 | ③ | [interfaces.md](interfaces.md) | 함수 계약·실패 시 동작 | ②, agents/*.py |
 | ④ | [sequence.md](sequence.md) | 반환 흐름 호출 순서(Mermaid) | ③ |
-| ⑤ | [erd.md](erd.md) | 관제탑이 남길 기록(Mermaid) | ①, ③ |
+| ⑤ | [erd.md](erd.md) · [database.md](database.md) | 관제탑 기록 근거 · 전체 DB 표 설계 | ①, ③ |
 | 검수 | [review.md](review.md) | 문서·코드끼리 어긋난 곳(표만) | ①~⑤ |
 | 환경 | [ai-environment.md](ai-environment.md) | AI 환경 세팅 순서·점검 | ②, ③ |
 | 연결 | [integration.md](integration.md) | 팀원 부품(모델·DB·로봇·웹) 연결 방법 | ③ |

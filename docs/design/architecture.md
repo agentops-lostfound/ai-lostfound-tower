@@ -76,13 +76,13 @@ flowchart LR
 ## 4. 데이터 소유
 | 표 | 소유 | 관제탑이 하는 일 |
 | --- | --- | --- |
-| item(물건·특징 JSON·상태) | 정연우 LF-8 | 읽기(`db_get_item`) · 상태 변경(`db_set_status`) |
-| return_case · return_step | 관제탑(agents/schema.sql) | 반환이 끝날 때마다 저장(지금은 메모리, DB 연결 때 PostgresRecorder) |
+| item(물건·특징 JSON·상태) 외 접수·회수·찾기 표 | 정연우 LF-8 (초안 설계: 변재원, database.md) | 읽기(`db_get_item`) · 상태 변경(`db_set_status`) |
+| return_case · return_step | 관제탑(center/schema.sql 반환 묶음) | 반환이 끝날 때마다 저장(지금은 메모리, DB 연결 때 PostgresRecorder) |
 | 개선 회차(EVAL_RUN, 제안) | 관제탑 | 지금은 #📈평가-점수 글로만 |
 
 ## 5. 연결 순서 (선행 관계)
 1. 관제탑 API·흐름·기록(가짜 부품) — **완료(11/3)**
-2. DB 부품(LF-8) 연결 → item 표 이름 확정 → return_case FK·PostgresRecorder
+2. DB 초안 v1(center/schema.sql, 11/3) → 정연우 검토 → DB 부품(LF-8)·PostgresRecorder 연결
 3. 비전(LF-3) → 매칭(LF-20) 연결 → 탑뷰 실측으로 매칭 가중치 조정
 4. 웹(LF-6)이 `POST /returns` 호출
 5. 로봇(LF-21 → LF-19, LF-11) 연결 → 통합 시연(LF-18)

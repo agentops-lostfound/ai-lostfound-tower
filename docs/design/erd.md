@@ -1,7 +1,9 @@
 # ⑤ ERD — 관제탑이 남길 기록
 
+> 전체 DB 표 설계(접수·회수·찾기 포함)는 [database.md](database.md) · `center/schema.sql` 이 기준이다. 이 문서는 관제탑 쪽 표의 근거만 다룬다.
+
 > 물건 표(ITEM)는 DB 담당(정연우 LF-8)의 것이고, 관제탑은 **읽기 + 상태 변경**만 한다.
-> RETURN_CASE · RETURN_STEP 은 **관제탑 소유로 확정(11/3)** — 표 정의 agents/schema.sql, 저장 agents/records.py(지금은 메모리, DB 연결 때 PostgreSQL). EVAL_RUN 은 아직 제안.
+> RETURN_CASE · RETURN_STEP 은 **관제탑 소유로 확정(11/3)** — 표 정의 center/schema.sql, 저장 agents/records.py(지금은 메모리, DB 연결 때 PostgreSQL). EVAL_RUN 은 아직 제안.
 
 ```mermaid
 erDiagram
