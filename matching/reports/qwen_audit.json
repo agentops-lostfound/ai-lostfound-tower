@@ -1,0 +1,1462 @@
+{
+  "model": "sentence-transformers/all-MiniLM-L6-v2|fastembed=0.8.1|text_v1",
+  "summary": {
+    "scanned_runs": 13,
+    "runs_with_features": 10,
+    "feature_files": 17,
+    "test_queries": 34,
+    "positive_top1": 17,
+    "positive_count": 17,
+    "multi_candidate_positive_top1": 14,
+    "multi_candidate_positive_count": 14,
+    "elapsed_seconds": 1.2793973999978334
+  },
+  "evaluation_basis": "Manually authored queries derived from stored Qwen features; not independent image ground truth. Duplicate runs included; no calibrated rejection threshold.",
+  "runs": [
+    {
+      "run": "262a3fbb20e1489495aa30dd55cf18e9",
+      "run_status": "complete",
+      "candidate_count": 2,
+      "prepare": {
+        "candidate_count": 2,
+        "new_embeddings": 0,
+        "cache_hits": 2,
+        "prepare_seconds": 0.0009950999992724974
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+          "query": "My handset is navy blue and has an animated character decal near the lower left of its rear.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.43200406432151794
+            },
+            {
+              "id": 1,
+              "score": 0.39878371357917786
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.03322035074234009,
+          "timing": {
+            "query_embedding_seconds": 0.013397000002441928,
+            "similarity_seconds": 0.00016119999781949446
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "밝은 노란색이고 스티커가 전혀 없는 폰이에요.",
+          "query": "My phone is bright yellow with no stickers or decals anywhere.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.44875288009643555
+            },
+            {
+              "id": 0,
+              "score": 0.4052290916442871
+            }
+          ],
+          "target_rank": 2,
+          "top_id": 1,
+          "margin": 0.04352378845214844,
+          "timing": {
+            "query_embedding_seconds": 0.013828400002239505,
+            "similarity_seconds": 4.140000237384811e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "흰색 폰이고 뒤에 카메라 두 개와 애플 로고가 있으며 금이 가 있어요.",
+          "query": "I lost a white smartphone with a pair of rear cameras, an Apple emblem and a crack on its back.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.5323652029037476
+            },
+            {
+              "id": 0,
+              "score": 0.3252604603767395
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.20710474252700806,
+          "timing": {
+            "query_embedding_seconds": 0.007180399999924703,
+            "similarity_seconds": 3.7000001611886546e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "빨간 폰이고 카메라가 하나이며 뒷면 손상이 없어요.",
+          "query": "My phone is red, has only one rear camera, and has no damage or cracks on the back.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.37300240993499756
+            },
+            {
+              "id": 0,
+              "score": 0.18004688620567322
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.19295552372932434,
+          "timing": {
+            "query_embedding_seconds": 0.004923399999825051,
+            "similarity_seconds": 2.609999864944257e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: phone; colors: dark blue; shape: rectangular; materials: plastic; distinctive features: a cartoon sticker of a Pokémon character on the back of the phone; stickers present; sticker shape: cartoon; sticker position: lower left",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "dark blue"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "cartoon",
+                "position": "lower left"
+              }
+            ],
+            "distinctive_features": [
+              "a cartoon sticker of a Pokémon character on the back of the phone"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "category: phone; colors: white; shape: rectangular; materials: plastic; logos or text: Apple logo; distinctive features: crack on the back, damaged Apple logo, camera module with two lenses; stickers present; sticker shape: triangle; sticker position: center",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "triangle",
+                "position": "center"
+              }
+            ],
+            "distinctive_features": [
+              "crack on the back",
+              "damaged Apple logo",
+              "camera module with two lenses"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "2fa66a50d89e4a788480166975c2a7b6",
+      "run_status": "complete",
+      "candidate_count": 2,
+      "prepare": {
+        "candidate_count": 2,
+        "new_embeddings": 2,
+        "cache_hits": 0,
+        "prepare_seconds": 0.01788680000026943
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "검은 가죽 카드지갑이고 HONOR라는 글자와 카드 슬롯이 있어요.",
+          "query": "My black leather card holder has HONOR lettering and a slot for a card.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.6292929649353027
+            },
+            {
+              "id": 1,
+              "score": 0.3243457078933716
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.30494725704193115,
+          "timing": {
+            "query_embedding_seconds": 0.0048010999998950865,
+            "similarity_seconds": 3.319999814266339e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "흰색 천 지갑이고 VISA라고 적혀 있어요.",
+          "query": "My wallet is white fabric with VISA lettering.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.4610550105571747
+            },
+            {
+              "id": 1,
+              "score": 0.27387943863868713
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.18717557191848755,
+          "timing": {
+            "query_embedding_seconds": 0.0030482000001939014,
+            "similarity_seconds": 2.5000001187436283e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "검정과 초록색의 직사각형 물건이고 MIDAS 글자와 위쪽 사각 스티커가 있어요.",
+          "query": "My rectangular item is black and green, marked MIDAS, with a rectangular sticker at the top.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.6384096145629883
+            },
+            {
+              "id": 0,
+              "score": 0.49804529547691345
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.14036431908607483,
+          "timing": {
+            "query_embedding_seconds": 0.005340499999874737,
+            "similarity_seconds": 2.9999999242136255e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "흰색과 분홍색의 둥근 물건이고 MIDAS 글자는 없어요.",
+          "query": "My object is round, white and pink, with no MIDAS marking.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.39605802297592163
+            },
+            {
+              "id": 0,
+              "score": 0.26095902919769287
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.13509899377822876,
+          "timing": {
+            "query_embedding_seconds": 0.0038389000001188833,
+            "similarity_seconds": 2.5800000003073364e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: HONOR; distinctive features: camera module, card slot; no stickers",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "cardholder",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "HONOR"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "card slot"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: black, green; shape: rectangular; materials: plastic; logos or text: MIDAS; distinctive features: logo; stickers present; sticker shape: rectangular; sticker position: top",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black",
+              "green"
+            ],
+            "shape": "rectangular",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "MIDAS"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangular",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "4560b8a53f4b4eeb96718439dc8f595a",
+      "run_status": "complete",
+      "candidate_count": 2,
+      "prepare": {
+        "candidate_count": 2,
+        "new_embeddings": 2,
+        "cache_hits": 0,
+        "prepare_seconds": 0.013463499999488704
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "검은 폰이고 검정 화면과 케이스가 있으며 스티커는 없어요.",
+          "query": "My black phone is inside a protective cover, has a dark screen and no stickers.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.5806388854980469
+            },
+            {
+              "id": 1,
+              "score": 0.2876325249671936
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.29300636053085327,
+          "timing": {
+            "query_embedding_seconds": 0.00370660000044154,
+            "similarity_seconds": 3.0300001526484266e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "초록색 폰이고 화면이 켜져 있으며 케이스가 없어요.",
+          "query": "My green phone has a lit screen and no protective cover.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.37397268414497375
+            },
+            {
+              "id": 1,
+              "score": 0.08388461917638779
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.29008806496858597,
+          "timing": {
+            "query_embedding_seconds": 0.0029893999999330845,
+            "similarity_seconds": 2.4000000848900527e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "검은 가죽 지갑이고 오른쪽 아래 작은 정사각형 표시가 있어요.",
+          "query": "My black leather wallet has a little square emblem at the bottom right.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.6395823359489441
+            },
+            {
+              "id": 0,
+              "score": 0.3831687271595001
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.25641360878944397,
+          "timing": {
+            "query_embedding_seconds": 0.006295099999988452,
+            "similarity_seconds": 3.470000228844583e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "노란 천 지갑이고 오른쪽 아래 표시가 없어요.",
+          "query": "My yellow cloth wallet has no marking at the lower right.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.45035019516944885
+            },
+            {
+              "id": 0,
+              "score": 0.25673413276672363
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.19361606240272522,
+          "timing": {
+            "query_embedding_seconds": 0.0036442000018723775,
+            "similarity_seconds": 2.640000093379058e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "colors: black; shape: rectangle; materials: plastic; distinctive features: screen is black, phone is in a case; no stickers",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "screen is black",
+              "phone is in a case"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: logo; distinctive features: small square logo; stickers present; sticker shape: square; sticker position: bottom-right",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "personal",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "logo"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "square",
+                "position": "bottom-right"
+              }
+            ],
+            "distinctive_features": [
+              "small square logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "60fd6277bc07490fbefd8d4b9446093e",
+      "run_status": "complete",
+      "candidate_count": 2,
+      "prepare": {
+        "candidate_count": 2,
+        "new_embeddings": 0,
+        "cache_hits": 2,
+        "prepare_seconds": 0.03182179999930668
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "검은 가죽 카드지갑이고 HONOR라는 글자와 카드 슬롯이 있어요.",
+          "query": "My black leather card holder has HONOR lettering and a slot for a card.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.6292929649353027
+            },
+            {
+              "id": 1,
+              "score": 0.3243457078933716
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.30494725704193115,
+          "timing": {
+            "query_embedding_seconds": 0.006005399998684879,
+            "similarity_seconds": 3.1600000511389226e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "흰색 천 지갑이고 VISA라고 적혀 있어요.",
+          "query": "My wallet is white fabric with VISA lettering.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.4610550105571747
+            },
+            {
+              "id": 1,
+              "score": 0.27387943863868713
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.18717557191848755,
+          "timing": {
+            "query_embedding_seconds": 0.002902599997469224,
+            "similarity_seconds": 2.2199998056748882e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "검정과 초록색의 직사각형 물건이고 MIDAS 글자와 위쪽 사각 스티커가 있어요.",
+          "query": "My rectangular item is black and green, marked MIDAS, with a rectangular sticker at the top.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.6384096145629883
+            },
+            {
+              "id": 0,
+              "score": 0.49804529547691345
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.14036431908607483,
+          "timing": {
+            "query_embedding_seconds": 0.003619099999923492,
+            "similarity_seconds": 1.920000067912042e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "흰색과 분홍색의 둥근 물건이고 MIDAS 글자는 없어요.",
+          "query": "My object is round, white and pink, with no MIDAS marking.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.39605802297592163
+            },
+            {
+              "id": 0,
+              "score": 0.26095902919769287
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.13509899377822876,
+          "timing": {
+            "query_embedding_seconds": 0.0032056000018201303,
+            "similarity_seconds": 2.1199997718213126e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: HONOR; distinctive features: camera module, card slot; no stickers",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "cardholder",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "HONOR"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "card slot"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: black, green; shape: rectangular; materials: plastic; logos or text: MIDAS; distinctive features: logo; stickers present; sticker shape: rectangular; sticker position: top",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black",
+              "green"
+            ],
+            "shape": "rectangular",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "MIDAS"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangular",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+      "run_status": "complete",
+      "candidate_count": 1,
+      "prepare": {
+        "candidate_count": 1,
+        "new_embeddings": 1,
+        "cache_hits": 0,
+        "prepare_seconds": 0.012938500000018394
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "검정 USB이고 테두리가 빨간색이며 SanDisk라고 적혀 있어요.",
+          "query": "My black USB memory stick has a crimson border and SanDisk printed along the side.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.582899808883667
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": null,
+          "timing": {
+            "query_embedding_seconds": 0.004250000001775334,
+            "similarity_seconds": 2.8700000257231295e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "파란 금속 USB이고 Kingston이라고 적혀 있어요.",
+          "query": "My blue metal USB drive is labelled Kingston.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.45494329929351807
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": null,
+          "timing": {
+            "query_embedding_seconds": 0.002687500000320142,
+            "similarity_seconds": 1.7300000763498247e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: usb; colors: black, red; shape: rectangular; materials: plastic; logos or text: SanDisk; distinctive features: text on the side, red edge; stickers present; sticker shape: rectangle; sticker position: top",
+          "features": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "SanDisk"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangle",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "text on the side",
+              "red edge"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "cb97b414627b47d8a349c9ca3323d3f1",
+      "run_status": null,
+      "candidate_count": 2,
+      "prepare": {
+        "candidate_count": 2,
+        "new_embeddings": 0,
+        "cache_hits": 2,
+        "prepare_seconds": 0.0007317999989027157
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "검은 가죽 카드지갑이고 HONOR라는 글자와 카드 슬롯이 있어요.",
+          "query": "My black leather card holder has HONOR lettering and a slot for a card.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.6292929649353027
+            },
+            {
+              "id": 1,
+              "score": 0.3243457078933716
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.30494725704193115,
+          "timing": {
+            "query_embedding_seconds": 0.0030490999997709878,
+            "similarity_seconds": 2.2100000933278352e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "흰색 천 지갑이고 VISA라고 적혀 있어요.",
+          "query": "My wallet is white fabric with VISA lettering.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.4610550105571747
+            },
+            {
+              "id": 1,
+              "score": 0.27387943863868713
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.18717557191848755,
+          "timing": {
+            "query_embedding_seconds": 0.002346099998248974,
+            "similarity_seconds": 1.7300000763498247e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "검정과 초록색의 직사각형 물건이고 MIDAS 글자와 위쪽 사각 스티커가 있어요.",
+          "query": "My rectangular item is black and green, marked MIDAS, with a rectangular sticker at the top.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.6384096145629883
+            },
+            {
+              "id": 0,
+              "score": 0.49804529547691345
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.14036431908607483,
+          "timing": {
+            "query_embedding_seconds": 0.005246999997325474,
+            "similarity_seconds": 3.9999998989515007e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "흰색과 분홍색의 둥근 물건이고 MIDAS 글자는 없어요.",
+          "query": "My object is round, white and pink, with no MIDAS marking.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.39605802297592163
+            },
+            {
+              "id": 0,
+              "score": 0.26095902919769287
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.13509899377822876,
+          "timing": {
+            "query_embedding_seconds": 0.0050139000013587065,
+            "similarity_seconds": 5.0999999075429514e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: HONOR; distinctive features: camera module, card slot; no stickers",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "cardholder",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "HONOR"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "card slot"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: black, green; shape: rectangular; materials: plastic; logos or text: MIDAS; distinctive features: logo; stickers present; sticker shape: rectangular; sticker position: top",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black",
+              "green"
+            ],
+            "shape": "rectangular",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "MIDAS"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangular",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "d3dfa2e2135248a399780e4d21a08f0f",
+      "run_status": "complete",
+      "candidate_count": 2,
+      "prepare": {
+        "candidate_count": 2,
+        "new_embeddings": 2,
+        "cache_hits": 0,
+        "prepare_seconds": 0.016172699997696327
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "진한 파란 물건이고 왼쪽 아래 포켓몬 캐릭터 스티커가 있어요.",
+          "query": "My navy item has a Pokemon character decal near its bottom left corner.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.5369371771812439
+            },
+            {
+              "id": 1,
+              "score": 0.26454249024391174
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.27239468693733215,
+          "timing": {
+            "query_embedding_seconds": 0.014970799998991424,
+            "similarity_seconds": 0.00010430000111227855
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "노란 물건이고 캐릭터 스티커는 전혀 없어요.",
+          "query": "My item is yellow with no character stickers or decals.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.4809418320655823
+            },
+            {
+              "id": 1,
+              "score": 0.4707275927066803
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.010214239358901978,
+          "timing": {
+            "query_embedding_seconds": 0.008538800000678748,
+            "similarity_seconds": 3.400000059627928e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "흰색 물건이고 애플 로고와 카메라 부분이 있으며 손상된 곳이 있어요.",
+          "query": "My white device bears an Apple emblem, a camera module and some damage.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.6212112903594971
+            },
+            {
+              "id": 0,
+              "score": 0.29278308153152466
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.3284282088279724,
+          "timing": {
+            "query_embedding_seconds": 0.0036828999982390087,
+            "similarity_seconds": 2.5699999241624027e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "초록색 물건이고 애플 로고와 카메라가 없어요.",
+          "query": "My green object has no Apple emblem and no camera module.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.5336289405822754
+            },
+            {
+              "id": 0,
+              "score": 0.27090999484062195
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.26271894574165344,
+          "timing": {
+            "query_embedding_seconds": 0.004823199997190386,
+            "similarity_seconds": 3.719999949680641e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "colors: dark blue; shape: rectangle; materials: plastic; logos or text: pokemon; distinctive features: pokemon sticker; stickers present; sticker shape: cartoon; sticker position: bottom left",
+          "features": {
+            "category": "other",
+            "colors": [
+              "dark blue"
+            ],
+            "shape": "rectangle",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "pokemon"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "cartoon",
+                "position": "bottom left"
+              }
+            ],
+            "distinctive_features": [
+              "pokemon sticker"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: white; shape: rectangle; materials: plastic; logos or text: Apple logo; distinctive features: camera module, damaged area; no stickers",
+          "features": {
+            "category": "other",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangle",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "damaged area"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "ed1419ed60194204be814b8393c12a43",
+      "run_status": "failed",
+      "candidate_count": 1,
+      "prepare": {
+        "candidate_count": 1,
+        "new_embeddings": 1,
+        "cache_hits": 0,
+        "prepare_seconds": 0.00888410000334261
+      },
+      "tests": [
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "흰색 폰이고 카메라 두 개, 뒷면 금, 왼쪽 아래 작은 흠집이 있어요.",
+          "query": "My white handset has two rear lenses, a fracture on its back, and a small nick near the lower left.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.3570761978626251
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": null,
+          "timing": {
+            "query_embedding_seconds": 0.004829099998460151,
+            "similarity_seconds": 2.6300000172341242e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "빨간 폰이고 렌즈가 하나이며 금이나 흠집이 없어요.",
+          "query": "My red phone has one rear lens and no cracks, scratches or chips.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.4047592878341675
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": null,
+          "timing": {
+            "query_embedding_seconds": 0.0032367000021622516,
+            "similarity_seconds": 1.9400002202019095e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 1,
+          "text": "category: phone; colors: white; shape: rectangular; materials: plastic; logos or text: Apple logo; distinctive features: camera module with two lenses, single visible crack on the back, small chip or scratch near the bottom left corner; no stickers",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module with two lenses",
+              "single visible crack on the back",
+              "small chip or scratch near the bottom left corner"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "f7e7af5f8fc742ea93d49212029ecb79",
+      "run_status": "complete",
+      "candidate_count": 2,
+      "prepare": {
+        "candidate_count": 2,
+        "new_embeddings": 0,
+        "cache_hits": 2,
+        "prepare_seconds": 0.005065000001195585
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+          "query": "My handset is navy blue and has an animated character decal near the lower left of its rear.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.43200406432151794
+            },
+            {
+              "id": 1,
+              "score": 0.39878371357917786
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": 0.03322035074234009,
+          "timing": {
+            "query_embedding_seconds": 0.0053883000000496395,
+            "similarity_seconds": 3.0399998649954796e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "밝은 노란색이고 스티커가 전혀 없는 폰이에요.",
+          "query": "My phone is bright yellow with no stickers or decals anywhere.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.44875288009643555
+            },
+            {
+              "id": 0,
+              "score": 0.4052290916442871
+            }
+          ],
+          "target_rank": 2,
+          "top_id": 1,
+          "margin": 0.04352378845214844,
+          "timing": {
+            "query_embedding_seconds": 0.0032713000000512693,
+            "similarity_seconds": 3.300000025774352e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "positive",
+          "korean": "흰색 폰이고 뒤에 카메라 두 개와 애플 로고가 있으며 금이 가 있어요.",
+          "query": "I lost a white smartphone with a pair of rear cameras, an Apple emblem and a crack on its back.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.5323652029037476
+            },
+            {
+              "id": 0,
+              "score": 0.3252604603767395
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.20710474252700806,
+          "timing": {
+            "query_embedding_seconds": 0.005807199999253498,
+            "similarity_seconds": 3.1600000511389226e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 1,
+          "kind": "contradictory",
+          "korean": "빨간 폰이고 카메라가 하나이며 뒷면 손상이 없어요.",
+          "query": "My phone is red, has only one rear camera, and has no damage or cracks on the back.",
+          "ranking": [
+            {
+              "id": 1,
+              "score": 0.37300240993499756
+            },
+            {
+              "id": 0,
+              "score": 0.18004688620567322
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 1,
+          "margin": 0.19295552372932434,
+          "timing": {
+            "query_embedding_seconds": 0.0040157000003091525,
+            "similarity_seconds": 2.0600000425474718e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: phone; colors: dark blue; shape: rectangular; materials: plastic; distinctive features: a cartoon sticker of a Pokémon character on the back of the phone; stickers present; sticker shape: cartoon; sticker position: lower left",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "dark blue"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "cartoon",
+                "position": "lower left"
+              }
+            ],
+            "distinctive_features": [
+              "a cartoon sticker of a Pokémon character on the back of the phone"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "category: phone; colors: white; shape: rectangular; materials: plastic; logos or text: Apple logo; distinctive features: crack on the back, damaged Apple logo, camera module with two lenses; stickers present; sticker shape: triangle; sticker position: center",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "triangle",
+                "position": "center"
+              }
+            ],
+            "distinctive_features": [
+              "crack on the back",
+              "damaged Apple logo",
+              "camera module with two lenses"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "qwen_only_2fcc3f870f2d4d1e8c84d528e95c5b10",
+      "run_status": "complete",
+      "candidate_count": 1,
+      "prepare": {
+        "candidate_count": 1,
+        "new_embeddings": 1,
+        "cache_hits": 0,
+        "prepare_seconds": 0.009829499998886604
+      },
+      "tests": [
+        {
+          "target_id": 0,
+          "kind": "positive",
+          "korean": "주황색과 흰색 립밤이고 원통형이며 AVENZA라고 적혀 있어요.",
+          "query": "My cylindrical lip balm is orange and white and carries AVENZA lettering.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.6539443135261536
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": null,
+          "timing": {
+            "query_embedding_seconds": 0.003012799999851268,
+            "similarity_seconds": 2.350000067963265e-05
+          },
+          "positive_top1": true,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        },
+        {
+          "target_id": 0,
+          "kind": "contradictory",
+          "korean": "파란색과 검정 립밤이고 네모난 모양이며 NIVEA라고 적혀 있어요.",
+          "query": "My lip balm is blue and black, square shaped, and labelled NIVEA.",
+          "ranking": [
+            {
+              "id": 0,
+              "score": 0.5043119192123413
+            }
+          ],
+          "target_rank": 1,
+          "top_id": 0,
+          "margin": null,
+          "timing": {
+            "query_embedding_seconds": 0.0031915999970806297,
+            "similarity_seconds": 2.0299998141126707e-05
+          },
+          "positive_top1": false,
+          "note": "Generated from saved Qwen fields, not independently verified image ground truth. Contradictory queries do not establish another candidate is correct."
+        }
+      ],
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: lip_balm; colors: orange, white; shape: cylinder; materials: plastic; logos or text: AVENZA; distinctive features: orange cap, white cap, text on cap; stickers present; sticker shape: rectangle; sticker position: side",
+          "features": {
+            "category": "lip_balm",
+            "colors": [
+              "orange",
+              "white"
+            ],
+            "shape": "cylinder",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "AVENZA"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangle",
+                "position": "side"
+              }
+            ],
+            "distinctive_features": [
+              "orange cap",
+              "white cap",
+              "text on cap"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "excluded_runs": [
+    {
+      "run": "8e3576993aed441c9825e822d67209fc",
+      "status": "failed",
+      "reason": "No saved successful Qwen features"
+    },
+    {
+      "run": "9dc58e37e6814989bd48c3e5ae59c9bb",
+      "status": "running",
+      "reason": "No saved successful Qwen features"
+    },
+    {
+      "run": "cbedfdccb1504e1d81ea1c8ffc745219",
+      "status": "cancelled",
+      "reason": "No saved successful Qwen features"
+    }
+  ]
+}
