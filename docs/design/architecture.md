@@ -31,8 +31,8 @@ flowchart LR
   OL[(Ollama<br/>qwen3-vl:4b-instruct)]
   DC[(디스코드 관제 채널 3곳)]
   Kiosk -->|접수 기록| D
-  Web -->|POST /returns| API
-  Staff -->|POST /returns| API
+  Web -->|POST /claims 찾기 요청·웹 확인·예약| API
+  Staff -->|GET /claims · POST /returns 방문 확인| API
   API --> SVC --> SUP --> CB
   SVC -->|기록| PG
   CB --> V & M & D & R
@@ -58,17 +58,46 @@ flowchart LR
 | --- | --- | --- | --- |
 | `GET /health` | 살아 있음 · 부품 진짜/가짜 · 실행 중 여부 | 200 | — |
 | `GET /tools` | 도구 목록(담당·실패 규칙) | 200 | — |
-| `POST /returns` | 반환 흐름 실행 | 200 + 결과(decision·reason·approved·steps…·recorded) | 422 형식 오류 · 409 같은 사례 번호(duplicate) 또는 다른 반환 진행 중(busy) · 503 기록 저장소(DB) 연결 안 됨 |
+| `POST /claims` | 웹: 찾기 요청 저장(웹 확인 3개 + 수령 예약) | 200 + claim_id·web_gates | 422 형식·개인정보 원문·없는 물건 · 503 DB |
+| `GET /claims/{claim_id}` | 직원 화면: 찾기 요청 조회(가린 이름·물건·예약·웹 확인) | 200 | 404 없음 · 422 번호 형식 |
+| `GET /staff` | 직원 화면(본센터 방문 확인) 페이지 | 200 | — |
+| `POST /returns` | 반환 흐름 실행 | 200 + 결과(decision·reason·approved·steps…·recorded) | 422 형식 오류 · 404 없는 찾기 번호 · 409 같은 사례 번호·이미 방문 처리(duplicate) 또는 다른 반환 진행 중(busy) · 503 DB 연결 안 됨 |
 | `GET /returns` | 최근 기록(단계 제외) | 200 | — |
 | `GET /returns/{case_id}` | 기록 하나(단계 포함) | 200 | 404 없음 · 422 번호 형식 |
 
-`POST /returns` 본문 (개인정보 없이 관문 결과만)
-```json
-{"case_id": "R-20261103-001", "item_id": "A-W01",
- "consent": true, "id_verified": true, "quiz_passed": true,
- "visitor_id_match": true, "inner_feature_ok": true, "staff_confirmed": true}
+## 3-2. 웹 ↔ 관제탑 2단계 연결 (11/3 결정)
+확인 6개 중 3개는 집에서 웹으로, 3개는 본센터 방문 때 생긴다 → 두 번에 나눠 보내고, **웹 결과는 저장된 값만** 쓴다(직원이 다시 입력하지 않음).
+```mermaid
+sequenceDiagram
+  participant W as 분실인 웹(LF-4·6)
+  participant A as 관제탑 API
+  participant DB as 팀 DB(claim·quiz_attempt·reservation)
+  participant S as 직원 화면(/staff)
+  W->>A: POST /claims (동의·가린 이름·OCR 인증·설명·고른 물건·확인 질문 결과·방문일)
+  A->>DB: 찾기 요청 저장 → C-20261103-0001
+  A-->>W: claim_id (분실인에게 보여 줌)
+  Note over W,S: 방문일에 본센터
+  S->>A: GET /claims/C-20261103-0001
+  A-->>S: 가린 이름·물건 번호·예약·웹 확인 3개(✅/❌)
+  S->>A: POST /returns {claim_id, 실물 신분증 대조, 안쪽 특징, 직원 최종 확인}
+  A->>A: 웹 3개(DB) + 현장 3개 → 반환 흐름(안전 관문 → 로봇)
+  A->>DB: 반환 기록(return_case.claim_id 연결) · 반환 완료면 예약 visited
 ```
-- 웹은 동의·인증·확인 질문 결과를, 직원 화면은 신분증 대조·안쪽 특징·직원 확인 결과를 채운다(누가 어느 칸을 채울지는 LF-6·12와 맞춤)
+웹 → `POST /claims` 본문 (이름·신분증 번호는 **가린 값**만, 설명 칸은 database.md 6장)
+```json
+{"consent": true, "name_masked": "변*원", "id_no_masked": "******-3******", "id_verified": true,
+ "description": {"category": "지갑", "color": "검정", "mark": "별 모양 스티커"},
+ "item_id": "A-20261103-0001", "quiz": [{"field": "mark", "passed": true}],
+ "visit_date": "2026-11-04", "lost_station": "해운대", "lost_date": "2026-11-02"}
+```
+직원 화면 → `POST /returns` 본문(2단계)
+```json
+{"claim_id": "C-20261103-0001", "visitor_id_match": true, "inner_feature_ok": true, "staff_confirmed": true}
+```
+- 사례 번호는 `R-찾기번호`(다시 시도하면 직원 화면이 `-2` 를 붙임). 반환 완료된 찾기 요청은 다시 실행되지 않는다
+- 직원 화면은 웹 관문 칸을 보낼 수 없다(보내면 422) → 웹에서 확인 질문을 틀렸으면 직원이 바꿀 수 없음
+- 시연·시험용 1단계 본문(`case_id`, `item_id` + 관문 6개)도 그대로 받는다
+- 직원 화면 열기: 관제탑이 켜진 PC에서 http://127.0.0.1:8100/staff (시연용 찾기 요청 만들기 포함)
 - 같은 `case_id` 로는 다시 실행되지 않는다(로봇 두 번 동작 방지). 로봇이 1대라 동시에 하나만 실행
 - 부품이 약속을 어기고 예외를 던지면: 로봇 정지 시도 → 결정 `stopped` → 알림 → 기록
 - 실행: `python -m uvicorn agents.api:app --host 127.0.0.1 --port 8100` → http://127.0.0.1:8100/docs
@@ -94,5 +123,5 @@ flowchart LR
 1. 관제탑 API·흐름·기록(가짜 부품) — **완료(11/3)**
 2. DB 초안 v1(center/schema.sql) · docker compose · DB 부품(agents/db_part.py) · PostgresRecorder — **완료·확정(11/3)**, 확정 사항은 database.md 6장
 3. 비전(LF-3) → 매칭(LF-20) 연결 → 탑뷰 실측으로 매칭 가중치 조정
-4. 웹(LF-6)이 `POST /returns` 호출
+4. 웹(LF-4·6)이 `POST /claims` 호출 — 관제탑 쪽(API·직원 화면 `/staff`) **준비 완료(11/3)**, 웹 연결 대기
 5. 로봇(LF-21 → LF-19, LF-11) 연결 → 통합 시연(LF-18)

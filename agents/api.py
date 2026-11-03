@@ -22,7 +22,10 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.service import Conflict, RequestError, TowerService, Unavailable, demo_backend_factory  # noqa: E402
+from agents.service import (Conflict, NotFound, RequestError, TowerService, Unavailable,  # noqa: E402
+                            demo_backend_factory)
+
+STAFF_PAGE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "staff-desk", "index.html")
 
 
 def _flag(name: str) -> bool:
@@ -41,6 +44,7 @@ def build_service(backend_factory=None) -> TowerService:
         from agents.llm_reviewer import OllamaReviewer
         reviewer = OllamaReviewer()
     recorder = None
+    claims = None
     if _flag("TOWER_DB") and backend_factory is None:
         # DB 모드: 물건 기록·상태는 진짜 DB, 나머지 부품(비전·매칭·로봇)은 가짜 → 반환 기록도 DB 에 저장
         from agents.backends import CompositeBackend
@@ -51,8 +55,10 @@ def build_service(backend_factory=None) -> TowerService:
         db_part = PostgresDbPart(dsn)
         backend_factory = lambda: CompositeBackend(db=db_part, fallback=demo().fallback)  # noqa: E731
         recorder = PostgresRecorder(dsn)
+        from agents.claims import PostgresClaimStore
+        claims = PostgresClaimStore(dsn)
     return TowerService(backend_factory or demo_backend_factory(), Reporter(dry_run=not _flag("TOWER_SEND")),
-                        recorder=recorder, reviewer=reviewer)
+                        recorder=recorder, reviewer=reviewer, claims=claims)
 
 
 def build_app(service: TowerService | None = None):
@@ -75,17 +81,52 @@ def build_app(service: TowerService | None = None):
         """관제탑 도구 목록(담당·실패 규칙)"""
         return [{"name": t.name, "owner": t.owner, "summary": t.summary, "on_fail": t.on_fail} for t in TOOLS]
 
+    @app.post("/claims")
+    def create_claim(payload: dict = Body(...)) -> dict:
+        """웹(1단계): 찾기 요청 저장. 본문: consent, name_masked, id_no_masked(가린 값), id_verified, description,
+        item_id(고른 후보), quiz[{field, passed}], visit_date (+ lost_line·lost_station·lost_date). 결과: claim_id·웹 관문"""
+        try:
+            return svc.create_claim(payload)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+    @app.get("/claims/{claim_id}")
+    def get_claim(claim_id: str) -> dict:
+        """직원 화면: 찾기 요청 하나(가린 이름·물건 번호·예약·웹 관문 결과)"""
+        try:
+            row = svc.get_claim(claim_id)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+        if row is None:
+            raise HTTPException(status_code=404, detail="없는 찾기 번호")
+        return row
+
     @app.post("/returns")
     def start_return(payload: dict = Body(...)) -> dict:
-        """반환 흐름 실행. 본문: case_id, item_id + 관문 결과 6개(true/false). 결과: 결정·이유·단계"""
+        """반환 흐름 실행. 본문 둘 중 하나
+        - 2단계(권장): claim_id + visitor_id_match·inner_feature_ok·staff_confirmed (웹 결과는 저장된 값 사용)
+        - 1단계: case_id, item_id + 관문 결과 6개(시연·시험용)"""
         try:
             return svc.start_return(payload)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
         except Conflict as e:
             raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
+
+    @app.get("/staff", include_in_schema=False)
+    def staff_page():
+        """직원 화면(본센터 방문 확인). 같은 주소에서 열려 API 를 바로 부른다"""
+        from fastapi.responses import HTMLResponse
+        with open(STAFF_PAGE, encoding="utf-8") as f:
+            return HTMLResponse(f.read())
 
     @app.get("/returns")
     def recent(limit: int = 20) -> list[dict]:

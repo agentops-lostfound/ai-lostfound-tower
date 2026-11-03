@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>본센터 직원 화면</title>
+<!-- 직원 화면(본센터 방문 확인) — 관제탑 API 가 /staff 로 열어 준다. 같은 주소라 API 를 바로 부른다.
+     흐름: 찾기 번호 조회 → 웹 확인 결과(저장된 값) 확인 → 현장 확인 3개 체크 → 반환 시작
+     개인정보: 가린 이름만 보여 준다. 실물 신분증 내용은 입력하지 않는다(일치 여부만 체크) -->
+<style>
+  :root {
+    --bg: #f5f6f4; --panel: #ffffff; --fg: #1d2420; --muted: #5d6a63; --line: #d9ded9;
+    --accent: #1f6f50; --accent-fg: #ffffff; --ok: #1f7a46; --bad: #b3261e; --warn: #8a5a00; --chip: #eef2ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121614; --panel: #1b201d; --fg: #e6ebe7; --muted: #9aa69f; --line: #2e3631;
+            --accent: #5cc095; --accent-fg: #0f1411; --ok: #6fd39a; --bad: #ff8a80; --warn: #e2b04a; --chip: #232a26;
+            color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.55 "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+         padding: 20px max(16px, env(safe-area-inset-left, 0px)) 40px max(16px, env(safe-area-inset-right, 0px)); }
+  main { max-width: 880px; margin: 0 auto; display: grid; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  h1 { font-size: 1.35rem; margin: 0; }
+  h2 { font-size: 1.02rem; margin: 0 0 10px; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input[type=text], select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+                             background: var(--bg); color: var(--fg); min-width: 0; }
+  input[type=text] { flex: 1 1 220px; letter-spacing: .02em; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--chip); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 4px 0 12px; }
+  .kv b { color: var(--muted); font-weight: 500; }
+  .gates { display: grid; gap: 6px; margin: 6px 0 14px; }
+  .gate { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 8px; background: var(--chip); }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; } .warn { color: var(--warn); }
+  label.check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line);
+                border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+  label.check input { margin-top: 4px; width: 18px; height: 18px; }
+  .result { margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--chip); }
+  ol.steps { margin: 6px 0 0; padding-left: 20px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  details summary { cursor: pointer; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>본센터 직원 화면 · 방문 확인</h1>
+    <span class="muted" id="health">관제탑 확인 중…</span>
+  </header>
+
+  <section>
+    <h2>1. 찾기 번호 조회</h2>
+    <div class="row">
+      <input type="text" id="claimId" placeholder="C-20261103-0001" autocomplete="off" aria-label="찾기 번호">
+      <button id="lookup" class="primary">조회</button>
+    </div>
+    <p class="muted" id="lookupMsg">분실인이 웹에서 받은 찾기 번호를 입력합니다.</p>
+  </section>
+
+  <section id="claimBox" hidden>
+    <h2>2. 찾기 요청 확인</h2>
+    <div class="kv" id="claimKv"></div>
+    <div class="muted">웹에서 끝낸 확인(저장된 값 — 여기서 바꿀 수 없음)</div>
+    <div class="gates" id="webGates"></div>
+
+    <h2>3. 현장 확인</h2>
+    <label class="check"><input type="checkbox" id="g1"><span><b>실물 신분증 대조</b> — 신분증 이름이 위의 가린 이름과 맞고, 사진이 방문자 본인입니다</span></label>
+    <label class="check"><input type="checkbox" id="g2"><span><b>안쪽 특징 확인</b> — 물건 안쪽 특징(카드 종류 등)을 방문자 설명과 맞춰 봤습니다</span></label>
+    <label class="check"><input type="checkbox" id="g3"><span><b>직원 최종 확인</b> — 이 물건을 이 방문자에게 돌려줘도 됩니다</span></label>
+    <p class="muted">하나라도 맞지 않으면 체크하지 말고 반환을 시작하세요. 관제탑이 <b>반환 안 함</b>으로 기록하고 로봇을 움직이지 않습니다.</p>
+    <div class="row">
+      <button id="start" class="primary" disabled>반환 시작</button>
+      <span class="muted" id="startMsg"></span>
+    </div>
+    <div class="result" id="result" hidden></div>
+  </section>
+
+  <section>
+    <h2>최근 반환 기록</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>사례</th><th>찾기</th><th>물건</th><th>결과</th><th>이유</th><th>시각</th></tr></thead>
+      <tbody id="recent"><tr><td colspan="6" class="muted">불러오는 중…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <details>
+      <summary>시연용 찾기 요청 만들기 (웹이 연결되기 전 연습용)</summary>
+      <p class="muted">웹 화면 대신 가짜 찾기 요청을 만듭니다. 가린 이름·가린 번호만 쓰고 실제 개인정보는 넣지 않습니다.</p>
+      <div class="row">
+        <select id="demoItem" aria-label="시연 물건">
+          <option>A-W01</option><option>A-W02</option><option>A-W03</option><option>A-W04</option>
+          <option>A-W05</option><option>A-W06</option><option>A-W07</option>
+        </select>
+        <label class="row"><input type="checkbox" id="demoQuiz" checked> 확인 질문 통과</label>
+        <button id="demoMake">만들기</button>
+      </div>
+      <p class="muted" id="demoMsg"></p>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var current = null;          // 조회한 찾기 요청
+  var tries = {};              // 같은 찾기 번호로 다시 시도할 때 사례 번호 뒤에 붙일 번호
+  var NAMES = { consent: "필수 동의", id_verified: "신분증 OCR 인증", quiz_passed: "확인 질문" };
+  var DECISION = { returned: ["ok", "✅ 반환 완료"], rejected: ["bad", "⛔ 반환 안 함"],
+                   staff_check: ["warn", "🙋 직원 확인 필요"], stopped: ["bad", "🛑 로봇 정지"] };
+
+  function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
+  async function api(method, path, body) {
+    var res = await fetch(path, { method: method, headers: body ? { "Content-Type": "application/json" } : {},
+                                  body: body ? JSON.stringify(body) : undefined });
+    var data = null; try { data = await res.json(); } catch (e) {}
+    return { status: res.status, data: data };
+  }
+  function detail(r) {
+    var d = r.data && r.data.detail;
+    if (!d) return "오류 " + r.status;
+    if (typeof d === "string") return d;
+    if (d.message) return d.message;
+    return JSON.stringify(d);
+  }
+
+  async function health() {
+    try {
+      var r = await api("GET", "/health");
+      var db = r.data.sources && r.data.sources.db_get_item === "PostgresDbPart" ? "팀 DB" : "메모리(시연)";
+      $("health").textContent = "관제탑 연결됨 · 기록: " + db + (r.data.busy ? " · 반환 진행 중" : "");
+    } catch (e) { $("health").textContent = "관제탑에 연결할 수 없습니다"; }
+  }
+
+  function refreshStart() {
+    $("start").disabled = !current || current.status !== "booked";
+    $("startMsg").textContent = current && current.status !== "booked" ? "이미 방문 처리된 요청입니다(" + current.status + ")" : "";
+  }
+
+  function showClaim(c) {
+    current = c;
+    var kv = $("claimKv"); kv.textContent = "";
+    [["찾기 번호", c.claim_id], ["가린 이름", c.name_masked], ["물건 번호", c.item_id],
+     ["방문 예약일", c.visit_date], ["상태", c.status === "booked" ? "예약됨" : c.status]].forEach(function (p) {
+      kv.appendChild(el("b", p[0])); kv.appendChild(el("span", p[1]));
+    });
+    var g = $("webGates"); g.textContent = "";
+    Object.keys(NAMES).forEach(function (k) {
+      var ok = c.web_gates[k];
+      var row = el("div", undefined, "gate");
+      row.appendChild(el("span", ok ? "✅" : "❌", ok ? "ok" : "bad"));
+      row.appendChild(el("span", NAMES[k] + (ok ? " 통과" : " 통과 못 함 → 반환되지 않습니다")));
+      g.appendChild(row);
+    });
+    ["g1", "g2", "g3"].forEach(function (id) { $(id).checked = false; });
+    $("result").hidden = true;
+    $("claimBox").hidden = false;
+    refreshStart();
+  }
+
+  async function lookup() {
+    var id = $("claimId").value.trim().toUpperCase();
+    $("claimId").value = id;
+    if (!/^C-\d{8}-\d{4}$/.test(id)) { $("lookupMsg").textContent = "형식: C-날짜-순번 (예: C-20261103-0001)"; return; }
+    $("lookupMsg").textContent = "조회 중…";
+    var r = await api("GET", "/claims/" + encodeURIComponent(id));
+    if (r.status === 200) { $("lookupMsg").textContent = "조회됨"; showClaim(r.data); }
+    else { $("lookupMsg").textContent = r.status === 404 ? "없는 찾기 번호입니다" : detail(r); $("claimBox").hidden = true; current = null; }
+  }
+
+  async function start() {
+    if (!current) return;
+    $("start").disabled = true;
+    $("startMsg").textContent = "반환 진행 중… (로봇이 움직이는 동안 기다려 주세요)";
+    var n = tries[current.claim_id] || 0;
+    var body = { claim_id: current.claim_id, visitor_id_match: $("g1").checked,
+                 inner_feature_ok: $("g2").checked, staff_confirmed: $("g3").checked };
+    if (n > 0) body.case_id = ("R-" + current.claim_id + "-" + (n + 1)).slice(0, 32);
+    var r = await api("POST", "/returns", body);
+    var box = $("result"); box.textContent = ""; box.hidden = false;
+    if (r.status === 200) {
+      tries[current.claim_id] = n + 1;
+      var d = DECISION[r.data.decision] || ["", r.data.decision];
+      box.appendChild(el("div", d[1], d[0]));
+      box.appendChild(el("div", "이유: " + r.data.reason));
+      box.appendChild(el("div", "사례 번호: " + r.data.case_id + (r.data.recorded ? " · 기록 저장됨" : " · 기록 저장 실패(직원 확인)"), "muted"));
+      if (r.data.steps && r.data.steps.length) {
+        var ol = el("ol", undefined, "steps");
+        r.data.steps.forEach(function (s) { ol.appendChild(el("li", s)); });
+        box.appendChild(ol);
+      }
+      $("startMsg").textContent = "";
+      var again = await api("GET", "/claims/" + encodeURIComponent(current.claim_id));
+      if (again.status === 200) { current = again.data; }
+      refreshStart();
+      if (current.status === "booked") $("startMsg").textContent = "다시 확인한 뒤 반환을 다시 시작할 수 있습니다";
+      recent();
+    } else {
+      if (r.status === 409 && r.data && r.data.detail && r.data.detail.kind === "duplicate") tries[current.claim_id] = n + 1;
+      box.appendChild(el("div", "실행하지 않음: " + detail(r), "bad"));
+      $("startMsg").textContent = ""; refreshStart();
+    }
+  }
+
+  async function recent() {
+    var r = await api("GET", "/returns?limit=10");
+    var tb = $("recent"); tb.textContent = "";
+    if (r.status !== 200) { var tr0 = el("tr"); var td0 = el("td", detail(r), "bad"); td0.colSpan = 6; tr0.appendChild(td0); tb.appendChild(tr0); return; }
+    if (!r.data.length) { var tr1 = el("tr"); var td1 = el("td", "아직 기록이 없습니다", "muted"); td1.colSpan = 6; tr1.appendChild(td1); tb.appendChild(tr1); return; }
+    r.data.forEach(function (x) {
+      var tr = el("tr"); var d = DECISION[x.decision] || ["", x.decision];
+      [x.case_id, x.claim_id || "—", x.item_id].forEach(function (v) { tr.appendChild(el("td", v)); });
+      tr.appendChild(el("td", d[1], d[0]));
+      tr.appendChild(el("td", x.reason));
+      tr.appendChild(el("td", (x.created_at || "").replace("T", " ").slice(0, 16)));
+      tb.appendChild(tr);
+    });
+  }
+
+  async function demoMake() {
+    var today = new Date(); today.setDate(today.getDate() + 1);
+    var visit = today.toISOString().slice(0, 10);
+    var body = { consent: true, name_masked: "홍*동", id_no_masked: "******-*******", id_verified: true,
+                 description: { category: "지갑" }, item_id: $("demoItem").value,
+                 quiz: [{ field: "mark", passed: $("demoQuiz").checked }], visit_date: visit };
+    var r = await api("POST", "/claims", body);
+    if (r.status === 200) {
+      $("demoMsg").textContent = "만들었습니다: " + r.data.claim_id + " (" + r.data.item_id + ")";
+      $("claimId").value = r.data.claim_id; lookup();
+    } else { $("demoMsg").textContent = "실패: " + detail(r); }
+  }
+
+  $("lookup").addEventListener("click", lookup);
+  $("claimId").addEventListener("keydown", function (e) { if (e.key === "Enter") lookup(); });
+  $("start").addEventListener("click", start);
+  $("demoMake").addEventListener("click", demoMake);
+  health(); recent(); setInterval(health, 15000);
+})();
+</script>
+</body>
+</html>
