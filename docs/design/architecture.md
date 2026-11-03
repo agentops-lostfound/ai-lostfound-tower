@@ -77,8 +77,9 @@ flowchart LR
 | 무엇 | 켜는 법 | 계속 켜져 있나 |
 | --- | --- | --- |
 | 팀 DB(PostgreSQL 16 + pgvector) | `docker compose up -d` (저장소 폴더) | 예 — `restart: unless-stopped`. Docker Desktop 설정의 "로그인할 때 시작"이 켜져 있으면 재부팅 뒤에도 자동 |
-| 관제탑 API | `tools\start_tower.bat` 더블클릭(DB 켜기 + API 실행) | 창이 열려 있는 동안. 시작 프로그램 폴더(`shell:startup`)에 바로가기를 두면 로그인할 때 자동 |
+| 관제탑 API | `tools\start_tower.bat` 더블클릭(Docker 준비 대기 → DB 켜기 → API 실행) | 창이 열려 있는 동안. 교육원 PC는 시작 프로그램 폴더에 `관제탑 켜기` 바로가기(최소화)가 있어 로그인할 때 자동. **창 안을 클릭하지 않기**(Windows '선택' 모드가 되면 API 가 멈춤 → Esc 로 풀기) |
 | 2조봇 | 봇 터미널에서 claude 세션 | 터미널이 열려 있는 동안(Claude 사용량은 디스코드로 부를 때만) |
+- 알림: `.env` 에 `TOWER_SEND=1` 이면 단계별 알림은 관제 채널, 반환 1건당 결과 한 줄은 팀 채팅(`DISCORD_WEBHOOK_TEAM`, 부산7기 #2조-분실물관리시스템)으로 간다
 - API 모드: 기본은 가짜 부품·메모리 기록. `.env` 에 `TOWER_DB=1` + `DATABASE_URL` 이면 물건 기록·상태·반환 기록이 팀 DB로 간다(비전·매칭·로봇은 아직 가짜)
 - DB가 꺼져 있으면 API는 **503** 을 돌려주고 로봇을 움직이지 않는다(중복 실행 확인을 못 하므로). 반환이 끝난 뒤 기록만 실패하면 결과는 돌려주고 `recorded: false` + 관제 알림
 
