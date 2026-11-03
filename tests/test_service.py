@@ -188,7 +188,7 @@ class TeamChannelTest(unittest.TestCase):
 class RecordTest(unittest.TestCase):
     def test_record_has_no_pii_columns(self):
         row = to_record("A-1", {"case_id": "R1", "decision": "returned", "reason": "반환 완료", "steps": ["a"]})
-        self.assertEqual(set(row), {"case_id", "item_id", "decision", "reason", "approved", "matched_object",
+        self.assertEqual(set(row), {"case_id", "item_id", "claim_id", "decision", "reason", "approved", "matched_object",
                                     "seconds", "created_at", "steps"})
 
     def test_memory_recorder_refuses_overwrite(self):
@@ -240,10 +240,10 @@ class ApiRoutesTest(unittest.TestCase):
                     return fn
                 return deco
 
-            def get(self, path):
+            def get(self, path, **kw):
                 return self._reg("GET", path)
 
-            def post(self, path):
+            def post(self, path, **kw):
                 return self._reg("POST", path)
 
         fake = types.ModuleType("fastapi")
@@ -258,8 +258,9 @@ class ApiRoutesTest(unittest.TestCase):
         from agents import api
         api.build_app(service())
         r = self.routes
-        self.assertEqual(sorted(r), [("GET", "/health"), ("GET", "/returns"), ("GET", "/returns/{case_id}"),
-                                     ("GET", "/tools"), ("POST", "/returns")])
+        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/returns"),
+                                     ("GET", "/returns/{case_id}"), ("GET", "/staff"), ("GET", "/tools"),
+                                     ("POST", "/claims"), ("POST", "/returns")])
         self.assertEqual(r[("POST", "/returns")](ok_payload())["decision"], DECISION_RETURNED)
         for payload, code in ((ok_payload(), 409), (ok_payload(case="R2", phone="010"), 422)):
             with self.assertRaises(self.HTTPException) as cm:

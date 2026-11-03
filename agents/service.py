@@ -7,6 +7,8 @@
   - 같은 사례 번호로 두 번 실행하지 않는다(로봇이 두 번 움직이는 사고 방지) → "duplicate"
   - 로봇은 하나 → 반환 흐름은 동시에 하나만. 실행 중에 온 요청은 기다리지 않고 "busy"
   - 요청에는 개인정보를 받지 않는다: 사례 번호·접수 번호(영문·숫자·-·_ 32자 이하)와 관문 결과(참/거짓)만
+- 2단계 연결(11/3): 웹은 create_claim(찾기 요청 + 웹 관문 3개 + 예약) → 방문 때 직원 화면은 start_return 에
+  claim_id + 현장 관문 3개만 보낸다. 웹 관문은 저장된 값만 쓴다(직원이 다시 입력하지 않음)
 """
 from __future__ import annotations
 
@@ -15,13 +17,17 @@ import threading
 from dataclasses import fields
 from typing import Callable
 
-from agents.contracts import DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, DECISIONS
+from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
+from agents.contracts import (CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
+                              DECISIONS)
 from agents.records import MemoryRecorder, Recorder
 from agents.supervisor import Outcome, ReturnRequest, run_return
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id", "item_id")]
 ALLOWED = {"case_id", "item_id", *GATE_FIELDS}
+VISIT_GATES = ["visitor_id_match", "inner_feature_ok", "staff_confirmed"]   # 본센터 방문 때 직원 화면이 채움
+VISIT_ALLOWED = {"claim_id", "case_id", *VISIT_GATES}
 
 
 class RequestError(ValueError):
@@ -30,6 +36,10 @@ class RequestError(ValueError):
 
 class Unavailable(RuntimeError):
     """기록 저장소(DB)에 닿지 않아 안전하게 실행할 수 없음(HTTP 503). 중복 확인을 못 하면 로봇을 움직이지 않는다."""
+
+
+class NotFound(LookupError):
+    """없는 찾기 번호(HTTP 404)."""
 
 
 class Conflict(RuntimeError):
@@ -61,18 +71,78 @@ def parse_request(payload: object) -> ReturnRequest:
     return ReturnRequest(case_id=payload["case_id"], item_id=payload["item_id"], **gates)
 
 
+def parse_visit(payload: dict) -> tuple[str, str | None, dict]:
+    """직원 화면(2단계)의 요청 → (claim_id, case_id 또는 None, 현장 관문 3개)."""
+    unknown = sorted(set(payload) - VISIT_ALLOWED)
+    if unknown:
+        raise RequestError(f"모르는 칸: {unknown} (방문 확인은 claim_id·case_id·현장 관문 3개만)")
+    cid = payload.get("claim_id")
+    if not isinstance(cid, str) or not CLAIM_ID_RE.match(cid):
+        raise RequestError("claim_id: 찾기 번호 형식(예: C-20261103-0001)")
+    case = payload.get("case_id")
+    if case is not None and (not isinstance(case, str) or not ID_RE.match(case)):
+        raise RequestError("case_id: 영문·숫자·-·_ 1~32자")
+    gates = {}
+    for key in VISIT_GATES:
+        if not isinstance(payload.get(key), bool):
+            raise RequestError(f"{key}: true/false 필요(직원 화면에서 확인)")
+        gates[key] = payload[key]
+    return cid, case, gates
+
+
 class TowerService:
     def __init__(self, backend_factory: Callable[[], object], reporter, recorder: Recorder | None = None,
-                 reviewer=None, flow: Callable = run_return):
+                 reviewer=None, flow: Callable = run_return, claims: ClaimStore | None = None):
         self.backend_factory = backend_factory   # 요청마다 부품 묶음을 얻는 함수(진짜 부품이면 같은 객체를 돌려줘도 됨)
         self.reporter = reporter
         self.recorder = recorder if recorder is not None else MemoryRecorder()
         self.reviewer = reviewer
         self.flow = flow
+        self.claims = claims if claims is not None else MemoryClaimStore()
         self._run_lock = threading.Lock()
 
+    # ---------- 찾기 요청(웹) ----------
+    def create_claim(self, payload: object) -> dict:
+        try:
+            claim = parse_claim(payload)
+        except ClaimError as e:
+            raise RequestError(str(e)) from e
+        try:
+            row = self.claims.create(claim)
+        except ClaimError as e:          # 없는 물건 등
+            raise RequestError(str(e)) from e
+        except Exception as e:
+            raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__})") from e
+        return public_view(row)
+
+    def get_claim(self, claim_id: str) -> dict | None:
+        if not CLAIM_ID_RE.match(claim_id or ""):
+            raise RequestError("claim_id: 찾기 번호 형식(예: C-20261103-0001)")
+        try:
+            row = self.claims.get(claim_id)
+        except Exception as e:
+            raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__})") from e
+        return public_view(row) if row else None
+
+    def _request_from_claim(self, payload: dict) -> tuple[ReturnRequest, str]:
+        cid, case, visit = parse_visit(payload)
+        try:
+            row = self.claims.get(cid)
+        except Exception as e:
+            raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__}) — 웹 확인 결과를 못 읽어 실행하지 않음") from e
+        if row is None:
+            raise NotFound(f"없는 찾기 번호: {cid}")
+        if row.get("status") != "booked":
+            raise Conflict("duplicate", f"이미 방문 처리됐거나 취소된 찾기 요청: {cid} ({row.get('status')})")
+        return ReturnRequest(case_id=case or f"R-{cid}", item_id=row["item_id"], **web_gates(row), **visit), cid
+
     def start_return(self, payload: object) -> dict:
-        req = parse_request(payload)
+        """1단계(관문 6개를 한 번에) 또는 2단계(claim_id + 현장 관문 3개) 요청을 받는다."""
+        claim_id = None
+        if isinstance(payload, dict) and "claim_id" in payload:
+            req, claim_id = self._request_from_claim(payload)
+        else:
+            req = parse_request(payload)
         if not self._run_lock.acquire(blocking=False):
             raise Conflict("busy", "다른 반환이 진행 중입니다(로봇 1대). 끝난 뒤 다시 요청하세요")
         try:
@@ -89,6 +159,17 @@ class TowerService:
                 out = self._crash(req, be, e)
             if out.get("decision") not in DECISIONS:
                 raise RuntimeError(f"알 수 없는 결정: {out.get('decision')}")
+            if claim_id:
+                out["claim_id"] = claim_id
+                if out["decision"] == DECISION_RETURNED:
+                    try:
+                        self.claims.mark_visited(claim_id)
+                    except Exception as e:   # 예약이 그대로면 같은 찾기 요청으로 다시 반환될 수 있음 → 직원에게 알림
+                        try:
+                            self.reporter.alert(req.case_id, f"방문 처리 저장 실패({type(e).__name__}) — 찾기 {claim_id} 다시 반환 금지, 직원 확인",
+                                                f"물건 {req.item_id}")
+                        except Exception:
+                            pass
             try:
                 self.recorder.save(req.item_id, out)
                 out["recorded"] = True

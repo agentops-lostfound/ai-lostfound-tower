@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS claim (
     consented_at   TIMESTAMPTZ NOT NULL,                    -- 필수 동의(없으면 요청을 만들지 않음)
     name_masked    VARCHAR(32) NOT NULL,                    -- OCR 이름 가린 값, 예: 변*원
     id_no_masked   VARCHAR(32) NOT NULL,                    -- 신분증 번호 가린 값(주민등록번호 항목 없음)
+    id_verified    BOOLEAN     NOT NULL DEFAULT FALSE,      -- 웹 신분증 OCR 인증 통과 여부(관제탑 관문 id_verified)
     description    JSONB       NOT NULL DEFAULT '{}'        -- 설명을 접수 특징과 같은 칸 이름으로(contracts.DESCRIPTION_FIELDS)
                    CONSTRAINT claim_description_keys
                    CHECK ((description - ARRAY['category', 'color', 'shape', 'mark', 'visible_text', 'material']) = '{}'::jsonb),

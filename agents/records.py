@@ -24,7 +24,8 @@ def to_record(item_id: str, outcome: dict, now: datetime | None = None) -> dict:
     """Outcome → RETURN_CASE 한 줄 + RETURN_STEP 목록(표 칼럼 이름 그대로)."""
     at = (now or datetime.now(timezone.utc)).isoformat(timespec="seconds")
     return {
-        "case_id": outcome["case_id"], "item_id": item_id, "decision": outcome["decision"],
+        "case_id": outcome["case_id"], "item_id": item_id, "claim_id": outcome.get("claim_id"),
+        "decision": outcome["decision"],
         "reason": outcome["reason"], "approved": bool(outcome.get("approved")),
         "matched_object": outcome.get("matched_object"), "seconds": outcome.get("seconds", 0.0),
         "created_at": at,
@@ -62,20 +63,21 @@ class MemoryRecorder:
 
 SQL_HAS = "SELECT 1 FROM return_case WHERE case_id = %s"
 SQL_INSERT_CASE = (
-    "INSERT INTO return_case (case_id, item_id, decision, reason, approved, matched_object, seconds) "
-    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+    "INSERT INTO return_case (case_id, item_id, claim_id, decision, reason, approved, matched_object, seconds) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
 )
 SQL_INSERT_STEP = "INSERT INTO return_step (case_id, step) VALUES (%s, %s)"
 SQL_GET_CASE = (
-    "SELECT case_id, item_id, decision, reason, approved, matched_object, seconds, created_at "
+    "SELECT case_id, item_id, claim_id, decision, reason, approved, matched_object, seconds, created_at "
     "FROM return_case WHERE case_id = %s"
 )
 SQL_GET_STEPS = "SELECT step, at FROM return_step WHERE case_id = %s ORDER BY id"
 SQL_RECENT = (
-    "SELECT case_id, item_id, decision, reason, approved, matched_object, seconds, created_at "
+    "SELECT case_id, item_id, claim_id, decision, reason, approved, matched_object, seconds, created_at "
     "FROM return_case ORDER BY created_at DESC, case_id DESC LIMIT %s"
 )
-CASE_COLS = ["case_id", "item_id", "decision", "reason", "approved", "matched_object", "seconds", "created_at"]
+CASE_COLS = ["case_id", "item_id", "claim_id", "decision", "reason", "approved", "matched_object", "seconds",
+             "created_at"]
 
 
 def _row(cols: list[str], row) -> dict:
@@ -111,7 +113,7 @@ class PostgresRecorder:
             cur.execute(SQL_HAS, (rec["case_id"],))
             if cur.fetchone() is not None:
                 raise KeyError(f"이미 기록된 사례: {rec['case_id']}")
-            cur.execute(SQL_INSERT_CASE, (rec["case_id"], rec["item_id"], rec["decision"], rec["reason"],
+            cur.execute(SQL_INSERT_CASE, (rec["case_id"], rec["item_id"], rec["claim_id"], rec["decision"], rec["reason"],
                                           rec["approved"], rec["matched_object"], rec["seconds"]))
             for st in rec["steps"]:
                 cur.execute(SQL_INSERT_STEP, (rec["case_id"], st["step"]))
