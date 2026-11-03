@@ -1,4 +1,4 @@
-﻿# 탑뷰 YOLO + ArUco 추론 (LF-3)
+# 탑뷰 YOLO + ArUco 추론 (LF-3)
 
 기존 촬영·학습 코드에 단일 이미지 추론 모듈을 추가했습니다. Qwen/OCR/로봇은 호출하지 않습니다.
 
@@ -55,3 +55,42 @@ WSL2에서는 Windows 가상환경을 복사하지 않고 `python3.11 -m venv .v
 렌즈 왜곡 보정은 미구현입니다. 필요하면 두 검출기에 동일한 보정 프레임을 전달해야 합니다. 물체 높이에 따른 시차, bbox 중심과 파지점 차이, 작업대→로봇 좌표 변환은 별도 검증이 필요합니다.
 
 검증 내용은 [TOPVIEW_VALIDATION.md](TOPVIEW_VALIDATION.md)를 참고하세요.
+
+## 사진 → YOLO → Qwen → JSON 한 번에 실행
+
+Qwen은 별도 Python 프로세스로 호출하며, 한 프로세스에서 모든 crop을 순차 처리해 모델을 재사용합니다. 기존 Qwen 소스와 의존성을 변경하지 않습니다. 기본 실행은 YOLO CPU, 기존 Qwen CUDA 설정입니다. 일반 물품용 general_items_v1 스키마를 사용하며 품목·글자·재질의 정확도는 별도 검증해야 합니다.
+
+현재 PC에서 저장소 루트 PowerShell:
+
+```powershell
+& ..\.venv-vision\Scripts\python.exe -m vision.scripts.run_sequence `
+  --image "C:\Users\user\Pictures\Camera Roll\topview.jpg" `
+  --qwen-root "..\qwen" `
+  --qwen-python "..\qwen\.python\cpython-3.11.18-windows-x86_64-none\python.exe" `
+  --qwen-site-packages "..\qwen\.venv\Lib\site-packages"
+```
+
+일반적인 정상 Qwen 가상환경에서는 `--qwen-python`에 그 환경의 python.exe(WSL에서는 bin/python)를 지정하고 `--qwen-site-packages`는 생략합니다. 위 PC는 기존 가상환경의 기본 Python 경로가 이전 폴더를 가리켜 독립 Python에 기존 site-packages를 연결한 것입니다. 환경 파일은 수정하지 않습니다.
+
+Qwen 모델 캐시는 미리 준비되어 있어야 합니다. 이 CLI는 오프라인으로 동작하며 자동 다운로드하지 않습니다. `--config`와 `--device`는 YOLO/ArUco 설정에 적용합니다.
+
+한 실행 폴더에 다음을 기록합니다:
+
+- `result.json`: 원래 YOLO·ArUco 검출 결과
+- `crops/`, `debug.jpg`: 검출 crop과 표시 이미지
+- `result_with_qwen.json`: 물체 ID·좌표와 `objects[].qwen.features`를 연결한 최종 결과
+- `qwen/object_N.json`: 각 물체의 원본 특징 JSON
+- `qwen/logs/`: 추론 시간·GPU 정보·검증 실패 원문
+- `qwen_process.log`: Qwen 프로세스 표준 출력과 오류
+
+`sequence.status`는 complete/failed/no_detections입니다. complete는 실행과 JSON 스키마 검증 완료를 뜻하며 시각적 정답을 보증하지 않습니다. 개별 물체는 qwen.status=ok/failed와 features 또는 error를 가집니다. 검출 0개면 Qwen을 실행하지 않습니다. 실패 시 CLI 종료 코드는 1이며 성공한 중간 결과는 유지합니다. 실제 mm 좌표는 ArUco 보정이 유효할 때만 반환합니다.
+
+진행 상황은 터미널에 1/3 검출, 2/3 Qwen, 3/3 저장으로 표시합니다. Qwen 대기 중에는 5초마다 완료 crop 수와 경과 시간을 출력합니다. Ctrl+C로 Qwen 단계를 중단하면 자식 프로세스를 종료하고 이미 완료한 특징은 보존하며 미완료 항목과 sequence.status를 cancelled로 저장합니다(종료 코드 130).
+
+## 일반 물품용 Qwen 출력
+
+현재 시퀀스는 `item_features.py`의 `general_items_v1` 프롬프트·스키마를 사용합니다. 기존 외부 Qwen의 모델 로더·전처리·벤치마크 기능만 재사용하며 원본 소스와 가중치는 수정하지 않습니다. 추가 학습은 수행하지 않았습니다.
+
+품목은 phone, usb, lip_balm, wallet, card_wallet, hand_cream, power_bank, other, unknown입니다. 자유 특징 문장은 영어이며 지갑 전용 wallet_type 필드는 없습니다. 색상·형태·재질·읽을 수 있는 글자·스티커·특징을 반환합니다. 불확실한 글자와 재질은 추정하지 않고 빈 배열, 불확실한 형태는 null로 출력하도록 지시합니다. 이 지시는 모델의 환각 방지를 보장하지 않으므로 사진과 대조해 평가하세요.
+
+중복 키·추가 필드·잘못된 자료형·스티커 상태 모순은 검증 실패로 기록하고 기존 재시도 설정에 따라 다시 추론합니다. 최종 실패 시 임의 값으로 보정하지 않습니다. 실행 명령은 동일하며 모델에는 YOLO 클래스 이름을 전달하지 않고 crop만 전달합니다. 검출되지 않은 USB·립밤은 Qwen에 전달되지 않습니다. 기존 팀 공통 agents/contracts.py와는 별도 중간 출력입니다.
