@@ -1,6 +1,6 @@
-# DB 설계 초안 v1 — PostgreSQL (11/3)
+# DB 설계 v1 — PostgreSQL (11/3 확정)
 
-> 설계: 변재원(전체 구조 담당) · 검토: 정연우(DB 담당 LF-8). 표 정의 원본: `center/schema.sql` (이미지 검색은 `center/schema_vector.sql`)
+> 설계·확정: 변재원(전체 구조 담당, 11/3). 표 정의 원본: `center/schema.sql` · 이미 만든 DB 에 바뀐 점 적용: `center/migrations/` (이미지 검색 `center/schema_vector.sql` 은 MVP 에서 쓰지 않음)
 > 확인: PostgreSQL 16에서 두 번 실행 · 예시 데이터 입력 · 잘못된 값 거부(상태·결정·비공개 특징 위치·후보 순위·중복 번호·없는 물건) 검사 완료
 
 ## 0. 켜기·접속
@@ -9,6 +9,7 @@
 - `.env`: `POSTGRES_PASSWORD=…` · `DATABASE_URL=postgresql://lostfound:…@127.0.0.1:5434/lostfound` (값은 공유·커밋하지 않음)
 - 주소는 `localhost` 말고 `127.0.0.1` 로 쓴다: Windows 는 localhost 를 IPv6(::1)로 먼저 시도하는데 팀 DB 는 127.0.0.1 에만 열려 있어 접속마다 5초씩 늦어진다(11/3 측정: 기록 조회 5초, 반환 1건 20초)
 - 접속 확인: `python tools/check_ai_env.py` → "팀 DB(PostgreSQL): 127.0.0.1:5434 접속됨 · PostgreSQL 16 · 물건 7개" 면 정상(다른 PostgreSQL 에 붙으면 버전으로 알려 줌)
+- 바뀐 점 적용: `python tools/db_migrate.py`(미리보기) → `--apply`. 관제탑을 켤 때(`tools\start_tower.bat`) 자동 적용된다
 - 시연 뒤 물건 상태 되돌리기(데이터는 남김): `python tools/reset_demo.py` → 바뀔 목록 확인 → `python tools/reset_demo.py --apply`
 - 표를 처음부터 다시 만들기(데이터 삭제): `docker compose down -v` → `docker compose up -d` (되돌릴 수 없음)
 - 관제탑 쪽 코드: 물건 읽기·상태 변경 `agents/db_part.py`, 반환 기록 `agents/records.py` PostgresRecorder
@@ -18,7 +19,7 @@
 2. **개인정보 최소**: 주민등록번호 칸 없음. 분실인 신분 정보는 **가린 값만**(예: 변\*원). 습득자 연락처는 **별도 표**로 떼어 직원만 열람
 3. **비공개 특징 분리**: 확인 질문 정답인 `mark`·`visible_text` 는 `private_features` 칸에만(공개 칸에 섞이면 DB가 거부)
 4. **값 목록은 코드와 같게**: 상태·결정 목록은 `agents/contracts.py` 와 같아야 하고, 시험이 이를 확인한다
-5. **사진은 DB 밖**: 파일로 저장하고 위치만 기록. 이미지 비슷함 검색(pgvector)은 임베딩 모델이 정해지면 추가
+5. **사진은 DB 밖**: 파일로 저장하고 위치만 기록. 이미지 비슷함 검색(pgvector)은 MVP 에서 쓰지 않는다(6장)
 
 ## 2. 표 관계
 ```mermaid
@@ -99,8 +100,14 @@ stateDiagram-v2
 | MCP `db_get_item` | item(공개 특징만) | — |
 | 관제탑 API `POST /returns` | — | return_case · return_step |
 
-## 6. 정연우 님께 확인받을 것 (TBD)
-- 접수 번호 형식(`A-20261103-0001` 제안: 등록기계 문자-날짜-순번)
-- 습득자 연락처 보관 기간(예: 반환 완료 후 N일 뒤 삭제) — 개인정보 처리 방침과 같이
-- 설명 JSON(claim.description)을 접수 특징 JSON과 같은 칸 이름으로 맞출지(매칭에 유리)
-- 임베딩 모델·차원(schema_vector.sql 의 512는 자리표시)
+## 6. 확정 사항 (11/3, 변재원)
+| 항목 | 결정 | 어디에 반영 |
+| --- | --- | --- |
+| 접수 번호 형식 | `등록기계 문자-날짜-하루 순번 4자리`, 예 `A-20261103-0001`. 문자: KIOSK-A=A, KIOSK-B=B, 본센터 직접 접수=H. 시연 물건 `A-W01`~`A-W07` 도 허용 | DB 검사 `item_id_format`, `contracts.ITEM_ID_PATTERN`·`make_item_id()` |
+| 찾기 번호 형식 | `C-날짜-순번`, 예 `C-20261103-0001` | DB 검사 `claim_id_format`, `contracts.CLAIM_ID_PATTERN` |
+| 습득자 연락처 보관 | 물건이 **인계 완료된 뒤 30일**이 지나면 지운다(그 사이 반환 보류 등으로 상태가 바뀌면 남김). 이름·전화는 화면·로그에 찍지 않는다 | `tools/purge_contacts.py`(관제탑 켤 때 자동 실행), `contracts.CONTACT_RETENTION_DAYS` |
+| 분실인 설명 칸 | 접수 특징과 **같은 칸 이름**: `category · color · shape · mark · visible_text · material`. 다른 칸이 들어오면 DB가 거부 | DB 검사 `claim_description_keys`, `contracts.DESCRIPTION_FIELDS`·`validate_description()` |
+| 이미지 임베딩 | **MVP(지갑 1종)에서는 쓰지 않음** — 특징 JSON 매칭으로 충분. 품목이 늘면 비전 담당과 모델을 정한 뒤 `schema_vector.sql` 실행 | `center/schema_vector.sql` 머리말 |
+
+- 시험 `tests/test_db_decisions.py` 가 DB 검사 글자와 `contracts.py` 값이 같은지 확인한다(한쪽만 바꾸면 자동 시험 실패)
+- 확인: PostgreSQL 16 에서 새 DB(schema.sql)와 어제 만든 DB(+마이그레이션 2번 실행) 모두 검사 3개가 생기고, 잘못된 번호·모르는 설명 칸은 거부, 연락처는 30일 지난 인계 완료 물건만 지워짐

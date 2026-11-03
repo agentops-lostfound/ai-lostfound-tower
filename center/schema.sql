@@ -1,4 +1,5 @@
--- AI 분실물 관제탑 DB 초안 v1 (PostgreSQL 16) — 설계: 변재원(11/3), 검토: 정연우(LF-8)
+-- AI 분실물 관제탑 DB v1 (PostgreSQL 16) — 설계·확정: 변재원(11/3). 확정 내용: docs/design/database.md 6장
+-- 이미 만든 DB 는 이 파일이 다시 실행되지 않는다 → 바뀐 점은 center/migrations/*.sql (python tools/db_migrate.py --apply)
 -- 설명·그림: docs/design/database.md
 -- 원칙
 --   1) 물건·사람 기록과 관제탑 기록을 한 DB에 두되, 표마다 주인을 정한다(주석의 [주인])
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS place (
 -- ========== 접수 ==========
 -- [주인: 정연우, 쓰기: 등록기계 화면(김재민)·비전(김건태), 읽기·상태 변경: 관제탑]
 CREATE TABLE IF NOT EXISTS item (
-    item_id          VARCHAR(32) PRIMARY KEY,               -- 접수 번호(화면에 보여 줌), 예: A-20261103-0001
+    item_id          VARCHAR(32) PRIMARY KEY,               -- 접수 번호(화면에 보여 줌), 예: A-20261103-0001 (contracts.ITEM_ID_PATTERN)
     machine_id       VARCHAR(16) NOT NULL REFERENCES machine(machine_id),
     place_id         INTEGER     REFERENCES place(place_id),
     place_text       VARCHAR(128) NOT NULL,                 -- 고른 장소 또는 직접 입력(필수)
@@ -45,12 +46,14 @@ CREATE TABLE IF NOT EXISTS item (
     object_id        VARCHAR(32),                           -- 시연·평가용 물건 ID(정답지 W01 등)
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK (NOT (private_features ?| ARRAY['color', 'shape', 'material'])),
-    CHECK (NOT (features ?| ARRAY['mark', 'visible_text']))
+    CHECK (NOT (features ?| ARRAY['mark', 'visible_text'])),
+    CONSTRAINT item_id_format CHECK (item_id ~ '^[A-Z]-([0-9]{8}-[0-9]{4}|W[0-9]{2})$')
 );
 CREATE INDEX IF NOT EXISTS item_status_idx ON item (status);
 CREATE INDEX IF NOT EXISTS item_machine_idx ON item (machine_id, received_at);
 
 -- [주인: 정연우] 습득자 연락처(선택 입력 = 저장 동의). 주인이 찾아가면 감사 연락에만, 직원만 열람
+-- 보관: 물건이 '인계 완료'된 뒤 30일이 지나면 지운다(tools/purge_contacts.py, 관제탑 켤 때 자동 실행)
 CREATE TABLE IF NOT EXISTS finder_contact (
     item_id      VARCHAR(32) PRIMARY KEY REFERENCES item(item_id),
     name         VARCHAR(32),
@@ -87,11 +90,13 @@ CREATE TABLE IF NOT EXISTS collection_item (
 -- ========== 찾기 (분실인 웹) ==========
 -- [주인: 김재민(화면)·정연우(설명 구조화)] 찾기 요청 1건 = 분실인 1명의 1회 방문 과정
 CREATE TABLE IF NOT EXISTS claim (
-    claim_id       VARCHAR(32) PRIMARY KEY,                 -- 예: C-20261103-0001
+    claim_id       VARCHAR(32) PRIMARY KEY CONSTRAINT claim_id_format CHECK (claim_id ~ '^C-[0-9]{8}-[0-9]{4}$'), -- 예: C-20261103-0001
     consented_at   TIMESTAMPTZ NOT NULL,                    -- 필수 동의(없으면 요청을 만들지 않음)
     name_masked    VARCHAR(32) NOT NULL,                    -- OCR 이름 가린 값, 예: 변*원
     id_no_masked   VARCHAR(32) NOT NULL,                    -- 신분증 번호 가린 값(주민등록번호 항목 없음)
-    description    JSONB       NOT NULL DEFAULT '{}',       -- 설명을 특징 JSON으로 구조화한 값
+    description    JSONB       NOT NULL DEFAULT '{}'        -- 설명을 접수 특징과 같은 칸 이름으로(contracts.DESCRIPTION_FIELDS)
+                   CONSTRAINT claim_description_keys
+                   CHECK ((description - ARRAY['category', 'color', 'shape', 'mark', 'visible_text', 'material']) = '{}'::jsonb),
     lost_line      VARCHAR(16),
     lost_station   VARCHAR(32),
     lost_date      DATE,

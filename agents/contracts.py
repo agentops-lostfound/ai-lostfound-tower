@@ -7,6 +7,9 @@
 """
 from __future__ import annotations
 
+import re
+from datetime import date
+
 UNKNOWN = "확인 불가"          # 사진으로 판단할 수 없을 때(보류)
 NONE = "없음"                  # 표시·글자가 없음을 확인했을 때
 PII_MASK = "개인정보 가림"      # 카드·신분증의 이름·번호 자리
@@ -17,6 +20,21 @@ FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]
 PRIVATE_FIELDS = ["mark", "visible_text"]   # 확인 질문용 비공개 특징(후보 카드에 안 보임)
 COLORS = ["검정", "흰색", "회색", "빨강", "파랑", "남색", "초록", "노랑", "갈색", "기타"]
 VISIBILITY = ["보임", "안 보임", "해당 없음"]
+
+# 분실인 설명(claim.description) 칸 = 품목 + 접수 특징과 같은 이름(매칭이 칸끼리 바로 비교, 11/3 확정)
+DESCRIPTION_FIELDS = ["category", *FEATURE_FIELDS]
+
+# 번호 형식(11/3 확정, docs/design/database.md 6장)
+#   접수 번호: 등록기계 문자-날짜-하루 순번 4자리, 예 A-20261103-0001 (시연 물건 A-W01~A-W07 도 허용)
+#   찾기 번호: C-날짜-순번, 예 C-20261103-0001
+ITEM_ID_PATTERN = r"^[A-Z]-([0-9]{8}-[0-9]{4}|W[0-9]{2})$"
+CLAIM_ID_PATTERN = r"^C-[0-9]{8}-[0-9]{4}$"
+ITEM_ID_RE = re.compile(ITEM_ID_PATTERN)
+CLAIM_ID_RE = re.compile(CLAIM_ID_PATTERN)
+MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-B": "B", "CENTER": "H"}   # 본센터 직접 접수 = H
+
+# 습득자 연락처(finder_contact) 보관: 인계 완료 뒤 30일이 지나면 지운다(tools/purge_contacts.py)
+CONTACT_RETENTION_DAYS = 30
 
 # 물건 상태(기준 문서 3장)
 ITEM_STATUS = ["등록기계 보관", "회수 중", "본센터 보관", "확인 중", "승인·수령 예약", "반환 중", "인계 완료", "반환 보류"]
@@ -73,6 +91,20 @@ def validate_detection(d: dict) -> list[str]:
 def robot_result(ok: bool, reason: str = "") -> dict:
     """로봇 함수의 공통 결과 모양."""
     return {"ok": bool(ok), "reason": "" if ok else (reason or "알 수 없는 실패")}
+
+
+def make_item_id(machine_id: str, day: date, seq: int) -> str:
+    """접수 번호 만들기. 예: make_item_id("KIOSK-A", date(2026, 11, 3), 1) 의 결과는 A-20261103-0001"""
+    if machine_id not in MACHINE_LETTERS:
+        raise ValueError(f"모르는 등록기계: {machine_id} (허용: {list(MACHINE_LETTERS)})")
+    if not 1 <= seq <= 9999:
+        raise ValueError("하루 순번은 1~9999")
+    return f"{MACHINE_LETTERS[machine_id]}-{day:%Y%m%d}-{seq:04d}"
+
+
+def validate_description(desc: dict) -> list[str]:
+    """분실인 설명 JSON 의 칸 이름 검사(DB CHECK 와 같은 규칙)."""
+    return [f"모르는 칸: {k} (허용: {DESCRIPTION_FIELDS})" for k in desc if k not in DESCRIPTION_FIELDS]
 
 
 def public_card(features: dict) -> dict:
