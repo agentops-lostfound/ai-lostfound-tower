@@ -3,3 +3,6 @@
 ultralytics>=8.4  # YOLO26 지원 버전(추정) — 설치 후 `yolo version` 확인
 onnx
 openvino
+
+# Top-view calibration configuration
+PyYAML>=6,<7

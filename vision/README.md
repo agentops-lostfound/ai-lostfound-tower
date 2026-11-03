@@ -46,3 +46,7 @@ python vision/capture_images.py --category wallet --object W01 --session s1
 python -m unittest discover -s tests -v
 ```
 웹캠·GPU 없이 돌아간다. 실제 학습(ultralytics)은 가짜 모듈로 흐름만 시험한다.
+
+## 탑뷰 단일 이미지 추론과 ArUco 좌표 보정 (LF-3)
+
+YOLO 검출·crop·중심 좌표·ArUco 보정은 [TOPVIEW.md](TOPVIEW.md)를 참고하세요. 기존 4종 촬영·학습 설정은 유지하며, 추가한 6종 데이터셋 예시는 별도 실험용입니다.

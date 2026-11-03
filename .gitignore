@@ -35,3 +35,7 @@ data/images/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local inference environments and generated vision artifacts
+.venv-vision/
+outputs/
