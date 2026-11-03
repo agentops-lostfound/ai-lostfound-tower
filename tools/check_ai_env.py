@@ -116,7 +116,7 @@ def check_ollama(url: str, model: str, fetch: Callable[[str], dict] = _fetch_tag
     return out
 
 
-def check_db_port(host: str = "127.0.0.1", port: int = 5433, opener: Callable | None = None) -> Check:
+def check_db_port(host: str = "127.0.0.1", port: int = 5434, opener: Callable | None = None) -> Check:
     """팀 DB(docker compose) 포트가 열려 있는지만 본다(로그인·비밀번호는 쓰지 않음)."""
     import socket
     opener = opener or (lambda: socket.create_connection((host, port), timeout=2))

@@ -2,7 +2,7 @@
 
 - 기본: 가짜 연결로 약속(예외 안 던짐·상태 기록·중복 거부·DB 꺼짐 처리)을 확인 → 어느 PC에서나 돈다
 - 실제 DB 시험: `docker compose up -d` 후 LF_TEST_DSN 을 주면 진짜 PostgreSQL 로도 돈다(psycopg 필요)
-    $env:LF_TEST_DSN = "postgresql://lostfound:비밀번호@localhost:5433/lostfound"
+    $env:LF_TEST_DSN = "postgresql://lostfound:비밀번호@localhost:5434/lostfound"
     python -m unittest tests.test_db_part
 """
 import os
