@@ -4,7 +4,9 @@
 "탑뷰 결과 파일 읽기 → 변환 → 매칭 → 로봇 명령(가짜)" 전체 흐름이 맞게 도는지 사례별 표로 보여 준다.
 
 사용법 (저장소 폴더, .venv 켠 상태)
-    python tools/mock_scene.py                       # 시나리오 8개 실행 → 결과 표
+    python tools/mock_scene.py                       # 시나리오 9개 실행 → 결과 표
+    python tools/mock_scene.py --discord             # 디스코드에 붙일 짧은 요약(2조봇이 이 내용을 채팅에 답함)
+    python tools/mock_scene.py --send                # AgentOps 관제 채널 3곳(진행·알림·점수)에도 전송(.env 웹후크)
     python tools/mock_scene.py --write outputs/mock_scene   # 결과 파일만 만들기(API 의 TOWER_VISION_FILE 로 쓸 때)
 
 - 물건 구성은 구매 예정 목록 기준(카드지갑 검정·빨강, 같은 제품 쌍 + USB). 특징 값은 가상(추정)이다
@@ -31,7 +33,9 @@ from agents.backends import CompositeBackend  # noqa: E402
 from agents.supervisor import ReturnRequest, run_return  # noqa: E402
 from agents.tools import MockBackend  # noqa: E402
 from agents.vision_adapter import RESULT_NAME, SequenceFileVisionPart, to_features  # noqa: E402
-from discord_ops.reporter import Reporter  # noqa: E402
+from discord_ops.reporter import Reporter, find_pii  # noqa: E402
+
+DISCORD_LIMIT = 1900
 
 
 def qwen(category, colors, shape="rectangular", materials=("synthetic leather",), text=(), stickers=(), extra=()):
@@ -56,8 +60,8 @@ ITEMS: dict[str, dict] = {
                         "reg": qwen("card_wallet", ["red"], stickers=[("small circle", "back center")])},
     "B-20261103-0001": {"name": "USB 은색(SanDisk 글자)",
                         "reg": qwen("usb", ["silver"], shape="stick", materials=["metal", "plastic"], text=["SanDisk"])},
-    "A-20261103-0005": {"name": "카드지갑 빨강(스티커 없음) — 아직 보관함에 안 옴",
-                        "reg": qwen("card_wallet", ["red"]), "bin": None},
+    "A-20261103-0005": {"name": "카드지갑 빨강(작은 원 스티커) — 0004 와 똑같이 생김, 아직 보관함에 안 옴",
+                        "reg": qwen("card_wallet", ["red"], stickers=[("small circle", "back center")]), "bin": None},
     "A-20261103-0006": {"name": "카드지갑 검정(글자 MIYUON) — 보관함 사진에서 Qwen 실패",
                         "reg": qwen("card_wallet", ["black"], text=["MIYUON"]), "bin": "failed"},
 }
@@ -68,16 +72,16 @@ CASES = [
     ("S02", "같은 제품, 스티커만 다름", "A-20261103-0002", "returned", {}),
     ("S03", "같은 물건인데 Qwen 표현이 흔들림", "A-20261103-0003", "returned", {}),
     ("S04", "다른 품목(USB)", "B-20261103-0001", "returned", {}),
-    ("S05", "물건이 아직 보관함에 없음(비슷한 빨강 지갑만 있음)", "A-20261103-0005", "staff_check", {}),
+    ("S05", "물건이 아직 보관함에 없음(똑같이 생긴 지갑만 있음)", "A-20261103-0005", "staff_check", {}),
     ("S06", "보관함 사진에서 Qwen 실패", "A-20261103-0006", "staff_check", {}),
-    ("S07", "집기 1번 실패 → 다시 집기 성공", "A-20261103-0004", "returned", {"grasp_plan": [False, True]}),
+    ("S07", "집기 1번 실패 → 다시 집기 성공", "A-20261103-0002", "returned", {"grasp_plan": [False, True]}),
     ("S08", "탑뷰 결과 파일이 오래됨(보관함이 바뀌었을 수 있음)", "A-20261103-0001", "staff_check", {"stale": True}),
+    ("S09", "똑같이 생긴 물건이 둘 다 보관 중 → 진짜 주인 물건이어도 직원 확인", "A-20261103-0004", "staff_check", {}),
 ]
 
 # 아직 해결하지 않은 한계(결정 필요). 표에 ❌ 와 함께 이유를 보여 준다 — 기대 결과를 바꿔 숨기지 않는다
-KNOWN_GAPS = {
-    "S05": "생김새가 똑같은 물건은 사진만으로 구별 불가 → 보관 위치 기록 또는 닮은 물건 검사 필요(결정 필요)",
-}
+# (S05 '똑같이 생긴 다른 물건을 집음'은 11/3 닮은 물건 검사로 해결 → 직원 확인)
+KNOWN_GAPS: dict[str, str] = {}
 
 
 def build_report(items: dict = ITEMS) -> tuple[dict, dict]:
@@ -160,6 +164,36 @@ def table(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def discord_text(results: list[dict]) -> str:
+    """2조봇 답·채팅용 짧은 요약(표 대신 줄 단위, 2000자 이하). 물건 번호·사례 번호만 쓴다."""
+    lines = ["🧪 **가짜 보관함 시나리오** (카드지갑 기준 · 특징은 가상 · 카메라·로봇 없이)"]
+    for r in results:
+        mark = "✅" if r["ok"] else "❌"
+        lines.append(f"{mark} {r['case_id']} {r['kind']} → {LABEL.get(r['decision'], r['decision'])}")
+        if r["decision"] != "returned":
+            lines.append(f"　└ {r['reason']}")
+    ok = sum(r["ok"] for r in results)
+    wrong = sum(r["decision"] == "wrong_object" for r in results)
+    lines.append(f"맞음 **{ok}/{len(results)}** · 다른 물건 집음 **{wrong}건**"
+                 + (" ⚠️ 실물 시연 전에 반드시 해결" if wrong else ""))
+    text = "\n".join(lines)
+    return text if len(text) <= DISCORD_LIMIT else text[:DISCORD_LIMIT - 1] + "…"
+
+
+def send_details(results: list[dict], reporter: Reporter | None = None) -> list[bool]:
+    """AgentOps 관제 채널 3곳: 진행(사례별 단계) · 알림(자동 반환 안 한 이유) · 점수(요약)."""
+    rep = reporter or Reporter(dry_run=False)
+    prog = "\n".join(f"{r['case_id']} {r['kind']} → {LABEL.get(r['decision'], r['decision'])}: "
+                     f"{' → '.join(r['steps']) or '(단계 없음)'}" for r in results)
+    alerts = "\n".join(f"{r['case_id']} {r['item_id']} · {r['reason']}" for r in results
+                       if r["decision"] != "returned") or "알림 없음"
+    ok = sum(r["ok"] for r in results)
+    wrong = sum(r["decision"] == "wrong_object" for r in results)
+    return [rep.send("progress", f"가짜 시나리오: 반환 흐름 {len(results)}건", prog),
+            rep.send("alert", "가짜 시나리오: 자동 반환 안 한 사례", alerts),
+            rep.send("score", "가짜 시나리오: 결과", f"맞음 {ok}/{len(results)} · 다른 물건 집음 {wrong}건 (카드지갑 기준, 특징 가상)")]
+
+
 def main(argv: list[str] | None = None) -> int:
     for s in (sys.stdout, sys.stderr):
         try:
@@ -168,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
             pass
     ap = argparse.ArgumentParser(description="가짜 보관함 시나리오로 관제탑 끝까지 돌리기")
     ap.add_argument("--write", metavar="폴더", help="결과 파일만 만들고 끝(TOWER_VISION_FILE 에 그 폴더를 넣어 쓰기)")
+    ap.add_argument("--discord", action="store_true", help="표 대신 디스코드용 짧은 요약 출력")
+    ap.add_argument("--send", action="store_true", help="AgentOps 관제 채널 3곳에도 전송")
     a = ap.parse_args(argv)
     if a.write:
         path = write_report(a.write)
@@ -175,7 +211,12 @@ def main(argv: list[str] | None = None) -> int:
         print("API 에서 쓰려면 .env 에 TOWER_VISION_FILE=" + str(path.parent) + " , TOWER_VISION_MAX_AGE=0")
         return 0
     results = run_all()
-    print(table(results))
+    text = discord_text(results) if a.discord else table(results)
+    if find_pii(text):
+        raise SystemExit("요약에 개인정보 모양이 있어 출력하지 않습니다")
+    print(text)
+    if a.send:
+        print("\n관제 채널 전송:", send_details(results))
     return 0 if all(r["ok"] for r in results) else 1
 
 

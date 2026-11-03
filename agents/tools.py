@@ -11,7 +11,7 @@ import copy
 from dataclasses import dataclass, field
 
 from agents.contracts import (
-    FEATURE_FIELDS, MATCH_NONE, MATCH_OK, MATCH_UNCERTAIN, UNKNOWN, robot_result,
+    ACTIVE_STATUSES, FEATURE_FIELDS, MATCH_NONE, MATCH_OK, MATCH_UNCERTAIN, UNKNOWN, robot_result,
 )
 
 
@@ -35,6 +35,8 @@ TOOLS: list[ToolSpec] = [
              {"item_id": "접수 번호"}, "{item_id, status, features}", "없으면 None"),
     ToolSpec("db_set_status", "변재원 LF-8", "물건 상태를 바꾸고 기록을 남긴다",
              {"item_id": "접수 번호", "status": "contracts.ITEM_STATUS 중 하나"}, "{ok, reason}", "실패하면 로봇을 움직이지 않음"),
+    ToolSpec("db_list_active", "변재원 LF-8", "보관함에 있을 수 있는 물건(contracts.ACTIVE_STATUSES) 목록 — 닮은 물건 검사용",
+             {}, "[{item_id, status, features}]", "None → 닮은 물건 검사 불가, 자동 반환하지 않음"),
     ToolSpec("robot_approach", "김건태 LF-21", "픽셀 좌표를 로봇 좌표로 바꿔 Home → 경유점 → 접근 자세로 이동",
              {"center": "[cx, cy] 픽셀"}, "{ok, reason}", "정지 + #관제-알림"),
     ToolSpec("robot_grasp", "김건태 LF-19", "접근 자세에서 SmolVLA로 집고 안전한 높이까지 들기",
@@ -91,6 +93,7 @@ class MockBackend:
     deliver_ok: bool = True
     stop_ok: bool = True
     status_fail: set = field(default_factory=set)   # 실패시킬 상태 이름(시험용, 예: {"반환 중"})
+    list_ok: bool = True                            # False 면 db_list_active 가 None(목록 읽기 실패 시험용)
     calls: list[str] = field(default_factory=list)
     _grasp_no: int = 0
     _last_grasp: bool = False
@@ -122,6 +125,13 @@ class MockBackend:
             return robot_result(False, "DB 쓰기 실패")
         self.db[item_id]["status"] = status
         return robot_result(True)
+
+    def db_list_active(self) -> list[dict] | None:
+        self.calls.append("db_list_active")
+        if not self.list_ok:
+            return None
+        return [{"item_id": k, "status": v.get("status"), "features": copy.deepcopy(v.get("features", {}))}
+                for k, v in self.db.items() if v.get("status") in ACTIVE_STATUSES]
 
     def robot_approach(self, center) -> dict:
         self.calls.append("robot_approach")

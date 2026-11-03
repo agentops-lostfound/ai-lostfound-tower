@@ -23,8 +23,12 @@ from typing import Callable
 from agents.contracts import (
     DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, MATCH_OK, validate_detection,
 )
+from agents.tools import feature_similarity
 
 MAX_GRASP_ATTEMPTS = 2   # 첫 시도 + 재시도 1번 (추정, LF-19 시험 후 확정)
+# 닮은 물건 검사(11/3, docs/design/swap_guide.md 7장): 고른 물건이 다른 보관 중 물건과도 이만큼 닮았으면 자동 반환 안 함
+LOOKALIKE_MIN = 0.6      # 이 점수 이상 닮아야 "닮은 물건" 후보(매칭 기준과 같음)
+LOOKALIKE_MARGIN = 0.15  # 찾는 물건 점수와 차이가 이보다 작으면 구별할 수 없다고 본다(매칭 차이 기준과 같음)
 
 
 @dataclass
@@ -143,11 +147,36 @@ def locate(c: Ctx) -> bool:
     m = c.backend.match_item(c.item["features"], c.detections)
     if m["status"] != MATCH_OK:
         return c.finish(DECISION_STAFF, f"매칭 불확실({m['status']}) — 자동 반환 안 함", alert=True)
+    twin = lookalike(c, c.detections[m["index"]]["features"])
+    if twin:
+        return c.finish(DECISION_STAFF, twin, alert=True)
     c.match = m
     c.out.matched_index = m["index"]
     c.out.matched_object = c.detections[m["index"]].get("object_id")
     c.step("매칭 완료", f"점수 {m['score']} · 차이 {m['margin']}")
     return False
+
+
+def lookalike(c: Ctx, picked: dict) -> str:
+    """고른 물건(picked 특징)이 찾는 물건만큼 닮은 '다른 보관 중 물건'이 있으면 그 이유 문장, 없으면 빈 문자열.
+
+    사진 특징만으로는 똑같이 생긴 두 물건을 구별할 수 없다 → 엉뚱한 물건을 돌려주지 않도록 직원이 안쪽 특징을 확인한다.
+    목록을 못 읽으면(None) 검사할 수 없으므로 역시 자동 반환하지 않는다. 점수는 매칭 부품과 관계없이 같은 규칙으로 잰다.
+    """
+    others = c.backend.db_list_active()
+    if not isinstance(others, list):
+        return "닮은 물건 검사 불가(보관 중 물건 목록 읽기 실패) — 자동 반환 안 함"
+    target = feature_similarity(c.item.get("features") or {}, picked)
+    twins = []
+    for o in others:
+        if not isinstance(o, dict) or o.get("item_id") == c.req.item_id:
+            continue
+        s = feature_similarity(o.get("features") or {}, picked)
+        if s >= LOOKALIKE_MIN and s >= target - LOOKALIKE_MARGIN:
+            twins.append(str(o.get("item_id")))
+    if not twins:
+        return ""
+    return f"닮은 물건 보관 중({', '.join(twins[:3])}) — 사진으로 구별 불가, 직원이 안쪽 특징 확인"
 
 
 def approach(c: Ctx) -> bool:

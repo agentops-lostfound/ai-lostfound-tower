@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | vision | 김건태 LF-3 | `vision_topview()` | 없음 → `[{box, center, features, object_id?}]` | 빈 리스트 |
 | matcher | 김건태 LF-20 | `match_item(query, detections)` | 특징 JSON, 검출 목록 → `{status, index, score, margin, ranking}` | `status: none` |
-| db | 변재원 LF-8 | `db_get_item(item_id)`, `db_set_status(item_id, status)` | → `{item_id, status, features}` / `{ok, reason}` | `None` / `{ok: false}` |
+| db | 변재원 LF-8 | `db_get_item(item_id)`, `db_set_status(item_id, status)`, `db_list_active()` | → `{item_id, status, features}` / `{ok, reason}` / `[{item_id, status, features}]` | `None` / `{ok: false}` / `None` |
 | robot | 김건태 LF-19·21, 이순필 LF-11 | `robot_approach(center)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` | → `{ok, reason}` | `{ok: false, reason}` |
 - 형식 상세: docs/contracts/mcp_tools.md 1·2장, 값 목록: agents/contracts.py
 - **예외를 던지지 말고 약속된 실패 값을 돌려준다**(흐름이 실패 값을 보고 직원 확인·정지로 보낸다). `None` 이나 다른 모양을 돌려주면 실패로 처리된다
@@ -54,5 +54,6 @@ be = CompositeBackend(vision=SequenceFileVisionPart("outputs/vision", max_age_s=
 ## 3. 관제탑 쪽이 보장하는 것
 - 안전 관문(동의·인증·확인 질문·신분증 대조·직원 확인·매칭 확신)은 부품이 아니라 흐름이 강제한다
 - 상태 변경(`db_set_status`)이 실패하면 로봇을 움직이지 않는다 · 정지(`robot_stop`)가 실패하면 알림에 "직원 즉시 호출"
+- 매칭으로 고른 물건과 똑같이 생긴 다른 보관 중 물건이 있으면 자동 반환하지 않는다(닮은 물건 검사, swap_guide.md 7장)
 - MCP로 외부 AI에 여는 것은 읽기·비교·알림만, 물건 기록은 비공개 특징을 뺀 값만
 - 알림에는 개인정보를 싣지 않는다(물건 번호·사례 번호만)

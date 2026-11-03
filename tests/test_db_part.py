@@ -11,7 +11,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.db_part import SQL_GET_ITEM, SQL_LOCK_ITEM, SQL_LOG_STATUS, SQL_SET_STATUS, PostgresDbPart  # noqa: E402
+from agents.db_part import SQL_GET_ITEM, SQL_LIST_ACTIVE, SQL_LOCK_ITEM, SQL_LOG_STATUS, SQL_SET_STATUS, PostgresDbPart  # noqa: E402
 from agents.records import PostgresRecorder  # noqa: E402
 from agents.service import GATE_FIELDS, TowerService, Unavailable, demo_backend_factory  # noqa: E402
 from agents.backends import CompositeBackend  # noqa: E402
@@ -42,6 +42,8 @@ class FakeDB:
                 p = params
                 if sql == SQL_GET_ITEM:
                     self.rows = [db.items[p[0]]] if p[0] in db.items else []
+                elif sql == SQL_LIST_ACTIVE:
+                    self.rows = [[r[0], r[1], r[3], r[4]] for r in db.items.values() if r[1] in p[0]]
                 elif sql == SQL_LOCK_ITEM:
                     self.rows = [[db.items[p[0]][1]]] if p[0] in db.items else []
                 elif sql == SQL_SET_STATUS:
@@ -104,6 +106,13 @@ class DbPartTest(unittest.TestCase):
         self.assertFalse(self.part.db_set_status("A-W01", "분실")["ok"])
         self.assertFalse(self.part.db_set_status("없음", "반환 중")["ok"])
         self.assertEqual(self.db.log, [])
+
+    def test_list_active_merges_and_filters(self):
+        self.db.items["A-W09"] = ["A-W09", "인계 완료", "지갑", {"color": "빨강"}, {}, "W09"]
+        rows = self.part.db_list_active()
+        self.assertEqual([r["item_id"] for r in rows], ["A-W01"])           # 인계 완료는 빠짐
+        self.assertEqual(rows[0]["features"], {"color": "검정", "mark": "별 모양 스티커"})
+        self.assertIsNone(PostgresDbPart("x", connect=down).db_list_active())
 
     def test_db_down_never_raises(self):
         part = PostgresDbPart("x", connect=down)

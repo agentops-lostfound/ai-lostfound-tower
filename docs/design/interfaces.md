@@ -37,6 +37,7 @@ def match_item(query: dict, detections: list[dict]) -> dict
                                             # {status, index, score, margin, ranking}; uncertain·none → 직원 확인
 def db_get_item(item_id: str) -> dict | None  # 실패·없음: None → 직원 확인
 def db_set_status(item_id: str, status: str) -> dict   # {ok, reason}; 실패하면 로봇을 움직이지 않음(약속)
+def db_list_active() -> list[dict] | None             # 보관 중 물건 [{item_id, status, features}]; None → 자동 반환 안 함(닮은 물건 검사)
 def robot_approach(center: list[int]) -> dict          # {ok, reason}; 실패 → robot_stop + 정지
 def robot_grasp() -> dict                              # {ok, reason}; 실패 → 1번 재시도
 def robot_verify_grasp() -> dict                       # {ok, reason}; 실패 → 집기 실패로 셈

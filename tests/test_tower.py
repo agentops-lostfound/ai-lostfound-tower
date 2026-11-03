@@ -669,7 +669,7 @@ class CompositeBackendTest(unittest.TestCase):
         class HalfDb:
             def db_get_item(self, item_id):
                 return None
-        self.assertEqual(check_part(HalfDb(), "db"), ["db_set_status"])
+        self.assertEqual(check_part(HalfDb(), "db"), ["db_set_status", "db_list_active"])
         with self.assertRaises(TypeError):
             CompositeBackend(db=HalfDb())
         with self.assertRaises(ValueError):
@@ -680,3 +680,35 @@ class CompositeBackendTest(unittest.TestCase):
         self.assertIsInstance(MockBackend(), Backend)
         self.assertTrue(all(callable(getattr(CompositeBackend(), m)) for m in
                             ("vision_topview", "match_item", "db_get_item", "robot_stop")))
+
+
+class LookalikeTest(unittest.TestCase):
+    """닮은 물건 검사(11/3): 사진으로 구별할 수 없는 다른 보관 중 물건이 있으면 자동 반환하지 않는다."""
+    RED = {"color": "빨강", "shape": "카드지갑", "mark": "없음", "visible_text": "없음", "material": "천"}
+
+    def be(self, other_status="본센터 보관", other=None, **kw):
+        db = {"A-1": {"status": "본센터 보관", "features": dict(self.RED)},
+              "A-2": {"status": other_status, "features": dict(other or self.RED)}}
+        return MockBackend(bin_items=[{"object_id": "X", "features": dict(self.RED), "center": [100, 200]}], db=db, **kw)
+
+    def test_twin_in_custody_goes_to_staff(self):
+        be = self.be()
+        out = run_return(ReturnRequest("L1", "A-1"), be, Reporter())
+        self.assertEqual(out.decision, DECISION_STAFF)
+        self.assertIn("A-2", out.reason)
+        self.assertFalse(be.robot_moved())
+
+    def test_twin_already_returned_is_ignored(self):
+        out = run_return(ReturnRequest("L2", "A-1"), self.be(other_status="인계 완료"), Reporter())
+        self.assertEqual(out.decision, DECISION_RETURNED)
+
+    def test_different_mark_is_not_twin(self):
+        out = run_return(ReturnRequest("L3", "A-1"), self.be(other={**self.RED, "mark": "별 모양 스티커"}), Reporter())
+        self.assertEqual(out.decision, DECISION_RETURNED)
+
+    def test_list_failure_is_safe(self):
+        be = self.be(other_status="인계 완료", list_ok=False)
+        out = run_return(ReturnRequest("L4", "A-1"), be, Reporter())
+        self.assertEqual(out.decision, DECISION_STAFF)
+        self.assertIn("검사 불가", out.reason)
+        self.assertFalse(be.robot_moved())
