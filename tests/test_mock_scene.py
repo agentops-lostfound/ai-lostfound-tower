@@ -35,7 +35,7 @@ class SceneTest(unittest.TestCase):
                 continue
             self.assertTrue(r["ok"], f"{cid}: {r['decision']} ({r['reason']})")
         # 직원 확인으로 넘어간 사례는 로봇이 움직이지 않아야 한다
-        for cid in ("S06", "S08"):
+        for cid in ("S05", "S06", "S08", "S09"):
             self.assertFalse(results[cid]["robot_moved"], cid)
         self.assertIn("다시 집기", ms.CASES[6][1])
         self.assertIn("집기 성공", results["S07"]["steps"])
@@ -47,6 +47,28 @@ class SceneTest(unittest.TestCase):
             self.assertIn("알려진 한계", text)
             if r["decision"] == "wrong_object":
                 self.assertIn("반드시 해결", text)
+
+    def test_lookalike_blocks_wrong_object(self):
+        results = {r["case_id"]: r for r in ms.run_all()}
+        self.assertEqual(results["S05"]["decision"], "staff_check")
+        self.assertIn("닮은 물건", results["S05"]["reason"])
+        self.assertIn("A-20261103-0004", results["S05"]["reason"])
+        self.assertIn("A-20261103-0005", results["S09"]["reason"])
+        self.assertFalse(any(r["decision"] == "wrong_object" for r in results.values()))
+
+    def test_discord_outputs(self):
+        results = ms.run_all()
+        text = ms.discord_text(results)
+        self.assertLessEqual(len(text), 2000)
+        self.assertIn("S05", text)
+        self.assertEqual(__import__("discord_ops.reporter", fromlist=["find_pii"]).find_pii(text), [])
+        from discord_ops.reporter import Reporter
+        rep = Reporter(dry_run=True)
+        self.assertEqual(ms.send_details(results, rep), [True, True, True])
+        self.assertEqual([m["channel"] for m in rep.messages], ["progress", "alert", "score"])
+        self.assertIn("S05 A-20261103-0005", rep.messages[1]["body"])
+        with mock.patch("sys.stdout"):
+            self.assertEqual(ms.main(["--discord"]), 0)
 
     def test_write_cli(self):
         with tempfile.TemporaryDirectory() as tmp:

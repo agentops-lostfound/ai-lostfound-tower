@@ -39,6 +39,8 @@ CONTACT_RETENTION_DAYS = 30
 
 # 물건 상태(기준 문서 3장)
 ITEM_STATUS = ["등록기계 보관", "회수 중", "본센터 보관", "확인 중", "승인·수령 예약", "반환 중", "인계 완료", "반환 보류"]
+# 본센터 보관함에 있을 수 있는 상태(닮은 물건 검사 대상). 인계 완료·등록기계 보관은 보관함에 없다
+ACTIVE_STATUSES = [s for s in ITEM_STATUS if s not in ("등록기계 보관", "인계 완료")]
 
 # 메인 AI 결정
 DECISION_RETURNED = "returned"        # 바구니까지 전달 완료
