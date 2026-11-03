@@ -54,6 +54,10 @@ sequenceDiagram
       Sup->>Rep: alert(case, 매칭 불확실 — 직원 확인)
     else matched
       Sup->>BE: db_set_status(item_id, 반환 중)
+      BE-->>Sup: {ok, reason}
+      alt 상태 기록 실패
+        Sup->>Rep: alert(case, 상태 기록 실패 — 로봇 안 움직임)
+      else 기록 성공
       Sup->>BE: robot_approach(center)
       BE-->>Sup: {ok, reason}
       alt 접근 실패
@@ -62,7 +66,9 @@ sequenceDiagram
       else 접근 성공
         loop 최대 MAX_GRASP_ATTEMPTS(2)번
           Sup->>BE: robot_grasp()
-          Sup->>BE: robot_verify_grasp()
+          opt 집기 성공일 때만
+            Sup->>BE: robot_verify_grasp()
+          end
         end
         alt 2번 모두 실패
           Sup->>BE: robot_stop()
@@ -74,12 +80,17 @@ sequenceDiagram
             Sup->>BE: robot_stop()
             Sup->>Rep: alert(case, 바구니 전달 실패)
           else 전달 성공
-            Sup->>BE: db_set_status(item_id, 인계 완료)
             Sup->>Rep: progress(case, 바구니 전달 완료)
+            Sup->>BE: db_set_status(item_id, 인계 완료)
+            opt 기록 실패
+              Sup->>Rep: alert(case, 반환 완료 · 상태 기록 실패)
+            end
           end
         end
+      end
       end
     end
   end
 ```
-- 그림은 코드가 지금 하는 일 그대로다. `db_set_status`·`robot_stop` 의 반환값을 보지 않는 점은 review.md 에 적었다
+- 그림은 코드가 하는 일 그대로다(11/3 review 1·2·7 반영). `robot_stop()` 이 실패하면 알림 문구에 "정지 실패 — 직원 즉시 호출"이 붙는다
+- 승인 단계의 `db_set_status(승인·수령 예약)` 도 실패하면 직원 확인으로 끝난다

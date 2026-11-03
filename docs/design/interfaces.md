@@ -32,6 +32,17 @@ def robot_stop() -> dict                               # {ok, reason}; 실패 �
 ```
 - 검출 1개 형식은 `contracts.validate_detection` 이 검사하고, 형식이 틀린 검출은 버린다
 
+## 부품 연결판 (agents/backends.py, 11/3 추가)
+```python
+class Backend(Protocol): ...                       # 위 부품 함수 9개의 모양(본문 없음)
+def check_part(part: object, group: str) -> list[str]   # 빠진 함수 이름. 모르는 묶음 → ValueError
+class CompositeBackend:
+    def __init__(self, vision=None, matcher=None, db=None, robot=None, fallback=None)
+        # 함수가 빠진 부품을 꽂으면 TypeError, 안 꽂은 묶음은 fallback(기본 MockBackend)
+    def sources(self) -> dict[str, str]             # 함수 → 진짜 부품 클래스 이름 | "가짜"
+    def is_all_real(self) -> bool
+```
+
 ## LLM 검토 (agents/llm_reviewer.py)
 ```python
 class OllamaReviewer:
@@ -51,6 +62,7 @@ class Reporter:
 def notify(title: str, body: str = "", env_key: str = "DISCORD_WEBHOOK_URL") -> bool:
     # 실패하면: 웹후크 없음·네트워크 오류 → False
 ```
+- 알림 함수 관계(위에서 아래로 부름): MCP `notify(channel, text)` → `Reporter.send(channel, title=text)` → (dry_run 아닐 때) `tools.notify(title, body, env_key=채널별 웹후크 키)`
 
 ## 평가 (evaluation/scoring.py)
 ```python
@@ -64,6 +76,7 @@ def should_adopt(base: dict, cand: dict, p95_limit: float | None, eval_complete:
 
 ## MCP 서버 (agents/mcp_server.py)
 - 공개 도구: `list_tools · vision_topview · match_item · db_get_item · notify(channel, text)`
+- `db_get_item` 은 비공개 특징(mark·visible_text = 확인 질문 정답)을 뺀 값만 돌려준다(11/3)
 - 실패하면: mcp 패키지 없음 → SystemExit(설치 안내)
 
 ## 유스케이스 예외 대조표
@@ -77,8 +90,8 @@ def should_adopt(base: dict, cand: dict, p95_limit: float | None, eval_complete:
 | UC-1 ⑥ 접근·전달 실패 | 표현 | robot_stop + stopped |
 | UC-1 ⑦ 집기 재시도 | 표현 | MAX_GRASP_ATTEMPTS |
 | UC-1 ⑧ LLM 보류·무응답 | 표현 | Reviewer on_error=hold |
-| (약속) db_set_status 실패 시 로봇 안 움직임 | **일부** | 계약에는 있으나 흐름이 반환값을 보지 않음 → review.md |
-| (약속) robot_stop 실패 시 직원 호출 | **미표현** | 반환값을 보지 않음 → review.md |
+| (약속) db_set_status 실패 시 로봇 안 움직임 | 표현(11/3 반영) | `_set_status()` → staff_check |
+| (약속) robot_stop 실패 시 직원 호출 | 표현(11/3 반영) | `_stop()` → 알림에 "직원 즉시 호출" |
 | UC-2 ① 개인정보 차단 | 표현 | Reporter.send → False, blocked |
 | UC-2 ② 전송 실패해도 계속 | 표현 | 흐름이 send 반환값을 안 봄(의도) |
 | UC-4 ①② 자동 채택 안 함 | 표현 | should_adopt |

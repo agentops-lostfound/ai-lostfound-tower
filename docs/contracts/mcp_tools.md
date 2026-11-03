@@ -29,6 +29,9 @@
 ## 3. AI에게 여는 범위
 - MCP 서버(`agents/mcp_server.py`)로 여는 도구는 **읽기·비교·알림만**: `list_tools · vision_topview · match_item · db_get_item · notify`
 - 로봇·상태 변경 도구는 열지 않는다. 메인 AI 흐름(`agents/supervisor.py`)이 안전 관문(동의·인증·확인 질문·신분증 대조·직원 확인·매칭 확신)을 모두 지난 뒤에만 부른다
+- MCP `db_get_item` 은 비공개 특징(`mark`·`visible_text`)을 뺀 값만 돌려준다(확인 질문 정답이 외부 AI에 새지 않게, 11/3)
+- 흐름은 `db_set_status` 가 `{ok: false}` 면 로봇을 움직이지 않고, `robot_stop` 이 실패하면 알림에 "직원 즉시 호출"을 붙인다(11/3)
+- 진짜 부품 연결: `agents/backends.py` 의 `CompositeBackend(vision=…, matcher=…, db=…, robot=…)` — 안내 docs/design/integration.md
 
 ## 4. 상태 이름
 `등록기계 보관 → 회수 중 → 본센터 보관 → 확인 중 → 승인·수령 예약 → 반환 중 → 인계 완료` (막히면 `반환 보류`)
