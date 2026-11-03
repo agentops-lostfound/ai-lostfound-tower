@@ -94,3 +94,33 @@ Qwen 모델 캐시는 미리 준비되어 있어야 합니다. 이 CLI는 오프
 품목은 phone, usb, lip_balm, wallet, card_wallet, hand_cream, power_bank, other, unknown입니다. 자유 특징 문장은 영어이며 지갑 전용 wallet_type 필드는 없습니다. 색상·형태·재질·읽을 수 있는 글자·스티커·특징을 반환합니다. 불확실한 글자와 재질은 추정하지 않고 빈 배열, 불확실한 형태는 null로 출력하도록 지시합니다. 이 지시는 모델의 환각 방지를 보장하지 않으므로 사진과 대조해 평가하세요.
 
 중복 키·추가 필드·잘못된 자료형·스티커 상태 모순은 검증 실패로 기록하고 기존 재시도 설정에 따라 다시 추론합니다. 최종 실패 시 임의 값으로 보정하지 않습니다. 실행 명령은 동일하며 모델에는 YOLO 클래스 이름을 전달하지 않고 crop만 전달합니다. 검출되지 않은 USB·립밤은 Qwen에 전달되지 않습니다. 기존 팀 공통 agents/contracts.py와는 별도 중간 출력입니다.
+
+## item 1종 검출 학습
+
+탑뷰 검출은 물품 종류 구분 대신 `0: item` 한 종류로 학습합니다. 폰·USB·립밤·지갑·핸드크림·보조배터리마다 개별 박스를 그리고 모든 라벨에 클래스 0을 사용합니다. Qwen의 세부 품목·특징 분류는 유지합니다. COCO 가중치 이름만 item으로 바꾸는 작업은 수행하지 않습니다.
+
+전용 설정은 `vision/configs/data_item.yaml`입니다. 다음 폴더에 실제 사진과 YOLO txt 라벨을 준비하세요. 라벨은 이미지와 동일한 이름이며 한 줄에 `0 cx cy width height`(0~1 정규화 좌표)입니다. 빈 작업대 사진은 빈 라벨 파일로 포함할 수 있지만 양성 사진의 누락 라벨은 반드시 보완하세요. 같은 촬영 세션의 유사 사진이 train/val에 섞이지 않도록 분할합니다. 모든 대상 물품과 조명·방향·배치를 포함하고 일부 사진은 최종 평가용으로 별도 보관하세요.
+
+```text
+datasets/lostfound_item/
+  images/train/    images/val/
+  labels/train/    labels/val/
+```
+
+저장소 루트에서 실행:
+
+```powershell
+# 설정 확인만 수행 (데이터나 학습 결과를 만들지 않음)
+python -m vision.scripts.train_item --dry-run
+# 실제 라벨 데이터 준비 후 학습; 현재 비전 환경은 CPU PyTorch
+python -m vision.scripts.train_item --epochs 100 --batch 4 --device cpu
+# CUDA 학습 환경이 별도로 준비된 경우에만 --device 0 사용
+```
+
+기본 시작 모델은 보유한 YOLO26n COCO 가중치입니다. 결과는 `models/item_baseline/best.pt`에 보관하며 같은 출력 폴더가 있으면 새 `--name`을 지정해야 합니다. 기존 팀의 4종 촬영·학습 스크립트와 6종 예시는 변경하지 않습니다. 기존 클래스 라벨 데이터와 이 설정을 혼용하지 마세요.
+
+학습 후 별도 사진에서 미검출·중복 박스·crop 품질을 확인한 뒤, 기존 추론 명령에 `--config vision/configs/vision_item.yaml`을 추가하면 학습한 가중치를 사용합니다. `--name`을 바꿨다면 해당 설정의 model 경로도 맞추세요. 현재 학습용 사진·라벨이 준비되지 않아 실제 학습은 실행하지 않았으며 기본 추론은 COCO 모델을 유지합니다.
+
+## 저장소에 포함된 Qwen 소스 (현재 구성)
+
+이제 외부 프로젝트의 필요한 소스·테스트·의존성이 저장소 `qwen/`에 포함되어 기본 시퀀스 소스로 사용됩니다. 원본은 변경하지 않았습니다. 과거 명령의 `--qwen-root ..\qwen`은 외부 소스를 선택하는 호환 옵션으로 계속 동작합니다. 현재 저장소 소스로 실행하려면 해당 옵션을 생략하고, 기존 캐시를 재사용할 때 `--qwen-cache-dir ..\qwen\.cache\huggingface`를 지정하세요. 새 PC 설치 및 원 개발 PC 명령은 [Qwen 통합 안내](../qwen/INTEGRATION.md)에 정리했습니다. 원본 Qwen README와 VALIDATION은 이전 단독 프로젝트의 기록입니다.

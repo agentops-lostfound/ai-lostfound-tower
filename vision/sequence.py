@@ -38,7 +38,7 @@ def _run_qwen(command, *, report_path, **kwargs):
             raise
 
 
-def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_packages=None):
+def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_packages=None, cache_dir=None):
     qwen_root, qwen_python = Path(qwen_root).resolve(), Path(qwen_python).resolve()
     if not (qwen_root / "src/feature_extractor.py").is_file():
         raise FileNotFoundError(f"Qwen source not found: {qwen_root}")
@@ -67,6 +67,8 @@ def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_
                "--qwen-root", str(qwen_root), "--report", str(target)]
     if site_packages:
         command += ["--site-packages", str(Path(site_packages).resolve())]
+    if cache_dir:
+        command += ["--cache-dir", str(Path(cache_dir).resolve())]
     env = dict(os.environ, HF_HUB_OFFLINE="1", PYTHONIOENCODING="utf-8")
     print(f"[2/3] Starting Qwen. Initial loading may take a minute. Log: {log}", flush=True)
     cancelled, process_error = False, None

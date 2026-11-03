@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--qwen-root", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
     parser.add_argument("--site-packages", type=Path)
+    parser.add_argument("--cache-dir", type=Path)
     args = parser.parse_args()
     if args.site_packages:
         site.addsitedir(str(args.site_packages.resolve()))
@@ -29,6 +30,8 @@ def main():
     output = args.report.parent / "qwen"
     output.mkdir(exist_ok=True)
     settings = replace(Settings(), log_dir=output / "logs", max_edge=512, offline=True)
+    if args.cache_dir:
+        settings = replace(settings, cache_dir=args.cache_dir.resolve())
     report["sequence"]["qwen_model"] = settings.model_id
     report["sequence"]["qwen_schema"] = SCHEMA_VERSION
     failed = 0
