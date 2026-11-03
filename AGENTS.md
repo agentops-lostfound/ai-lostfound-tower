@@ -48,7 +48,7 @@ pip install -r agents/requirements.txt
 ```bash
 python -m unittest discover -s tests
 ```
-- 모두 통과해야 PR 을 올린다. PR 에서도 GitHub Actions 가 같은 시험을 자동으로 돌리고, 통과 + 팀원 1명 승인이 있어야 병합된다. 실패하면 고치거나, 고치지 못한 이유를 PR 본문에 적는다
+- 모두 통과해야 PR 을 올린다. PR 에서도 GitHub Actions 가 같은 시험을 자동으로 돌리고, 통과해야 병합된다(승인은 필요 없음, 병합은 요청한 팀원이 직접 한다). 실패하면 고치거나, 고치지 못한 이유를 PR 본문에 적는다
 - PR 본문 형식: Jira 번호 / 무엇을 / 왜 / 시험 결과
 
 ## 자주 쓰는 명령 (저장소 폴더, .venv 켠 상태)
