@@ -1,0 +1,26 @@
+# 팀 DB (PostgreSQL 16 + pgvector) — docs/design/database.md
+# 켜기: docker compose up -d   (재부팅 뒤에도 Docker Desktop이 켜지면 자동으로 다시 켜짐)
+# 처음 켤 때만 center/schema.sql → center/seed_demo.sql 을 자동 실행한다(데이터는 lostfound-db 볼륨에 남음)
+# 비밀번호: .env 의 POSTGRES_PASSWORD (없으면 시연용 기본값 — 교육원 PC 안에서만 열림)
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: lostfound-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lostfound
+      POSTGRES_DB: lostfound
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lostfound-dev}
+    ports:
+      - "127.0.0.1:5433:5432"     # 이 PC 안에서만. 다른 PC에 열 때는 팀과 정한 뒤 바꾼다
+    volumes:
+      - lostfound-db:/var/lib/postgresql/data
+      - ./center/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./center/seed_demo.sql:/docker-entrypoint-initdb.d/02-seed-demo.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lostfound -d lostfound"]
+      interval: 10s
+      retries: 5
+
+volumes:
+  lostfound-db:

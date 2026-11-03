@@ -36,6 +36,7 @@ PACKAGES = {
     "mcp": (WARN, "MCP 서버(agents/mcp_server.py)"),
     "fastapi": (WARN, "관제탑 API(agents/api.py) — 화면이 HTTP로 부를 수 없음"),
     "uvicorn": (WARN, "관제탑 API 실행기"),
+    "psycopg": (WARN, "DB 부품·반환 기록(PostgreSQL) — TOWER_DB=1 불가"),
     "numpy": (WARN, "비전 채점 일부"),
 }
 WEBHOOK_KEYS = ["DISCORD_WEBHOOK_PROGRESS", "DISCORD_WEBHOOK_ALERT", "DISCORD_WEBHOOK_SCORE"]
@@ -115,6 +116,17 @@ def check_ollama(url: str, model: str, fetch: Callable[[str], dict] = _fetch_tag
     return out
 
 
+def check_db_port(host: str = "127.0.0.1", port: int = 5433, opener: Callable | None = None) -> Check:
+    """팀 DB(docker compose) 포트가 열려 있는지만 본다(로그인·비밀번호는 쓰지 않음)."""
+    import socket
+    opener = opener or (lambda: socket.create_connection((host, port), timeout=2))
+    try:
+        opener().close()
+        return Check("팀 DB(PostgreSQL)", OK, f"{host}:{port} 열림")
+    except Exception as e:
+        return Check("팀 DB(PostgreSQL)", WARN, f"{host}:{port} 응답 없음({type(e).__name__}) → docker compose up -d (TOWER_DB=1 일 때만 필요)")
+
+
 def check_gpu(runner: Callable[[list[str]], str] | None = None) -> Check:
     if runner is None:
         if not shutil.which("nvidia-smi"):
@@ -140,6 +152,7 @@ def run_checks(skip_ollama: bool = False) -> list[Check]:
     if not skip_ollama:
         model = str(env.get("MAIN_AI_MODEL", "")).strip() or DEFAULT_MODEL
         checks += check_ollama(env.get("OLLAMA_URL") or "http://localhost:11434", model)
+    checks.append(check_db_port())
     checks.append(check_gpu())
     return checks
 

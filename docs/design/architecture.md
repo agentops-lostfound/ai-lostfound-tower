@@ -58,7 +58,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | `GET /health` | 살아 있음 · 부품 진짜/가짜 · 실행 중 여부 | 200 | — |
 | `GET /tools` | 도구 목록(담당·실패 규칙) | 200 | — |
-| `POST /returns` | 반환 흐름 실행 | 200 + 결과(decision·reason·approved·steps…) | 422 형식 오류 · 409 같은 사례 번호(duplicate) 또는 다른 반환 진행 중(busy) |
+| `POST /returns` | 반환 흐름 실행 | 200 + 결과(decision·reason·approved·steps…·recorded) | 422 형식 오류 · 409 같은 사례 번호(duplicate) 또는 다른 반환 진행 중(busy) · 503 기록 저장소(DB) 연결 안 됨 |
 | `GET /returns` | 최근 기록(단계 제외) | 200 | — |
 | `GET /returns/{case_id}` | 기록 하나(단계 포함) | 200 | 404 없음 · 422 번호 형식 |
 
@@ -73,6 +73,15 @@ flowchart LR
 - 부품이 약속을 어기고 예외를 던지면: 로봇 정지 시도 → 결정 `stopped` → 알림 → 기록
 - 실행: `python -m uvicorn agents.api:app --host 127.0.0.1 --port 8100` → http://127.0.0.1:8100/docs
 
+## 3-1. 켜 두기 (시연 PC)
+| 무엇 | 켜는 법 | 계속 켜져 있나 |
+| --- | --- | --- |
+| 팀 DB(PostgreSQL 16 + pgvector) | `docker compose up -d` (저장소 폴더) | 예 — `restart: unless-stopped`. Docker Desktop 설정의 "로그인할 때 시작"이 켜져 있으면 재부팅 뒤에도 자동 |
+| 관제탑 API | `tools\start_tower.bat` 더블클릭(DB 켜기 + API 실행) | 창이 열려 있는 동안. 시작 프로그램 폴더(`shell:startup`)에 바로가기를 두면 로그인할 때 자동 |
+| 2조봇 | 봇 터미널에서 claude 세션 | 터미널이 열려 있는 동안(Claude 사용량은 디스코드로 부를 때만) |
+- API 모드: 기본은 가짜 부품·메모리 기록. `.env` 에 `TOWER_DB=1` + `DATABASE_URL` 이면 물건 기록·상태·반환 기록이 팀 DB로 간다(비전·매칭·로봇은 아직 가짜)
+- DB가 꺼져 있으면 API는 **503** 을 돌려주고 로봇을 움직이지 않는다(중복 실행 확인을 못 하므로). 반환이 끝난 뒤 기록만 실패하면 결과는 돌려주고 `recorded: false` + 관제 알림
+
 ## 4. 데이터 소유
 | 표 | 소유 | 관제탑이 하는 일 |
 | --- | --- | --- |
@@ -82,7 +91,7 @@ flowchart LR
 
 ## 5. 연결 순서 (선행 관계)
 1. 관제탑 API·흐름·기록(가짜 부품) — **완료(11/3)**
-2. DB 초안 v1(center/schema.sql, 11/3) → 정연우 검토 → DB 부품(LF-8)·PostgresRecorder 연결
+2. DB 초안 v1(center/schema.sql) · docker compose · DB 부품(agents/db_part.py) · PostgresRecorder — **완료(11/3)**, 정연우 검토 대기
 3. 비전(LF-3) → 매칭(LF-20) 연결 → 탑뷰 실측으로 매칭 가중치 조정
 4. 웹(LF-6)이 `POST /returns` 호출
 5. 로봇(LF-21 → LF-19, LF-11) 연결 → 통합 시연(LF-18)

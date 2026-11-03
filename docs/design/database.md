@@ -3,6 +3,12 @@
 > 설계: 변재원(전체 구조 담당) · 검토: 정연우(DB 담당 LF-8). 표 정의 원본: `center/schema.sql` (이미지 검색은 `center/schema_vector.sql`)
 > 확인: PostgreSQL 16에서 두 번 실행 · 예시 데이터 입력 · 잘못된 값 거부(상태·결정·비공개 특징 위치·후보 순위·중복 번호·없는 물건) 검사 완료
 
+## 0. 켜기·접속
+- 켜기: 저장소 폴더에서 `docker compose up -d` → `lostfound-db` 컨테이너(포트 127.0.0.1:5433). 처음 켤 때 `center/schema.sql` → `center/seed_demo.sql`(시연 물건 A-W01~A-W07) 자동 실행
+- `.env`: `POSTGRES_PASSWORD=…` · `DATABASE_URL=postgresql://lostfound:…@localhost:5433/lostfound` (값은 공유·커밋하지 않음)
+- 표를 처음부터 다시 만들기(데이터 삭제): `docker compose down -v` → `docker compose up -d` (되돌릴 수 없음)
+- 관제탑 쪽 코드: 물건 읽기·상태 변경 `agents/db_part.py`, 반환 기록 `agents/records.py` PostgresRecorder
+
 ## 1. 원칙
 1. **한 DB, 표마다 주인**: 등록기계·회수·웹·관제탑 기록을 PostgreSQL 하나에 두고, 표마다 누가 쓰는지 정한다
 2. **개인정보 최소**: 주민등록번호 칸 없음. 분실인 신분 정보는 **가린 값만**(예: 변\*원). 습득자 연락처는 **별도 표**로 떼어 직원만 열람

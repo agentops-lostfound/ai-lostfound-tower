@@ -10,6 +10,7 @@
 환경값(.env, 없으면 기본)
     TOWER_SEND=1      관제 채널(디스코드)로 실제 전송. 기본 0 = 화면에만
     TOWER_REVIEWER=1  LLM 검토(Ollama) 켜기. 기본 0
+    TOWER_DB=1        물건 기록·상태·반환 기록을 PostgreSQL(DATABASE_URL)로. 기본 0 = 가짜 부품·메모리
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
@@ -21,7 +22,7 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.service import Conflict, RequestError, TowerService, demo_backend_factory  # noqa: E402
+from agents.service import Conflict, RequestError, TowerService, Unavailable, demo_backend_factory  # noqa: E402
 
 
 def _flag(name: str) -> bool:
@@ -39,8 +40,19 @@ def build_service(backend_factory=None) -> TowerService:
     if _flag("TOWER_REVIEWER"):
         from agents.llm_reviewer import OllamaReviewer
         reviewer = OllamaReviewer()
+    recorder = None
+    if _flag("TOWER_DB") and backend_factory is None:
+        # DB 모드: 물건 기록·상태는 진짜 DB, 나머지 부품(비전·매칭·로봇)은 가짜 → 반환 기록도 DB 에 저장
+        from agents.backends import CompositeBackend
+        from agents.db_part import PostgresDbPart
+        from agents.records import PostgresRecorder
+        dsn = os.environ.get("DATABASE_URL", "")
+        demo = demo_backend_factory()
+        db_part = PostgresDbPart(dsn)
+        backend_factory = lambda: CompositeBackend(db=db_part, fallback=demo().fallback)  # noqa: E731
+        recorder = PostgresRecorder(dsn)
     return TowerService(backend_factory or demo_backend_factory(), Reporter(dry_run=not _flag("TOWER_SEND")),
-                        reviewer=reviewer)
+                        recorder=recorder, reviewer=reviewer)
 
 
 def build_app(service: TowerService | None = None):
@@ -72,11 +84,16 @@ def build_app(service: TowerService | None = None):
             raise HTTPException(status_code=422, detail=str(e))
         except Conflict as e:
             raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
 
     @app.get("/returns")
     def recent(limit: int = 20) -> list[dict]:
         """최근 반환 기록(단계 제외)"""
-        return svc.recent(limit)
+        try:
+            return svc.recent(limit)
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
 
     @app.get("/returns/{case_id}")
     def get_case(case_id: str) -> dict:
@@ -85,6 +102,8 @@ def build_app(service: TowerService | None = None):
             row = svc.get_case(case_id)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
         if row is None:
             raise HTTPException(status_code=404, detail="기록 없음")
         return row

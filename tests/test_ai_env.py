@@ -106,6 +106,20 @@ class TestGpu(unittest.TestCase):
         self.assertEqual(ce.check_gpu(lambda cmd: "").level, ce.WARN)
 
 
+class TestDbPort(unittest.TestCase):
+    def test_open_and_closed(self):
+        class Sock:
+            def close(self):
+                pass
+        self.assertEqual(ce.check_db_port(opener=lambda: Sock()).level, ce.OK)
+
+        def refuse():
+            raise ConnectionRefusedError
+        c = ce.check_db_port(opener=refuse)
+        self.assertEqual(c.level, ce.WARN)
+        self.assertIn("docker compose", c.detail)
+
+
 class TestSummary(unittest.TestCase):
     def test_counts_and_exit_rule(self):
         checks = [ce.Check("a", ce.OK, ""), ce.Check("b", ce.WARN, ""), ce.Check("c", ce.FAIL, "")]

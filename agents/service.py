@@ -28,6 +28,10 @@ class RequestError(ValueError):
     """요청 형식 오류(HTTP 422)."""
 
 
+class Unavailable(RuntimeError):
+    """기록 저장소(DB)에 닿지 않아 안전하게 실행할 수 없음(HTTP 503). 중복 확인을 못 하면 로봇을 움직이지 않는다."""
+
+
 class Conflict(RuntimeError):
     """중복 사례 번호 또는 다른 반환 진행 중(HTTP 409). kind: duplicate | busy"""
 
@@ -72,7 +76,11 @@ class TowerService:
         if not self._run_lock.acquire(blocking=False):
             raise Conflict("busy", "다른 반환이 진행 중입니다(로봇 1대). 끝난 뒤 다시 요청하세요")
         try:
-            if self.recorder.has(req.case_id):
+            try:
+                seen = self.recorder.has(req.case_id)
+            except Exception as e:
+                raise Unavailable(f"기록 저장소 연결 실패({type(e).__name__}) — 중복 확인을 못 해 실행하지 않음") from e
+            if seen:
                 raise Conflict("duplicate", f"이미 처리한 사례 번호: {req.case_id}")
             be = self.backend_factory()
             try:
@@ -81,7 +89,16 @@ class TowerService:
                 out = self._crash(req, be, e)
             if out.get("decision") not in DECISIONS:
                 raise RuntimeError(f"알 수 없는 결정: {out.get('decision')}")
-            self.recorder.save(req.item_id, out)
+            try:
+                self.recorder.save(req.item_id, out)
+                out["recorded"] = True
+            except Exception as e:   # 반환은 이미 끝남 → 결과는 돌려주고, 기록 실패만 알림
+                out["recorded"] = False
+                try:
+                    self.reporter.alert(req.case_id, f"반환 기록 저장 실패({type(e).__name__}) — 직원이 기록 확인",
+                                        f"물건 {req.item_id}")
+                except Exception:
+                    pass
             return out
         finally:
             self._run_lock.release()
@@ -101,10 +118,16 @@ class TowerService:
     def get_case(self, case_id: str) -> dict | None:
         if not ID_RE.match(case_id or ""):
             raise RequestError("case_id: 영문·숫자·-·_ 1~32자")
-        return self.recorder.get(case_id)
+        try:
+            return self.recorder.get(case_id)
+        except Exception as e:
+            raise Unavailable(f"기록 저장소 연결 실패({type(e).__name__})") from e
 
     def recent(self, limit: int = 20) -> list[dict]:
-        return self.recorder.recent(max(1, min(limit, 100)))
+        try:
+            return self.recorder.recent(max(1, min(limit, 100)))
+        except Exception as e:
+            raise Unavailable(f"기록 저장소 연결 실패({type(e).__name__})") from e
 
     def health(self) -> dict:
         try:   # 상태 확인은 부품이 고장 나도 답해야 한다
@@ -138,4 +161,4 @@ def demo_backend_factory() -> Callable[[], object]:
     return make
 
 
-__all__ = ["TowerService", "RequestError", "Conflict", "parse_request", "demo_backend_factory", "GATE_FIELDS"]
+__all__ = ["TowerService", "RequestError", "Conflict", "Unavailable", "parse_request", "demo_backend_factory", "GATE_FIELDS"]

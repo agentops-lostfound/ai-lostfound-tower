@@ -45,7 +45,8 @@ python evaluation/run_cases.py --reviewer
 python tools/tower_demo.py
 ```
 - `--reviewer` 결과에서 "잘못된 보류 0건"이면 시연에서 LLM 검토를 켜도 된다
-6. (선택) MCP 서버: `python agents/mcp_server.py` (stdio로 대기 — 멈춘 것처럼 보이면 정상, Ctrl+C로 종료)
+6. (선택) 팀 DB + DB 모드: `docker compose up -d` → `.env` 에 `POSTGRES_PASSWORD`·`DATABASE_URL`·`TOWER_DB=1` → `tools\start_tower.bat`
+7. (선택) MCP 서버: `python agents/mcp_server.py` (stdio로 대기 — 멈춘 것처럼 보이면 정상, Ctrl+C로 종료)
 
 ## 점검 도구가 보는 것 (tools/check_ai_env.py)
 | 항목 | ✅ | ⚠️ | ❌ |

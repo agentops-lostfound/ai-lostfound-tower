@@ -230,6 +230,20 @@ class ApiRoutesTest(unittest.TestCase):
         self.assertEqual(r[("GET", "/returns/{case_id}")]("R1")["case_id"], "R1")
         self.assertEqual(len(r[("GET", "/tools")]()), 10)
 
+    def test_db_down_is_503(self):
+        from agents import api
+        from agents.records import PostgresRecorder
+
+        def down(dsn):
+            raise ConnectionError("DB 꺼짐")
+        api.build_app(TowerService(demo_backend_factory(), Reporter(), recorder=PostgresRecorder("x", connect=down)))
+        for call in (lambda: self.routes[("POST", "/returns")](ok_payload(case="Z1")),
+                     lambda: self.routes[("GET", "/returns")](20),
+                     lambda: self.routes[("GET", "/returns/{case_id}")]("Z1")):
+            with self.assertRaises(self.HTTPException) as cm:
+                call()
+            self.assertEqual(cm.exception.status_code, 503)
+
 
 if __name__ == "__main__":
     unittest.main()
