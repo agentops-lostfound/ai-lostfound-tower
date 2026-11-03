@@ -24,7 +24,7 @@ Claude Code 는 `CLAUDE.md` 를 읽고, Codex 는 이 파일을 읽는다. 두 �
 
 ## 작업 방식
 - 한국어로 답하고, PR 제목·본문·커밋 메시지도 한국어로 쓴다. 코드·명령어·파일명·오류 원문은 그대로 둔다
-- 업무 하나 = 브랜치 하나: `LF-번호-영문-설명` (예: `LF-8-db-schema`). `codex/...` 같은 자동 이름은 쓰지 않는다
+- 업무 하나 = 브랜치 하나: `LF-번호-이름-영문-설명` (예: `LF-8-yeonwoo-db-review`, 이름은 요청한 팀원의 영문 이름). `codex/...` 같은 자동 이름은 쓰지 않는다
 - 커밋 메시지: `LF-번호 무엇을 왜 (한국어)`
 - `main` 에 직접 push 하지 않는다(보호 규칙으로 막혀 있음). 항상 PR 로 올린다
 - force push, `git reset --hard` 후 push 처럼 기록을 지우는 명령은 쓰지 않는다
@@ -48,7 +48,7 @@ pip install -r agents/requirements.txt
 ```bash
 python -m unittest discover -s tests
 ```
-- 모두 통과해야 PR 을 올린다. 실패하면 고치거나, 고치지 못한 이유를 PR 본문에 적는다
+- 모두 통과해야 PR 을 올린다. PR 에서도 GitHub Actions 가 같은 시험을 자동으로 돌리고, 통과 + 팀원 1명 승인이 있어야 병합된다. 실패하면 고치거나, 고치지 못한 이유를 PR 본문에 적는다
 - PR 본문 형식: Jira 번호 / 무엇을 / 왜 / 시험 결과
 
 ## 자주 쓰는 명령 (저장소 폴더, .venv 켠 상태)
