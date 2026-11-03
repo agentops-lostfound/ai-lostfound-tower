@@ -5,7 +5,7 @@ Claude Code 는 `CLAUDE.md` 를 읽고, Codex 는 이 파일을 읽는다. 두 �
 
 ## 프로젝트
 - AI 분실물 관제탑: 습득물 등록기계 → 본센터(공용 보관함 + 탑뷰 카메라 + SO-101 로봇팔) → 분실인 웹, 이를 관제하는 AI 관제탑
-- MVP: 지갑 1종 → 성공하면 USB·립밤·모형폰. 업무는 Jira LF-1~21(스페이스 키 LF)
+- MVP: 지갑 1종 → 성공하면 USB·립밤·모형폰·핸드크림·보조배터리(품목 6종, agents/contracts.py CATEGORIES). 업무는 Jira LF-1~21(스페이스 키 LF)
 - 설계 문서: `docs/design/` (구조도 `architecture.md`, DB `database.md`)
 - 기준 입·출력 약속: `agents/contracts.py`, `docs/contracts/mcp_tools.md` — 바꾸면 PR 본문에 이유를 적고 "변재원 확인 필요"라고 쓴다
 

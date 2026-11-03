@@ -14,7 +14,8 @@ UNKNOWN = "확인 불가"          # 사진으로 판단할 수 없을 때(보�
 NONE = "없음"                  # 표시·글자가 없음을 확인했을 때
 PII_MASK = "개인정보 가림"      # 카드·신분증의 이름·번호 자리
 
-CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "없음"]
+# 분실물 품목 6종(11/3 핸드크림·보조배터리 정식 추가) + 없음. 물건 ID 앞글자: W 지갑 · U USB · L 립밤 · P 모형폰 · H 핸드크림 · B 보조배터리
+CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배터리", "없음"]
 MVP_CATEGORIES = ["지갑"]       # MVP는 지갑 1종, 확장 때 나머지 추가
 FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]
 PRIVATE_FIELDS = ["mark", "visible_text"]   # 확인 질문용 비공개 특징(후보 카드에 안 보임)

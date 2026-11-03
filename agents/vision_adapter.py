@@ -16,7 +16,8 @@ from pathlib import Path
 
 from agents.contracts import NONE, UNKNOWN, validate_detection
 
-CATEGORY = {"wallet": "지갑", "card_wallet": "지갑", "usb": "USB", "lip_balm": "립밤", "phone": "모형폰"}
+CATEGORY = {"wallet": "지갑", "card_wallet": "지갑", "usb": "USB", "lip_balm": "립밤", "phone": "모형폰",
+            "hand_cream": "핸드크림", "power_bank": "보조배터리"}
 COLOR = {"black": "검정", "white": "흰색", "gray": "회색", "grey": "회색", "silver": "회색", "red": "빨강",
          "blue": "파랑", "navy": "남색", "dark blue": "남색", "green": "초록", "yellow": "노랑", "brown": "갈색",
          "tan": "갈색", "beige": "갈색"}
