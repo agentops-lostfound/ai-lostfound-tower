@@ -5,6 +5,7 @@
 실행(패키지 설치가 되는 PC, .venv 안에서)
     pip install mcp
     python agents/mcp_server.py            # 가짜 부품으로 실행(stdio)
+- .env 에 TOWER_DB=1 이면 db_get_item 은 팀 DB(DATABASE_URL)를 읽는다. 나머지(비전·매칭)는 가짜 부품
 - 진짜 부품이 나오면 build_server(backend=진짜부품) 으로 바꾼다.
 - 로봇을 움직이는 도구는 MCP로 열지 않는다. 로봇은 메인 AI 흐름(supervisor)이 안전 관문을 지난 뒤에만 부른다.
 """
@@ -21,6 +22,16 @@ from agents.tools import TOOLS, MockBackend  # noqa: E402
 
 # AI가 직접 부를 수 있는 도구(읽기·비교·알림만). 로봇·상태 변경은 제외
 EXPOSED = ["vision_topview", "match_item", "db_get_item", "notify", "list_tools"]
+
+
+def default_backend(env: dict | None = None):
+    """TOWER_DB=1 이면 DB 부품만 진짜(PostgreSQL), 아니면 전부 가짜 부품."""
+    env = os.environ if env is None else env
+    if str(env.get("TOWER_DB", "")).strip().lower() not in ("1", "true", "yes", "on"):
+        return MockBackend()
+    from agents.backends import CompositeBackend
+    from agents.db_part import PostgresDbPart
+    return CompositeBackend(db=PostgresDbPart(env.get("DATABASE_URL", "")), fallback=MockBackend())
 
 
 def build_server(backend=None, reporter=None):
@@ -66,4 +77,9 @@ def build_server(backend=None, reporter=None):
 
 
 if __name__ == "__main__":
-    build_server().run()
+    try:
+        from tools.envfile import load_env
+        load_env()
+    except Exception:
+        pass
+    build_server(backend=default_backend()).run()

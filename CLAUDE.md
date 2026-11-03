@@ -25,3 +25,4 @@ Codex 는 같은 내용의 `AGENTS.md` 를 읽는다. 규칙을 바꾸면 두 �
 - 시험 사례 10개: `python evaluation/run_cases.py`
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 정답지 검사: `python evaluation/answer_key.py 정답지.csv`
+- 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
