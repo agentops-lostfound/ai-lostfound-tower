@@ -1,0 +1,22 @@
+# Experimental defaults; scores are not probabilities.
+reject_category_mismatch: true
+reject_clear_color_mismatch: true
+weights:
+  category: 0.2
+  color: 0.5
+  sticker: 0.1
+  semantic: 0.2
+decision:
+  min_score: 0.65
+  min_margin: 0.10
+  min_attribute_coverage: 1.0
+  min_attribute_score: 0.8
+category_similarity:
+  wallet:
+    card_wallet: 0.8
+color_similarity:
+  blue:
+    navy: 0.6
+    dark blue: 0.8
+  navy:
+    dark blue: 0.9
