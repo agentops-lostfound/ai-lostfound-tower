@@ -52,7 +52,7 @@ be = CompositeBackend(vision=SequenceFileVisionPart("outputs/vision", max_age_s=
   매칭 점수가 낮게 나온다 → Qwen 프롬프트를 계약 값 목록(한국어)으로 고정하거나, 변환표를 늘린다(김건태 님과 결정)
 
 ## 2-2. 매칭(LF-20) 연결 — 김건태 정책 (11/3)
-- `agents/matcher_part.py` 의 `PolicyMatcherPart` 가 `matching/policy.py` 를 `match_item` 약속으로 감싼다. `.env` `TOWER_MATCHER=policy` 로 켠다
+- `agents/matcher_part.py` 의 `PolicyMatcherPart` 가 `matching/policy.py` 를 `match_item` 약속으로 감싼다. 11/3 부터 기본(되돌리기 `TOWER_MATCHER=simple`)
 - 결과 비교·남은 결정은 [swap_guide.md](swap_guide.md) 3-1
 
 ## 3. 관제탑 쪽이 보장하는 것

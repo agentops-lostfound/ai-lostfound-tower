@@ -20,7 +20,7 @@
 | DB | **진짜** | - | `.env` `TOWER_DB=1` | 변재원 LF-8 |
 | 디스코드 알림 | **진짜** | - | `.env` `TOWER_SEND=1` | 변재원 LF-17 |
 | 탑뷰 비전 | 가짜 | Qwen 결과 파일 | `.env` `TOWER_VISION_FILE=결과 폴더` (2장) | 김건태 LF-3 |
-| 매칭 | 단순 비교(기본) / **김건태 정책 연결됨(스위치)** | 칸별 점수 + 임베딩 | `.env` `TOWER_MATCHER=policy` (3장) | 김건태 LF-20 |
+| 매칭 | **김건태 정책(11/3 기본)** / 예전 단순 비교(스위치) | 칸별 점수 + 임베딩 | 기본 적용. 되돌리기 `.env` `TOWER_MATCHER=simple` (3장) | 김건태 LF-20 |
 | 로봇팔 | 가짜 | SO-101 + SmolVLA | `CompositeBackend(robot=…)` (4장) | 김건태 LF-19·21, 이순필 LF-11 |
 | 분실인 웹 | 시안(가짜 데이터) | 관제탑 API 호출 | `POST /claims` (5장) | 김재민 LF-4·6 |
 
@@ -45,7 +45,9 @@ TOWER_VISION_MAX_AGE=600
 - 확인: `python tools/mock_scene.py` 의 결과가 나빠지지 않아야 한다(6장)
 
 ### 3-1. 김건태 매칭 정책 연결 (11/3, `agents/matcher_part.py`)
-- `.env` 에 `TOWER_MATCHER=policy` → 관제탑 매칭이 `matching/policy.py`(속성 필터 → 자유 특징 → 확정·보류)로 바뀐다. 기본은 기존 단순 비교
+- **11/3 결정: 기본 매칭 = 김건태 정책** `matching/policy.py`(속성 필터 → 자유 특징 → 확정·보류). 예전 단순 비교로 되돌리려면 `.env` 에 `TOWER_MATCHER=simple` 후 관제탑 재시작
+- 정책을 못 읽으면(관제탑 PC 에 pyyaml 미설치 등) 관제탑은 꺼지지 않고 단순 비교로 대신한다 → `/health` 의 `sources.match_item` 이 `PolicyMatcherPart` 인지 확인
+- 두 방식 비교: `python tools/mock_scene.py --compare` (진짜 결과 파일이 생기면 같은 방식으로 비교)
 - 변환: 계약 특징(지갑·빨강·스티커 설명) → 정책 입력(card_wallet·red·present). 색은 관제탑 변환기가 꾸밈말을 뗀 기본 색을 넘기므로
   `dark red` 같은 값이 '색 불일치'로 제외되지 않는다. '기타'·'확인 불가' 색은 조건으로 쓰지 않는다
 - 판정 대응: matched → matched(자동 반환 가능) / needs_confirmation → uncertain / no_match → none (둘 다 직원 확인)
@@ -57,7 +59,7 @@ TOWER_VISION_MAX_AGE=600
 | 매칭 부품 (스티커 없는 시나리오, 11/3 실행) | 맞음 | 다른 물건 집음 | 자동 반환 못 한 사례 |
 | --- | ---: | ---: | --- |
 | 기존 단순 비교(기본) | 8/9 | 0 | S03 — 색을 5칸 중 1칸으로만 봐서 모양 표현이 흔들리면 다른 색 지갑과 동점 → 직원 확인 |
-| 김건태 정책(`TOWER_MATCHER=policy`, 기준값 그대로) | **9/9** | 0 | - |
+| 김건태 정책(기본, 기준값 그대로) | **9/9** | 0 | - |
 
   - 해석: 스티커를 쓰지 않으면 지갑끼리는 색이 사실상 유일한 구별 기준이다. 색을 먼저 거르는 김건태 정책이 단순 비교보다 맞다
   - (참고, 스티커를 쓰던 이전 시나리오에서는 정책 기본값이 6/9 — 같은 제품·스티커만 다른 쌍을 확정 못 함. 스티커 미사용 결정으로 해당 없음)
