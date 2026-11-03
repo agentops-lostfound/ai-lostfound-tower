@@ -152,7 +152,7 @@ def fake_db(version="160015", has_item=True, count=7, error=None):
     return connect
 
 
-DSN = {"DATABASE_URL": "postgresql://lostfound:secret-pw@localhost:5434/lostfound"}
+DSN = {"DATABASE_URL": "postgresql://lostfound:secret-pw@127.0.0.1:5434/lostfound"}
 
 
 class TestDb(unittest.TestCase):
@@ -160,7 +160,13 @@ class TestDb(unittest.TestCase):
         c = ce.check_db(DSN, connect=fake_db())
         self.assertEqual(c.level, ce.OK)
         self.assertIn("물건 7개", c.detail)
-        self.assertIn("localhost:5434", c.detail)
+        self.assertIn("127.0.0.1:5434", c.detail)
+
+    def test_localhost_warns_slow(self):
+        """11/3 실제 사례: localhost → IPv6 먼저 시도해 접속마다 5초 지연"""
+        c = ce.check_db({"DATABASE_URL": "postgresql://u:p@localhost:5434/lostfound"}, connect=fake_db())
+        self.assertEqual(c.level, ce.WARN)
+        self.assertIn("127.0.0.1", c.detail)
 
     def test_other_postgres_version_is_flagged(self):
         """11/3 실제 사례: 수업용 PostgreSQL 18 이 같은 포트를 차지"""

@@ -179,6 +179,8 @@ def check_db(env: dict, connect: Callable | None = None) -> Check:
         return Check(DB_NAME, bad, f"{where} 에 PostgreSQL {major} 이 답함 → 팀 DB(16)가 아님. 포트 확인: docker port lostfound-db")
     if not has_item:
         return Check(DB_NAME, bad, f"{where} 접속됨, 그런데 item 표가 없음 → 팀 DB 가 아니거나 schema.sql 이 안 들어감")
+    if u.hostname == "localhost":
+        return Check(DB_NAME, WARN, f"{where} 접속됨 · 물건 {count}개, 그런데 주소가 localhost → 접속마다 몇 초씩 늦을 수 있음. .env 의 DATABASE_URL 을 127.0.0.1 로 바꾸기")
     return Check(DB_NAME, OK, f"{where} 접속됨 · PostgreSQL {major} · 물건 {count}개")
 
 
