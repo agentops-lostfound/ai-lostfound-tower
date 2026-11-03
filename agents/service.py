@@ -18,6 +18,7 @@ from dataclasses import fields
 from typing import Callable
 
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
+from agents.intake import IntakeError, IntakeStore, MemoryIntakeStore, parse_features, parse_intake, receipt, valid_item_id
 from agents.contracts import (CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
                               DECISIONS)
 from agents.records import MemoryRecorder, Recorder
@@ -92,14 +93,56 @@ def parse_visit(payload: dict) -> tuple[str, str | None, dict]:
 
 class TowerService:
     def __init__(self, backend_factory: Callable[[], object], reporter, recorder: Recorder | None = None,
-                 reviewer=None, flow: Callable = run_return, claims: ClaimStore | None = None):
+                 reviewer=None, flow: Callable = run_return, claims: ClaimStore | None = None,
+                 intake: IntakeStore | None = None):
         self.backend_factory = backend_factory   # 요청마다 부품 묶음을 얻는 함수(진짜 부품이면 같은 객체를 돌려줘도 됨)
         self.reporter = reporter
         self.recorder = recorder if recorder is not None else MemoryRecorder()
         self.reviewer = reviewer
         self.flow = flow
         self.claims = claims if claims is not None else MemoryClaimStore()
+        self.intake = intake if intake is not None else MemoryIntakeStore()
         self._run_lock = threading.Lock()
+
+    # ---------- 습득물 접수(등록기계 화면) ----------
+    def list_places(self, machine_id: str, limit: int = 10) -> list[dict]:
+        from agents.contracts import MACHINE_LETTERS
+        if machine_id not in MACHINE_LETTERS:
+            raise RequestError(f"machine_id: {list(MACHINE_LETTERS)} 중 하나")
+        try:
+            return self.intake.places(machine_id, max(1, min(int(limit), 30)))
+        except IntakeError as e:
+            raise RequestError(str(e)) from e
+        except Exception as e:
+            raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
+
+    def create_item(self, payload: object) -> dict:
+        """등록기계: 접수 → 접수 번호. 연락처는 저장만 하고 돌려주지 않는다."""
+        try:
+            intake = parse_intake(payload)
+            row = self.intake.create(intake)
+        except IntakeError as e:
+            raise RequestError(str(e)) from e
+        except Exception as e:
+            raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
+        return receipt(row)
+
+    def set_item_features(self, item_id: str, payload: object) -> dict:
+        """뒤에서 도는 Qwen 작업: 특징 채우기. 돌려주는 값은 공개 특징만(비공개 특징 = 확인 질문 정답)."""
+        from agents.contracts import public_card
+        if not valid_item_id(item_id):
+            raise RequestError("item_id: 접수 번호 형식(예: A-20261103-0001)")
+        try:
+            feats = parse_features(payload)
+            ok = self.intake.set_features(item_id, feats)
+        except IntakeError as e:
+            raise RequestError(str(e)) from e
+        except Exception as e:
+            raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
+        if not ok:
+            raise NotFound(f"없는 접수 번호: {item_id}")
+        return {"item_id": item_id, "category": feats.get("category"), "features": public_card(
+            {k: v for k, v in feats.items() if k != "category"})}
 
     # ---------- 찾기 요청(웹) ----------
     def create_claim(self, payload: object) -> dict:

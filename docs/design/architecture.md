@@ -30,7 +30,8 @@ flowchart LR
   PG[(PostgreSQL<br/>item: 변재원 LF-8 · return_case/step: 관제탑)]
   OL[(Ollama<br/>qwen3-vl:4b-instruct)]
   DC[(디스코드 관제 채널 3곳)]
-  Kiosk -->|접수 기록| D
+  Kiosk -->|GET /places · POST /items 접수| API
+  V -.->|POST /items/id/features Qwen 특징| API
   Web -->|POST /claims 찾기 요청·웹 확인·예약| API
   Staff -->|GET /claims · POST /returns 방문 확인| API
   API --> SVC --> SUP --> CB
@@ -58,6 +59,9 @@ flowchart LR
 | --- | --- | --- | --- |
 | `GET /health` | 살아 있음 · 부품 진짜/가짜 · 실행 중 여부 | 200 | — |
 | `GET /tools` | 도구 목록(담당·실패 규칙) | 200 | — |
+| `GET /places?machine_id=` | 등록기계: 그 역의 추천 습득 장소(많이 고른 순) | 200 + [{place_id, label}] | 422 모르는 기계 · 503 DB |
+| `POST /items` | 등록기계: 습득물 접수(장소 필수, 연락처 선택, 사진 위치) → 접수 번호. 연락처는 응답에 안 나옴 | 200 + item_id·received_at·contact_saved | 422 형식(장소 비움·전화 형식·받지 않는 칸) · 503 DB |
+| `POST /items/{item_id}/features` | 뒤에서 도는 Qwen 작업: 특징 저장(공개·비공개 나눔) | 200 + category·공개 특징 | 404 없는 접수 번호 · 422 형식 · 503 DB |
 | `POST /claims` | 웹: 찾기 요청 저장(웹 확인 3개 + 수령 예약) | 200 + claim_id·web_gates | 422 형식·개인정보 원문·없는 물건 · 503 DB |
 | `GET /claims/{claim_id}` | 직원 화면: 찾기 요청 조회(가린 이름·물건·예약·웹 확인) | 200 | 404 없음 · 422 번호 형식 |
 | `GET /staff` | 직원 화면(본센터 방문 확인) 페이지 | 200 | — |
