@@ -20,7 +20,7 @@ from agents.tools import MockBackend
 GROUPS: dict[str, tuple[str, ...]] = {
     "vision": ("vision_topview",),                                  # 김건태 LF-3
     "matcher": ("match_item",),                                     # 김건태 LF-20
-    "db": ("db_get_item", "db_set_status"),                         # 정연우 LF-8
+    "db": ("db_get_item", "db_set_status"),                         # 변재원 LF-8
     "robot": ("robot_approach", "robot_grasp", "robot_verify_grasp",  # 김건태 LF-19·21, 이순필 LF-11
               "robot_deliver", "robot_stop"),
 }

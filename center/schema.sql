@@ -9,7 +9,7 @@
 -- 실행: psql -d lostfound -f center/schema.sql  (여러 번 실행해도 안전: IF NOT EXISTS)
 
 -- ========== 기준 정보 ==========
--- [주인: 정연우] 습득물 등록기계·본센터
+-- [주인: 변재원 LF-8] 습득물 등록기계·본센터
 CREATE TABLE IF NOT EXISTS machine (
     machine_id    VARCHAR(16) PRIMARY KEY,                  -- 예: KIOSK-A, CENTER
     kind          VARCHAR(8)  NOT NULL CHECK (kind IN ('kiosk', 'center')),
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS machine (
     is_virtual    BOOLEAN     NOT NULL DEFAULT FALSE        -- 시연용 가상 등록기계(B)
 );
 
--- [주인: 김재민·정연우] 습득 장소 추천 목록(같은 호선·자주 나오는 장소부터)
+-- [주인: 김재민(화면)·변재원(DB)] 습득 장소 추천 목록(같은 호선·자주 나오는 장소부터)
 CREATE TABLE IF NOT EXISTS place (
     place_id      SERIAL      PRIMARY KEY,
     line          VARCHAR(16) NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS place (
 );
 
 -- ========== 접수 ==========
--- [주인: 정연우, 쓰기: 등록기계 화면(김재민)·비전(김건태), 읽기·상태 변경: 관제탑]
+-- [주인: 변재원 LF-8, 쓰기: 등록기계 화면(김재민)·비전(김건태), 읽기·상태 변경: 관제탑]
 CREATE TABLE IF NOT EXISTS item (
     item_id          VARCHAR(32) PRIMARY KEY,               -- 접수 번호(화면에 보여 줌), 예: A-20261103-0001 (contracts.ITEM_ID_PATTERN)
     machine_id       VARCHAR(16) NOT NULL REFERENCES machine(machine_id),
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS item (
 CREATE INDEX IF NOT EXISTS item_status_idx ON item (status);
 CREATE INDEX IF NOT EXISTS item_machine_idx ON item (machine_id, received_at);
 
--- [주인: 정연우] 습득자 연락처(선택 입력 = 저장 동의). 주인이 찾아가면 감사 연락에만, 직원만 열람
+-- [주인: 변재원 LF-8] 습득자 연락처(선택 입력 = 저장 동의). 주인이 찾아가면 감사 연락에만, 직원만 열람
 -- 보관: 물건이 '인계 완료'된 뒤 30일이 지나면 지운다(tools/purge_contacts.py, 관제탑 켤 때 자동 실행)
 CREATE TABLE IF NOT EXISTS finder_contact (
     item_id      VARCHAR(32) PRIMARY KEY REFERENCES item(item_id),
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS finder_contact (
     consented_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- [주인: 정연우] 상태가 바뀐 기록(누가·언제·무엇에서 무엇으로)
+-- [주인: 변재원 LF-8] 상태가 바뀐 기록(누가·언제·무엇에서 무엇으로)
 CREATE TABLE IF NOT EXISTS item_status_log (
     id          SERIAL      PRIMARY KEY,
     item_id     VARCHAR(32) NOT NULL REFERENCES item(item_id),
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS item_status_log (
 CREATE INDEX IF NOT EXISTS item_status_log_item_idx ON item_status_log (item_id, at);
 
 -- ========== 회수 (등록기계 → 본센터, 하루 1번) ==========
--- [주인: 정연우]
+-- [주인: 변재원 LF-8]
 CREATE TABLE IF NOT EXISTS collection (
     collection_id SERIAL      PRIMARY KEY,
     machine_id    VARCHAR(16) NOT NULL REFERENCES machine(machine_id),

@@ -24,10 +24,10 @@ flowchart LR
   subgraph Parts[부품 — 각 담당]
     V[비전<br/>YOLO26s + Qwen3-VL<br/>김건태 LF-3]
     M[매칭<br/>김건태 LF-20]
-    D[DB 부품<br/>정연우 LF-8]
+    D[DB 부품<br/>변재원 LF-8]
     R[로봇<br/>SO-101 · SmolVLA<br/>김건태 LF-19·21 · 이순필 LF-11]
   end
-  PG[(PostgreSQL<br/>item: 정연우 · return_case/step: 관제탑)]
+  PG[(PostgreSQL<br/>item: 변재원 LF-8 · return_case/step: 관제탑)]
   OL[(Ollama<br/>qwen3-vl:4b-instruct)]
   DC[(디스코드 관제 채널 3곳)]
   Kiosk -->|접수 기록| D
@@ -86,7 +86,7 @@ flowchart LR
 ## 4. 데이터 소유
 | 표 | 소유 | 관제탑이 하는 일 |
 | --- | --- | --- |
-| item(물건·특징 JSON·상태) 외 접수·회수·찾기 표 | 정연우 LF-8 (초안 설계: 변재원, database.md) | 읽기(`db_get_item`) · 상태 변경(`db_set_status`) |
+| item(물건·특징 JSON·상태) 외 접수·회수·찾기 표 | 변재원 LF-8 (설계·확정 11/3, database.md) | 읽기(`db_get_item`) · 상태 변경(`db_set_status`) |
 | return_case · return_step | 관제탑(center/schema.sql 반환 묶음) | 반환이 끝날 때마다 저장(지금은 메모리, DB 연결 때 PostgresRecorder) |
 | 개선 회차(EVAL_RUN, 제안) | 관제탑 | 지금은 #📈평가-점수 글로만 |
 
