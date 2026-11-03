@@ -33,10 +33,12 @@ def default_backend(env: dict | None = None):
     if str(env.get("TOWER_DB", "")).strip().lower() in ("1", "true", "yes", "on"):
         from agents.db_part import PostgresDbPart
         db = PostgresDbPart(env.get("DATABASE_URL", ""))
-    if vision is None and db is None:
+    from agents.matcher_part import matcher_part_from_env
+    matcher = matcher_part_from_env(env)
+    if vision is None and db is None and matcher is None:
         return MockBackend()
     from agents.backends import CompositeBackend
-    return CompositeBackend(vision=vision, db=db, fallback=MockBackend())
+    return CompositeBackend(vision=vision, matcher=matcher, db=db, fallback=MockBackend())
 
 
 def build_server(backend=None, reporter=None):

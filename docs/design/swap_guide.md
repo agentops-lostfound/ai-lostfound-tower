@@ -20,7 +20,7 @@
 | DB | **진짜** | - | `.env` `TOWER_DB=1` | 변재원 LF-8 |
 | 디스코드 알림 | **진짜** | - | `.env` `TOWER_SEND=1` | 변재원 LF-17 |
 | 탑뷰 비전 | 가짜 | Qwen 결과 파일 | `.env` `TOWER_VISION_FILE=결과 폴더` (2장) | 김건태 LF-3 |
-| 매칭 | 단순 비교(같은 글자만 맞음) | 칸별 점수 + 임베딩 | `CompositeBackend(matcher=…)` (3장) | 김건태 LF-20 |
+| 매칭 | 단순 비교(기본) / **김건태 정책 연결됨(스위치)** | 칸별 점수 + 임베딩 | `.env` `TOWER_MATCHER=policy` (3장) | 김건태 LF-20 |
 | 로봇팔 | 가짜 | SO-101 + SmolVLA | `CompositeBackend(robot=…)` (4장) | 김건태 LF-19·21, 이순필 LF-11 |
 | 분실인 웹 | 시안(가짜 데이터) | 관제탑 API 호출 | `POST /claims` (5장) | 김재민 LF-4·6 |
 
@@ -43,6 +43,24 @@ TOWER_VISION_MAX_AGE=600
   - `status` 는 `matched`(자동 반환 가능) / `uncertain`(직원 확인) / `none`(직원 확인) 중 하나
 - 방향(architecture.md 3-3): 색·품목은 칸별 점수(동의어 표: 푸른·퍼런→blue 등), 스티커·흠집 같은 자유 문장은 임베딩
 - 확인: `python tools/mock_scene.py` 의 결과가 나빠지지 않아야 한다(6장)
+
+### 3-1. 김건태 매칭 정책 연결 (11/3, `agents/matcher_part.py`)
+- `.env` 에 `TOWER_MATCHER=policy` → 관제탑 매칭이 `matching/policy.py`(속성 필터 → 자유 특징 → 확정·보류)로 바뀐다. 기본은 기존 단순 비교
+- 변환: 계약 특징(지갑·빨강·스티커 설명) → 정책 입력(card_wallet·red·present). 색은 관제탑 변환기가 꾸밈말을 뗀 기본 색을 넘기므로
+  `dark red` 같은 값이 '색 불일치'로 제외되지 않는다. '기타'·'확인 불가' 색은 조건으로 쓰지 않는다
+- 판정 대응: matched → matched(자동 반환 가능) / needs_confirmation → uncertain / no_match → none (둘 다 직원 확인)
+- 자유 특징(스티커 설명·글자) 비교는 지금 낱말 겹침 점수(자리표시). MiniLM 임베딩 연결은 PC 실측 후(TBD)
+- 가짜 시나리오 비교(`python tools/mock_scene.py --matcher policy`, 11/3 실행)
+
+| 설정 | 맞음 | 다른 물건 집음 | 자동 반환 못 한 사례 |
+| --- | ---: | ---: | --- |
+| 기존 단순 비교 | 9/9 | 0 | - |
+| 김건태 정책 기본값(semantic 0.2, min_margin 0.10) | 6/9 | 0 | S01·S02·S07 — 같은 제품에 스티커만 다른 쌍, 1·2위 차이 0.08 |
+| 정책 + semantic 0.4 | 9/9 | 0 | - |
+| 정책 + min_margin 0.05 | 9/9 | 0 | - |
+
+  - 해석: 정책은 안전(다른 물건 0건)하지만, 스티커 모양(별·하트)이 가중치 0.2 의 자유 특징에만 들어가 같은 제품 쌍을 확정하지 못한다.
+    MVP 카드지갑은 같은 제품 쌍이 많아 이 부분이 중요하다 → 가중치·기준 조정은 김건태 님 결정(낱말 겹침 기준 결과라 실제 임베딩으로 다시 확인 필요)
 
 ## 4. 로봇팔
 - 만들 것: `robot_approach(center)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` — 모두 `{ok, reason}` 을 돌려준다

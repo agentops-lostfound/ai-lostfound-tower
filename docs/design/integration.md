@@ -51,6 +51,10 @@ be = CompositeBackend(vision=SequenceFileVisionPart("outputs/vision", max_age_s=
 - **남은 맞출 점(LF-3·20)**: Qwen 의 shape·material 은 영어(bifold, leather), 접수 DB 특징은 한국어(반지갑, 가죽)라
   매칭 점수가 낮게 나온다 → Qwen 프롬프트를 계약 값 목록(한국어)으로 고정하거나, 변환표를 늘린다(김건태 님과 결정)
 
+## 2-2. 매칭(LF-20) 연결 — 김건태 정책 (11/3)
+- `agents/matcher_part.py` 의 `PolicyMatcherPart` 가 `matching/policy.py` 를 `match_item` 약속으로 감싼다. `.env` `TOWER_MATCHER=policy` 로 켠다
+- 결과 비교·남은 결정은 [swap_guide.md](swap_guide.md) 3-1
+
 ## 3. 관제탑 쪽이 보장하는 것
 - 안전 관문(동의·인증·확인 질문·신분증 대조·직원 확인·매칭 확신)은 부품이 아니라 흐름이 강제한다
 - 상태 변경(`db_set_status`)이 실패하면 로봇을 움직이지 않는다 · 정지(`robot_stop`)가 실패하면 알림에 "직원 즉시 호출"

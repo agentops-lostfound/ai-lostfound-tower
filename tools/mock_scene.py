@@ -7,6 +7,7 @@
     python tools/mock_scene.py                       # 시나리오 9개 실행 → 결과 표
     python tools/mock_scene.py --discord             # 디스코드에 붙일 짧은 요약(2조봇이 이 내용을 채팅에 답함)
     python tools/mock_scene.py --send                # AgentOps 관제 채널 3곳(진행·알림·점수)에도 전송(.env 웹후크)
+    python tools/mock_scene.py --matcher policy      # 매칭 부품을 김건태 matching/policy.py 로 바꿔 비교
     python tools/mock_scene.py --write outputs/mock_scene   # 결과 파일만 만들기(API 의 TOWER_VISION_FILE 로 쓸 때)
 
 - 물건 구성은 구매 예정 목록 기준(카드지갑 검정·빨강, 같은 제품 쌍 + USB). 특징 값은 가상(추정)이다
@@ -123,13 +124,13 @@ def registered_db(items: dict = ITEMS) -> dict:
     return db
 
 
-def run_case(case: tuple, folder: Path, items: dict = ITEMS, max_age_s: float = 600) -> dict:
+def run_case(case: tuple, folder: Path, items: dict = ITEMS, max_age_s: float = 600, matcher=None) -> dict:
     cid, kind, item_id, expected, opt = case
     path = write_report(folder / cid, items, age_s=max_age_s * 2 if opt.get("stale") else 0)
     _, truth = build_report(items)
     part = SequenceFileVisionPart(path, max_age_s=max_age_s)
     mock = MockBackend(db=registered_db(items), grasp_plan=opt.get("grasp_plan", [True]))
-    be = CompositeBackend(vision=part, fallback=mock)
+    be = CompositeBackend(vision=part, matcher=matcher, fallback=mock)
     out = run_return(ReturnRequest(case_id=cid, item_id=item_id), be, Reporter(dry_run=True))
     picked = truth.get(out.matched_index) if out.matched_index is not None else None
     decision = out.decision
@@ -140,9 +141,17 @@ def run_case(case: tuple, folder: Path, items: dict = ITEMS, max_age_s: float = 
             "robot_moved": any(c.startswith("robot_approach") for c in mock.calls), "steps": out.steps}
 
 
-def run_all(items: dict = ITEMS, cases=CASES) -> list[dict]:
+def run_all(items: dict = ITEMS, cases=CASES, matcher=None) -> list[dict]:
     with tempfile.TemporaryDirectory() as tmp:
-        return [run_case(c, Path(tmp), items) for c in cases]
+        return [run_case(c, Path(tmp), items, matcher=matcher) for c in cases]
+
+
+def make_matcher(name: str):
+    """'simple'(기존 단순 비교) 또는 'policy'(김건태 matching/policy.py)"""
+    if name == "policy":
+        from agents.matcher_part import PolicyMatcherPart
+        return PolicyMatcherPart()
+    return None
 
 
 LABEL = {"returned": "반환", "staff_check": "직원 확인", "rejected": "거절", "stopped": "정지", "wrong_object": "다른 물건 ⚠️"}
@@ -204,14 +213,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--write", metavar="폴더", help="결과 파일만 만들고 끝(TOWER_VISION_FILE 에 그 폴더를 넣어 쓰기)")
     ap.add_argument("--discord", action="store_true", help="표 대신 디스코드용 짧은 요약 출력")
     ap.add_argument("--send", action="store_true", help="AgentOps 관제 채널 3곳에도 전송")
+    ap.add_argument("--matcher", choices=["simple", "policy"], default="simple",
+                    help="매칭 부품: simple(기존) / policy(김건태 matching/policy.py)")
     a = ap.parse_args(argv)
     if a.write:
         path = write_report(a.write)
         print(f"만듦: {path}")
         print("API 에서 쓰려면 .env 에 TOWER_VISION_FILE=" + str(path.parent) + " , TOWER_VISION_MAX_AGE=0")
         return 0
-    results = run_all()
+    results = run_all(matcher=make_matcher(a.matcher))
     text = discord_text(results) if a.discord else table(results)
+    if a.matcher != "simple":
+        text = f"[매칭 부품: {a.matcher}]\n" + text
     if find_pii(text):
         raise SystemExit("요약에 개인정보 모양이 있어 출력하지 않습니다")
     print(text)
