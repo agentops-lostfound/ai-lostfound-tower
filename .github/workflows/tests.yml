@@ -1,5 +1,6 @@
 # PR 자동 시험 (CI) — PR 을 올리거나 고칠 때마다 시험 전체를 실행한다
 # main 보호 규칙에서 이 시험("tests")이 통과해야 병합할 수 있다
+# 변재원 PR(작성자 bjw0505-del + 브랜치에 -jaewon-)은 시험이 통과하면 자동 병합된다(11/3 결정). 팀원 PR 은 각자 직접 Merge
 name: tests
 
 on:
@@ -27,3 +28,23 @@ jobs:
           pip install -r agents/requirements.txt
       - name: 전체 시험
         run: python -m unittest discover -s tests -v
+
+  automerge:
+    # 시험 통과 뒤에만. 같은 저장소 브랜치 + 작성자 bjw0505-del + 브랜치 이름에 -jaewon- + 초안 아님
+    needs: tests
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == 'bjw0505-del' &&
+      contains(github.event.pull_request.head.ref, '-jaewon-') &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: 자동 병합(병합 후 브랜치 삭제)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --merge --delete-branch
