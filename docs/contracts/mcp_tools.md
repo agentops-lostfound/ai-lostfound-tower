@@ -17,8 +17,8 @@
 | --- | --- | --- | --- | --- | --- |
 | `vision_topview` | 김건태 LF-3 | 탑뷰로 공용 보관함 촬영 → 물건마다 박스·중심·특징 | 없음 | 검출 목록 | 빈 목록 → 직원 확인 |
 | `match_item` | 김건태 LF-20 | 접수 특징 ↔ 탑뷰 물건 비교 | query(특징), detections | 매칭 결과 | uncertain·none → 자동 반환 안 함 |
-| `db_get_item` | 정연우 LF-8 | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
-| `db_set_status` | 정연우 LF-8 | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
+| `db_get_item` | 변재원 LF-8 | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
+| `db_set_status` | 변재원 LF-8 | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
 | `robot_approach` | 김건태 LF-21 | 픽셀 → 로봇 좌표, 접근 자세로 이동 | center | `{ok, reason}` | 정지 + 알림 |
 | `robot_grasp` | 김건태 LF-19 | SmolVLA 근거리 집기·들기 | 없음 | `{ok, reason}` | 1번만 재시도, 그래도 실패면 정지 |
 | `robot_verify_grasp` | 김건태 LF-19 | 그리퍼 닫힘 + 탑뷰 재확인 | 없음 | `{ok, reason}` | 실패로 처리 |

@@ -3,7 +3,7 @@
 한줄 설명: 반환 흐름이 끝날 때마다 "어떤 사례가 어떤 결정으로 끝났는지"를 남긴다. 개인정보 칼럼은 없다.
 
 - 지금은 메모리 저장(MemoryRecorder, 프로그램을 끄면 사라짐). PostgreSQL 저장은 DB 연결 때 PostgresRecorder 를 채운다.
-- 표 정의: center/schema.sql 의 return_case · return_step (같은 PostgreSQL, 관제탑 소유. 물건 표 item 은 DB 담당 정연우 LF-8)
+- 표 정의: center/schema.sql 의 return_case · return_step (같은 PostgreSQL, 관제탑 소유. 물건 표 item 은 DB 담당 변재원 LF-8)
 """
 from __future__ import annotations
 

@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | vision | 김건태 LF-3 | `vision_topview()` | 없음 → `[{box, center, features, object_id?}]` | 빈 리스트 |
 | matcher | 김건태 LF-20 | `match_item(query, detections)` | 특징 JSON, 검출 목록 → `{status, index, score, margin, ranking}` | `status: none` |
-| db | 정연우 LF-8 | `db_get_item(item_id)`, `db_set_status(item_id, status)` | → `{item_id, status, features}` / `{ok, reason}` | `None` / `{ok: false}` |
+| db | 변재원 LF-8 | `db_get_item(item_id)`, `db_set_status(item_id, status)` | → `{item_id, status, features}` / `{ok, reason}` | `None` / `{ok: false}` |
 | robot | 김건태 LF-19·21, 이순필 LF-11 | `robot_approach(center)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` | → `{ok, reason}` | `{ok: false, reason}` |
 - 형식 상세: docs/contracts/mcp_tools.md 1·2장, 값 목록: agents/contracts.py
 - **예외를 던지지 말고 약속된 실패 값을 돌려준다**(흐름이 실패 값을 보고 직원 확인·정지로 보낸다). `None` 이나 다른 모양을 돌려주면 실패로 처리된다
