@@ -10,7 +10,7 @@
     python tools/mock_scene.py --matcher policy      # 매칭 부품을 김건태 matching/policy.py 로 바꿔 비교
     python tools/mock_scene.py --write outputs/mock_scene   # 결과 파일만 만들기(API 의 TOWER_VISION_FILE 로 쓸 때)
 
-- 물건 구성은 구매 예정 목록 기준(카드지갑 검정·빨강, 같은 제품 쌍 + USB). 특징 값은 가상(추정)이다
+- 물건 구성은 구매 예정 목록 기준(카드지갑 여러 색, 같은 제품 2세트, USB·보조배터리). 스티커는 쓰지 않는다(11/3 결정). 특징 값은 가상(추정)이다
 - 등록기계 특징도 Qwen 이 뽑는다고 보고(architecture.md 3-3 ②), 등록 때 결과와 보관함 결과를 각각 만든다.
   같은 물건이라도 두 번 찍으면 Qwen 표현이 달라질 수 있어 그런 사례를 일부러 넣었다
 - 판정: 기대 결과와 같으면 ✅. "다른 물건"은 반환은 했지만 엉뚱한 물건을 집은 경우(가장 위험)
@@ -48,41 +48,44 @@ def qwen(category, colors, shape="rectangular", materials=("synthetic leather",)
 
 
 # 물건: 접수 번호 → 등록 때 Qwen(reg) / 보관함에서 찍은 Qwen(bin: None = 보관함에 없음, "failed" = Qwen 실패)
+# 11/3 결정: 스티커는 구별에 쓰지 않는다 → 모든 물건 스티커 없음, 색·품목·보이는 글자로만 구별한다. 색은 가상(추정)
 ITEMS: dict[str, dict] = {
-    "A-20261103-0001": {"name": "카드지갑 검정(별 스티커)",
-                        "reg": qwen("card_wallet", ["black"], stickers=[("star", "front corner")])},
-    "A-20261103-0002": {"name": "카드지갑 검정(하트 스티커) — 0001 과 같은 제품",
-                        "reg": qwen("card_wallet", ["black"], stickers=[("heart", "front corner")])},
-    "A-20261103-0003": {"name": "카드지갑 빨강(스티커 없음)",
-                        "reg": qwen("card_wallet", ["red"]),
-                        # 같은 물건을 다시 찍었더니 표현이 흔들림: red→dark red, rectangular→rectangle
-                        "bin": qwen("card_wallet", ["dark red"], shape="rectangle")},
-    "A-20261103-0004": {"name": "카드지갑 빨강(작은 원 스티커)",
-                        "reg": qwen("card_wallet", ["red"], stickers=[("small circle", "back center")])},
+    "A-20261103-0001": {"name": "카드지갑 검정", "reg": qwen("card_wallet", ["black"])},
+    "A-20261103-0002": {"name": "카드지갑 빨강", "reg": qwen("card_wallet", ["red"])},
+    "A-20261103-0003": {"name": "카드지갑 갈색",
+                        "reg": qwen("card_wallet", ["brown"]),
+                        # 같은 물건을 다시 찍었더니 표현이 흔들림: brown→dark brown, rectangular→rectangle
+                        "bin": qwen("card_wallet", ["dark brown"], shape="rectangle")},
+    "A-20261103-0004": {"name": "카드지갑 남색", "reg": qwen("card_wallet", ["navy"])},
     "B-20261103-0001": {"name": "USB 은색(SanDisk 글자)",
                         "reg": qwen("usb", ["silver"], shape="stick", materials=["metal", "plastic"], text=["SanDisk"])},
-    "A-20261103-0005": {"name": "카드지갑 빨강(작은 원 스티커) — 0004 와 똑같이 생김, 아직 보관함에 안 옴",
-                        "reg": qwen("card_wallet", ["red"], stickers=[("small circle", "back center")]), "bin": None},
-    "A-20261103-0006": {"name": "카드지갑 검정(글자 MIYUON) — 보관함 사진에서 Qwen 실패",
-                        "reg": qwen("card_wallet", ["black"], text=["MIYUON"]), "bin": "failed"},
+    "B-20261103-0002": {"name": "보조배터리 검정(VOVA 글자)",
+                        "reg": qwen("power_bank", ["black"], materials=["plastic"], text=["VOVA"])},
+    "A-20261103-0005": {"name": "카드지갑 남색 — 0004 와 같은 제품(2세트 구매), 아직 보관함에 안 옴",
+                        "reg": qwen("card_wallet", ["navy"]), "bin": None},
+    "A-20261103-0006": {"name": "카드지갑 노랑 — 보관함 사진에서 Qwen 실패",
+                        "reg": qwen("card_wallet", ["yellow"]), "bin": "failed"},
 }
 
 # 사례: (번호, 설명, 찾는 물건, 기대 결과, 시나리오 옵션)
 CASES = [
     ("S01", "정상 반환", "A-20261103-0001", "returned", {}),
-    ("S02", "같은 제품, 스티커만 다름", "A-20261103-0002", "returned", {}),
-    ("S03", "같은 물건인데 Qwen 표현이 흔들림", "A-20261103-0003", "returned", {}),
+    ("S02", "같은 검정이지만 품목이 다름(지갑 옆에 보조배터리)", "B-20261103-0002", "returned", {}),
+    ("S03", "같은 물건인데 Qwen 표현이 흔들림(dark brown)", "A-20261103-0003", "returned", {}),
     ("S04", "다른 품목(USB)", "B-20261103-0001", "returned", {}),
-    ("S05", "물건이 아직 보관함에 없음(똑같이 생긴 지갑만 있음)", "A-20261103-0005", "staff_check", {}),
+    ("S05", "물건이 아직 보관함에 없음(똑같은 제품만 있음)", "A-20261103-0005", "staff_check", {}),
     ("S06", "보관함 사진에서 Qwen 실패", "A-20261103-0006", "staff_check", {}),
     ("S07", "집기 1번 실패 → 다시 집기 성공", "A-20261103-0002", "returned", {"grasp_plan": [False, True]}),
     ("S08", "탑뷰 결과 파일이 오래됨(보관함이 바뀌었을 수 있음)", "A-20261103-0001", "staff_check", {"stale": True}),
-    ("S09", "똑같이 생긴 물건이 둘 다 보관 중 → 진짜 주인 물건이어도 직원 확인", "A-20261103-0004", "staff_check", {}),
+    ("S09", "똑같은 제품이 둘 다 보관 중 → 진짜 주인 물건이어도 직원 확인", "A-20261103-0004", "staff_check", {}),
 ]
 
-# 아직 해결하지 않은 한계(결정 필요). 표에 ❌ 와 함께 이유를 보여 준다 — 기대 결과를 바꿔 숨기지 않는다
+# 아직 해결하지 않은 한계(매칭 부품별). 표에 ❌ 와 함께 이유를 보여 준다 — 기대 결과를 바꿔 숨기지 않는다
 # (S05 '똑같이 생긴 다른 물건을 집음'은 11/3 닮은 물건 검사로 해결 → 직원 확인)
-KNOWN_GAPS: dict[str, str] = {}
+KNOWN_GAPS: dict[str, str] = {
+    # 기본(단순 비교) 매칭에서만 생김. --matcher policy(김건태 정책)는 색을 먼저 걸러 통과
+    "S03": "단순 비교는 색을 5칸 중 1칸으로만 봐서, 모양 표현이 흔들리면 다른 색 지갑과 동점 → 직원 확인(안전). 정책 매칭은 통과",
+}
 
 
 def build_report(items: dict = ITEMS) -> tuple[dict, dict]:

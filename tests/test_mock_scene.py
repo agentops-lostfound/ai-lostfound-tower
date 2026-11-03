@@ -68,7 +68,9 @@ class SceneTest(unittest.TestCase):
         self.assertEqual([m["channel"] for m in rep.messages], ["progress", "alert", "score"])
         self.assertIn("S05 A-20261103-0005", rep.messages[1]["body"])
         with mock.patch("sys.stdout"):
-            self.assertEqual(ms.main(["--discord"]), 0)
+            code = ms.main(["--discord"])
+        expected = 0 if all(r["ok"] for r in results) else 1
+        self.assertEqual(code, expected)
 
     def test_write_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,7 +104,7 @@ class VisionSwitchTest(unittest.TestCase):
                 svc = api.build_service()
                 be = svc.backend_factory()
                 self.assertEqual(be.sources()["vision_topview"], "SequenceFileVisionPart")
-                self.assertEqual(len(be.vision_topview()), 6)
+                self.assertEqual(len(be.vision_topview()), 7)
                 self.assertIsNotNone(be.db_get_item("A-W01"))       # 시연 DB(가짜)는 그대로
                 # 직접 넘긴 부품(시험용)에는 끼우지 않는다
                 svc2 = api.build_service(backend_factory=lambda: "직접")
