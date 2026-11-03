@@ -1,14 +1,29 @@
-# 비밀값
+# 비밀값 (공유용 예시는 유지)
 .env
 .env.*
 !.env.example
 
-# 파이썬
+# Python 가상환경·독립 인터프리터·도구
 .venv/
+.venv-*/
 venv/
+.python/
+.tools/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 다운로드 캐시·로그·실행 결과
+.cache/
+.huggingface/
+logs/
+*.log
+outputs/
+runs/
 
 # 노드
 node_modules/
@@ -17,18 +32,35 @@ dist/
 # 데이터·모델 (원본은 저장소 밖에 보관, Hugging Face Hub로 공유)
 datasets/
 models/
-runs/
-*.mp4
+weights/
 data/raw/
 data/images/
-*.jpg
-*.jpeg
-*.png
-!docs/images/*.png
+data/input/
+data/output/
+data/captures/
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[pP][nN][gG]
+*.[wW][eE][bB][pP]
+*.[bB][mM][pP]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[mM][pP]4
+*.[aA][vV][iI]
+*.[mM][oO][vV]
+*.[mM][kK][vV]
+# 문서용 이미지는 이 위치에서만 허용
+!docs/images/*.[pP][nN][gG]
 *.pt
+*.pth
+*.ckpt
+*.safetensors
+*.gguf
 *.onnx
+*.engine
 *.db
 *.sqlite3
+*.sqlite
 
 # 편집기·OS
 .vscode/

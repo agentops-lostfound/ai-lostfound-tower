@@ -1,0 +1,6 @@
+# Paths are resolved relative to this YAML by vision.scripts.train_item.
+path: ../../datasets/lostfound_item
+train: images/train
+val: images/val
+names:
+  0: item
