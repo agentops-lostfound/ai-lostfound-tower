@@ -13,6 +13,7 @@
     TOWER_DB=1        물건 기록·상태·반환 기록을 PostgreSQL(DATABASE_URL)로. 기본 0 = 가짜 부품·메모리
     TOWER_VISION_FILE 탑뷰 결과(result_with_qwen.json) 파일 또는 폴더 → 탑뷰 부품만 진짜 결과로(docs/design/swap_guide.md)
     TOWER_VISION_MAX_AGE  결과를 몇 초까지 믿을지(기본 600, 0 = 검사 안 함)
+    TOWER_MATCHER=policy  매칭을 김건태 matching/policy.py 로(기본 = 기존 단순 비교)
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
@@ -35,11 +36,14 @@ def _flag(name: str) -> bool:
 
 
 def _with_vision_file(backend_factory):
-    """TOWER_VISION_FILE 이 있으면 탑뷰 부품만 진짜 결과 파일(김건태 LF-3 result_with_qwen.json)로 바꿔 끼운다.
-    build_service 에 직접 넘긴 부품(시험용)에는 쓰지 않는다."""
+    """환경값으로 진짜 부품을 바꿔 끼운다(build_service 에 직접 넘긴 부품(시험용)에는 쓰지 않는다).
+    - TOWER_VISION_FILE: 탑뷰 부품 → 결과 파일(김건태 LF-3 result_with_qwen.json)
+    - TOWER_MATCHER=policy: 매칭 부품 → 김건태 matching/policy.py (agents/matcher_part.py)"""
+    from agents.matcher_part import matcher_part_from_env
     from agents.vision_adapter import vision_part_from_env
     part = vision_part_from_env()
-    if part is None:
+    matcher = matcher_part_from_env()
+    if part is None and matcher is None:
         return backend_factory
     from agents.backends import CompositeBackend
     base = backend_factory or demo_backend_factory()
@@ -48,7 +52,7 @@ def _with_vision_file(backend_factory):
         be = base()
         route = getattr(be, "_route", {})
         db = route.get("db_get_item")
-        return CompositeBackend(vision=part, db=db, fallback=getattr(be, "fallback", be))
+        return CompositeBackend(vision=part, matcher=matcher, db=db, fallback=getattr(be, "fallback", be))
     return make
 
 
