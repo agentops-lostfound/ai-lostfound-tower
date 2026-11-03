@@ -144,6 +144,47 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(set(h["sources"].values()), {"가짜"})
 
 
+class TeamChannelTest(unittest.TestCase):
+    """팀 대화 채널: 반환 1건당 결과 한 줄, 개인정보 없음, 웹후크 없으면 시험 채널로 대신 보내지 않음"""
+
+    def test_one_summary_per_return(self):
+        rep = Reporter()
+        svc = TowerService(demo_backend_factory(), rep)
+        svc.start_return(ok_payload(case="T1"))
+        svc.start_return(ok_payload(case="T2", quiz_passed=False))
+        team = [m for m in rep.messages if m["channel"] == "team"]
+        self.assertEqual(len(team), 2)
+        self.assertIn("[T1] 물건 A-W01 · ✅ 반환 완료", team[0]["title"])
+        self.assertIn("⛔ 반환 안 함", team[1]["title"])
+
+    def test_no_summary_for_refused_requests(self):
+        rep = Reporter()
+        svc = TowerService(demo_backend_factory(), rep)
+        svc.start_return(ok_payload(case="T1"))
+        with self.assertRaises(Conflict):
+            svc.start_return(ok_payload(case="T1"))
+        self.assertEqual(len([m for m in rep.messages if m["channel"] == "team"]), 1)
+
+    def test_team_never_falls_back_to_test_channel(self):
+        from discord_ops import reporter as rmod
+        sent = []
+        import tools.notify as nmod
+        orig_notify, orig_env = nmod.notify, dict(os.environ)
+        try:
+            nmod.notify = lambda title, body="", env_key="": sent.append(env_key) or True
+            os.environ.pop("DISCORD_WEBHOOK_TEAM", None)
+            os.environ["DISCORD_WEBHOOK_URL"] = "https://discord.com/api/webhooks/x/y"
+            self.assertFalse(rmod._post("team", "t", "b"))
+            self.assertEqual(sent, [])
+            os.environ.pop("DISCORD_WEBHOOK_ALERT", None)
+            rmod._post("alert", "t", "b")                             # 다른 채널은 기존처럼 공용 웹후크로 대체
+            self.assertEqual(sent, ["DISCORD_WEBHOOK_URL"])
+        finally:
+            nmod.notify = orig_notify
+            os.environ.clear()
+            os.environ.update(orig_env)
+
+
 class RecordTest(unittest.TestCase):
     def test_record_has_no_pii_columns(self):
         row = to_record("A-1", {"case_id": "R1", "decision": "returned", "reason": "반환 완료", "steps": ["a"]})
