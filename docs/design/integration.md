@@ -38,7 +38,7 @@ print(be.sources())     # vision_topview: VisionPart, 나머지: 가짜
 ## 2-1. 비전(LF-3) 연결 — 시퀀스 결과 파일 읽기 (11/3 준비)
 - 김건태 님 `vision/sequence.py` 가 만드는 `result_with_qwen.json`(YOLO 박스 + Qwen general_items_v1, 영어 값)을
   `agents/vision_adapter.py` 가 계약 모양 `[{box, center, features}]` 으로 바꾼다
-  - category: wallet·card_wallet→지갑, usb→USB, lip_balm→립밤, phone→모형폰, 나머지→확인 불가
+  - category: wallet·card_wallet→지갑, usb→USB, lip_balm→립밤, phone→모형폰, hand_cream→핸드크림, power_bank→보조배터리, 나머지→확인 불가
   - color: 첫 색을 계약 색 목록으로(dark brown→갈색, 목록 밖→기타, 없음→확인 불가)
   - mark: 스티커 있음→"star sticker (front corner)", 없음→없음, 모름→확인 불가 / visible_text: 읽은 글자, 못 읽음→확인 불가
 - Qwen 이 물건당 수십 초라 반환 중에 다시 돌리지 않는다. 보관함을 찍을 때 미리 돌려 두고 관제탑은 **가장 최근 결과**만 읽는다

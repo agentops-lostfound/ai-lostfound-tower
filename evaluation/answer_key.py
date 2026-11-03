@@ -5,7 +5,7 @@
 CSV 칸 (evaluation/answer_key_template.csv 참고, 엑셀에서 "CSV UTF-8"로 저장)
     photo_file   촬영 파일 이름(예: wallet_W01_s3_002.jpg) — 물건 ID·세션을 여기서 읽음
     split        개선용 | 검증용 | 최종
-    category     지갑 | USB | 립밤 | 모형폰
+    category     지갑 | USB | 립밤 | 모형폰 | 핸드크림 | 보조배터리
     항목마다 값 + 가시성 두 칸: color, color_vis, shape, shape_vis, mark, mark_vis,
                                 visible_text, visible_text_vis, material, material_vis
     note         메모(채점에 안 씀)
