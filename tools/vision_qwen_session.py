@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--vision-python', required=True, type=Path)
     parser.add_argument('--config', type=Path)
     parser.add_argument('--max-edge', type=int, default=384)
+    parser.add_argument('--resident-yolo', action='store_true', help='Keep CPU detector process/model alive')
     args = parser.parse_args()
     root, python = args.source_root.resolve(), args.vision_python.resolve()
     config = args.config.resolve() if args.config else None
@@ -54,8 +55,20 @@ def main():
                        log_dir=root / 'outputs/resident-sequence/logs')
     started = perf_counter()
     load_model(settings)
+    detector = None
+    if args.resident_yolo:
+        from vision_cpu_client import ResidentDetector
+        detector = ResidentDetector(root, python)
     print(f'READY: startup {perf_counter()-started:.2f}s; CPU YOLO, resident Qwen, '
           f'max_edge={args.max_edge}. Enter photo path or exit.', flush=True)
+    try:
+        return run_requests(root, python, config, settings, args, detector, extract_item_features)
+    finally:
+        if detector:
+            detector.close()
+
+
+def run_requests(root, python, config, settings, args, detector, extract_item_features):
     while True:
         try:
             text = input('Photo> ').strip().strip('\"\'')
@@ -74,11 +87,12 @@ def main():
         started = perf_counter()
         target, report = None, None
         try:
-            report, source = detect(root, python, image, config)
+            report, source = detector.detect(image, config) if detector else detect(root, python, image, config)
             detection_seconds = perf_counter() - started
             target = source.parent / 'resident_result.json'
             report['resident_sequence'] = {'status': 'running', 'visual_accuracy_verified': False,
-                'detection_seconds': detection_seconds, 'max_edge': args.max_edge}
+                'detection_seconds': detection_seconds, 'max_edge': args.max_edge,
+                'resident_yolo': args.resident_yolo}
             for obj in report['objects']:
                 obj['qwen'] = {'status': 'pending', 'features': None}
             save(target, report)
