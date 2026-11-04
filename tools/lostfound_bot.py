@@ -236,18 +236,26 @@ def run_discord() -> None:
     async def on_message(msg):
         if msg.author.bot or str(msg.channel.id) not in channels:
             return
-        reply, story = await asyncio.to_thread(core.handle, str(msg.author.id), msg.content)
-        if not reply:
-            return
-        await msg.reply(reply, mention_author=False)
-        if story:
-            board = await msg.channel.send("⏳ 진행판 준비 중…")
-            loop = asyncio.get_running_loop()
+        try:
+            reply, story = await asyncio.to_thread(core.handle, str(msg.author.id), msg.content)
+            if not reply:
+                return
+            await msg.reply(reply, mention_author=False)
+            print(f"[분실물 봇] {time.strftime('%H:%M:%S')} 답함({classify(msg.content)})"
+                  + (f" · 진행판 {story}" if story else ""), flush=True)   # 메시지 원문은 남기지 않음
+            if story:
+                board = await msg.channel.send("⏳ 진행판 준비 중…")
+                loop = asyncio.get_running_loop()
 
-            def update(text):
-                asyncio.run_coroutine_threadsafe(board.edit(content=text), loop).result(timeout=10)
-            await asyncio.to_thread(core.follow, story, update, live_url)
+                def update(text):
+                    asyncio.run_coroutine_threadsafe(board.edit(content=text), loop).result(timeout=10)
+                await asyncio.to_thread(core.follow, story, update, live_url)
+        except Exception as e:      # 한 메시지 실패가 봇 전체를 멈추지 않게, 원인만 탭에 남김
+            print(f"[분실물 봇] {time.strftime('%H:%M:%S')} 처리 실패: {type(e).__name__}: {str(e)[:200]}", flush=True)
 
+    import logging
+    # 연결 끊김·재연결·권한 오류 같은 경고만 탭에 보인다(11/4: 예전에는 아무것도 안 찍혀 원인을 몰랐음)
+    discord.utils.setup_logging(level=logging.WARNING)
     bot.run(token, log_handler=None)
 
 

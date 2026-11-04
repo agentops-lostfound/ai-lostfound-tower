@@ -57,6 +57,25 @@ class SimPartsTest(unittest.TestCase):
         dets = SimTopview(w).vision_topview()
         self.assertTrue(dets and all("center_mm" not in d for d in dets))   # 보정 없음 → mm 없음 → 로봇 안 움직임
 
+    def test_so101_six_joints_follow_motion(self):
+        """SO-101: 모터 6개(축 5 + 집게). 집을 때 집게가 닫히고 높이가 내려가며, 내려놓은 뒤 원점 복귀는 뒤에서"""
+        from agents.sim_world import SO101_JOINTS, SLOTS_MM
+        self.assertEqual([n for n, _ in SO101_JOINTS], ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex",
+                                                        "wrist_roll", "gripper"])
+        w = SimWorld(speed=0)
+        r = SimRobot(w)
+        self.assertEqual(set(w.arm["joints"]), {n for n, _ in SO101_JOINTS})
+        self.assertTrue(r.robot_approach(list(SLOTS_MM[0]), [0, 0])["ok"])
+        self.assertTrue(r.robot_grasp()["ok"])
+        self.assertLess(w.arm["joints"]["gripper"], 20)            # 집게 닫힘
+        self.assertTrue(r.robot_deliver()["ok"])
+        if w.homing:
+            w.homing.join(5)
+        self.assertEqual((w.arm["x"], w.arm["y"], w.arm["phase"]), (240.0, 345.0, "대기"))
+        self.assertEqual(sum(1 for i in w.items.values() if i["loc"] == "basket"), 1)
+        snap = w.snapshot()
+        self.assertEqual(len(snap["robot"]["joints"]), 6)
+
     def test_robot_stop_halts_motion_midway(self):
         w = SimWorld(speed=1)
         r = SimRobot(w)
