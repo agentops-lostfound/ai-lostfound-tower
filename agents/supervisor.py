@@ -13,6 +13,7 @@
     - 신분증·안쪽 특징이 다르거나 직원 확인이 없으면 로봇을 움직이지 않는다
     - 매칭이 불확실하거나 없으면 자동 반환하지 않는다(직원 확인)
     - 작업대 mm 좌표(카메라 보정 결과)가 없으면 로봇을 움직이지 않는다(직원 확인)
+    - GPU 사용권(STT·Qwen 해제 확인)을 받지 못하면 로봇을 움직이지 않는다(직원 확인)
     - 로봇이 실패하면 정지하고 알린다
 LLM 검토(reviewer)를 붙일 수 있지만, 결과를 '더 안전한 쪽(직원 확인)'으로만 바꿀 수 있다.
 """
@@ -191,6 +192,13 @@ def approach(c: Ctx) -> bool:
     target = det.get("center_mm")
     if not valid_point_mm(target):
         return c.finish(DECISION_STAFF, "작업대 좌표 없음(카메라 보정 안 됨) — 로봇을 움직이지 않음", alert=True)
+    gpu = getattr(c.backend, "gpu_acquire", None)      # GPU 사용권(11/4): STT·Qwen 이 GPU 를 쓰는 중이면 기다리고, 못 받으면 직원 확인
+    if callable(gpu):
+        ok, why = gpu("vla")
+        if not ok:
+            return c.finish(DECISION_STAFF, f"GPU 사용권 없음 — 로봇을 움직이지 않음: {why}", alert=True)
+        if not why:                                     # 사용권 기능이 꺼져 있으면(why="꺼짐") 단계로 남기지 않음
+            c.step("GPU 사용권 받음")
     if not _set_status(c, "반환 중"):
         return c.finish(DECISION_STAFF, "상태 기록 실패 — 로봇을 움직이지 않음", alert=True)
     px = det.get("center") or []
