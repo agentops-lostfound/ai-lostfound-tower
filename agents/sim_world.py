@@ -1,0 +1,484 @@
+"""가상 세계와 가상 부품 — 전체 가상 시연(LF-29, 11/4, docs/design/virtual_demo.md).
+
+한줄 설명: 등록기계·Qwen·탑뷰 카메라·로봇팔을 "움직임까지 보이는 가짜"로 만들어, 진짜 부품 없이도
+습득 → 회수 → 찾기 → 반환 → 인계 전체가 관제탑의 진짜 코드(서비스·반환 흐름·매칭·안전 규칙)를 그대로 지나가게 한다.
+
+교체 원칙(진짜로 합칠 때 관제탑 코드는 고치지 않는다)
+    가상 부품          | 지키는 약속(함수 모양)                         | 진짜 부품으로 바꾸는 법
+    SimWorld(접수 저장) | IntakeStore: places · create · set_features   | TOWER_DB=1 → PostgresIntakeStore
+    SimWorld.db         | db_get_item · db_set_status · db_list_active  | TOWER_DB=1 → PostgresDbPart
+    sim_qwen()          | Qwen general_items_v1 특징(영어) → POST /items/{id}/features | 김건태 Qwen 작업이 같은 주소로 보냄
+    SimTopview          | vision_topview() → result_with_qwen.json 모양 → adapt_report | TOWER_VISION_FILE=결과 폴더
+    SimRobot            | robot_approach(mm, px) · grasp · verify · deliver · stop · home | 로봇 부품(LF-11·19·21)을 robot= 에 꽂음
+
+- 세계(SimWorld)는 "물건이 실제로 어디 있는지"(등록기계·이동 중·보관함 칸·그리퍼·바구니)와 로봇팔 위치를 기억한다.
+  관제탑의 상태(DB status)와 별개다 → 매칭이 엉뚱한 물건을 고르면 세계에서도 엉뚱한 물건이 바구니로 간다(숨기지 않음)
+- 시간: speed 배수(기본 1.0, 0 이면 기다리지 않음 = 시험용). 실패 흉내: inject(grasp_fail=1, calib_fail=True)
+- 표준 라이브러리만 쓴다.
+"""
+from __future__ import annotations
+
+import copy
+import re
+import threading
+import time
+from datetime import date, datetime, timezone
+
+from agents.contracts import (ACTIVE_STATUSES, HANDOVER_DONE, HANDOVER_HOLD, MACHINE_LETTERS, NONE, STAFF_STOP_REASON,
+                              UNKNOWN, make_item_id, robot_result)
+from agents.intake import DEMO_PLACES, IntakeError, split_features
+from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa: F401 (RESULT_NAME: 문서용)
+
+# ---------- 작업대 좌표(가상, mm) ----------
+# 탑뷰 카메라가 보는 작업대: 가로 640 × 세로 420 mm. 보관함은 왼쪽 위 480 × 300, 바구니는 오른쪽, 로봇 받침은 아래 가운데
+BENCH_MM = (640.0, 420.0)
+BIN_MM = (0.0, 0.0, 480.0, 300.0)                     # x1, y1, x2, y2
+SLOTS_MM = [(60.0 + 120.0 * c, 60.0 + 90.0 * r) for r in range(3) for c in range(4)]   # 보관함 칸 12개
+BASKET_MM = (565.0, 330.0)
+HOME_MM = (240.0, 345.0)
+ROBOT_BASE_MM = (240.0, 410.0)
+MARKERS_MM = [(10.0, 10.0), (470.0, 290.0)]          # ArUco 표식 2개(대각선, 11/4 합의)
+PX_SCALE, PX_OFFSET = 2.0, (40.0, 30.0)              # 탑뷰 사진 픽셀 = mm × 2 + 여백(가상 1360×900 사진)
+PICK_RADIUS_MM = 35.0                                 # 접근 좌표에서 이 거리 안의 물건을 집는다
+
+# ---------- 물건이 있는 곳(세계) ----------
+LOC_KIOSK, LOC_TRANSIT, LOC_BIN, LOC_GRIPPER, LOC_BASKET, LOC_HANDED, LOC_STAFF = (
+    "kiosk", "transit", "bin", "gripper", "basket", "handed", "staff")
+
+STATIONS = {"서면": "KIOSK-C", "해운대": "KIOSK-A", "중앙": "KIOSK-B"}   # 말에 나오는 역 이름 → 등록기계
+MACHINE_STATION = {v: k for k, v in STATIONS.items()}
+
+
+def mm_to_px(x: float, y: float) -> list[float]:
+    return [round(PX_OFFSET[0] + x * PX_SCALE, 1), round(PX_OFFSET[1] + y * PX_SCALE, 1)]
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+
+
+# ---------- 가상 Qwen: 말(설명) → Qwen general_items_v1 특징(영어) ----------
+# 진짜 Qwen 은 사진을 보고 같은 모양의 JSON 을 낸다. 가상 시연에서는 디스코드 메시지 글이 "사진" 역할을 한다
+CATEGORY_WORDS = [("보조배터리", "power_bank"), ("배터리", "power_bank"), ("카드지갑", "card_wallet"),
+                  ("반지갑", "card_wallet"), ("장지갑", "card_wallet"), ("지갑", "card_wallet"), ("usb", "usb"),
+                  ("유에스비", "usb"), ("립밤", "lip_balm"), ("핸드크림", "hand_cream"), ("모형폰", "phone"),
+                  ("휴대폰", "phone"), ("핸드폰", "phone"), ("스마트폰", "phone")]
+COLOR_WORDS = [("검정", "black"), ("검은", "black"), ("까만", "black"), ("블랙", "black"), ("하얀", "white"),
+               ("흰", "white"), ("화이트", "white"), ("회색", "gray"), ("그레이", "gray"), ("은색", "silver"),
+               ("실버", "silver"), ("빨간", "red"), ("빨강", "red"), ("레드", "red"), ("남색", "navy"),
+               ("네이비", "navy"), ("파란", "blue"), ("파랑", "blue"), ("블루", "blue"), ("초록", "green"),
+               ("녹색", "green"), ("노란", "yellow"), ("노랑", "yellow"), ("갈색", "brown"), ("브라운", "brown")]
+MATERIAL_WORDS = [("가죽", "leather"), ("플라스틱", "plastic"), ("금속", "metal"), ("메탈", "metal"), ("천", "fabric")]
+STICKER_SHAPES = [("별", "star"), ("하트", "heart"), ("동그라미", "circle"), ("원형", "circle"), ("네모", "square")]
+DEFAULT_SHAPE = {"card_wallet": "rectangular", "usb": "stick", "power_bank": "rectangular", "lip_balm": "cylinder",
+                 "hand_cream": "tube", "phone": "rectangular"}
+DEFAULT_MATERIAL = {"card_wallet": ["synthetic leather"], "usb": ["metal", "plastic"], "power_bank": ["plastic"],
+                    "lip_balm": ["plastic"], "hand_cream": ["plastic"], "phone": ["plastic"]}
+TAGS = {"#집기실패": "grasp_fail", "#보정실패": "calib_fail", "#신분증불일치": "id_mismatch", "#수동인계": "manual_handover"}
+_LATIN = re.compile(r"\b[A-Za-z][A-Za-z0-9]{1,15}\b")
+_QUOTED = re.compile(r"[\"'“”‘’]([^\"'“”‘’]{1,20})[\"'“”‘’]")
+
+
+def split_tags(text: str) -> tuple[str, set[str]]:
+    """메시지 끝의 실패 흉내 꼬리표(#집기실패 등)를 떼어 낸다. (남은 글, 꼬리표 이름들)"""
+    tags = {name for tag, name in TAGS.items() if tag in (text or "")}
+    for tag in TAGS:
+        text = (text or "").replace(tag, " ")
+    return re.sub(r"\s+", " ", text).strip(), tags
+
+
+def _first(text: str, table) -> str | None:
+    low = text.lower()
+    hits = [(low.find(w), en) for w, en in table if w in low]
+    return min(hits)[1] if hits else None
+
+
+def sim_qwen(text: str, query: bool = False) -> dict:
+    """설명 글 → Qwen general_items_v1 모양(영어). query=True(분실인 설명)면 말하지 않은 것은 비워 둔다(모름)."""
+    text = text or ""
+    cat = _first(text, CATEGORY_WORDS)
+    color = _first(text, COLOR_WORDS)
+    material = _first(text, MATERIAL_WORDS)
+    words = [w for w in _LATIN.findall(text) if w.lower() != "usb"] + _QUOTED.findall(text)
+    sticker_status, stickers = ("unknown" if query else "absent"), []
+    if "스티커" in text:
+        if re.search(r"스티커\s*(는|가)?\s*(없|안\s*붙)", text):
+            sticker_status = "absent"
+        else:
+            shape = _first(text, STICKER_SHAPES) or "small"
+            sticker_status, stickers = "present", [{"shape": shape, "position": None}]
+    shape = None
+    if re.search(r"네모|직사각", text):
+        shape = "rectangular"
+    elif not query and cat:
+        shape = DEFAULT_SHAPE.get(cat)
+    mats = [material] if material else ([] if query else list(DEFAULT_MATERIAL.get(cat, [])))
+    return {"category": cat or "unknown", "colors": [color] if color else [], "shape": shape, "materials": mats,
+            "logos_or_text": list(dict.fromkeys(words)), "sticker_status": sticker_status, "stickers": stickers,
+            "distinctive_features": []}
+
+
+def query_features(text: str) -> dict:
+    """분실인 설명 → 계약 특징(한국어). 말한 칸만 남긴다(모르는 칸은 비교하지 않음)."""
+    q = sim_qwen(text, query=True)
+    f = to_features(q, 0.9)
+    f.pop("confidence", None)
+    if q["sticker_status"] == "unknown":
+        f.pop("mark", None)
+    return {k: v for k, v in f.items() if v not in (UNKNOWN, "", None)}
+
+
+def parse_place(text: str) -> tuple[str | None, str | None]:
+    """습득 메시지 → (등록기계, 장소 글). 예: "서면역 5번 출구 앞에서 검정 지갑 주웠어요" → ("KIOSK-C", "서면역 5번 출구 앞")"""
+    text = text or ""
+    machine = next((m for st, m in STATIONS.items() if st in text), None)
+    m = re.search(r"(.+?)(?:에서|에 떨어져|에 놓여)", text)
+    place = m.group(1).strip() if m else None
+    if place and machine:                          # "어제 서면역 …" 처럼 앞말이 붙으면 역 이름부터
+        st = MACHINE_STATION[machine]
+        place = place[place.find(st):] if st in place else place
+    if not place and machine:
+        place = f"{MACHINE_STATION[machine]}역"
+    return machine, (place[:60] if place else None)
+
+
+def lost_station(text: str) -> str | None:
+    return next((st for st in STATIONS if st in (text or "")), None)
+
+
+# ---------- 가상 세계 ----------
+class SimWorld:
+    """가상 시연의 세계 하나(관제탑이 켜져 있는 동안 기억). IntakeStore 와 DB 부품 역할도 같이 한다."""
+
+    def __init__(self, speed: float = 1.0, seed: bool = True, today: date | None = None):
+        self.speed = max(0.0, float(speed))
+        self._lock = threading.RLock()
+        self.today = today
+        self.items: dict[str, dict] = {}
+        self.contacts: dict[str, dict] = {}       # 저장 여부 확인용(밖으로 나가지 않음)
+        self._places = [{"place_id": i + 1, "machine_id": m, "label": label, "use_count": 0}
+                        for i, (m, label) in enumerate((m, l) for m, ls in DEMO_PLACES.items() for l in ls)]
+        self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "phase": "대기", "holding": None, "stopped": False,
+                    "target": None}
+        self.faults = {"grasp_fail": 0, "calib_fail": False}
+        self.version = 0
+        if seed:
+            self.seed()
+
+    # ----- 공통 -----
+    def sleep(self, seconds: float) -> None:
+        if self.speed > 0 and seconds > 0:
+            time.sleep(seconds * self.speed)
+
+    def _touch(self) -> None:
+        self.version += 1
+
+    def inject(self, grasp_fail: int | None = None, calib_fail: bool | None = None) -> None:
+        """실패 흉내 켜기(가상 시연에서 안전 규칙을 보여 주려고)."""
+        with self._lock:
+            if grasp_fail is not None:
+                self.faults["grasp_fail"] = max(0, int(grasp_fail))
+            if calib_fail is not None:
+                self.faults["calib_fail"] = bool(calib_fail)
+
+    def seed(self) -> None:
+        """보관함에 미리 있는 물건 4개(본센터 직접 접수 H-…). 매칭·닮은 물건 검사가 의미 있게 돌도록."""
+        demo = [("카드지갑 빨강", "빨간 카드지갑"), ("카드지갑 남색", "남색 카드지갑"),
+                ("USB 은색 SanDisk", "은색 USB SanDisk"), ("보조배터리 검정 VOVA", "검정 보조배터리 VOVA")]
+        for _, text in demo:
+            row = self.create({"machine_id": "CENTER", "place_id": None, "place_text": "본센터 접수(시연)",
+                               "finder": None, "photo_path": None})
+            q = sim_qwen(text)
+            self.set_features(row["item_id"], to_features(q, 0.9), qwen=q)
+            self.move(row["item_id"], LOC_BIN)
+            self.items[row["item_id"]]["status"] = "본센터 보관"
+        self._touch()
+
+    # ----- IntakeStore (등록기계 접수) -----
+    def places(self, machine_id: str, limit: int = 10) -> list[dict]:
+        with self._lock:
+            rows = sorted((p for p in self._places if p["machine_id"] == machine_id),
+                          key=lambda p: (-p["use_count"], p["place_id"]))
+            return [{"place_id": p["place_id"], "label": p["label"]} for p in rows[:limit]]
+
+    def create(self, intake: dict, today: date | None = None) -> dict:
+        day = today or self.today or date.today()
+        with self._lock:
+            if intake.get("place_id") is not None:
+                p = next((p for p in self._places if p["place_id"] == intake["place_id"]
+                          and p["machine_id"] == intake["machine_id"]), None)
+                if p is None:
+                    raise IntakeError("place_id: 이 등록기계의 추천 장소가 아닙니다")
+                p["use_count"] += 1
+            prefix = f"{MACHINE_LETTERS[intake['machine_id']]}-{day:%Y%m%d}-"
+            seq = 1 + sum(1 for k in self.items if k.startswith(prefix))
+            item_id = make_item_id(intake["machine_id"], day, seq)
+            row = {"item_id": item_id, "machine_id": intake["machine_id"], "place_id": intake.get("place_id"),
+                   "place_text": intake["place_text"], "photo_path": intake.get("photo_path"),
+                   "received_at": _now_iso(), "status": "등록기계 보관", "category": UNKNOWN, "features": {},
+                   "private_features": {}, "contact_saved": intake.get("finder") is not None,
+                   "qwen": None, "loc": LOC_KIOSK, "slot": None, "changed_by": "kiosk"}
+            self.items[item_id] = row
+            if intake.get("finder"):
+                self.contacts[item_id] = dict(intake["finder"])
+            self._touch()
+            return {k: copy.deepcopy(v) for k, v in row.items() if k not in ("qwen", "loc", "slot")}
+
+    def set_features(self, item_id: str, feats: dict, qwen: dict | None = None) -> bool:
+        cat, pub, priv = split_features(feats)
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None:
+                return False
+            row.update(category=cat, features=pub, private_features=priv)
+            if qwen is not None:
+                row["qwen"] = copy.deepcopy(qwen)
+            self._touch()
+            return True
+
+    def remember_qwen(self, item_id: str, qwen: dict) -> None:
+        """등록기계에서 본 Qwen 원본을 기억 → 가상 탑뷰가 보관함에서 같은 물건을 다시 '찍을' 때 쓴다."""
+        with self._lock:
+            if item_id in self.items:
+                self.items[item_id]["qwen"] = copy.deepcopy(qwen)
+
+    # ----- DB 부품(관제탑 반환 흐름이 부름) -----
+    def _record(self, row: dict) -> dict:
+        feats = {**({"category": row["category"]} if row.get("category") not in (None, UNKNOWN) else {}),
+                 **row.get("features", {}), **row.get("private_features", {})}
+        feats.pop("confidence", None)
+        return {"item_id": row["item_id"], "status": row["status"], "category": row.get("category"),
+                "features": copy.deepcopy(feats), "object_id": None}
+
+    def db_get_item(self, item_id: str) -> dict | None:
+        with self._lock:
+            row = self.items.get(item_id)
+            return None if row is None else self._record(row)
+
+    def db_set_status(self, item_id: str, status: str, changed_by: str = "tower") -> dict:
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None:
+                return robot_result(False, "물건 기록 없음")
+            row["status"], row["changed_by"] = status, changed_by
+            if status == HANDOVER_DONE and row["loc"] == LOC_BASKET:
+                row["loc"] = LOC_HANDED                # 직원이 바구니에서 꺼내 분실인에게 건넴
+            elif status == HANDOVER_HOLD and row["loc"] == LOC_BASKET:
+                row["loc"] = LOC_STAFF                 # 직원이 꺼내 따로 보관
+            self._touch()
+            return robot_result(True)
+
+    def db_list_active(self) -> list[dict] | None:
+        with self._lock:
+            return [self._record(r) for r in self.items.values() if r["status"] in ACTIVE_STATUSES]
+
+    # ----- 물건 옮기기(회수 등, 사람이 하는 일) -----
+    def free_slot(self) -> int | None:
+        used = {r["slot"] for r in self.items.values() if r["loc"] == LOC_BIN}
+        return next((i for i in range(len(SLOTS_MM)) if i not in used), None)
+
+    def move(self, item_id: str, loc: str) -> bool:
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None:
+                return False
+            if loc == LOC_BIN:
+                slot = self.free_slot()
+                if slot is None:
+                    return False
+                row["slot"] = slot
+            elif row["loc"] == LOC_BIN and loc != LOC_BIN:
+                row["slot"] = None
+            row["loc"] = loc
+            self._touch()
+            return True
+
+    def item_at(self, x: float, y: float) -> str | None:
+        """보관함에서 (x, y) mm 가까이(PICK_RADIUS_MM) 있는 물건."""
+        best = None
+        for r in self.items.values():
+            if r["loc"] != LOC_BIN or r["slot"] is None:
+                continue
+            sx, sy = SLOTS_MM[r["slot"]]
+            d = ((sx - x) ** 2 + (sy - y) ** 2) ** 0.5
+            if d <= PICK_RADIUS_MM and (best is None or d < best[0]):
+                best = (d, r["item_id"])
+        return best[1] if best else None
+
+    # ----- 화면용 -----
+    def snapshot(self) -> dict:
+        with self._lock:
+            items = []
+            for r in self.items.values():
+                pos = SLOTS_MM[r["slot"]] if r["loc"] == LOC_BIN and r["slot"] is not None else None
+                items.append({"item_id": r["item_id"], "machine_id": r["machine_id"], "status": r["status"],
+                              "loc": r["loc"], "category": r.get("category"), "color": r["features"].get("color"),
+                              "place_text": r["place_text"], "mm": list(pos) if pos else None})
+            return {"version": self.version, "arm": dict(self.arm), "items": items,
+                    "bench": {"size_mm": list(BENCH_MM), "bin_mm": list(BIN_MM), "basket_mm": list(BASKET_MM),
+                              "home_mm": list(HOME_MM), "base_mm": list(ROBOT_BASE_MM),
+                              "markers_mm": [list(m) for m in MARKERS_MM], "slots_mm": [list(s) for s in SLOTS_MM]},
+                    "faults": dict(self.faults)}
+
+
+# ---------- 가상 탑뷰 카메라 ----------
+class SimTopview:
+    """보관함을 '찍어' 김건태 vision/sequence.py 와 같은 result_with_qwen.json 모양을 만들고, 관제탑의 진짜 변환기
+    (vision_adapter.adapt_report — 보정 관문 포함)로 바꿔 돌려준다. → 진짜 결과 파일로 바꿔도 같은 길을 지난다."""
+
+    def __init__(self, world: SimWorld):
+        self.world = world
+        self.last_report: dict | None = None
+        self.last_reason = ""
+
+    def build_report(self) -> dict:
+        w = self.world
+        with w._lock:
+            objs = []
+            for r in sorted(w.items.values(), key=lambda r: r["slot"] if r["slot"] is not None else 99):
+                if r["loc"] != LOC_BIN or r["slot"] is None:
+                    continue
+                x, y = SLOTS_MM[r["slot"]]
+                cx, cy = mm_to_px(x, y)
+                q = r.get("qwen")
+                objs.append({"id": len(objs), "class_name": "object", "confidence": 0.88,
+                             "bbox": [cx - 50, cy - 34, cx + 50, cy + 34], "center_px": [cx, cy],
+                             "center_world_mm": [x, y], "calibration_valid": not w.faults["calib_fail"],
+                             "qwen": {"status": "ok", "features": copy.deepcopy(q)} if q else
+                             {"status": "failed", "features": None}, "sim_item_id": r["item_id"]})
+            calib = ({"valid": False} if w.faults["calib_fail"] else
+                     {"valid": True, "correspondence_count": 8, "max_reprojection_error_mm": 0.6})
+            return {"captured_at": _now_iso(), "sequence": {"status": "complete" if objs else "no_detections"},
+                    "objects": objs, "calibration": calib, "simulated": True}
+
+    def vision_topview(self) -> list[dict]:
+        self.world.arm["phase"] = "탑뷰 촬영"
+        self.world._touch()
+        self.world.sleep(1.2)
+        report = self.build_report()
+        self.last_report = report
+        dets = adapt_report(report)
+        by_vid = {o["id"]: o["sim_item_id"] for o in report["objects"]}
+        for d in dets:                       # 화면·시험 확인용 정답 표시(흐름은 쓰지 않음)
+            d["object_id"] = by_vid.get(d.get("vision_id"))
+        self.last_reason = "" if report["calibration"].get("valid") else "보정 없음(가상 #보정실패) — 로봇은 움직이지 않음"
+        if self.world.faults["calib_fail"]:
+            self.world.faults["calib_fail"] = False          # 한 번만
+        self.world.arm["phase"] = "대기"
+        self.world._touch()
+        return dets
+
+
+# ---------- 가상 로봇팔 ----------
+class SimRobot:
+    """작업대 mm 좌표로 움직이는 가상 로봇팔. 움직이는 동안 세계의 팔 위치를 조금씩 바꿔 화면에서 움직임이 보인다.
+    정지 버튼(robot_stop)은 다른 스레드에서 와도 움직임 중간에 바로 멈춘다(진짜 로봇의 즉시 정지 흉내)."""
+
+    STEPS = 12
+
+    def __init__(self, world: SimWorld):
+        self.world = world
+
+    def _move(self, x: float, y: float, seconds: float, phase: str) -> bool:
+        w, arm = self.world, self.world.arm
+        arm["phase"] = phase
+        sx, sy = arm["x"], arm["y"]
+        for i in range(1, self.STEPS + 1):
+            if arm["stopped"]:
+                return False
+            t = i / self.STEPS
+            t = t * t * (3 - 2 * t)                      # 부드럽게 출발·도착
+            arm["x"], arm["y"] = round(sx + (x - sx) * t, 1), round(sy + (y - sy) * t, 1)
+            w._touch()
+            w.sleep(seconds / self.STEPS)
+        return not arm["stopped"]
+
+    def _blocked(self) -> dict | None:
+        if self.world.arm["stopped"]:
+            return robot_result(False, f"{STAFF_STOP_REASON} — 로봇 정지 상태(직원 확인 후 원점 복귀)")
+        return None
+
+    def robot_approach(self, center_mm, center_px) -> dict:
+        if (b := self._blocked()):
+            return b
+        x, y = float(center_mm[0]), float(center_mm[1])
+        if not (BIN_MM[0] - 20 <= x <= BIN_MM[2] + 20 and BIN_MM[1] - 20 <= y <= BIN_MM[3] + 20):
+            return robot_result(False, f"작업대 밖 좌표({x:.0f}, {y:.0f})mm")
+        self.world.arm["target"] = self.world.item_at(x, y)
+        if not self._move(x, y, 2.2, "사전 접근"):
+            return robot_result(False, STAFF_STOP_REASON)
+        self.world.arm["phase"] = "접근 완료"
+        self.world._touch()
+        return robot_result(True)
+
+    def robot_grasp(self) -> dict:
+        if (b := self._blocked()):
+            return b
+        w, arm = self.world, self.world.arm
+        arm["phase"] = "집는 중(VLA)"
+        w._touch()
+        w.sleep(1.6)
+        if arm["stopped"]:
+            return robot_result(False, STAFF_STOP_REASON)
+        with w._lock:
+            if w.faults["grasp_fail"] > 0:
+                w.faults["grasp_fail"] -= 1
+                arm["phase"] = "집기 실패"
+                w._touch()
+                return robot_result(False, "가상: 물건이 미끄러짐")
+            target = arm.get("target")
+            if not target or w.items.get(target, {}).get("loc") != LOC_BIN:
+                arm["phase"] = "집기 실패"
+                w._touch()
+                return robot_result(False, "그 자리에 물건이 없음")
+            w.move(target, LOC_GRIPPER)
+            arm["holding"] = target
+            arm["phase"] = "들어 올림"
+            w._touch()
+        return robot_result(True)
+
+    def robot_verify_grasp(self) -> dict:
+        self.world.sleep(0.5)
+        return robot_result(bool(self.world.arm.get("holding")), "그리퍼가 비어 있음")
+
+    def robot_deliver(self) -> dict:
+        if (b := self._blocked()):
+            return b
+        w, arm = self.world, self.world.arm
+        if not self._move(BASKET_MM[0], BASKET_MM[1], 2.4, "바구니로 이동"):
+            return robot_result(False, STAFF_STOP_REASON)
+        with w._lock:
+            held = arm.get("holding")
+            if held:
+                w.move(held, LOC_BASKET)
+            arm["holding"], arm["target"] = None, None
+            arm["phase"] = "바구니에 내려놓음"
+            w._touch()
+        w.sleep(0.6)
+        self._move(HOME_MM[0], HOME_MM[1], 1.6, "원점으로")
+        arm["phase"] = "대기"
+        w._touch()
+        return robot_result(True)
+
+    def robot_stop(self) -> dict:
+        self.world.arm["stopped"] = True
+        self.world.arm["phase"] = "정지"
+        self.world._touch()
+        return robot_result(True)
+
+    def robot_home(self) -> dict:
+        w, arm = self.world, self.world.arm
+        arm["stopped"] = False
+        held = arm.get("holding")
+        if held:                                    # 들고 있던 물건은 직원이 받아 따로 보관(가상)
+            w.move(held, LOC_STAFF)
+            arm["holding"] = None
+        arm["target"] = None
+        self._move(HOME_MM[0], HOME_MM[1], 1.8, "원점 복귀")
+        arm["phase"] = "대기"
+        w._touch()
+        return robot_result(True)
+
+
+__all__ = ["SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
+           "lost_station", "mm_to_px", "STATIONS", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]

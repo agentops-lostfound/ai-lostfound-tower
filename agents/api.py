@@ -14,12 +14,14 @@
     TOWER_VISION_FILE 탑뷰 결과(result_with_qwen.json) 파일 또는 폴더 → 탑뷰 부품만 진짜 결과로(docs/design/swap_guide.md)
     TOWER_VISION_MAX_AGE  결과를 몇 초까지 믿을지(기본 600, 0 = 검사 안 함)
     TOWER_MATCHER         매칭 부품. 비움/policy = 김건태 matching/policy.py(11/3 기본), simple = 예전 단순 비교
+    TOWER_SIM=1       전체 가상 시연(등록기계·Qwen·탑뷰·로봇팔 가상, docs/design/virtual_demo.md). TOWER_SIM_SPEED(시간 배수, 기본 1)
     TOWER_GPU_LEASE       GPU 사용권(agents/gpu_lease.py). 기본 켬, 0 = 끔. TOWER_GPU_WAIT(초, 기본 60) · TOWER_GPU_FREE_MB(남은 메모리 확인, 기본 없음)
 - 등록기계 화면: GET /intake?machine=KIOSK-A(화면), GET /places, POST /items(사진 data URL 포함 가능), POST /items/{item_id}/features (안내 intake_machine/README.md)
     TOWER_PHOTO_DIR  등록기계 사진 저장 폴더(기본 저장소/data → data/photos/기계/…, Git 에 안 올림)
 - 직원 화면: POST /returns/{case_id}/handover — 바구니의 물건을 분실인에게 건넨 뒤 인계 완료로(11/4)
             POST /returns/{case_id}/hold — 건네지 않기로 함(이유 4개 중 하나) → 반환 보류
             POST /robot/stop (반환 진행 중에도) · POST /robot/home (주변 확인 뒤, 진행 중이면 409)
+- 실시간 화면: GET /live (보관함·로봇팔·진행) · GET /live/state · 가상 시연 POST /sim/found · /sim/lost · /sim/reset
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
@@ -36,6 +38,7 @@ from agents.service import (Conflict, NotFound, RequestError, TowerService, Unav
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAFF_PAGE = os.path.join(ROOT, "web", "staff-desk", "index.html")
+LIVE_PAGE = os.path.join(ROOT, "web", "live", "index.html")     # 11/4 실시간 화면(보관함·로봇팔·진행)
 # 등록기계 화면(11/4): intake_machine/index.html 이 생기면 그것을, 아니면 지금 화면 시안(web/found-item-intake.html)을 연다
 INTAKE_PAGES = [os.path.join(ROOT, "intake_machine", "index.html"), os.path.join(ROOT, "web", "found-item-intake.html")]
 
@@ -66,12 +69,19 @@ def _with_vision_file(backend_factory):
 
 
 def build_service(backend_factory=None) -> TowerService:
+    from agents.live import LiveBoard, LiveReporter
     from discord_ops.reporter import Reporter
     try:
         from tools.envfile import load_env
         load_env()
     except Exception:
         pass
+    if _flag("TOWER_SIM") and backend_factory is None:
+        # 11/4 전체 가상 시연(docs/design/virtual_demo.md): 등록기계·Qwen·탑뷰·로봇팔을 가상 부품으로, 접수·DB 는 메모리
+        if _flag("TOWER_DB"):
+            print("[관제탑] TOWER_SIM=1 이라 TOWER_DB 는 쓰지 않습니다(가상 시연은 메모리)", file=sys.stderr)
+        from agents.sim_director import build_sim_service
+        return build_sim_service()
     reviewer = None
     if _flag("TOWER_REVIEWER"):
         from agents.llm_reviewer import OllamaReviewer
@@ -97,9 +107,13 @@ def build_service(backend_factory=None) -> TowerService:
     if not user_factory:
         backend_factory = _with_vision_file(backend_factory)
     from agents.gpu_lease import lease_from_env
-    return TowerService(backend_factory or demo_backend_factory(), Reporter(dry_run=not _flag("TOWER_SEND")),
-                        recorder=recorder, reviewer=reviewer, claims=claims, intake=intake,
-                        gpu_lease=lease_from_env())
+    board = LiveBoard()      # 실시간 화면(/live)용 사건 기록 — 진짜 부품 모드에서도 같은 화면에 진행이 보인다
+    svc = TowerService(backend_factory or demo_backend_factory(),
+                       LiveReporter(Reporter(dry_run=not _flag("TOWER_SEND")), board),
+                       recorder=recorder, reviewer=reviewer, claims=claims, intake=intake,
+                       gpu_lease=lease_from_env())
+    svc.board = board
+    return svc
 
 
 def build_app(service: TowerService | None = None):
@@ -255,6 +269,79 @@ def build_app(service: TowerService | None = None):
         from fastapi.responses import HTMLResponse
         with open(STAFF_PAGE, encoding="utf-8") as f:
             return HTMLResponse(f.read())
+
+    # ---------- 실시간 화면 · 가상 시연 (11/4, docs/design/virtual_demo.md) ----------
+    @app.get("/live", include_in_schema=False)
+    def live_page():
+        """실시간 화면: 보관함 탑뷰 그림·로봇팔 움직임·이야기별 진행·관제 메시지"""
+        from fastapi.responses import HTMLResponse
+        with open(LIVE_PAGE, encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+
+    @app.get("/live/state")
+    def live_state(after: int = 0, story: str | None = None) -> dict:
+        """after 번 이후의 새 사건 + 가상 세계(가상 시연일 때) + 최근 이야기. 화면이 0.4초마다 부른다"""
+        board = getattr(svc, "board", None)
+        world = getattr(svc, "world", None)
+        return {"seq": board.last_seq if board else 0, "events": board.since(after, story) if board else [],
+                "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
+                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"]}
+
+    def _sim():
+        d = getattr(svc, "sim", None)
+        if d is None:
+            raise HTTPException(status_code=404, detail="가상 시연이 꺼져 있습니다(.env TOWER_SIM=1 후 관제탑 다시 켜기)")
+        return d
+
+    def _text(payload) -> str:
+        t = payload.get("text") if isinstance(payload, dict) else None
+        if not isinstance(t, str) or not t.strip() or len(t) > 300:
+            raise HTTPException(status_code=422, detail='본문 {"text": "메시지(300자 이하)"}')
+        return t
+
+    def _sim_call(fn, *a):
+        try:
+            return fn(*a)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+    @app.post("/sim/found")
+    def sim_found(payload: dict = Body(...)) -> dict:
+        """가상 습득 신고: {"text": "서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"} → 접수 번호·이야기 번호(나머지는 뒤에서 진행)"""
+        return _sim_call(_sim().found, _text(payload))
+
+    @app.post("/sim/lost")
+    def sim_lost(payload: dict = Body(...)) -> dict:
+        """가상 분실 신고: {"text": "검정 카드지갑 잃어버렸어요, 서면역"} → 찾기 번호 또는 확인 질문(pending_id)"""
+        return _sim_call(_sim().lost, _text(payload))
+
+    @app.post("/sim/lost/{pending_id}/answer")
+    def sim_answer(pending_id: str, payload: dict = Body(...)) -> dict:
+        """확인 질문 답: {"text": "VOVA"} (모르면 "모름")"""
+        return _sim_call(_sim().answer, pending_id, _text(payload))
+
+    @app.get("/sim/stories/{story_id}")
+    def sim_story(story_id: str, after: int = 0) -> dict:
+        """이야기 하나의 단계 상태 + after 이후 사건(분실물 봇이 진행판을 고칠 때 부름)"""
+        board = getattr(svc, "board", None)
+        st = board.story(story_id) if board else None
+        if st is None:
+            raise HTTPException(status_code=404, detail="없는 이야기 번호")
+        return {**st, "events": board.since(after, story_id), "seq": board.last_seq}
+
+    @app.post("/sim/reset")
+    def sim_reset() -> dict:
+        """가상 세계 초기화(보관함 시연 물건 4개·로봇 원점). 반환 진행 중이면 409"""
+        d = _sim()
+        if svc.health()["busy"]:
+            raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
+        return d.reset()
 
     @app.get("/returns")
     def recent(limit: int = 20) -> list[dict]:

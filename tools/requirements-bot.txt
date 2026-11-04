@@ -1,0 +1,2 @@
+# 전용 분실물 봇(tools/lostfound_bot.py) 전용 — 관제탑(agents/requirements.txt)과 따로 설치해도 된다
+discord.py==2.4.0

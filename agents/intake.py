@@ -226,6 +226,7 @@ class MemoryIntakeStore:
 DEMO_PLACES = {
     "KIOSK-A": ["해운대역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"],
     "KIOSK-B": ["중앙역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"],
+    "KIOSK-C": ["서면역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"],   # 11/4 가상 시연
 }
 
 SQL_MACHINE = "SELECT line, station FROM machine WHERE machine_id = %s"

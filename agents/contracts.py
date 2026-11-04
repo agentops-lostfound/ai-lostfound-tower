@@ -32,7 +32,9 @@ ITEM_ID_PATTERN = r"^[A-Z]-([0-9]{8}-[0-9]{4}|W[0-9]{2})$"
 CLAIM_ID_PATTERN = r"^C-[0-9]{8}-[0-9]{4}$"
 ITEM_ID_RE = re.compile(ITEM_ID_PATTERN)
 CLAIM_ID_RE = re.compile(CLAIM_ID_PATTERN)
-MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-B": "B", "CENTER": "H"}   # 본센터 직접 접수 = H
+# 11/4: 가상 시연용 서면역 등록기계 KIOSK-C 추가(디스코드 "서면역 ○번 출구에서 주웠어요" 시연, docs/design/virtual_demo.md)
+#   앞글자는 C 가 아니라 S(Seomyeon): C 로 하면 접수 번호 C-20261104-0001 이 찾기 번호(C-날짜-순번)와 똑같아진다
+MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-B": "B", "KIOSK-C": "S", "CENTER": "H"}   # 본센터 직접 접수 = H
 
 # 습득자 연락처(finder_contact) 보관: 인계 완료 뒤 30일이 지나면 지운다(tools/purge_contacts.py)
 CONTACT_RETENTION_DAYS = 30
