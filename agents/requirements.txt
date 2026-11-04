@@ -1,4 +1,4 @@
-# AI 관제탑(LF-14·16) — 시험(unittest)은 이 패키지 없이도 돌아간다
+# AI 관제탑(LF-14·16) — 아래 numpy·pyyaml 외에는 시험(unittest)에 없어도 된다
 langgraph
 mcp
 # 관제탑 API(LF-14) — 화면들이 HTTP로 부르는 입구
@@ -6,3 +6,6 @@ fastapi
 uvicorn
 # DB 부품·반환 기록(PostgreSQL) — TOWER_DB=1 일 때
 psycopg[binary]
+# 매칭 정책(김건태 LF-3/LF-20 matching/) — 시험에도 필요
+numpy
+pyyaml

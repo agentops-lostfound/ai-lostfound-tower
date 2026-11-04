@@ -14,7 +14,8 @@ UNKNOWN = "확인 불가"          # 사진으로 판단할 수 없을 때(보�
 NONE = "없음"                  # 표시·글자가 없음을 확인했을 때
 PII_MASK = "개인정보 가림"      # 카드·신분증의 이름·번호 자리
 
-CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "없음"]
+# 분실물 품목 6종(11/3 핸드크림·보조배터리 정식 추가) + 없음. 물건 ID 앞글자: W 지갑 · U USB · L 립밤 · P 모형폰 · H 핸드크림 · B 보조배터리
+CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배터리", "없음"]
 MVP_CATEGORIES = ["지갑"]       # MVP는 지갑 1종, 확장 때 나머지 추가
 FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]
 PRIVATE_FIELDS = ["mark", "visible_text"]   # 확인 질문용 비공개 특징(후보 카드에 안 보임)
@@ -38,6 +39,8 @@ CONTACT_RETENTION_DAYS = 30
 
 # 물건 상태(기준 문서 3장)
 ITEM_STATUS = ["등록기계 보관", "회수 중", "본센터 보관", "확인 중", "승인·수령 예약", "반환 중", "인계 완료", "반환 보류"]
+# 본센터 보관함에 있을 수 있는 상태(닮은 물건 검사 대상). 인계 완료·등록기계 보관은 보관함에 없다
+ACTIVE_STATUSES = [s for s in ITEM_STATUS if s not in ("등록기계 보관", "인계 완료")]
 
 # 메인 AI 결정
 DECISION_RETURNED = "returned"        # 바구니까지 전달 완료

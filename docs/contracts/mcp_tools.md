@@ -19,6 +19,7 @@
 | `match_item` | 김건태 LF-20 | 접수 특징 ↔ 탑뷰 물건 비교 | query(특징), detections | 매칭 결과 | uncertain·none → 자동 반환 안 함 |
 | `db_get_item` | 변재원 LF-8 | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
 | `db_set_status` | 변재원 LF-8 | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
+| `db_list_active` | 변재원 LF-8 | 보관함에 있을 수 있는 물건 목록(닮은 물건 검사, 11/3) | 없음 | `[{item_id, status, features}]` | `None` → 자동 반환 안 함 |
 | `robot_approach` | 김건태 LF-21 | 픽셀 → 로봇 좌표, 접근 자세로 이동 | center | `{ok, reason}` | 정지 + 알림 |
 | `robot_grasp` | 김건태 LF-19 | SmolVLA 근거리 집기·들기 | 없음 | `{ok, reason}` | 1번만 재시도, 그래도 실패면 정지 |
 | `robot_verify_grasp` | 김건태 LF-19 | 그리퍼 닫힘 + 탑뷰 재확인 | 없음 | `{ok, reason}` | 실패로 처리 |
@@ -31,6 +32,7 @@
 - 로봇·상태 변경 도구는 열지 않는다. 메인 AI 흐름(`agents/supervisor.py`)이 안전 관문(동의·인증·확인 질문·신분증 대조·직원 확인·매칭 확신)을 모두 지난 뒤에만 부른다
 - MCP `db_get_item` 은 비공개 특징(`mark`·`visible_text`)을 뺀 값만 돌려준다(확인 질문 정답이 외부 AI에 새지 않게, 11/3)
 - 흐름은 `db_set_status` 가 `{ok: false}` 면 로봇을 움직이지 않고, `robot_stop` 이 실패하면 알림에 "직원 즉시 호출"을 붙인다(11/3)
+- 닮은 물건 검사(11/3): 매칭으로 고른 물건이 다른 보관 중 물건(`contracts.ACTIVE_STATUSES`)과도 찾는 물건만큼 닮았으면(점수 0.6 이상, 차이 0.15 미만) 자동 반환하지 않고 직원 확인 — 사진으로 구별할 수 없는 물건을 잘못 돌려주지 않기 위해
 - 진짜 부품 연결: `agents/backends.py` 의 `CompositeBackend(vision=…, matcher=…, db=…, robot=…)` — 안내 docs/design/integration.md
 
 ## 4. 상태 이름

@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | vision | 김건태 LF-3 | `vision_topview()` | 없음 → `[{box, center, features, object_id?}]` | 빈 리스트 |
 | matcher | 김건태 LF-20 | `match_item(query, detections)` | 특징 JSON, 검출 목록 → `{status, index, score, margin, ranking}` | `status: none` |
-| db | 변재원 LF-8 | `db_get_item(item_id)`, `db_set_status(item_id, status)` | → `{item_id, status, features}` / `{ok, reason}` | `None` / `{ok: false}` |
+| db | 변재원 LF-8 | `db_get_item(item_id)`, `db_set_status(item_id, status)`, `db_list_active()` | → `{item_id, status, features}` / `{ok, reason}` / `[{item_id, status, features}]` | `None` / `{ok: false}` / `None` |
 | robot | 김건태 LF-19·21, 이순필 LF-11 | `robot_approach(center)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` | → `{ok, reason}` | `{ok: false, reason}` |
 - 형식 상세: docs/contracts/mcp_tools.md 1·2장, 값 목록: agents/contracts.py
 - **예외를 던지지 말고 약속된 실패 값을 돌려준다**(흐름이 실패 값을 보고 직원 확인·정지로 보낸다). `None` 이나 다른 모양을 돌려주면 실패로 처리된다
@@ -38,7 +38,7 @@ print(be.sources())     # vision_topview: VisionPart, 나머지: 가짜
 ## 2-1. 비전(LF-3) 연결 — 시퀀스 결과 파일 읽기 (11/3 준비)
 - 김건태 님 `vision/sequence.py` 가 만드는 `result_with_qwen.json`(YOLO 박스 + Qwen general_items_v1, 영어 값)을
   `agents/vision_adapter.py` 가 계약 모양 `[{box, center, features}]` 으로 바꾼다
-  - category: wallet·card_wallet→지갑, usb→USB, lip_balm→립밤, phone→모형폰, 나머지→확인 불가
+  - category: wallet·card_wallet→지갑, usb→USB, lip_balm→립밤, phone→모형폰, hand_cream→핸드크림, power_bank→보조배터리, 나머지→확인 불가
   - color: 첫 색을 계약 색 목록으로(dark brown→갈색, 목록 밖→기타, 없음→확인 불가)
   - mark: 스티커 있음→"star sticker (front corner)", 없음→없음, 모름→확인 불가 / visible_text: 읽은 글자, 못 읽음→확인 불가
 - Qwen 이 물건당 수십 초라 반환 중에 다시 돌리지 않는다. 보관함을 찍을 때 미리 돌려 두고 관제탑은 **가장 최근 결과**만 읽는다
@@ -47,11 +47,17 @@ from agents.backends import CompositeBackend
 from agents.vision_adapter import SequenceFileVisionPart
 be = CompositeBackend(vision=SequenceFileVisionPart("outputs/vision", max_age_s=600))  # 10분 넘은 결과는 안 씀 → 직원 확인
 ```
+- 관제탑 API·MCP 서버는 `.env` 의 `TOWER_VISION_FILE`(결과 파일 또는 폴더)만 넣으면 위처럼 끼운다(교체 안내: [swap_guide.md](swap_guide.md) 2장)
 - **남은 맞출 점(LF-3·20)**: Qwen 의 shape·material 은 영어(bifold, leather), 접수 DB 특징은 한국어(반지갑, 가죽)라
   매칭 점수가 낮게 나온다 → Qwen 프롬프트를 계약 값 목록(한국어)으로 고정하거나, 변환표를 늘린다(김건태 님과 결정)
+
+## 2-2. 매칭(LF-20) 연결 — 김건태 정책 (11/3)
+- `agents/matcher_part.py` 의 `PolicyMatcherPart` 가 `matching/policy.py` 를 `match_item` 약속으로 감싼다. `.env` `TOWER_MATCHER=policy` 로 켠다
+- 결과 비교·남은 결정은 [swap_guide.md](swap_guide.md) 3-1
 
 ## 3. 관제탑 쪽이 보장하는 것
 - 안전 관문(동의·인증·확인 질문·신분증 대조·직원 확인·매칭 확신)은 부품이 아니라 흐름이 강제한다
 - 상태 변경(`db_set_status`)이 실패하면 로봇을 움직이지 않는다 · 정지(`robot_stop`)가 실패하면 알림에 "직원 즉시 호출"
+- 매칭으로 고른 물건과 똑같이 생긴 다른 보관 중 물건이 있으면 자동 반환하지 않는다(닮은 물건 검사, swap_guide.md 7장)
 - MCP로 외부 AI에 여는 것은 읽기·비교·알림만, 물건 기록은 비공개 특징을 뺀 값만
 - 알림에는 개인정보를 싣지 않는다(물건 번호·사례 번호만)

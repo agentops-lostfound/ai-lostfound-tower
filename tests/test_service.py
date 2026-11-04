@@ -270,7 +270,7 @@ class ApiRoutesTest(unittest.TestCase):
             r[("GET", "/returns/{case_id}")]("NONE")
         self.assertEqual(cm.exception.status_code, 404)
         self.assertEqual(r[("GET", "/returns/{case_id}")]("R1")["case_id"], "R1")
-        self.assertEqual(len(r[("GET", "/tools")]()), 10)
+        self.assertEqual(len(r[("GET", "/tools")]()), 11)
 
     def test_db_down_is_503(self):
         from agents import api

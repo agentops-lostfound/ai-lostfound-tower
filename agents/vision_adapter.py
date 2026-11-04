@@ -16,7 +16,8 @@ from pathlib import Path
 
 from agents.contracts import NONE, UNKNOWN, validate_detection
 
-CATEGORY = {"wallet": "지갑", "card_wallet": "지갑", "usb": "USB", "lip_balm": "립밤", "phone": "모형폰"}
+CATEGORY = {"wallet": "지갑", "card_wallet": "지갑", "usb": "USB", "lip_balm": "립밤", "phone": "모형폰",
+            "hand_cream": "핸드크림", "power_bank": "보조배터리"}
 COLOR = {"black": "검정", "white": "흰색", "gray": "회색", "grey": "회색", "silver": "회색", "red": "빨강",
          "blue": "파랑", "navy": "남색", "dark blue": "남색", "green": "초록", "yellow": "노랑", "brown": "갈색",
          "tan": "갈색", "beige": "갈색"}
@@ -119,4 +120,22 @@ class SequenceFileVisionPart:
             return []
 
 
-__all__ = ["to_features", "adapt_report", "SequenceFileVisionPart", "CATEGORY", "COLOR"]
+def vision_part_from_env(env: dict | None = None) -> SequenceFileVisionPart | None:
+    """환경값 TOWER_VISION_FILE 이 있으면 그 결과 파일(또는 폴더)을 읽는 탑뷰 부품, 없으면 None(가짜 부품 유지).
+
+    TOWER_VISION_MAX_AGE: 결과를 몇 초까지 믿을지(기본 600). 0 이면 나이 검사 안 함(저장해 둔 파일로 시험할 때)
+    """
+    import os
+    env = os.environ if env is None else env
+    path = str(env.get("TOWER_VISION_FILE") or "").strip()
+    if not path:
+        return None
+    raw = str(env.get("TOWER_VISION_MAX_AGE") or "600").strip()
+    try:
+        age = float(raw)
+    except ValueError:
+        age = 600.0
+    return SequenceFileVisionPart(path, max_age_s=None if age <= 0 else age)
+
+
+__all__ = ["to_features", "adapt_report", "SequenceFileVisionPart", "vision_part_from_env", "CATEGORY", "COLOR"]

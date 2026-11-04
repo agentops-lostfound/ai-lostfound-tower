@@ -1,6 +1,6 @@
 """DB 부품(PostgreSQL) — LF-8 연결 지점 (docs/design/database.md 5장).
 
-한줄 설명: 관제탑이 물건 기록을 읽고(db_get_item) 상태를 바꾸는(db_set_status) 두 함수를 진짜 DB로 수행한다.
+한줄 설명: 관제탑이 물건 기록을 읽고(db_get_item) 상태를 바꾸고(db_set_status) 보관 중 물건 목록을 읽는(db_list_active) 함수를 진짜 DB로 수행한다.
 
     from agents.backends import CompositeBackend
     from agents.db_part import PostgresDbPart
@@ -15,11 +15,14 @@ from __future__ import annotations
 
 from typing import Callable
 
-from agents.contracts import ITEM_STATUS, robot_result
+from agents.contracts import ACTIVE_STATUSES, ITEM_STATUS, robot_result
 
 SQL_GET_ITEM = (
     "SELECT item_id, status, category, features, private_features, object_id "
     "FROM item WHERE item_id = %s"
+)
+SQL_LIST_ACTIVE = (
+    "SELECT item_id, status, features, private_features FROM item WHERE status = ANY(%s) ORDER BY item_id"
 )
 SQL_LOCK_ITEM = "SELECT status FROM item WHERE item_id = %s FOR UPDATE"
 SQL_SET_STATUS = "UPDATE item SET status = %s, updated_at = now() WHERE item_id = %s"
@@ -61,6 +64,17 @@ class PostgresDbPart:
                 "features": {**(features or {}), **(private or {})},   # 흐름·매칭은 둘 다 씀. MCP는 public_card 로 거름
                 "object_id": object_id}
 
+    def db_list_active(self) -> list[dict] | None:
+        """보관함에 있을 수 있는 물건 목록(닮은 물건 검사용). 실패하면 None → 흐름이 자동 반환하지 않는다."""
+        try:
+            with self._connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(SQL_LIST_ACTIVE, (list(ACTIVE_STATUSES),))
+                rows = cur.fetchall()
+        except Exception as e:
+            self.last_error = type(e).__name__
+            return None
+        return [{"item_id": iid, "status": st, "features": {**(f or {}), **(p or {})}} for iid, st, f, p in rows]
+
     def db_set_status(self, item_id: str, status: str) -> dict:
         if status not in ITEM_STATUS:
             return robot_result(False, f"모르는 상태: {status}")
@@ -79,4 +93,4 @@ class PostgresDbPart:
             return robot_result(False, f"DB 쓰기 실패({type(e).__name__})")
 
 
-__all__ = ["PostgresDbPart", "SQL_GET_ITEM", "SQL_LOCK_ITEM", "SQL_SET_STATUS", "SQL_LOG_STATUS"]
+__all__ = ["PostgresDbPart", "SQL_GET_ITEM", "SQL_LIST_ACTIVE", "SQL_LOCK_ITEM", "SQL_SET_STATUS", "SQL_LOG_STATUS"]
