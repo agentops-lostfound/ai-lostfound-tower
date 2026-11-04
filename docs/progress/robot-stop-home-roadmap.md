@@ -65,3 +65,7 @@ SO101 유지 콜백은 최신 raw 위치를 직접 읽어 raw 목표로 쓰며 �
 사용자 컨테이너 eclipse-zenoh 1.9.0에서 ZENOH_FAKE_ROBOT_OK, hardware_connected=false, installed_files_changed=false를 확인했다. stop_rpc_seconds=0.0002564169990364462는 가짜 장비 통신 왕복 측정으로 실물 정지 성능에 사용하지 않는다. 기존 a4add9de 후보를 이어서 사용하며 보정/모의 시험을 다시 시작하지 않는다.
 
 적용·복원 관리자와 Windows 준비 실행기, 상태·정지 전용 화면을 추가했다. 사용 순서와 한계는 docs/progress/robot-owner-trial-guide.md를 따른다. 현재 단계는 원본 백업/적용과 실물 조작 화면 준비이며 실제 연결/이동은 아직 하지 않는다. 기존 보정값과 후보 코드는 바꾸지 않았다. Home 구현이나 로봇 전체 제어 통합 완료로 보고하지 않는다.
+
+## 2026-11-04 기존 로봇 작업 재개 — 토크 ON 전 목표값 점검 준비
+
+구매품목 완료 기록 후 사용자가 로봇 작업 재개를 요청했다. 기존 보정·적용 후보·Zenoh 검증 결과를 보존한다. 원본 SO101 connect에서 현재 목표 정렬 전 follower 토크가 켜지는 순서를 확인해 tools/robot_start_preflight.py와 기존 실행기의 preflight 명령을 추가했다. 사용자의 실제 점검 실행 결과는 아직 없다. 이 코드는 토크 OFF 상태의 raw 목표 레지스터만 선택적으로 정렬하며 토크 ON·보정 쓰기·Studio 연결은 수행하지 않는다. 전체 시험 151개 실행, 2개 건너뜀; 새 점검 모의 시험 5개 통과. Home·이동 중 실제 정지·시작 시 토크 ON 성능은 여전히 미검증이다.

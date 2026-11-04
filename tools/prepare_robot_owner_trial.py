@@ -86,11 +86,42 @@ def load_trial(path):
     return record
 
 
+def preflight(record, expected_file, *, sync_goal=False):
+    if not record.get("patch_installed"):
+        raise RuntimeError("기존 패치 적용 기록이 필요합니다")
+    expected_file = Path(expected_file).resolve()
+    saved = json.loads(expected_file.read_text(encoding="utf-8-sig"))
+    if saved.get("serial") != "5B91030622":
+        raise RuntimeError("새 팔로워의 최종 보정 파일이 아닙니다")
+    checked = manager(record, "check")
+    if checked.get("result") != "ALREADY_INSTALLED":
+        raise RuntimeError("기존 패치 설치 상태가 다릅니다")
+    for name in ("robot_start_preflight.py", "manage_robot_owner_patch.py"):
+        execute("docker", "cp", str(ROOT / "tools" / name),
+                CONTAINER + ":" + record["container_dir"] + "/" + name)
+    target = record["container_dir"] + "/expected-follower-calibration.json"
+    execute("docker", "cp", str(expected_file), CONTAINER + ":" + target)
+    command = ["docker", "exec", "--user", "0", CONTAINER, "python",
+               record["container_dir"] + "/robot_start_preflight.py",
+               "--expected-file", target]
+    if sync_goal:
+        command.append("--sync-goal")
+    result = json.loads(execute(*command))
+    # 토크 OFF 목표값 동기화의 변경 전 기록도 Windows에 보존한다.
+    if result.get("backup"):
+        destination = Path(record["local_backup"]) / Path(result["backup"]).name
+        execute("docker", "cp", CONTAINER + ":" + result["backup"], str(destination))
+        result["windows_backup"] = str(destination)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel"))
+    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight"))
     parser.add_argument("--candidate-dir")
     parser.add_argument("--trial")
+    parser.add_argument("--expected-file", default=str(ROOT.parent / "soarm-setup/new-follower-calibration-complete.json"))
+    parser.add_argument("--sync-goal", action="store_true")
     args = parser.parse_args()
     if args.operation == "prepare":
         if not args.candidate_dir:
@@ -100,6 +131,9 @@ def main():
     if not args.trial:
         parser.error("--trial 필요")
     record = load_trial(args.trial)
+    if args.operation == "preflight":
+        print(json.dumps(preflight(record, args.expected_file, sync_goal=args.sync_goal), ensure_ascii=True, indent=2))
+        return
     if args.operation == "panel":
         if not record.get("patch_installed"):
             raise RuntimeError("패치 적용 확인 전에는 실제 조작 화면을 시작하지 않습니다")

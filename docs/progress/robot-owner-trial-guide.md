@@ -56,3 +56,18 @@ ORIGINAL_RESTORED_NO_HARDWARE_CONNECTION이면 코드가 원래 바이트로 복
 사용자 환경에서 prepare의 backup 전 require_idle이 /proc/1403/fd PermissionError로 중단됐다. 백업 함수는 idle 확인을 첫 단계로 수행하므로 이 실패에서는 원본 백업/설치 파일 변경/적용 가능한 trial.json 생성이 이루어지지 않았다. 복사된 임시 시험 도구와 기존 후보는 그대로 보존한다.
 
 관리 작업(check/backup/apply/rollback)만 docker exec --user 0으로 실행하도록 수정했다. 장비 통신·화면 작업자는 기존 사용자로 실행한다. 관리자 권한으로 파일을 교체할 때 기존 소유 UID/GID와 접근 모드를 유지한다. 읽을 수 없는 프로세스를 건너뛰거나 --privileged를 사용하지 않는다. 관리자 실행 후에도 프로세스 정보가 제한되면 검사 EUID와 대상 UID를 표시하고 중단한다. 기존 후보를 다시 만들거나 보정하지 않고 git pull 뒤 실패한 prepare 단계만 재시도한다. READY_FOR_APPLY 이후의 적용·화면 명령은 위와 같다.
+
+## 기존 적용 상태에서 실물 연결 직전 점검
+
+사용자가 패치 적용·정지 화면 정상 표시를 보고했다. 새 후보를 만들거나 기존 시험을 반복하지 않는다. 원본 SO101 connect는 _configure_servos 다음 _set_torque(enabled=True)를 호출하며 그 전에 현재 위치로 목표를 갱신하지 않는다. 보정 offset 복원 후 남은 목표값으로 움직일 가능성을 줄이기 위해 토크 OFF 상태에서 현재 raw 위치와 Goal_Position을 확인하고 맞추는 준비 절차를 추가했다. 원본 드라이버/기존 정지 후보는 바꾸지 않는다.
+
+새 VS Code PowerShell에서 기존 trial.json의 경로를 지정해 다음을 실행한다.
+
+```powershell
+py -3.11 .\tools\prepare_robot_owner_trial.py preflight --trial "기존 trial.json 전체 경로"
+py -3.11 .\tools\prepare_robot_owner_trial.py preflight --trial "기존 trial.json 전체 경로" --sync-goal
+```
+
+기본 최종 보정 파일은 저장소 옆 soarm-setup/new-follower-calibration-complete.json이다. 다른 위치면 --expected-file로 명시한다. 첫 명령은 읽기만 수행한다. 두 번째는 소유 프로세스가 없고 6관절 토크가 OFF·위치제어 모드이며 보정값이 일치할 때만 변경 전 상태를 영구 백업한 뒤 현재 raw 위치를 Goal_Position에 기록한다. 토크·보정은 쓰지 않는다. 쓰기 후 raw 목표 일치, 토크 OFF, 현재 위치와 목표 간 최대 5 tick 이내의 자세 안정성을 확인한다. 5 tick은 준비 중 자세 변화 검출 기준이며 충돌 회피나 기계 안전 범위가 아니다.
+
+GOAL_SYNCED_TORQUE_OFF이면 목표값 정렬만 완료된 것이다. 이후 팔을 움직이면 목표값과 다시 어긋날 수 있다. 드라이버의 연결 중 설정·토크 변경을 검증한 것은 아니므로 바로 Studio에 연결하지 않고 받침·빈 집게·사용자가 보는 정지 화면을 확인한 후 제한된 실물 연결 단계로 진행한다. 오류가 나면 자동 복원·토크 ON 없이 중단하며 백업은 유지한다.
