@@ -117,11 +117,12 @@ def preflight(record, expected_file, *, sync_goal=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight"))
+    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight", "move-test"))
     parser.add_argument("--candidate-dir")
     parser.add_argument("--trial")
     parser.add_argument("--expected-file", default=str(ROOT.parent / "soarm-setup/new-follower-calibration-complete.json"))
     parser.add_argument("--sync-goal", action="store_true")
+    parser.add_argument("--confirm-ready", action="store_true")
     args = parser.parse_args()
     if args.operation == "prepare":
         if not args.candidate_dir:
@@ -131,6 +132,17 @@ def main():
     if not args.trial:
         parser.error("--trial 필요")
     record = load_trial(args.trial)
+    if args.operation == "move-test":
+        if not args.confirm_ready:
+            parser.error("실물 이동 시험입니다. 준비 확인 후 --confirm-ready가 필요합니다")
+        if not record.get("patch_installed") or manager(record, "check").get("result") != "ALREADY_INSTALLED":
+            raise RuntimeError("기존 패치 적용 상태를 확인하지 못했습니다")
+        for name in ("robot_bounded_stop_trial.py", "test_robot_owner_zenoh.py"):
+            execute("docker", "cp", str(ROOT / "tools" / name),
+                    CONTAINER + ":" + record["container_dir"] + "/" + name)
+        subprocess.run(["docker", "exec", CONTAINER, "python",
+                        record["container_dir"] + "/robot_bounded_stop_trial.py", "--confirm-ready"], check=True)
+        return
     if args.operation == "preflight":
         print(json.dumps(preflight(record, args.expected_file, sync_goal=args.sync_goal), ensure_ascii=True, indent=2))
         return
