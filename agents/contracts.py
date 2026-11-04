@@ -38,16 +38,37 @@ MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-B": "B", "CENTER": "H"}   # 본센터 
 CONTACT_RETENTION_DAYS = 30
 
 # 물건 상태(기준 문서 3장)
-ITEM_STATUS = ["등록기계 보관", "회수 중", "본센터 보관", "확인 중", "승인·수령 예약", "반환 중", "인계 완료", "반환 보류"]
-# 본센터 보관함에 있을 수 있는 상태(닮은 물건 검사 대상). 인계 완료·등록기계 보관은 보관함에 없다
-ACTIVE_STATUSES = [s for s in ITEM_STATUS if s not in ("등록기계 보관", "인계 완료")]
+# 11/4: 로봇이 바구니에 넣은 것(인계 대기)과 직원이 분실인에게 건넨 것(인계 완료)을 나눴다
+#       인계 완료는 직원 화면의 "분실인에게 건넴" 확인(POST /returns/{case_id}/handover)으로만 바뀐다
+ITEM_STATUS = ["등록기계 보관", "회수 중", "본센터 보관", "확인 중", "승인·수령 예약", "반환 중", "인계 대기", "인계 완료", "반환 보류"]
+HANDOVER_WAIT = "인계 대기"
+HANDOVER_DONE = "인계 완료"
+HANDOVER_HOLD = "반환 보류"
+# 인계 대기에서 직원이 건네지 않고 멈출 때 고르는 이유(자유 입력 없음 → 개인정보가 기록에 들어가지 않음)
+HOLD_REASONS = ["본인 아님", "물건 다름", "분실인 거부", "기타"]
+# 상태를 바꾼 주체(DB item_status_log.changed_by). 관제탑 반환 흐름 = tower, 직원 화면 인계·취소 = staff
+CHANGED_BY = ["tower", "staff"]
+# 직원 화면 정지 버튼을 누른 뒤 로봇 동작이 돌려받는 실패 이유(재시도하지 않음)
+STAFF_STOP_REASON = "직원 정지 버튼"
+# 본센터 보관함에 있을 수 있는 상태(닮은 물건 검사 대상). 등록기계 보관·인계 대기(바구니)·인계 완료는 보관함에 없다
+ACTIVE_STATUSES = [s for s in ITEM_STATUS if s not in ("등록기계 보관", HANDOVER_WAIT, HANDOVER_DONE)]
 
 # 메인 AI 결정
-DECISION_RETURNED = "returned"        # 바구니까지 전달 완료
+DECISION_RETURNED = "returned"        # 바구니까지 전달 완료(물건 상태는 인계 대기, 직원이 건네면 인계 완료)
 DECISION_REJECTED = "rejected"        # 안전 규칙에 막혀 반환하지 않음
 DECISION_STAFF = "staff_check"        # 자동으로 정하지 않고 직원 확인으로 넘김
 DECISION_STOPPED = "stopped"          # 로봇 동작 중 실패로 정지
 DECISIONS = [DECISION_RETURNED, DECISION_REJECTED, DECISION_STAFF, DECISION_STOPPED]
+
+# 로봇 좌표(11/4): 로봇에는 픽셀이 아니라 작업대 기준 mm 좌표 [x, y] 를 넘긴다(탑뷰 ArUco 보정 결과 center_mm)
+#   mm 좌표가 없거나(보정 안 됨) 숫자가 아니면 관제탑은 로봇을 움직이지 않고 직원 확인으로 보낸다
+#   작업대 mm → 로봇 기준 좌표·높이·자세 변환은 로봇 부품 안에서 한다(김건태 LF-21)
+def valid_point_mm(v) -> bool:
+    """[x, y] 두 숫자(유한값)면 True. None·빈 목록·문자·NaN 은 False."""
+    import math
+    return (isinstance(v, (list, tuple)) and len(v) == 2
+            and all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in v))
+
 
 # 매칭 결과 상태
 MATCH_OK = "matched"

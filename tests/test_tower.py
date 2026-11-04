@@ -72,6 +72,46 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(simple_match(W1, [])["status"], MATCH_NONE)
 
 
+class RobotCoordinateTest(unittest.TestCase):
+    """11/4 순필님 LF-11·12 검토: 로봇에는 작업대 mm 좌표만, 없으면 로봇을 움직이지 않는다."""
+
+    def be(self, mm):
+        items = [{"object_id": "X0", "features": W1, "center": [100, 200], "center_mm": mm},
+                 {"object_id": "X1", "features": W2, "center": [300, 200]}]
+        return MockBackend(bin_items=items, db={"A-1": {"status": "본센터 보관", "features": W1}})
+
+    def test_mm_passed_to_robot(self):
+        be = self.be([120.5, 80])
+        out = run_return(ReturnRequest("M1", "A-1"), be, Reporter())
+        self.assertEqual(out.decision, DECISION_RETURNED)
+        self.assertEqual(be.last_approach, [120.5, 80.0])
+        self.assertEqual(be.last_approach_px, [100.0, 200.0])        # 픽셀도 참고로 함께
+
+    def test_missing_or_bad_mm_blocks_robot(self):
+        for mm in (None, [], [1], [1, "2"], [float("nan"), 1], [True, 1], "1,2"):
+            be = self.be(mm)
+            rep = Reporter()
+            out = run_return(ReturnRequest("M2", "A-1"), be, rep)
+            self.assertEqual(out.decision, DECISION_STAFF, mm)
+            self.assertIn("작업대 좌표 없음", out.reason)
+            self.assertFalse(be.robot_moved(), mm)
+            self.assertEqual(be.db["A-1"]["status"], "승인·수령 예약", mm)   # 반환 중으로 바꾸지 않음
+            self.assertTrue(any(m["channel"] == "alert" for m in rep.messages))
+
+    def test_valid_point_mm(self):
+        from agents.contracts import valid_point_mm
+        self.assertTrue(valid_point_mm([0, 0]) and valid_point_mm((1.5, -2)))
+        for v in (None, [], [1, 2, 3], ["1", 2], [float("inf"), 0], [False, 0]):
+            self.assertFalse(valid_point_mm(v), v)
+
+    def test_handover_wait_not_in_bin(self):
+        from agents.contracts import ACTIVE_STATUSES, HANDOVER_DONE, HANDOVER_WAIT, ITEM_STATUS
+        self.assertLess(ITEM_STATUS.index("반환 중"), ITEM_STATUS.index(HANDOVER_WAIT))
+        self.assertLess(ITEM_STATUS.index(HANDOVER_WAIT), ITEM_STATUS.index(HANDOVER_DONE))
+        self.assertNotIn(HANDOVER_WAIT, ACTIVE_STATUSES)
+        self.assertNotIn(HANDOVER_DONE, ACTIVE_STATUSES)
+
+
 class SupervisorTest(unittest.TestCase):
     def run_case(self, be, **kw):
         rep = Reporter()
@@ -82,7 +122,8 @@ class SupervisorTest(unittest.TestCase):
         be = backend()
         out, rep = self.run_case(be)
         self.assertEqual(out.decision, DECISION_RETURNED)
-        self.assertEqual(be.db["A-1"]["status"], "인계 완료")
+        self.assertEqual(be.db["A-1"]["status"], "인계 대기")      # 11/4: 인계 완료는 직원이 건넨 뒤
+        self.assertEqual(be.last_approach, [100.0, 200.0])          # 로봇에는 mm 좌표(가짜는 픽셀 값을 mm 로 둠)
         self.assertTrue(rep.messages)
 
     def test_gates_block_robot(self):
@@ -622,7 +663,7 @@ class SafetyGapTest(unittest.TestCase):
         self.assertNotIn("정지 실패", out.reason)
 
     def test_handover_status_fail_still_returned_with_alert(self):
-        out, be, rep = self.run_flow(status_fail={"인계 완료"})
+        out, be, rep = self.run_flow(status_fail={"인계 대기"})
         self.assertEqual(out.decision, DECISION_RETURNED)
         self.assertIn("상태 기록 실패", out.reason)
         self.assertTrue(be.delivered())

@@ -53,12 +53,15 @@ sequenceDiagram
     alt uncertain / none
       Sup->>Rep: alert(case, 매칭 불확실 — 직원 확인)
     else matched
+      opt 작업대 mm 좌표 없음(카메라 보정 안 됨, 11/4)
+        Sup->>Rep: alert(case, 작업대 좌표 없음 — 로봇 안 움직임)
+      end
       Sup->>BE: db_set_status(item_id, 반환 중)
       BE-->>Sup: {ok, reason}
       alt 상태 기록 실패
         Sup->>Rep: alert(case, 상태 기록 실패 — 로봇 안 움직임)
       else 기록 성공
-      Sup->>BE: robot_approach(center)
+      Sup->>BE: robot_approach(center_mm, center_px)
       BE-->>Sup: {ok, reason}
       alt 접근 실패
         Sup->>BE: robot_stop()
@@ -81,9 +84,9 @@ sequenceDiagram
             Sup->>Rep: alert(case, 바구니 전달 실패)
           else 전달 성공
             Sup->>Rep: progress(case, 바구니 전달 완료)
-            Sup->>BE: db_set_status(item_id, 인계 완료)
+            Sup->>BE: db_set_status(item_id, 인계 대기)
             opt 기록 실패
-              Sup->>Rep: alert(case, 반환 완료 · 상태 기록 실패)
+              Sup->>Rep: alert(case, 바구니 전달 완료 · 상태 기록 실패)
             end
           end
         end

@@ -5,12 +5,14 @@
 흐름
     [웹] 동의 → 본인인증(OCR) → 확인 질문 → 메인 AI 승인·수령 예약
     [본센터] 직원 실물 신분증 대조 → 안쪽 특징 확인 → 직원 최종 확인
-    [로봇] 탑뷰 촬영 → 매칭 → 사전 접근 → 집기(실패 시 1번 재시도) → 집기 확인 → 바구니 전달
+    [로봇] 탑뷰 촬영 → 매칭 → 사전 접근 → 집기(실패 시 1번 재시도) → 집기 확인 → 바구니 전달(인계 대기)
+    [직원] 분실인에게 건넴 확인 → 인계 완료 (service.handover, 이 흐름 밖)
 
 안전 규칙(바꿀 수 없음)
     - 동의·인증·확인 질문을 통과하지 못하면 승인하지 않는다
     - 신분증·안쪽 특징이 다르거나 직원 확인이 없으면 로봇을 움직이지 않는다
     - 매칭이 불확실하거나 없으면 자동 반환하지 않는다(직원 확인)
+    - 작업대 mm 좌표(카메라 보정 결과)가 없으면 로봇을 움직이지 않는다(직원 확인)
     - 로봇이 실패하면 정지하고 알린다
 LLM 검토(reviewer)를 붙일 수 있지만, 결과를 '더 안전한 쪽(직원 확인)'으로만 바꿀 수 있다.
 """
@@ -21,7 +23,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable
 
 from agents.contracts import (
-    DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, MATCH_OK, validate_detection,
+    DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, HANDOVER_WAIT, MATCH_OK, STAFF_STOP_REASON,
+    valid_point_mm, validate_detection,
 )
 from agents.tools import feature_similarity
 
@@ -89,7 +92,9 @@ class Ctx:
 def _stop(c: Ctx) -> str:
     """로봇 정지. 정지 자체가 실패하면 알림 문구에 붙일 말을 돌려준다(약속: 정지 실패 → 직원 호출)."""
     r = c.backend.robot_stop()
-    return "" if isinstance(r, dict) and r.get("ok") else " · 정지 실패 — 직원 즉시 호출"
+    if isinstance(r, dict) and r.get("ok"):
+        return " · 로봇 정지(직원이 확인 후 원점 복귀 버튼)"
+    return " · 정지 실패 — 직원 즉시 호출"
 
 
 def _set_status(c: Ctx, status: str) -> bool:
@@ -180,10 +185,16 @@ def lookalike(c: Ctx, picked: dict) -> str:
 
 
 def approach(c: Ctx) -> bool:
-    """4. 사전 접근(일반 위치 제어)"""
+    """4. 사전 접근(일반 위치 제어). 로봇에는 작업대 mm 좌표 + 탑뷰 픽셀을 함께 넘긴다(11/4 결정)
+    이동 기준은 mm. 픽셀은 로봇 부품이 화면 기준 확인·기록에 쓸 수 있게 참고로만 준다"""
+    det = c.detections[c.match["index"]]
+    target = det.get("center_mm")
+    if not valid_point_mm(target):
+        return c.finish(DECISION_STAFF, "작업대 좌표 없음(카메라 보정 안 됨) — 로봇을 움직이지 않음", alert=True)
     if not _set_status(c, "반환 중"):
         return c.finish(DECISION_STAFF, "상태 기록 실패 — 로봇을 움직이지 않음", alert=True)
-    r = c.backend.robot_approach(c.detections[c.match["index"]]["center"])
+    px = det.get("center") or []
+    r = c.backend.robot_approach([float(target[0]), float(target[1])], [float(v) for v in px])
     if not r["ok"]:
         note = _stop(c)
         return c.finish(DECISION_STOPPED, f"사전 접근 실패: {r['reason']}{note}", alert=True)
@@ -200,8 +211,11 @@ def grasp(c: Ctx) -> bool:
             c.step("집기 성공", f"{attempt}번째 시도")
             return False
         c.reporter.progress(c.req.case_id, "집기 실패", f"{attempt}번째 시도: {v['reason']}")
+        if v.get("reason") == STAFF_STOP_REASON:     # 직원이 정지 버튼을 눌렀으면 다시 집지 않는다
+            break
     note = _stop(c)
-    return c.finish(DECISION_STOPPED, f"집기 실패 — 정지, 직원 호출{note}", alert=True)
+    why = f"({STAFF_STOP_REASON})" if v.get("reason") == STAFF_STOP_REASON else ""
+    return c.finish(DECISION_STOPPED, f"집기 실패{why} — 정지, 직원 호출{note}", alert=True)
 
 
 def deliver(c: Ctx) -> bool:
@@ -211,9 +225,10 @@ def deliver(c: Ctx) -> bool:
         note = _stop(c)
         return c.finish(DECISION_STOPPED, f"바구니 전달 실패: {d['reason']}{note}", alert=True)
     c.step("바구니 전달 완료")
-    if not _set_status(c, "인계 완료"):   # 물건은 이미 전달됨 → 결정은 반환, 기록만 직원이 바로잡음
-        return c.finish(DECISION_RETURNED, "반환 완료 · 상태 기록 실패 — 직원 확인", alert=True)
-    return c.finish(DECISION_RETURNED, "반환 완료")
+    # 11/4: 바구니에 넣은 것 ≠ 분실인이 받은 것. 인계 완료는 직원이 건넨 뒤 직원 화면에서 확인한다
+    if not _set_status(c, HANDOVER_WAIT):   # 물건은 이미 전달됨 → 결정은 반환, 기록만 직원이 바로잡음
+        return c.finish(DECISION_RETURNED, "바구니 전달 완료 · 상태 기록 실패 — 직원 확인", alert=True)
+    return c.finish(DECISION_RETURNED, "바구니 전달 완료 · 직원 인계 대기")
 
 
 STAGES = [("web_gate", web_gate), ("visit_gate", visit_gate), ("locate", locate),

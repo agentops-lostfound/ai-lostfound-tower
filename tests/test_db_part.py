@@ -100,8 +100,15 @@ class DbPartTest(unittest.TestCase):
     def test_set_status_writes_log(self):
         self.assertTrue(self.part.db_set_status("A-W01", "반환 중")["ok"])
         self.assertEqual(self.db.items["A-W01"][1], "반환 중")
-        self.assertEqual(self.db.log, [("A-W01", "본센터 보관", "반환 중")])
+        self.assertEqual(self.db.log, [("A-W01", "본센터 보관", "반환 중", "tower")])
 
+
+    def test_set_status_changed_by_staff(self):
+        self.assertTrue(self.part.db_set_status("A-W01", "반환 중", changed_by="staff")["ok"])
+        self.assertEqual(self.db.log[-1], ("A-W01", "본센터 보관", "반환 중", "staff"))
+        r = self.part.db_set_status("A-W01", "인계 완료", changed_by="누군가")
+        self.assertFalse(r["ok"])
+        self.assertIn("변경 주체", r["reason"])
     def test_set_status_rejects(self):
         self.assertFalse(self.part.db_set_status("A-W01", "분실")["ok"])
         self.assertFalse(self.part.db_set_status("없음", "반환 중")["ok"])
@@ -142,7 +149,8 @@ class RecorderServiceTest(unittest.TestCase):
         out = svc.start_return({"case_id": "D1", "item_id": "A-W01", **self.gates()})
         self.assertEqual(out["decision"], "returned")
         self.assertTrue(out["recorded"])
-        self.assertEqual([t for _, _, t in db.log], ["승인·수령 예약", "반환 중", "인계 완료"])
+        self.assertEqual([t for _, _, t, _ in db.log], ["승인·수령 예약", "반환 중", "인계 대기"])
+        self.assertEqual({who for *_, who in db.log}, {"tower"})
         row = svc.get_case("D1")
         self.assertEqual(row["item_id"], "A-W01")
         self.assertEqual(len(row["steps"]), len(out["steps"]))

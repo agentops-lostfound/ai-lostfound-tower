@@ -6,10 +6,10 @@
 ## 1. 부품 묶음과 맞출 함수
 | 묶음 | 담당(Jira) | 만들 함수 | 입력 → 출력 | 실패하면 |
 | --- | --- | --- | --- | --- |
-| vision | 김건태 LF-3 | `vision_topview()` | 없음 → `[{box, center, features, object_id?}]` | 빈 리스트 |
+| vision | 김건태 LF-3 | `vision_topview()` | 없음 → `[{box, center, center_mm?, features, object_id?}]` (center_mm 없으면 로봇 안 움직임) | 빈 리스트 |
 | matcher | 김건태 LF-20 | `match_item(query, detections)` | 특징 JSON, 검출 목록 → `{status, index, score, margin, ranking}` | `status: none` |
 | db | 변재원 LF-8 | `db_get_item(item_id)`, `db_set_status(item_id, status)`, `db_list_active()` | → `{item_id, status, features}` / `{ok, reason}` / `[{item_id, status, features}]` | `None` / `{ok: false}` / `None` |
-| robot | 김건태 LF-19·21, 이순필 LF-11 | `robot_approach(center)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` | → `{ok, reason}` | `{ok: false, reason}` |
+| robot | 김건태 LF-19·21, 이순필 LF-11 | `robot_approach(center_mm, center_px)` (이동은 작업대 mm, 픽셀은 참고, 11/4), `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` | → `{ok, reason}` | `{ok: false, reason}` |
 - 형식 상세: docs/contracts/mcp_tools.md 1·2장, 값 목록: agents/contracts.py
 - **예외를 던지지 말고 약속된 실패 값을 돌려준다**(흐름이 실패 값을 보고 직원 확인·정지로 보낸다). `None` 이나 다른 모양을 돌려주면 실패로 처리된다
 - 웹·직원 화면(김재민 LF-6 등)은 부품 묶음이 아니라 **관제탑을 부르는 쪽**이다: 관문 결과를 담아 관제탑 API `POST /returns` 를 HTTP로 부른다(architecture.md 3장, 본문 예시 포함). 화면 기술은 자유
@@ -20,7 +20,7 @@
 # vision/part.py (예시 이름)
 class VisionPart:
     def vision_topview(self) -> list[dict]:
-        ...   # YOLO26s 검출 + Qwen3-VL 특징 JSON
+        ...   # YOLO26n 검출 + Qwen3-VL-2B 특징 JSON (11/4 확정)
 ```
 2. 빠진 함수가 없는지 확인
 ```python

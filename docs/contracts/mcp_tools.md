@@ -7,7 +7,8 @@
 - 비전 결과: 고정 항목 JSON `category · color · shape · mark · visible_text · material · confidence`
   - 판단 불가 `확인 불가`, 표시가 없음을 확인 `없음`, 카드·신분증 글자 `개인정보 가림`
   - `mark`·`visible_text`는 비공개 특징(후보 카드에 안 보임)
-- 탑뷰 검출 1개: `{"box": [x1,y1,x2,y2], "center": [cx,cy], "features": {비전 결과}, "object_id": 선택}` (픽셀 단위)
+- 탑뷰 검출 1개: `{"box": [x1,y1,x2,y2], "center": [cx,cy], "center_mm": [x,y], "features": {비전 결과}, "object_id": 선택}`
+  - `box`·`center` 는 픽셀, `center_mm` 은 작업대 기준 mm(탑뷰 ArUco 보정 결과 `center_world_mm`). 보정이 없으면 `center_mm` 을 빼거나 null (11/4)
 - 로봇 함수 결과: `{"ok": true}` 또는 `{"ok": false, "reason": "집기 실패"}`
 - 매칭 결과: `{"status": "matched|uncertain|none", "index": 0, "score": 0.86, "margin": 0.29, "ranking": [0,2,1]}`
 - 알림에는 개인정보 없이 물건 번호만 쓴다(전화번호·주민번호·카드번호·이메일 모양이면 전송을 막는다)
@@ -20,11 +21,12 @@
 | `db_get_item` | 변재원 LF-8 | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
 | `db_set_status` | 변재원 LF-8 | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
 | `db_list_active` | 변재원 LF-8 | 보관함에 있을 수 있는 물건 목록(닮은 물건 검사, 11/3) | 없음 | `[{item_id, status, features}]` | `None` → 자동 반환 안 함 |
-| `robot_approach` | 김건태 LF-21 | 픽셀 → 로봇 좌표, 접근 자세로 이동 | center | `{ok, reason}` | 정지 + 알림 |
+| `robot_approach` | 김건태 LF-21 | 작업대 mm → 로봇 좌표, 접근 자세로 이동 | center_mm `[x, y]`(이동 기준) + center_px `[cx, cy]`(참고) (11/4) | `{ok, reason}` | 정지 + 알림. mm 좌표가 없으면 관제탑이 부르지 않음(직원 확인) |
 | `robot_grasp` | 김건태 LF-19 | SmolVLA 근거리 집기·들기 | 없음 | `{ok, reason}` | 1번만 재시도, 그래도 실패면 정지 |
 | `robot_verify_grasp` | 김건태 LF-19 | 그리퍼 닫힘 + 탑뷰 재확인 | 없음 | `{ok, reason}` | 실패로 처리 |
 | `robot_deliver` | 이순필 LF-11 | 바구니까지 이동·그리퍼 열기 | 없음 | `{ok, reason}` | 정지 + 알림 |
-| `robot_stop` | 이순필 LF-11 | 즉시 정지·Home | 없음 | `{ok, reason}` | 직원 호출 |
+| `robot_stop` | 이순필 LF-11 | **그 자리에서 즉시 정지만**(원점 복귀 안 함, 11/4). 반환 중에도 직원 화면 🛑 버튼(`POST /robot/stop`) | 없음 | `{ok, reason}` | 직원 호출 |
+| `robot_home` | 이순필 LF-11 | 저장된 경로로 원점 복귀. 직원이 주변 확인 뒤 버튼(`POST /robot/home`)으로만, 반환 중이면 거부 (11/4) | 없음 | `{ok, reason}` | 직원 호출 |
 | `notify` | 변재원 LF-17 | 관제 채널 알림 | channel(progress·alert·score), text | `{ok}` | 흐름은 멈추지 않음 |
 
 ## 3. AI에게 여는 범위
@@ -36,10 +38,13 @@
 - 진짜 부품 연결: `agents/backends.py` 의 `CompositeBackend(vision=…, matcher=…, db=…, robot=…)` — 안내 docs/design/integration.md
 
 ## 4. 상태 이름
-`등록기계 보관 → 회수 중 → 본센터 보관 → 확인 중 → 승인·수령 예약 → 반환 중 → 인계 완료` (막히면 `반환 보류`)
+`등록기계 보관 → 회수 중 → 본센터 보관 → 확인 중 → 승인·수령 예약 → 반환 중 → 인계 대기 → 인계 완료` (막히면 `반환 보류`)
+- 11/4: 로봇이 바구니에 넣으면 `인계 대기`, 직원이 분실인에게 건넨 뒤 직원 화면 버튼(`POST /returns/{case_id}/handover`)으로 `인계 완료`
+- 건네지 않기로 하면(본인 아님·물건 다름·분실인 거부·기타) `POST /returns/{case_id}/hold` → `반환 보류` + 경보. 직원 화면에서 바꾼 상태는 기록에 `changed_by=staff`
 
 ## 5. 통합 때 주의할 점 (변재원 검토)
-- **GPU 메모리(시연 PC RTX 3050 6GB)**: Qwen3-VL-4B(Q4 약 3.3GB)와 SmolVLA를 동시에 올리지 않는다. 탑뷰 특징 추출이 끝나면 VLM을 내리고(Ollama `keep_alive: 0`) 집기 정책을 올린다. 메인 AI LLM 검토도 같은 Qwen3-VL-4B를 써서 모델을 하나 더 올리지 않는다
+- **모델 확정(11/4)**: 검출 **YOLO26n**, 특징 추출 **Qwen3-VL-2B-Instruct**(Hugging Face, NF4 4-bit). Jira·발표 표기도 이 이름으로
+- **GPU 메모리(시연 PC RTX 3050 6GB)**: STT·Qwen3-VL-2B·SmolVLA를 동시에 올리지 않는다(순서: STT → 해제 → 촬영·Qwen → 해제 → CPU 매칭 → VLA, 김건태 11/4). LLM 검토(Ollama `qwen3-vl:4b-instruct`, Q4 약 3.3GB)는 비전과 **다른 모델**이라 켜면 메모리를 더 쓴다 → 시연에서는 끈다(`TOWER_REVIEWER` 비움)
 - **카메라가 달라 특징이 어긋날 위험**: 접수 특징은 등록기계(포토박스 LED 조명)에서, 비교할 특징은 본센터 탑뷰(다른 조명·각도)에서 뽑는다. 색·글자가 다르게 읽히면 매칭이 자주 '불확실'이 되어 직원 확인으로 빠진다 → 같은 지갑을 두 카메라로 찍어 항목별 일치율을 먼저 재고, 덜 맞는 항목은 매칭 가중치를 낮춘다(LF-20)
 - **LLM 검토는 기본 꺼짐**: 시연 PC에서 `python evaluation/run_cases.py --reviewer` 로 잘못된 보류가 0건일 때만 켠다
-- **Qwen3-VL-4B는 instruct판을 쓴다(11/2 시연 PC 측정)**: `qwen3-vl:4b` 는 생각 전용판이라 `"think": false` 를 보내도 무시하고 답마다 생각 글 약 1,800~2,500자(약 500~700토큰, 10~14초)를 먼저 쓴다. `qwen3-vl:4b-instruct` 로 바꾸면 같은 JSON 답이 22토큰 · 평균 2.7초 · 생각 글자 0, 처음 올리기 약 7초(100% GPU). 특징 JSON 추출(LF-3)도 `ollama pull qwen3-vl:4b-instruct` 로 받아 이 이름을 쓴다
+- **(LLM 검토용) Qwen3-VL-4B는 instruct판을 쓴다(11/2 시연 PC 측정)**: `qwen3-vl:4b` 는 생각 전용판이라 `"think": false` 를 보내도 무시하고 답마다 생각 글 약 1,800~2,500자(약 500~700토큰, 10~14초)를 먼저 쓴다. `qwen3-vl:4b-instruct` 로 바꾸면 같은 JSON 답이 22토큰 · 평균 2.7초 · 생각 글자 0, 처음 올리기 약 7초(100% GPU). 특징 JSON 추출(LF-3)은 11/4 확정대로 Qwen3-VL-2B(Hugging Face)를 쓴다

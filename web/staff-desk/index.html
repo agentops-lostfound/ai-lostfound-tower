@@ -50,6 +50,10 @@
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   details summary { cursor: pointer; color: var(--muted); }
   [hidden] { display: none !important; }
+  /* 11/4 로봇 정지·원점 복귀: 화면 위에 늘 보이게(반환 진행 중에도 누를 수 있음) */
+  .robotbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; gap: 8px;
+              align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  button.stop { background: var(--bad); color: #fff; border-color: var(--bad); font-weight: 700; padding: 10px 18px; }
 </style>
 </head>
 <body>
@@ -58,6 +62,13 @@
     <h1>본센터 직원 화면 · 방문 확인</h1>
     <span class="muted" id="health">관제탑 확인 중…</span>
   </header>
+
+  <div class="robotbar" role="region" aria-label="로봇 조작">
+    <button id="robotStop" class="stop">🛑 정지</button>
+    <button id="robotHome">원점 복귀</button>
+    <button id="robotHomeOk" class="primary" hidden>주변 확인함 · 복귀</button>
+    <span class="muted" id="robotMsg">정지는 반환 중에도 바로 누릅니다. 원점 복귀는 로봇 주변을 확인한 뒤에만.</span>
+  </div>
 
   <section>
     <h2>1. 찾기 번호 조회</h2>
@@ -118,6 +129,32 @@
   var current = null;          // 조회한 찾기 요청
   var tries = {};              // 같은 찾기 번호로 다시 시도할 때 사례 번호 뒤에 붙일 번호
   var NAMES = { consent: "필수 동의", id_verified: "신분증 OCR 인증", quiz_passed: "확인 질문" };
+
+  // 11/4: 로봇은 바구니까지만(인계 대기). 직원이 분실인에게 건넨 뒤 이 버튼으로 인계 완료를 남긴다
+  function handoverRow(caseId) {
+    var row = el("div", undefined, "row");
+    var btn = el("button", "분실인에게 건넴 → 인계 완료", "primary");
+    var msg = el("span", "바구니의 물건을 직접 건넨 뒤 누릅니다", "muted");
+    // 건네지 않을 때: 이유 4개 중 하나(자유 입력 없음 — 개인정보가 기록에 들어가지 않게)
+    var sel = el("select"); sel.setAttribute("aria-label", "건네지 않는 이유");
+    ["본인 아님", "물건 다름", "분실인 거부", "기타"].forEach(function (t) { sel.appendChild(el("option", t)); });
+    var hold = el("button", "건네지 않음 → 반환 보류");
+    function lock(on) { btn.disabled = on; hold.disabled = on; sel.disabled = on; }
+    btn.addEventListener("click", async function () {
+      lock(true); msg.textContent = "저장 중…";
+      var h = await api("POST", "/returns/" + encodeURIComponent(caseId) + "/handover", { staff_confirmed: true });
+      if (h.status === 200) { msg.textContent = "인계 완료 · 물건 " + h.data.item_id; recent(); }
+      else { msg.textContent = "저장 안 됨: " + detail(h); lock(h.status !== 503); }
+    });
+    hold.addEventListener("click", async function () {
+      lock(true); msg.textContent = "저장 중…";
+      var h = await api("POST", "/returns/" + encodeURIComponent(caseId) + "/hold", { reason: sel.value });
+      if (h.status === 200) { msg.textContent = "반환 보류(" + h.data.reason + ") · 물건 " + h.data.item_id + " — 바구니에서 꺼내 보관"; recent(); }
+      else { msg.textContent = "저장 안 됨: " + detail(h); lock(h.status !== 503); }
+    });
+    row.appendChild(btn); row.appendChild(sel); row.appendChild(hold); row.appendChild(msg);
+    return row;
+  }
   var DECISION = { returned: ["ok", "✅ 반환 완료"], rejected: ["bad", "⛔ 반환 안 함"],
                    staff_check: ["warn", "🙋 직원 확인 필요"], stopped: ["bad", "🛑 로봇 정지"] };
 
@@ -201,6 +238,7 @@
         r.data.steps.forEach(function (s) { ol.appendChild(el("li", s)); });
         box.appendChild(ol);
       }
+      if (r.data.decision === "returned") box.appendChild(handoverRow(r.data.case_id));
       $("startMsg").textContent = "";
       var again = await api("GET", "/claims/" + encodeURIComponent(current.claim_id));
       if (again.status === 200) { current = again.data; }
@@ -246,6 +284,25 @@
   $("claimId").addEventListener("keydown", function (e) { if (e.key === "Enter") lookup(); });
   $("start").addEventListener("click", start);
   $("demoMake").addEventListener("click", demoMake);
+
+  // 로봇 정지(언제든) · 원점 복귀(한 번 더 확인) — 11/4
+  $("robotStop").addEventListener("click", async function () {
+    $("robotMsg").textContent = "정지 요청 중…";
+    var r = await api("POST", "/robot/stop");
+    if (r.status === 200 && r.data.ok) $("robotMsg").textContent = "🛑 정지함" + (r.data.running ? " (진행 중이던 반환은 다음 동작에서 멈춥니다)" : "") + " · 확인 후 원점 복귀";
+    else $("robotMsg").textContent = "정지 실패: " + (r.data && r.data.reason ? r.data.reason : detail(r)) + " — 즉시 전원 차단·담당자 호출";
+  });
+  $("robotHome").addEventListener("click", function () {
+    $("robotHome").hidden = true; $("robotHomeOk").hidden = false;
+    $("robotMsg").textContent = "로봇 팔 주변에 사람·물건이 없는지 확인한 뒤 누르세요";
+  });
+  $("robotHomeOk").addEventListener("click", async function () {
+    $("robotHomeOk").disabled = true; $("robotMsg").textContent = "원점 복귀 중…";
+    var r = await api("POST", "/robot/home", { staff_confirmed: true });
+    $("robotHomeOk").disabled = false; $("robotHomeOk").hidden = true; $("robotHome").hidden = false;
+    if (r.status === 200 && r.data.ok) $("robotMsg").textContent = "원점 복귀 완료";
+    else $("robotMsg").textContent = "원점 복귀 안 됨: " + (r.status === 200 ? r.data.reason : detail(r));
+  });
   health(); recent(); setInterval(health, 15000);
 })();
 </script>

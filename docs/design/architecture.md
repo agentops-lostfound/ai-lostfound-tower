@@ -22,7 +22,7 @@ flowchart LR
     MCP[MCP 서버]
   end
   subgraph Parts[부품 — 각 담당]
-    V[비전<br/>YOLO26s + Qwen3-VL<br/>김건태 LF-3]
+    V[비전<br/>YOLO26n + Qwen3-VL-2B<br/>김건태 LF-3]
     M[매칭<br/>김건태 LF-20]
     D[DB 부품<br/>변재원 LF-8]
     R[로봇<br/>SO-101 · SmolVLA<br/>김건태 LF-19·21 · 이순필 LF-11]
@@ -66,6 +66,8 @@ flowchart LR
 | `GET /claims/{claim_id}` | 직원 화면: 찾기 요청 조회(가린 이름·물건·예약·웹 확인) | 200 | 404 없음 · 422 번호 형식 |
 | `GET /staff` | 직원 화면(본센터 방문 확인) 페이지 | 200 | — |
 | `POST /returns` | 반환 흐름 실행 | 200 + 결과(decision·reason·approved·steps…·recorded) | 422 형식 오류 · 404 없는 찾기 번호 · 409 같은 사례 번호·이미 방문 처리(duplicate) 또는 다른 반환 진행 중(busy) · 503 DB 연결 안 됨 |
+| `POST /returns/{case_id}/handover` | 직원 화면: 바구니의 물건을 분실인에게 건넴 → `인계 대기` → `인계 완료` (11/4). 본문 `{"staff_confirmed": true}` | 200 + item_id·status | 404 없는 사례 · 409 이미 인계(duplicate)·인계할 상태 아님(state) · 422 본문 · 503 DB |
+| `POST /returns/{case_id}/hold` | 직원 화면: 인계 대기 중 건네지 않음 → `반환 보류` + 경보. 본문 `{"reason": "본인 아님"|"물건 다름"|"분실인 거부"|"기타"}` (자유 입력 없음) | 200 + item_id·status·reason | 404 · 409 이미 보류(duplicate)·인계 대기 아님(state) · 422 · 503 |
 | `GET /returns` | 최근 기록(단계 제외) | 200 | — |
 | `GET /returns/{case_id}` | 기록 하나(단계 포함) | 200 | 404 없음 · 422 번호 형식 |
 

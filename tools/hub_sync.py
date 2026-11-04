@@ -5,10 +5,10 @@
 사용법
     # 올리기 (폴더 통째로)
     python tools/hub_sync.py upload  --kind data  --local datasets/vision_v1103 --path vision_v1103
-    python tools/hub_sync.py upload  --kind model --local models/yolo26s_v1103   --path yolo26s_v1103
+    python tools/hub_sync.py upload  --kind model --local models/yolo26n_v1103   --path yolo26n_v1103
     # 받기
     python tools/hub_sync.py download --kind data  --path vision_v1103  --local datasets/vision_v1103
-    python tools/hub_sync.py download --kind model --path yolo26s_v1103 --local models/yolo26s_v1103
+    python tools/hub_sync.py download --kind model --path yolo26n_v1103 --local models/yolo26n_v1103
 
 설정(.env)
     HF_TOKEN=          # Hugging Face 쓰기 토큰(비밀값)

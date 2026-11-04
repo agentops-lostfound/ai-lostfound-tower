@@ -38,11 +38,12 @@ def match_item(query: dict, detections: list[dict]) -> dict
 def db_get_item(item_id: str) -> dict | None  # 실패·없음: None → 직원 확인
 def db_set_status(item_id: str, status: str) -> dict   # {ok, reason}; 실패하면 로봇을 움직이지 않음(약속)
 def db_list_active() -> list[dict] | None             # 보관 중 물건 [{item_id, status, features}]; None → 자동 반환 안 함(닮은 물건 검사)
-def robot_approach(center: list[int]) -> dict          # {ok, reason}; 실패 → robot_stop + 정지
+def robot_approach(center_mm: list[float], center_px: list[float]) -> dict  # 이동 기준 작업대 mm + 참고 픽셀(11/4). {ok, reason}; 실패 → robot_stop + 정지
 def robot_grasp() -> dict                              # {ok, reason}; 실패 → 1번 재시도
 def robot_verify_grasp() -> dict                       # {ok, reason}; 실패 → 집기 실패로 셈
 def robot_deliver() -> dict                            # {ok, reason}; 실패 → robot_stop + 정지
-def robot_stop() -> dict                               # {ok, reason}; 실패 → 직원 호출(약속)
+def robot_stop() -> dict                               # 그 자리에서 즉시 정지만(11/4). {ok, reason}; 실패 → 직원 호출(약속)
+def robot_home() -> dict                               # 원점 복귀 — 직원 화면 버튼으로만, 반환 중 거부(11/4)
 ```
 - 검출 1개 형식은 `contracts.validate_detection` 이 검사하고, 형식이 틀린 검출은 버린다
 

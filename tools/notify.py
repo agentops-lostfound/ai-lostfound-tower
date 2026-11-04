@@ -6,7 +6,7 @@
     python tools/notify.py "제목" "본문"
 코드에서
     from tools.notify import notify
-    notify("학습 완료", "yolo26s v1103 · mAP50-95 0.81")
+    notify("학습 완료", "yolo26n v1103 · mAP50-95 0.81")
 
 - 웹훅 주소는 .env 의 DISCORD_WEBHOOK_URL 에서만 읽는다(코드에 쓰지 않음).
 - 실패해도 예외를 던지지 않고 False 를 돌려준다(학습 스크립트가 알림 때문에 멈추지 않게).

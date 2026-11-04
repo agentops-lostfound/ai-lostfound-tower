@@ -4,7 +4,8 @@
 
 - Ollama(PC에서 AI 모델을 돌리는 프로그램)의 /api/chat 에 요청한다. 인터넷·유료 API가 필요 없다.
 - .env: OLLAMA_URL(기본 http://localhost:11434), MAIN_AI_MODEL(기본 qwen3-vl:4b-instruct), OLLAMA_KEEP_ALIVE(기본 5m)
-- 비전에 쓰는 Qwen3-VL-4B를 그대로 쓴다. 시연 PC(RTX 3050 6GB)에 글자 전용 모델을 하나 더 올리면 메모리가 모자라기 때문(4B Q4 약 3.3GB, 최소 6GB 권장)
+- 주의(11/4): 비전 특징 추출은 Qwen3-VL-2B(Hugging Face, NF4)로 확정 — 이 검토 모델(Ollama 4B Q4 약 3.3GB)과 다른 모델이다.
+  켜면 GPU 메모리를 더 쓰므로 시연 PC(RTX 3050 6GB)에서는 끈다(TOWER_REVIEWER 비움). 켤 때는 비전·VLA와 동시에 올리지 않는다
 - LLM에는 개인정보를 보내지 않는다(지금 보내는 값: 사례 번호·접수 번호·상태).
 - LLM이 응답하지 않거나 형식이 틀리면 on_error 값(기본 "hold" = 직원 확인)으로 처리한다.
 - 코드 기본은 꺼짐(run_return 의 reviewer=None). 시연 PC 측정(instruct판)에서 잘못된 보류 0건 · 평균 2.7초라 시연에서는 켜도 된다.
