@@ -21,7 +21,7 @@
 | `db_get_item` | 변재원 LF-8 | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
 | `db_set_status` | 변재원 LF-8 | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
 | `db_list_active` | 변재원 LF-8 | 보관함에 있을 수 있는 물건 목록(닮은 물건 검사, 11/3) | 없음 | `[{item_id, status, features}]` | `None` → 자동 반환 안 함 |
-| `robot_approach` | 김건태 LF-21 | 작업대 mm → 로봇 좌표, 접근 자세로 이동 | center_mm `[x, y]` (11/4, 픽셀 아님) | `{ok, reason}` | 정지 + 알림. mm 좌표가 없으면 관제탑이 부르지 않음(직원 확인) |
+| `robot_approach` | 김건태 LF-21 | 작업대 mm → 로봇 좌표, 접근 자세로 이동 | center_mm `[x, y]`(이동 기준) + center_px `[cx, cy]`(참고) (11/4) | `{ok, reason}` | 정지 + 알림. mm 좌표가 없으면 관제탑이 부르지 않음(직원 확인) |
 | `robot_grasp` | 김건태 LF-19 | SmolVLA 근거리 집기·들기 | 없음 | `{ok, reason}` | 1번만 재시도, 그래도 실패면 정지 |
 | `robot_verify_grasp` | 김건태 LF-19 | 그리퍼 닫힘 + 탑뷰 재확인 | 없음 | `{ok, reason}` | 실패로 처리 |
 | `robot_deliver` | 이순필 LF-11 | 바구니까지 이동·그리퍼 열기 | 없음 | `{ok, reason}` | 정지 + 알림 |

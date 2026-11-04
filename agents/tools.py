@@ -38,7 +38,8 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("db_list_active", "변재원 LF-8", "보관함에 있을 수 있는 물건(contracts.ACTIVE_STATUSES) 목록 — 닮은 물건 검사용",
              {}, "[{item_id, status, features}]", "None → 닮은 물건 검사 불가, 자동 반환하지 않음"),
     ToolSpec("robot_approach", "김건태 LF-21", "작업대 mm 좌표를 로봇 좌표로 바꿔 Home → 경유점 → 접근 자세로 이동",
-             {"center_mm": "[x, y] 작업대 기준 mm (탑뷰 ArUco 보정 결과). 없으면 관제탑이 부르지 않음"}, "{ok, reason}", "정지 + #관제-알림"),
+             {"center_mm": "[x, y] 작업대 기준 mm (탑뷰 ArUco 보정 결과, 이동 기준). 없으면 관제탑이 부르지 않음",
+              "center_px": "[cx, cy] 탑뷰 픽셀(참고: 화면 기준 확인·기록용)"}, "{ok, reason}", "정지 + #관제-알림"),
     ToolSpec("robot_grasp", "김건태 LF-19", "접근 자세에서 SmolVLA로 집고 안전한 높이까지 들기",
              {}, "{ok, reason}", "1번만 다시 시도, 그래도 실패하면 정지"),
     ToolSpec("robot_verify_grasp", "김건태 LF-19", "그리퍼 닫힘 정도 + 탑뷰 재확인으로 집기 성공 확인",
@@ -137,9 +138,10 @@ class MockBackend:
         return [{"item_id": k, "status": v.get("status"), "features": copy.deepcopy(v.get("features", {}))}
                 for k, v in self.db.items() if v.get("status") in ACTIVE_STATUSES]
 
-    def robot_approach(self, center_mm) -> dict:
+    def robot_approach(self, center_mm, center_px) -> dict:
         self.calls.append("robot_approach")
         self.last_approach = center_mm      # 시험에서 무엇을 넘겼는지 확인
+        self.last_approach_px = center_px
         return robot_result(self.approach_ok, "접근 실패")
 
     def robot_grasp(self) -> dict:

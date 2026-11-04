@@ -61,7 +61,7 @@ sequenceDiagram
       alt 상태 기록 실패
         Sup->>Rep: alert(case, 상태 기록 실패 — 로봇 안 움직임)
       else 기록 성공
-      Sup->>BE: robot_approach(center_mm)
+      Sup->>BE: robot_approach(center_mm, center_px)
       BE-->>Sup: {ok, reason}
       alt 접근 실패
         Sup->>BE: robot_stop()

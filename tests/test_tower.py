@@ -85,6 +85,7 @@ class RobotCoordinateTest(unittest.TestCase):
         out = run_return(ReturnRequest("M1", "A-1"), be, Reporter())
         self.assertEqual(out.decision, DECISION_RETURNED)
         self.assertEqual(be.last_approach, [120.5, 80.0])
+        self.assertEqual(be.last_approach_px, [100.0, 200.0])        # 픽셀도 참고로 함께
 
     def test_missing_or_bad_mm_blocks_robot(self):
         for mm in (None, [], [1], [1, "2"], [float("nan"), 1], [True, 1], "1,2"):

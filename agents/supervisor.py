@@ -183,13 +183,16 @@ def lookalike(c: Ctx, picked: dict) -> str:
 
 
 def approach(c: Ctx) -> bool:
-    """4. 사전 접근(일반 위치 제어). 로봇에는 작업대 mm 좌표만 넘긴다(픽셀은 넘기지 않음, 11/4)"""
-    target = c.detections[c.match["index"]].get("center_mm")
+    """4. 사전 접근(일반 위치 제어). 로봇에는 작업대 mm 좌표 + 탑뷰 픽셀을 함께 넘긴다(11/4 결정)
+    이동 기준은 mm. 픽셀은 로봇 부품이 화면 기준 확인·기록에 쓸 수 있게 참고로만 준다"""
+    det = c.detections[c.match["index"]]
+    target = det.get("center_mm")
     if not valid_point_mm(target):
         return c.finish(DECISION_STAFF, "작업대 좌표 없음(카메라 보정 안 됨) — 로봇을 움직이지 않음", alert=True)
     if not _set_status(c, "반환 중"):
         return c.finish(DECISION_STAFF, "상태 기록 실패 — 로봇을 움직이지 않음", alert=True)
-    r = c.backend.robot_approach([float(target[0]), float(target[1])])
+    px = det.get("center") or []
+    r = c.backend.robot_approach([float(target[0]), float(target[1])], [float(v) for v in px])
     if not r["ok"]:
         note = _stop(c)
         return c.finish(DECISION_STOPPED, f"사전 접근 실패: {r['reason']}{note}", alert=True)

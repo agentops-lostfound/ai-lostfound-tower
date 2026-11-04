@@ -65,9 +65,9 @@ TOWER_VISION_MAX_AGE=600
   - (참고, 스티커를 쓰던 이전 시나리오에서는 정책 기본값이 6/9 — 같은 제품·스티커만 다른 쌍을 확정 못 함. 스티커 미사용 결정으로 해당 없음)
 
 ## 4. 로봇팔
-- 만들 것: `robot_approach(center_mm)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` — 모두 `{ok, reason}` 을 돌려준다
+- 만들 것: `robot_approach(center_mm, center_px)`, `robot_grasp()`, `robot_verify_grasp()`, `robot_deliver()`, `robot_stop()` — 모두 `{ok, reason}` 을 돌려준다
 - **예외를 던지지 않는다.** 실패하면 `{"ok": False, "reason": "집기 실패"}` 처럼 돌려줘야 관제탑이 정지·직원 호출로 보낸다
-- `center_mm` 은 **작업대 기준 mm** `[x, y]` (탑뷰 결과의 `center_world_mm`, ArUco 보정). 11/4 결정: 픽셀은 넘기지 않는다
+- `center_mm` 은 **작업대 기준 mm** `[x, y]` (탑뷰 결과의 `center_world_mm`, ArUco 보정) = 이동 기준. `center_px` 는 탑뷰 픽셀 `[cx, cy]` = 참고(화면 기준 확인·기록). 11/4 결정: 둘 다 넘긴다
   - 보정이 안 돼 mm 좌표가 없으면 관제탑이 로봇을 부르지 않고 직원 확인으로 보낸다
   - 작업대 mm → 로봇 기준 좌표·높이·접근 자세 변환은 로봇 부품 안에서 한다(김건태 LF-21)
 - 바구니 전달이 끝나면 물건 상태는 `인계 대기`. 직원이 분실인에게 건넨 뒤 직원 화면의 **분실인에게 건넴** 버튼으로 `인계 완료` (11/4)
