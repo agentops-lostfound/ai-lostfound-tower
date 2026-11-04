@@ -150,8 +150,9 @@ class BotCore:
                 d = self.client.post("/robot/home", {"staff_confirmed": True})
                 return ("🏠 원점 복귀 완료" if d.get("ok") else f"원점 복귀 실패: {d.get('reason')}"), None
             if kind == "reset":
-                self.client.post("/sim/reset")
-                return "🔄 가상 세계 초기화(보관함 시연 물건 4개 · 로봇 원점)", None
+                d = self.client.post("/sim/reset")
+                n = sum(1 for i in (d.get("items") or []) if i.get("loc") == "bin")
+                return f"🔄 가상 세계 초기화(보관함 시연 물건 {n}개 · 로봇 원점)", None
             if kind == "status":
                 return self._status(), None
             if kind == "found":

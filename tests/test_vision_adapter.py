@@ -51,7 +51,8 @@ class ToFeaturesTest(unittest.TestCase):
         self.assertEqual(to_features({**PHONE, "category": "other", "colors": ["pink"]}, 0.5)["category"], UNKNOWN)
         self.assertEqual(to_features({**PHONE, "category": "hand_cream"}, 0.5)["category"], "핸드크림")
         self.assertEqual(to_features({**PHONE, "category": "power_bank"}, 0.5)["category"], "보조배터리")
-        self.assertEqual(to_features({**PHONE, "colors": ["pink"]}, 0.5)["color"], "기타")
+        self.assertEqual(to_features({**PHONE, "colors": ["purple"]}, 0.5)["color"], "기타")
+        self.assertEqual(to_features({**PHONE, "colors": ["pink sand"]}, 0.5)["color"], "분홍")   # 11/4 분홍 추가
         self.assertTrue(all(v == UNKNOWN for k, v in to_features(None, 0.2).items() if k != "confidence"))
         self.assertEqual(to_features(None, 7)["confidence"], 1.0)
 

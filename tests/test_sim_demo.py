@@ -51,7 +51,7 @@ class SimPartsTest(unittest.TestCase):
     def test_topview_goes_through_real_adapter_with_calibration_gate(self):
         w = SimWorld(speed=0)
         dets = SimTopview(w).vision_topview()
-        self.assertEqual(len(dets), 4)
+        self.assertEqual(len(dets), 8)
         self.assertTrue(all("center_mm" in d for d in dets))
         w.inject(calib_fail=True)
         dets = SimTopview(w).vision_topview()
@@ -104,16 +104,16 @@ class DirectorTest(unittest.TestCase):
         self.assertTrue(any("등록기계 접수" in t for t in titles) and any("인계 완료" in t for t in titles))
 
     def test_quiz_question_then_wrong_answer_is_rejected(self):
-        r = self.d.lost("검정 보조배터리 잃어버렸어요")
+        r = self.d.lost("은색 USB 잃어버렸어요")
         self.assertIn("pending_id", r)
-        out = self.d.answer(r["pending_id"], "SAMSUNG")
+        out = self.d.answer(r["pending_id"], "Kingston")
         self.assertFalse(out["quiz_passed"])
         self.assertTrue(self.d.wait_idle())
         st = story_of(self.svc, out["story_id"])
         self.assertFalse(st["result"]["ok"])
         self.assertIn("rejected", st["result"]["text"])
         self.assertEqual(self.svc.world.arm["holding"], None)
-        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 4)   # 로봇 안 움직임
+        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 8)   # 로봇 안 움직임
 
     def test_calibration_fail_tag_sends_to_staff(self):
         self.found()
@@ -146,6 +146,22 @@ class DirectorTest(unittest.TestCase):
         self.svc.handover(case, {"staff_confirmed": True})
         self.assertEqual(self.svc.world.items[r["item_id"]]["loc"], "handed")
 
+    def test_purchased_items_scenes(self):
+        """실제 구매 목록 기준(11/4): 핑크샌드 지갑은 분홍으로 구별, 같은 제품 USB 2개는 직원 확인"""
+        from agents.sim_world import SEED_ITEMS
+        self.assertEqual(len(SEED_ITEMS), 8)
+        r = self.lost("분홍 카드지갑 잃어버렸어요")
+        self.assertTrue(story_of(self.svc, r["story_id"])["result"]["ok"])
+        self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "분홍")
+        p = self.d.lost("은색 USB 잃어버렸어요")
+        out = self.d.answer(p["pending_id"], "SanDisk")
+        self.assertTrue(out["quiz_passed"])
+        self.assertTrue(self.d.wait_idle())
+        res = story_of(self.svc, out["story_id"])["result"]
+        self.assertFalse(res["ok"])
+        self.assertIn("staff_check", res["text"])                      # 똑같은 USB 2개 → 자동 반환 안 함
+        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["category"] == "USB" and i["loc"] == "bin"), 2)
+
     def test_bad_messages(self):
         with self.assertRaises(RequestError):
             self.d.found("지갑 주웠어요")                       # 역 없음
@@ -159,7 +175,7 @@ class DirectorTest(unittest.TestCase):
         self.found()
         r1 = self.lost("검정 카드지갑 잃어버렸어요 서면역")
         self.d.reset()
-        self.assertEqual(len(self.svc.world.items), 4)
+        self.assertEqual(len(self.svc.world.items), 8)
         self.found()
         r2 = self.lost("검정 카드지갑 잃어버렸어요 서면역")
         self.assertNotEqual(r1["claim_id"], r2["claim_id"])

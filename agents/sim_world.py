@@ -67,7 +67,8 @@ COLOR_WORDS = [("검정", "black"), ("검은", "black"), ("까만", "black"), ("
                ("흰", "white"), ("화이트", "white"), ("회색", "gray"), ("그레이", "gray"), ("은색", "silver"),
                ("실버", "silver"), ("빨간", "red"), ("빨강", "red"), ("레드", "red"), ("남색", "navy"),
                ("네이비", "navy"), ("파란", "blue"), ("파랑", "blue"), ("블루", "blue"), ("초록", "green"),
-               ("녹색", "green"), ("노란", "yellow"), ("노랑", "yellow"), ("갈색", "brown"), ("브라운", "brown")]
+               ("녹색", "green"), ("노란", "yellow"), ("노랑", "yellow"), ("갈색", "brown"), ("브라운", "brown"),
+               ("분홍", "pink"), ("핑크", "pink")]
 MATERIAL_WORDS = [("가죽", "leather"), ("플라스틱", "plastic"), ("금속", "metal"), ("메탈", "metal"), ("천", "fabric")]
 STICKER_SHAPES = [("별", "star"), ("하트", "heart"), ("동그라미", "circle"), ("원형", "circle"), ("네모", "square")]
 DEFAULT_SHAPE = {"card_wallet": "rectangular", "usb": "stick", "power_bank": "rectangular", "lip_balm": "cylinder",
@@ -146,6 +147,24 @@ def lost_station(text: str) -> str | None:
     return next((st for st in STATIONS if st in (text or "")), None)
 
 
+# ---------- 보관함 시연 물건(실제 구매 목록 기준, 11/4) ----------
+# (이름, 가상 Qwen 이 '본' 설명). 실물이 오면 색·글자가 바뀔 수 있다 — 바뀌면 이 표만 고친다
+#   카드지갑 3개(신지모루 맥세이프): 구매서에 "색 다르게 3개"만 있어 블랙·브라운·핑크샌드로 임시 설정(11/4 변재원). 블랙은 신고용으로 비움
+#   목업폰(아이폰17 목업): 화이트·블랙·블루 구매 → 블랙은 신고용으로 비움
+#   USB: 샌디스크 울트라 듀얼드라이브 2개(같은 제품) + 액센 SK31 1개(신고용). 샌디스크 색은 은색(추정)
+#   보조배터리(스피디 슬림 듀얼) 2개 중 1개만 보관함, 색 흰색(추정). 핸드크림(부케가르니) 흰색(추정)
+SEED_ITEMS = [
+    ("카드지갑 브라운", "브라운 카드지갑"),
+    ("카드지갑 핑크샌드", "핑크샌드 카드지갑"),
+    ("목업폰 화이트", "화이트 모형폰"),
+    ("목업폰 블루", "블루 모형폰"),
+    ("USB 샌디스크 1", "은색 USB SanDisk"),
+    ("USB 샌디스크 2", "은색 USB SanDisk"),
+    ("보조배터리 스피디", "흰색 보조배터리"),
+    ("핸드크림 부케가르니", "흰색 핸드크림"),
+]
+
+
 # ---------- 가상 세계 ----------
 class SimWorld:
     """가상 시연의 세계 하나(관제탑이 켜져 있는 동안 기억). IntakeStore 와 DB 부품 역할도 같이 한다."""
@@ -182,10 +201,10 @@ class SimWorld:
                 self.faults["calib_fail"] = bool(calib_fail)
 
     def seed(self) -> None:
-        """보관함에 미리 있는 물건 4개(본센터 직접 접수 H-…). 매칭·닮은 물건 검사가 의미 있게 돌도록."""
-        demo = [("카드지갑 빨강", "빨간 카드지갑"), ("카드지갑 남색", "남색 카드지갑"),
-                ("USB 은색 SanDisk", "은색 USB SanDisk"), ("보조배터리 검정 VOVA", "검정 보조배터리 VOVA")]
-        for _, text in demo:
+        """보관함에 미리 있는 물건(본센터 직접 접수 H-…) — 실제 구매 목록(구매요구서_2조_AgentOps_최종, 11/3) 기준 8개.
+        디스코드로 신고해 볼 물건(검정 카드지갑·목업폰 블랙·보조배터리 2번째·액센 USB·립밤)은 일부러 비워 둔다.
+        같은 제품 2개(USB 샌디스크)를 넣어 '닮은 물건 → 직원 확인' 장면이 실제처럼 나오게 한다. 색·글자는 SEED_ITEMS 주석 참고."""
+        for _, text in SEED_ITEMS:
             row = self.create({"machine_id": "CENTER", "place_id": None, "place_text": "본센터 접수(시연)",
                                "finder": None, "photo_path": None})
             q = sim_qwen(text)
@@ -480,5 +499,5 @@ class SimRobot:
         return robot_result(True)
 
 
-__all__ = ["SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
+__all__ = ["SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
            "lost_station", "mm_to_px", "STATIONS", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]
