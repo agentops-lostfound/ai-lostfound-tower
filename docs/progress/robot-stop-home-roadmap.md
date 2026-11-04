@@ -53,3 +53,9 @@ robot/owner_bridge.py는 소유자별 무작위 세션 ID, 정지 세대 번호,
 후보 패치는 새 팔로워 ID 0f876b83-64cd-4bb9-9630-963eaeb3c0b7에서만 기존 /action 명령을 폐기하고 별도 /lf-safety queryable을 사용한다. 새 명령이 없으면 이동하지 않는다. leader·다른 ID의 소유자는 기존 경로를 유지한다. 대상에서는 allow_remote=True를 거부하고 검토한 SO101 클래스와 normalized follower만 허용한다. 실제 Zenoh 전송은 아직 시험하지 않았다. 따라서 기존 Studio Teleoperate·policy와 호환된다고 가정하지 않으며 현재 후보를 site-packages에 복사하지 않는다.
 
 SO101 유지 콜백은 최신 raw 위치를 직접 읽어 raw 목표로 쓰며 토크를 켜지 않는다. 일반 normalized send_action을 유지에 사용하면 범위 밖 현재 자세가 clipping되어 움직일 수 있기 때문이다. 현재 드라이버 connect는 토크/설정 쓰기를 포함하므로 후보의 import·생성과 실제 연결은 구분한다. 준비 도구의 성공은 실제 장비 연결 승인이 아니다. 다음은 컨테이너 내부에서 설치하지 않는 Zenoh 모의 전송 시험, 원본 백업/복원 도구, 제한된 정지 시험용 조작 화면 준비다. 실제 Home 경로는 미구현이다.
+
+## 2026-11-04 실제 Zenoh + 가짜 소유자 통신 시험
+
+사용자가 패치 후보 a4add9deceb34f9ea9289c8843dc8aa9 생성과 소유자 루프 4개 시험 통과를 보고했다. tools/test_robot_owner_zenoh.py를 추가해 후보 manifest/파일 해시 검증 후 후보 OwnerBridge 자체를 별도 패키지 이름으로 로드한다. 검토한 vendor owner 모듈·SDK·실물 드라이버는 import/실행하지 않는다. 별도의 가짜 소유 스레드와 loopback Zenoh peer 두 개가 임시 이름으로 통신한다. 제어 콜백에서 모터 I/O가 발생하지 않는지, 유지 확인 전 재개 차단, 대기 목표 폐기, 오래된 명령 거부, 실행 중 가짜 I/O 완료를 기다리지 않는 정지 접수를 확인한다.
+
+클라우드에서 eclipse-zenoh 1.10.2로 5개 시나리오 통과. 전체 테스트 133개 실행, 2개 건너뜀. stop_rpc_seconds는 loopback 가짜 장비의 요청 왕복 시간이며 실물 로봇 정지 시간이나 최악 지연 보장이 아니다. 사용자 컨테이너의 라이브러리 버전에서 동일 시험이 필요하며 새 패키지 설치·Studio 재시작 없이 임시 폴더에 시험 파일과 후보만 복사한다. 해당 시험은 초기 토크 ON·실물 유지·안전 Home 경로·직원 화면·네트워크 손실 후 처리 검증을 대체하지 않는다.
