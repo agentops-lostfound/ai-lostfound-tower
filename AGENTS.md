@@ -58,3 +58,4 @@ python -m unittest discover -s tests
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 환경 점검: `python tools/check_ai_env.py` (팀 DB 는 실제 접속까지 확인)
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
+- 전체 가상 시연(디스코드 분실물 채널 → 습득·찾기·반환): `.env` TOWER_SIM=1 로 관제탑 → `python tools/lostfound_bot.py` (디스코드 없이 `--try "메시지"`), 화면 `/live` — 안내 docs/design/virtual_demo.md
