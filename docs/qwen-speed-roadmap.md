@@ -29,6 +29,8 @@ worker는 stdin/stdout JSON 프로토콜·응답 timeout·종료 시 stop/termin
 
 ### 첫 Ollama 현장 결과 (2026-11-04)
 
+후속 unload 안내 뒤 사용자 재요청1회: 전체4.36445초, load2.28716초·prompt_eval1.13034초·eval0.86844초, 출력88토큰·첫 시도 성공. 실제 stop/ps 출력은 이번 발췌에 없지만 유의한 load와 입력 계산 시간이 관측돼 이전0.01초 prompt_eval의 완전 동일입력 재사용 사례와 구분한다. 모델 로딩을 뺀 시간 약2.08초는 이 단일 요청의 차감값이지 별도로 측정한 warm 신규 사진 지연은 아니다. OS/파일 캐시·런타임 초기화까지 제거한 완전 cold 증거는 없고 최초27.55초와의 큰 차이의 정확한 원인은 미확정이다. four lenses 설명은 유지되어 의미 정답 검토도 남는다. 3단계는 유망 후보 상태로 유지하고4단계 CPU YOLO 상주 비교를 재개한다.
+
 동일 자동 폰 crop 384 3회: 전체 요청 27.55095/0.93788/0.94881초, 첫 load 6.15334초·prompt_eval 20.43743초·eval 0.87048초. 이후 load 약 0.0035초·prompt_eval 약 0.0105초·eval 약 0.87초. input_tokens=1434, output_tokens=88, 모두 첫 시도 성공. ollama ps는 100% GPU·2.0GB·context4096·llamacpp였다.
 
 동일 입력 캐시가 적용된 반복 요청의 이득이 커 HF 약5.21초 대비 일반 신규 사진이 5배 이상 빨라졌다고 주장하지 않는다. 큰 prompt_eval 비용은 이미지 처리·런타임 입력 경로 등 내부 계측 범위가 달라 순수 텍스트 prefill로 단정하지 않는다. HF448 입력 토큰과 Ollama1434는 내부 이미지 전처리·template 차이로 직접 동등 비교하지 않는다. 출력은 phone·blue·rectangular·plastic이지만 four lenses and a flash로 바뀌어 앞서 이미지의 큰 렌즈3개+작은 원형 요소 해석과 차이가 있다. 의미 정확도·세부 개수 정답 확인이 필요하다.
