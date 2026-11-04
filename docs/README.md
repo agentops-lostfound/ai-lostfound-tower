@@ -14,6 +14,8 @@
 
 - [소유자 패치 적용·복원 및 조작 화면 준비](progress/robot-owner-trial-guide.md): 검증한 기존 후보의 백업·적용·원본 복원과 상태·정지 화면. 실제 연결·Home은 후속 단계.
 
+- [Home 자세 설정과 변경 기능](design/robot-home-settings.md): 사용자 지정 접힌 자세, 로컬 설정·버전·이력, 추후 설정 화면 요구. 복귀 경로 검증은 별도.
+
 - [11/4 관제탑 변경 확인·LF-11/12 작업 브리핑](progress/tower-change-briefing-2026-11-04.md): main PR 반영·로봇 실제 부품·2마커 관문·GPU 인계와 상주 시험 한계.
 
 - [YOLO·Qwen 전체 시간 비교](progress/vision-latency-summary.md): 같은 폰 후속 요청8.10→5.68초, 초기 시작비용과 다른 사진 비교의 한계 구분.
