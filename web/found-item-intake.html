@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#202a35">
+  <title>습득물 등록 | AI 분실물 관제탑</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;color:#202a35;background:#f5f7f6;font-synthesis:none}
+    *{box-sizing:border-box}body{margin:0;padding:28px 16px}.wrap{max-width:980px;margin:auto}
+    .eyebrow{display:flex;align-items:center;gap:10px;color:#008e4a;font-weight:750;letter-spacing:.12em;font-size:13px}
+    .step{width:32px;height:32px;border-radius:50%;background:#00a957;color:#fff;display:grid;place-items:center;letter-spacing:0}
+    h1{font-size:clamp(30px,5vw,48px);line-height:1.16;letter-spacing:-.045em;margin:22px 0 10px}
+    .intro{color:#687580;margin:0 0 24px}
+    .layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(250px,.8fr);gap:22px;align-items:start}
+    form,.preview-card,.success{background:#fff;border:2px solid #202a35;border-radius:22px;padding:22px;box-shadow:0 8px 24px #17232b0b}
+    .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+    .section-head small{display:block;color:#687580;font-weight:700;font-size:12px}
+    h2{font-size:20px;margin:5px 0 0}.required{background:#df4448;color:white;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:800}
+    .field-group{margin:18px 0}.field-group label{display:block;font-weight:750;font-size:14px;margin-bottom:8px}
+    input,select,textarea{width:100%;border:1px solid #d5dfda;border-radius:10px;padding:13px;font:inherit;font-size:14px;color:#202a35;background:#fff;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:#00a957;box-shadow:0 0 0 3px #00a9571c}
+    textarea{min-height:78px;resize:vertical}.hint{font-size:12px;color:#75818a;line-height:1.6;margin:7px 0 0}
+    .upload{min-height:175px;border:2px dashed #a8d9bd;border-radius:14px;background:#f7fbf8;display:grid;place-items:center;text-align:center;overflow:hidden;cursor:pointer}
+    .upload img{max-width:100%;max-height:260px;object-fit:contain}.upload-content{padding:22px}.camera{font-size:34px}
+    .quick{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.quick button,.secondary{background:#fff;border:1px solid #d5dfda;color:#202a35;border-radius:9px;padding:9px 12px;font-weight:700;cursor:pointer}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .consent{display:flex;gap:9px;align-items:flex-start;color:#56616b;font-size:12px;line-height:1.5;margin:20px 0}
+    .consent input{width:auto;margin-top:2px;accent-color:#00a957}
+    .submit{width:100%;border:0;border-radius:11px;background:#00a957;color:#fff;padding:15px;font-size:16px;font-weight:850;cursor:pointer}
+    .preview-card{background:#202a35;color:#fff;border:0;padding:18px;position:sticky;top:18px}
+    .device{height:260px;border-radius:13px;background:#f5f7f6;position:relative;overflow:hidden;display:grid;place-items:center;color:#75818a;text-align:center}
+    .device:before{content:"";position:absolute;left:0;top:0;bottom:0;width:12px;background:#00a957}
+    .device .placeholder{font-size:42px}.device img{max-width:100%;max-height:100%;object-fit:contain}
+    .status{display:block;margin:18px auto 4px;background:#00a957;color:#fff;border-radius:11px;padding:12px;text-align:center;font-weight:850}
+    .preview-card p{text-align:center;font-size:12px;color:#d0d8dc;line-height:1.5}
+    .success{border-color:#00a957;margin-top:18px}.success[hidden]{display:none}
+    .ticket{background:#f1f8f3;border:1px solid #bce3cb;border-radius:13px;padding:16px;text-align:center;margin:15px 0}
+    .ticket strong{display:block;font-size:25px;color:#008e4a;letter-spacing:.04em;margin-top:5px}
+    .actions{display:flex;gap:9px;flex-wrap:wrap}.actions button{flex:1}
+    .notice{font-size:12px;color:#64716a;background:#f2f6f3;border-radius:10px;padding:13px;line-height:1.65;margin-top:14px}
+    @media(max-width:720px){body{padding:18px 12px}.layout{grid-template-columns:1fr}.preview-card{position:static;grid-row:1}form{padding:17px}}
+    @media(max-width:420px){.two{grid-template-columns:1fr}.section-head{align-items:flex-start}}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <div class="eyebrow"><span class="step">1</span> 습득물 등록기계 · 무인</div>
+  <h1>장소만 고르고, 넣으면 끝</h1>
+  <p class="intro">주운 물건의 사진과 발견 장소, 습득자 연락처를 입력해 접수해 주세요.</p>
+
+  <div class="layout">
+    <form id="intake-form">
+      <div class="section-head">
+        <div><small>습득물 등록 · 신규 접수</small><h2>어디에서 주우셨나요?</h2></div>
+        <span class="required">필수 입력</span>
+      </div>
+
+      <div class="field-group">
+        <label for="photo">① 주운 물건 사진 <span class="required">필수</span></label>
+        <label class="upload" for="photo">
+          <span class="upload-content" id="upload-prompt"><span class="camera">📷</span><br><strong>사진 촬영 또는 이미지 업로드</strong><br><span class="hint">휴대전화 카메라로 촬영하거나 파일을 선택하세요.</span></span>
+          <img id="photo-preview" alt="선택한 습득물 사진 미리보기" hidden>
+        </label>
+        <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required hidden>
+        <p class="hint" id="photo-name">사진 파일 1장을 선택해 주세요.</p>
+      </div>
+
+      <div class="field-group">
+        <label for="category">② 물건 종류 <span class="required">필수</span></label>
+        <select id="category" name="category" required>
+          <option value="">물건 종류 선택</option>
+          <option>휴대전화</option><option>지갑</option><option>가방</option><option>의류 및 소지품</option>
+          <option>전자기기</option><option>열쇠</option><option>카드 및 신분증</option><option>우산</option><option>기타</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label for="location">③ 발견 장소 <span class="required">필수</span></label>
+        <input id="location" name="location" maxlength="200" placeholder="예: 2호선 해운대역 남자 화장실 안" required>
+        <div class="quick" aria-label="장소 빠른 입력">
+          <button type="button" data-place="역사 내부">역사 내부</button>
+          <button type="button" data-place="승강장">승강장</button>
+          <button type="button" data-place="화장실">화장실</button>
+          <button type="button" data-place="출입구">출입구</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label for="description">④ 물건 상세 설명</label>
+        <textarea id="description" name="description" maxlength="1000" placeholder="예: 검정색 카드지갑, 은색 장식이 있습니다."></textarea>
+      </div>
+
+      <div class="field-group">
+        <label>⑤ 습득자 연락처 <span class="required">필수</span></label>
+        <div class="two">
+          <div><label for="finder-name">이름</label><input id="finder-name" name="finder_name" maxlength="40" autocomplete="name" placeholder="이름 입력" required></div>
+          <div><label for="finder-phone">전화번호</label><input id="finder-phone" name="finder_phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="010-0000-0000" required></div>
+        </div>
+        <p class="hint">연락처는 분실물 확인 및 반환 관련 안내 목적으로만 사용하도록 운영 환경에서 보호해 주세요.</p>
+      </div>
+
+      <label class="consent"><input id="consent" type="checkbox" required><span>접수 및 분실물 반환 안내를 위한 개인정보 수집·이용 안내를 확인했습니다. 실제 서비스 운영 시에는 수집 항목·보유 기간·처리 주체를 명시한 정식 동의문으로 교체해야 합니다.</span></label>
+      <button class="submit" type="submit">습득물 접수하기 →</button>
+    </form>
+
+    <aside class="preview-card" aria-label="접수 상태 미리보기">
+      <div class="device" id="device-preview">
+        <div id="device-placeholder"><div class="placeholder">📦</div><strong>습득물 등록 안내</strong><br><small>사진을 등록하면 여기에 표시됩니다.</small></div>
+      </div>
+      <span class="status" id="status">접수 대기 중</span>
+      <p>필수 정보를 입력하고 접수하면<br>접수 번호가 자동으로 발급됩니다.</p>
+    </aside>
+  </div>
+
+  <section class="success" id="success" aria-live="polite" hidden>
+    <h2>✅ 습득물 접수가 준비되었습니다.</h2>
+    <div class="ticket"><span class="hint">습득물 접수 번호</span><strong id="receipt-number">#A-0000</strong></div>
+    <div id="receipt-summary"></div>
+    <div class="actions">
+      <button class="secondary" type="button" id="copy-number">접수 번호 복사</button>
+      <button class="submit" type="button" id="download-json">접수 정보 JSON 저장</button>
+    </div>
+    <p class="notice">이 페이지는 프런트엔드 시제품입니다. 접수 번호는 이 브라우저에서 생성되며, 아직 서버·데이터베이스에 저장되거나 담당자에게 전송되지 않습니다. 실제 운영 전에는 인증된 백엔드 API, 사진 저장소, 접근 권한 및 개인정보 보관 정책을 연결해야 합니다. JSON 파일에는 연락처와 사진 데이터가 포함되므로 안전하게 보관해 주세요.</p>
+  </section>
+  <p class="hint" style="text-align:center;margin:20px 0 0">AI LOST &amp; FOUND · 습득물 등록 서비스</p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const form = $('intake-form');
+  let selectedPhotoData = null;
+  let receiptData = null;
+
+  $('photo').addEventListener('change', () => {
+    const file = $('photo').files && $('photo').files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일을 선택해 주세요.');
+      $('photo').value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      selectedPhotoData = reader.result;
+      $('photo-preview').src = selectedPhotoData;
+      $('photo-preview').hidden = false;
+      $('upload-prompt').hidden = true;
+      $('device-placeholder').hidden = true;
+      const img = document.createElement('img');
+      img.src = selectedPhotoData;
+      img.alt = '등록할 습득물';
+      const old = $('device-preview').querySelector('img');
+      if (old) old.remove();
+      $('device-preview').appendChild(img);
+      $('photo-name').textContent = file.name + ' · ' + Math.round(file.size / 1024) + ' KB';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.querySelectorAll('[data-place]').forEach(button => {
+    button.addEventListener('click', () => {
+      const field = $('location');
+      field.value = field.value ? field.value + ' ' + button.dataset.place : button.dataset.place;
+      field.focus();
+    });
+  });
+
+  $('finder-phone').addEventListener('input', event => {
+    let digits = event.target.value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length > 7) digits = digits.slice(0, 3) + '-' + digits.slice(3, 7) + '-' + digits.slice(7);
+    else if (digits.length > 3) digits = digits.slice(0, 3) + '-' + digits.slice(3);
+    event.target.value = digits;
+  });
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    if (!selectedPhotoData) {
+      alert('습득물 사진을 먼저 등록해 주세요.');
+      $('photo').focus();
+      return;
+    }
+    const now = new Date();
+    const datePart = now.toISOString().slice(2, 10).replace(/-/g, '');
+    const randomPart = Math.floor(1000 + Math.random() * 9000);
+    const receiptNumber = 'A-' + datePart + '-' + randomPart;
+    receiptData = {
+      receipt_number: receiptNumber,
+      received_at: now.toISOString(),
+      item: {
+        category: $('category').value,
+        description: $('description').value.trim() || null,
+        photo_file_name: $('photo').files[0].name,
+        photo_data_url: selectedPhotoData
+      },
+      found_location: $('location').value.trim(),
+      finder: {
+        name: $('finder-name').value.trim(),
+        phone: $('finder-phone').value.trim()
+      }
+    };
+    $('receipt-number').textContent = '#' + receiptNumber;
+    const summary = $('receipt-summary');
+    summary.replaceChildren();
+    [
+      ['물건 종류', receiptData.item.category],
+      ['발견 장소', receiptData.found_location],
+      ['습득자', receiptData.finder.name],
+      ['연락처', receiptData.finder.phone]
+    ].forEach(([label, value]) => {
+      const row = document.createElement('p');
+      row.style.cssText = 'display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #edf1ee;padding:7px 0;font-size:14px';
+      const left = document.createElement('span');
+      left.textContent = label;
+      left.style.color = '#718078';
+      const right = document.createElement('strong');
+      right.textContent = value;
+      right.style.textAlign = 'right';
+      row.append(left, right);
+      summary.appendChild(row);
+    });
+    $('status').textContent = '접수 완료 ' + '#' + receiptNumber;
+    $('success').hidden = false;
+    $('success').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  });
+
+  $('copy-number').addEventListener('click', async () => {
+    if (!receiptData) return;
+    try {
+      await navigator.clipboard.writeText(receiptData.receipt_number);
+      $('copy-number').textContent = '복사 완료 ✓';
+    } catch {
+      $('copy-number').textContent = receiptData.receipt_number;
+    }
+  });
+
+  $('download-json').addEventListener('click', () => {
+    if (!receiptData) return;
+    const blob = new Blob([JSON.stringify(receiptData, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = receiptData.receipt_number + '.json';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
+</body>
+</html>
