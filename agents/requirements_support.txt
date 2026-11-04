@@ -1,0 +1,3 @@
+-r requirements.txt
+Pillow>=12.1,<13
+# speech/requirements.txt is optional; STT uses the existing offline small model.

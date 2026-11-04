@@ -31,7 +31,9 @@ def to_policy_features(f: dict) -> dict:
     """관제탑 계약 특징 → 건태님 정책 입력(category·colors·sticker_status)."""
     f = f or {}
     mark = f.get("mark")
-    sticker = "absent" if mark == NONE else ("present" if _known(mark) else "unknown")
+    # A keyring/scratch is a mark but is not evidence of a sticker.
+    sticker = "absent" if mark == NONE else (
+        "present" if _known(mark) and re.search(r"스티커|\bstickers?\b", mark, re.I) else "unknown")
     color = COLOR_EN.get(f.get("color"))
     return {"category": CATEGORY_EN.get(f.get("category"), "unknown"),
             "colors": [color] if color else [], "sticker_status": sticker}
