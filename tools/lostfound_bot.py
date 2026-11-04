@@ -216,8 +216,9 @@ def run_discord() -> None:
         raise SystemExit(".env 에 LOSTFOUND_CHANNEL_ID(분실물 채널 번호)가 없습니다")
     try:
         import discord
-    except ImportError as e:
-        raise SystemExit("discord.py 가 없습니다: pip install -r tools/requirements-bot.txt") from e
+    except ImportError as e:      # 진짜 원인(예: Python 3.13 에서 audioop 없음)을 함께 보여 준다
+        raise SystemExit(f"discord.py 를 불러오지 못했습니다({type(e).__name__}: {e}) — "
+                         "pip install -r tools/requirements-bot.txt (Python 3.13 은 discord.py 2.5 이상)") from e
     import asyncio
 
     live_url = os.environ.get("LIVE_URL", "").strip()
