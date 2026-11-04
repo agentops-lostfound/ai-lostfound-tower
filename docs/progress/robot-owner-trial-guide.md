@@ -101,3 +101,31 @@ py -3.11 .\tools\prepare_robot_owner_trial.py capture-home --trial "$trialFile"
 ```
 
 HOME_CANDIDATE_SAVED, movement_commands_sent=0이면 기존 소유자의 현재 자세 후보와 Windows 파일 경로가 출력된다. home_approved=false, path_verified=false는 아직 목표 자세/복귀 경로를 확정하지 않았다는 정상 표시다. 프로그램은 약 1초간 정지 상태와 관측 자세의 안정성을 확인하고 기록 중 소유자/세대/모드 변화가 있으면 저장을 중단한다. 초기 동작 검증 기준인 관측 변화 0.5 정규화 단위 이하는 기계 안전 범위나 충돌 회피 기준이 아니다. 다음 작업은 후보 자세를 사용자가 원하는 대기 자세와 대조하고, 실제 배치에서 복귀 경로와 Home 중 정지 시험을 별도로 준비하는 것이다.
+
+## 기존 화면에 근거리 Home 버튼 추가 후 연속 시험
+
+사용자 지시대로 접힌 Home 설정과 기존 정지 관문을 이어서 사용한다. 현재 Home에서 맨 아래 좌우 회전 차이 1.0 정규화 단위 이내, 나머지 관절 차이 각 0.2단위 이내일 때만 실험용 복귀를 허용한다. 다른 관절과 집게는 출발 시 측정 위치를 유지한다. 임의 작업 자세에서 접힌 자세로 가는 일반 경로는 여전히 미검증이며 설정의 motion_enabled/path_verified를 승인 상태로 바꾸지 않는다.
+
+기존 소유자 패치를 재설치하지 않는다. 정지 상태에서 패널 서버만 Ctrl+C 후 다음과 같이 갱신한다. Studio 연결·보정·Home 목표는 유지한다.
+
+```powershell
+git pull --ff-only origin pil2ya
+$trialFile = Get-ChildItem ".\outputs\robot-owner-trial\*\trial.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+py -3.11 .\tools\prepare_robot_owner_trial.py panel --trial "$trialFile"
+```
+
+브라우저 http://127.0.0.1:8770 을 새로고침하면 빨간 정지 버튼과 ‘접힌 대기 자세 복귀 · 근거리 시험’ 버튼이 보인다. Home은 빈 집게·고정 베이스·빈 공간을 확인하는 별도 확인창을 거쳐야 한다. 작업은 별도 통신 프로세스에서 실행하고, 정지 전송은 독립된 기존 작업자를 사용한다. 중복 Home은 409로 거부한다. 시작 전 상태 불일치/범위 이탈로 거부된 Home은 다른 진행 작업을 임의 정지시키지 않는다. 통신/실행 오류로 종료 상태가 불명확하면 같은 소유자 세션에 정지를 시도하고 Home 재시작을 막는다.
+
+다음 세 가지를 중간 채팅 확인 없이 순서대로 진행할 수 있다. 오류나 예상 밖 움직임이 있으면 후속 시험을 중단한다.
+
+1. 현재 자세에서 Home 클릭: 이미 목표 범위이면 ‘이미 Home 범위 안에 있습니다 · 이동 없음’이 정상이다.
+2. 다른 터미널에서 기존 move-test를 한 번 실행하고 이번에는 제한된 이동을 끝까지 둔다. 자동 종료 정지 후 Home 클릭: ‘Home 도달 · 유지 명령 완료’가 정상이다.
+3. move-test를 다시 한 번 끝까지 둔 후 Home 클릭. 상단 상태가 ‘이동 허용 상태’가 되면 빨간 정지 클릭: ‘Home 중단 · 자동 재시작 없음’과 실제 팔 자세 유지를 확인한다.
+
+```powershell
+py -3.11 .\tools\prepare_robot_owner_trial.py move-test --trial "$trialFile" --confirm-ready
+```
+
+2·3번의 move-test는 Home에서 조금 떨어지기 위한 것이므로 여기서는 MANUAL_STOP_NOT_OBSERVED + hold_commanded_after_trial=true가 정상이다. Home 도중 정지한 뒤 자동 복귀를 재개하지 않는다. 현재 범위를 벗어나면 강제 Home하지 않고 새 경로 확인을 요구한다. 시험 후 화면의 Home 상세 JSON에서 HOME_REACHED 또는 HOME_STOPPED와 유지 확인을 읽는다. 목표 도달 허용 오차는 정규화 0.2단위이며 기계 안전 범위나 정지 최악 지연 보장이 아니다.
+
+코드 검증: 전체 180개 시험 실행, 2개 건너뜀. 근거리 복귀·중간 정지·이미 도달·범위 밖 거부·확인/세대 오류·카운트다운 취소·통신 실패 시험 통과. HTTP Home 확인/중복 차단·Home 진행 중 별도 정지 응답·시작 전 거부 시 다른 작업 미정지 시험 통과. 실제 Zenoh 1.10.2 + 가짜 소유자 + 화면용 stdin 작업자를 사용해 HOME_REACHED 및 8개 목표 후 HOME_STOPPED를 확인했다. 사용자 실물 Home 결과는 아직 없다.

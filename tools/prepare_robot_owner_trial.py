@@ -180,6 +180,11 @@ def main():
         checked = manager(record, "check")
         if checked.get("result") != "ALREADY_INSTALLED":
             raise RuntimeError("설치 상태 불일치")
+        for name in ("robot_stop_panel.py", "robot_home_return.py", "robot_bounded_stop_trial.py", "test_robot_owner_zenoh.py"):
+            execute("docker", "cp", str(ROOT / "tools" / name),
+                    CONTAINER + ":" + record["container_dir"] + "/" + name)
+        execute("docker", "cp", str(ROOT / "robot/home_profiles.py"),
+                CONTAINER + ":" + record["container_dir"] + "/home_profiles.py")
         subprocess.run([sys.executable, str(ROOT / "tools/robot_stop_panel.py"),
                         "--container-dir", record["container_dir"]], check=True)
         return

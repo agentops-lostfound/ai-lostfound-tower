@@ -5,7 +5,8 @@ import json
 import threading
 import unittest
 
-from tools.robot_stop_panel import make_handler
+from tools.robot_stop_panel import make_handler, HomeController
+from robot.home_profiles import load_home
 
 
 class FakeWorker:
@@ -15,6 +16,18 @@ class FakeWorker:
     def request(self, operation, session=None):
         self.calls.append((operation, session))
         return {"ok": True, "session": "fake-session"}
+
+
+class BlockingHomeWorker:
+    def __init__(self):
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def request(self, operation, session=None, **fields):
+        self.entered.set()
+        if not self.release.wait(3):
+            return {"ok": False, "error": "시험 시간 초과"}
+        return {"ok": True, "home_result": {"result": "HOME_REACHED"}}
 
 
 class StopPanelTests(unittest.TestCase):
@@ -76,3 +89,51 @@ class StopPanelTests(unittest.TestCase):
             status, _ = self.request("POST", "/stop", body, **{"X-LF-Token": "test-token"})
             self.assertEqual(status, 400)
         self.assertEqual(self.stop.calls, [])
+
+    def add_home(self):
+        worker = BlockingHomeWorker()
+        controller = HomeController(worker, self.stop, lambda: load_home(store="/nonexistent-test-home-store"))
+        self.server.RequestHandlerClass = make_handler(self.status, self.stop, "test-token", self.port, controller)
+        self.addCleanup(controller.close)
+        self.addCleanup(worker.release.set)
+        return worker, controller
+
+    def test_stop_remains_responsive_while_home_is_running(self):
+        worker, controller = self.add_home()
+        headers = {"X-LF-Token": "test-token"}
+        status, _ = self.request("POST", "/home", json.dumps({"session": "fake-session", "epoch": 2,
+                                                              "staff_confirmed": True}), **headers)
+        self.assertEqual(status, 202)
+        self.assertTrue(worker.entered.wait(1))
+        status, response = self.request("GET", "/home-status", **headers)
+        self.assertEqual(json.loads(response)["state"], "running")
+        status, _ = self.request("POST", "/stop", '{"session":"fake-session"}', **headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(self.stop.calls, [("stop", "fake-session")])
+        self.assertEqual(controller.status()["state"], "running")
+
+    def test_home_requires_confirmation_and_rejects_duplicate_start(self):
+        worker, controller = self.add_home()
+        headers = {"X-LF-Token": "test-token"}
+        body = {"session": "fake-session", "epoch": 2}
+        status, _ = self.request("POST", "/home", json.dumps(body), **headers)
+        self.assertEqual(status, 400)
+        self.assertFalse(worker.entered.is_set())
+        body["staff_confirmed"] = True
+        status, _ = self.request("POST", "/home", json.dumps(body), **headers)
+        self.assertEqual(status, 202)
+        status, _ = self.request("POST", "/home", json.dumps(body), **headers)
+        self.assertEqual(status, 409)
+
+    def test_home_rejected_before_start_does_not_stop_another_task(self):
+        class RejectedHome:
+            def request(self, *args, **kwargs):
+                return {"ok": False, "not_started": True, "error": "다른 작업이 진행 중입니다"}
+        controller = HomeController(RejectedHome(), self.stop,
+                                    lambda: load_home(store="/nonexistent-test-home-store"))
+        controller.start("fake-session", 2, staff_confirmed=True)
+        controller.thread.join(2)
+        self.assertEqual(controller.status()["state"], "error")
+        self.assertEqual(self.stop.calls, [])
+        with self.assertRaises(RuntimeError):
+            controller.start("fake-session", 2, staff_confirmed=True)
