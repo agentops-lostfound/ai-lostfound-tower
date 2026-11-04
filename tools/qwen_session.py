@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-root', required=True, type=Path)
     parser.add_argument('--profile', action='store_true', help='Time extraction stages with CUDA synchronization')
+    parser.add_argument('--concise', action='store_true', help='Experimental concise values; preserves all eight keys')
     args = parser.parse_args()
     root = args.source_root.resolve()
     for relative in ('qwen/config/settings.py', 'qwen/src/model_loader.py',
@@ -25,6 +26,17 @@ def main():
     from config.settings import Settings
     from src.model_loader import load_model
     from vision.item_features import extract_item_features
+    if args.concise:
+        import vision.item_features as feature_module
+        # Process-local experiment only; no upstream files or schema changed.
+        feature_module.PROMPT += (
+            '\nFor this experiment, keep all eight keys and the same observations, '
+            'but express values as short phrases, not sentences. '
+            'Keep exact legible text, distinguishing colors and sticker location. '
+            'Avoid repeating facts across fields; distinctive_features may be empty '
+            'when it adds no new identifying information. '
+            'Do not drop observed identifying details merely to be shorter. '
+            'Return compact JSON without explanatory prose. Template follows:\n')
     # Exactly the same immutable Settings instance for preload and every request:
     # the upstream lru_cache key includes log_dir and all other settings.
     settings = replace(Settings(), max_edge=512, offline=True,
@@ -71,7 +83,8 @@ def main():
             print(f'Inference failed ({type(exc).__name__}): {exc}', file=sys.stderr)
             return 1
         elapsed = perf_counter() - started
-        result = {'request': request_no, 'request_seconds': round(elapsed, 4), 'features': features}
+        result = {'request': request_no, 'request_seconds': round(elapsed, 4),
+                  'mode': 'concise' if args.concise else 'baseline', 'features': features}
         if profile is not None:
             measured = sum(profile.get(k, 0.0) for k in (
                 'processor_seconds', 'generate_seconds', 'decode_seconds', 'validation_seconds'))
