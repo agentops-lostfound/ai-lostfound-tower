@@ -63,3 +63,12 @@ ArUco 실측 설정이 없으므로 center_world_mm=null은 예상된 상태다.
 ## 2026-11-04 사용자 PC 점검 결과
 
 사용자가 제공한 터미널 로그에서 YOLO 환경(torch 2.9.1+cpu) 의존성 점검과 Qwen 환경(Python 3.11.9, torch 2.9.1+cu128, Transformers 4.57.6, bitsandbytes 0.49.1)의 CUDA kernel 성공을 확인했다. Qwen3-VL-2B-Instruct는 RTX 3050 6GB에서 NF4/float16, 양자화 레이어 300개, model_load_success=true였다. 해당 1회 로딩은 약 5.31초, PyTorch 로딩 peak allocated 약 1.91GiB였다. 이는 이미지 추론 시 peak VRAM이나 전체 프로세스 GPU 사용량이 아니다. 클라우드 직접 실측이 아닌 사용자 실행 로그 확인이며 사진 검출·특징 추론·정확도는 아직 검증 전이다. 다음 단계는 저장 사진의 YOLO 검출이다. 원본 로그·개인 PC 프로세스 목록·모델 파일은 저장소에 추가하지 않았다.
+
+
+## 2026-11-04 첫 물품 사진 시험
+
+사용자 제공 실행 결과: 기본 YOLO26n CPU에서 지갑 사진 검출 0개, ArUco no_markers였다. 설치 실패가 아니라 해당 사진의 미검출이며 기본 COCO 클래스에 wallet은 없다. 마커 부재와 물체 미검출은 별개다.
+
+동일 사진을 YOLO 없이 vision.item_features.extract_item_features에 직접 전달한 Qwen 시험은 성공했다. 원본 1920×1080을 512×288로 처리, JSON 검증 1회 성공. 모델 로딩 약 5.54초, processor/생성/디코드/검증 포함 inference_seconds 약 8.98초, 함수 전체 약 19.65초. 단일 cold 프로세스 사례이며 순수 generate 시간·warm 중앙값이 아니다.
+
+출력은 wallet, dark blue, rectangular, leather, 문자 h, 우하단 text 스티커 present였다. 지갑·직사각형·우하단 흰 표시 관찰과 대체로 부합하나 재질 leather와 실제 스티커 여부는 사진만으로 확인할 수 없다. 인쇄/로고를 스티커로 오인했을 가능성을 검토해야 한다. 색·문자도 조명·흐림 영향을 받으므로 정답 검증 완료가 아니다. 원본 사진·원본 실행 로그는 커밋하지 않는다. 다음 시험은 실제 재질·스티커 정답 확인 및 휴대폰 사진의 YOLO→Qwen 연결 확인이다. 로봇 구동·학습·보정은 수행하지 않았다.
