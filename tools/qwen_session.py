@@ -1,0 +1,71 @@
+"""Keep the existing Qwen model alive for sequential local photo requests.
+
+No server, source modification, robot calls or inference-result cache.
+"""
+import argparse
+import json
+from pathlib import Path
+import sys
+from time import perf_counter
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--source-root', required=True, type=Path)
+    args = parser.parse_args()
+    root = args.source_root.resolve()
+    for relative in ('qwen/config/settings.py', 'qwen/src/model_loader.py',
+                     'vision/item_features.py'):
+        if not (root / relative).is_file():
+            parser.error(f'Missing source: {root / relative}')
+    sys.path.insert(0, str(root))
+    sys.path.insert(0, str(root / 'qwen'))
+    from dataclasses import replace
+    from config.settings import Settings
+    from src.model_loader import load_model
+    from vision.item_features import extract_item_features
+    # Exactly the same immutable Settings instance for preload and every request:
+    # the upstream lru_cache key includes log_dir and all other settings.
+    settings = replace(Settings(), max_edge=512, offline=True,
+                       log_dir=root / 'outputs/qwen-session/logs')
+    started = perf_counter()
+    load_model(settings)
+    print(f'READY: startup {perf_counter() - started:.2f}s. '
+          'Enter a JPG/PNG path; type exit to release the process. '
+          'First inference is not a warmed benchmark.', flush=True)
+    request_no = 0
+    while True:
+        try:
+            text = input('Photo> ').strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if text.lower() in ('exit', 'quit'):
+            break
+        if not text:
+            continue
+        # PowerShell path-copy commonly includes surrounding quotes.
+        photo = Path(text.strip('\"\'')).expanduser()
+        if not photo.is_absolute():
+            photo = root / photo
+        if not photo.is_file():
+            print('File not found; enter the full image path.', flush=True)
+            continue
+        request_no += 1
+        started = perf_counter()
+        try:
+            features = extract_item_features(photo, settings)
+        except KeyboardInterrupt:
+            break
+        except Exception as exc:
+            # Stop after inference errors; do not automatically rerun a damaged
+            # CUDA session or silently change execution settings.
+            print(f'Inference failed ({type(exc).__name__}): {exc}', file=sys.stderr)
+            return 1
+        print(json.dumps({'request': request_no,
+                          'request_seconds': round(perf_counter() - started, 4),
+                          'features': features}, ensure_ascii=False, indent=2), flush=True)
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
