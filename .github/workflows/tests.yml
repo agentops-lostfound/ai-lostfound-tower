@@ -45,7 +45,7 @@ jobs:
       pull-requests: write
       actions: write
     steps:
-      - name: 자동 병합(브랜치는 남김, 11/4)
+      - name: 자동 병합(병합 후 브랜치 삭제)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr merge "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --merge --delete-branch
