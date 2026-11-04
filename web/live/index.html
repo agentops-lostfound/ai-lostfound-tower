@@ -8,7 +8,8 @@
   관제탑 실시간 화면 (LF-17·LF-29, 11/4) — docs/design/virtual_demo.md
   한줄 설명: 관제탑이 디스코드 관제 채널로 보내는 진행을 같은 순서로 보여 주고, 가상 시연(TOWER_SIM=1)이면
             보관함 탑뷰 그림 위에서 물건 배치와 로봇팔 움직임까지 보여 준다. /live/state 를 0.4초마다 읽는다.
-  외부 파일·글꼴을 쓰지 않는다(교육원 PC 인터넷이 끊겨도 열림).
+  외부 파일·글꼴을 쓰지 않는다(교육원 PC 인터넷이 끊겨도 열림). 로봇팔 모양은 관제탑이 주는 /live/so101_shape.js
+  (SO-ARM100 공식 모델에서 tools/so101_shape.py 로 뽑은 부품 점)를 관절 각도로 돌려 그린다.
 -->
 <style>
 :root{
@@ -16,12 +17,14 @@
   --accent:#2f6fec; --accent-soft:#e6efff; --ok:#1f9d61; --ok-soft:#e3f6ec; --bad:#d64545; --bad-soft:#fdeaea;
   --warn:#c98a00; --warn-soft:#fff5d9; --team:#7a4bd6; --team-soft:#f1eaff;
   --bench:#fbfaf6; --bin:#f1efe7; --binline:#cfc8b4; --arm:#3a4660; --arm2:#5f6f94;
+  --part:#ffffff; --part-line:#5d6676; --motor:#23262d; --motor-line:#0d0f12; --cam:#3d4450; --floor:#e9e5d8;
 }
 @media (prefers-color-scheme: dark){
   :root{--bg:#11151d; --panel:#181e29; --ink:#e7ecf5; --sub:#9aa6ba; --line:#2a3242; --soft:#1f2735;
     --accent:#6f9bff; --accent-soft:#1f2c47; --ok:#43c487; --ok-soft:#183427; --bad:#ff7070; --bad-soft:#3a1d1d;
     --warn:#f0b93a; --warn-soft:#3a2f12; --team:#b394ff; --team-soft:#2a2142;
-    --bench:#1c2230; --bin:#232b3b; --binline:#46506a; --arm:#c9d3e6; --arm2:#8d9ab5; color-scheme:dark}
+    --bench:#1c2230; --bin:#232b3b; --binline:#46506a; --arm:#c9d3e6; --arm2:#8d9ab5;
+    --part:#e9edf3; --part-line:#7d879a; --motor:#0b0d11; --motor-line:#5a6272; --cam:#4d5566; --floor:#2a3242; color-scheme:dark}
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Pretendard","Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
@@ -92,10 +95,16 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .hint{color:var(--sub);font-size:12px;margin-top:4px}
 .s-bench{fill:var(--bench);stroke:var(--line)} .s-bin{fill:var(--bin);stroke:var(--binline);stroke-width:2}
 .s-slot{fill:none;stroke:var(--binline);stroke-dasharray:4 4} .s-sub{fill:var(--sub)} .s-acc{fill:var(--accent)}
-.s-basket{fill:none;stroke:var(--accent);stroke-width:2.5} .s-arm{fill:var(--arm)}
-.s-l1{stroke:var(--arm);stroke-width:16;stroke-linecap:round} .s-l2{stroke:var(--arm2);stroke-width:12;stroke-linecap:round}
-.s-ring{fill:none;stroke:var(--arm);stroke-width:4}
-.s-jaw{fill:var(--arm)} .s-shadow{fill:var(--arm);opacity:.12}
+.s-basket{fill:none;stroke:var(--accent);stroke-width:2.5}
+.s-shadow{fill:var(--arm);opacity:.13} .s-edge{fill:none;stroke:var(--sub);stroke-dasharray:6 5;opacity:.7}
+.s-reach{fill:none;stroke:var(--warn);stroke-width:1.5;stroke-dasharray:3 6}
+/* SO-101 부품: 흰색 3D 프린트 부품 · 검정 STS3215 모터 · 손목 카메라 */
+.p-part{fill:var(--part);stroke:var(--part-line);stroke-width:1;stroke-linejoin:round}
+.p-motor{fill:var(--motor);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
+.p-camera{fill:var(--cam);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
+.side-wrap{border:1px solid var(--line);border-radius:10px;background:var(--bench);margin-bottom:10px;overflow:hidden}
+.side-cap{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--sub);padding:5px 9px 0}
+.s-floor{fill:var(--floor)} .s-grid{stroke:var(--line);stroke-width:1} .s-tick{fill:var(--sub);font-size:11px}
 /* 경보 띠 */
 .banner{margin:12px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));padding:10px 14px;border-radius:10px;
   background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad);font-weight:600;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -110,7 +119,8 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .joint .nm b{font-weight:600} .joint .nm code{color:var(--sub);font-size:11px}
 .joint .bar{height:6px;border-radius:4px;background:var(--soft);position:relative;margin-top:3px;overflow:hidden}
 .joint .bar i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:4px}
-.joint .bar.mid::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--sub);opacity:.5}
+.joint .bar.mid::after{content:"";position:absolute;left:var(--z,50%);top:-2px;bottom:-2px;width:1px;background:var(--sub);opacity:.5}
+.joint .bar.near i{background:var(--warn)}
 .joint .val{text-align:right;font-family:ui-monospace,Consolas,monospace;font-size:12px}
 .robot-note{color:var(--sub);font-size:11.5px;margin-top:8px;line-height:1.5}
 .story .time{margin-left:auto;color:var(--sub);font-size:11.5px;font-family:ui-monospace,Consolas,monospace}
@@ -152,7 +162,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       <h2>본센터 작업대 (탑뷰, mm)</h2>
       <div class="phase" id="phase">대기</div>
       <svg id="bench" viewBox="-20 -20 680 455" role="img" aria-label="보관함과 로봇팔 탑뷰"></svg>
-      <div class="legend"><span>■ 표식(ArUco) 2개 — 보정 기준</span><span>점선 칸 = 보관함 12칸</span><span>회색 팔 = SO-101 팔로워(위에서 본 모습) · 옅은 원 = 집게 높이(클수록 높음)</span></div>
+      <div class="legend"><span>■ 표식(ArUco) 2개 — 보정 기준</span><span>점선 칸 = 보관함 12칸</span><span>흰 부품·검정 모터 = SO-101 팔로워(공식 모델 모양, 위에서 본 모습) · 옅은 원 = 집게 높이</span><span id="scaleNote"></span></div>
       <div class="places" id="places"></div>
     </div>
   </section>
@@ -161,6 +171,8 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     <div class="card" id="robotCard" hidden>
       <h2>로봇팔 SO-101 · 팔로워(흰색)</h2>
       <div class="robot-meta" id="robotMeta"></div>
+      <div class="side-wrap"><div class="side-cap"><span>옆모습(팔 평면) · 실제 크기 눈금 mm</span><span id="sideTip"></span></div>
+        <svg id="side" viewBox="-190 -330 610 350" role="img" aria-label="SO-101 팔로워 옆모습"></svg></div>
       <div class="joints" id="joints"></div>
       <div class="robot-note" id="robotNote"></div>
     </div>
@@ -171,6 +183,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
   </section>
 </main>
 
+<script src="/live/so101_shape.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -179,9 +192,10 @@ svg{display:block;width:100%;height:auto;max-width:100%}
                   "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
   const CAT = {"지갑":"지갑","USB":"USB","립밤":"립밤","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리"};
   const LOC = {kiosk:"등록기계", transit:"이동 중", bin:"보관함", gripper:"그리퍼", basket:"바구니", handed:"인계 완료", staff:"직원 보관"};
-  let seq = 0, world = null, shown = {x: 240, y: 345, z: 150, g: 30}, target = {x: 240, y: 345, z: 150, g: 30}, failCount = 0, pendingId = null;
+  let seq = 0, world = null, shown = {z: 100}, target = {z: 100}, failCount = 0, pendingId = null;
+  const JN = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"];
+  let shownJ = null, targetJ = null;     // 관절 각도(도, 집게는 %) — 화면에서 부드럽게 따라감
   let lastAlert = null;   // 최근 경보(20초 동안 위쪽 띠로 보여 줌)
-  const L1 = 230, L2 = 230;
   const NS = "http://www.w3.org/2000/svg";
 
   // ---------- 작업대 그림 ----------
@@ -200,11 +214,11 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     });
     s += `<rect x="${bx-55}" y="${by-45}" width="110" height="90" rx="14" class="s-basket"/>`;
     s += `<text x="${bx}" y="${by+62}" text-anchor="middle" font-size="12" class="s-acc">바구니(인계)</text>`;
-    s += `<g id="items"></g>`;
-    s += `<circle cx="${rx}" cy="${ry}" r="24" class="s-arm" opacity=".9"/>`;
-    s += `<g id="arm"><line id="a1" class="s-l1"/><line id="a2" class="s-l2"/>`;
-    s += `<circle id="elb" r="9" class="s-arm"/><g id="grip"><circle id="shadow" r="20" class="s-shadow"/><rect id="jawL" x="-14" y="-4" width="5" height="18" rx="2" class="s-jaw"/><rect id="jawR" x="9" y="-4" width="5" height="18" rx="2" class="s-jaw"/><circle r="5" class="s-arm"/></g><g id="held"></g></g>`;
+    s += `<line x1="-20" y1="${H}" x2="${W+20}" y2="${H}" class="s-edge"/>`;
+    s += `<text x="${W}" y="${H+16}" text-anchor="end" font-size="11" class="s-sub">작업대 앞 가장자리 · 로봇 받침은 가장자리에 고정</text>`;
+    s += `<g id="reach"></g><g id="items"></g><circle id="shadow" r="20" class="s-shadow"/><g id="held"></g><g id="armTop" opacity=".92"></g>`;
     svg.innerHTML = s;
+    svg.setAttribute("viewBox", `-20 -20 ${W + 40} ${H + 135}`);   // 받침·뒤로 젖힌 위팔이 앞 가장자리 밖으로 나옴
   }
 
   function itemShape(it, x, y) {
@@ -244,29 +258,89 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     }).join("");
   }
 
-  function placeArm(x, y, z, g) {
-    if (!world) return;
-    const [rx, ry] = world.bench.base_mm;
-    let dx = x - rx, dy = y - ry, d = Math.hypot(dx, dy);
-    const max = L1 + L2 - 1; if (d > max) { dx *= max / d; dy *= max / d; d = max; }
-    const a = Math.atan2(dy, dx), k = Math.acos(Math.min(1, (L1*L1 + d*d - L2*L2) / (2*L1*d)));
-    // 팔꿈치 두 방향 중 위쪽(작업대 안쪽)으로 꺾이는 쪽을 쓴다(아래로 꺾이면 그림 밖으로 나감)
-    const e1 = [rx + L1 * Math.cos(a + k), ry + L1 * Math.sin(a + k)], e2 = [rx + L1 * Math.cos(a - k), ry + L1 * Math.sin(a - k)];
-    const [ex, ey] = e1[1] <= e2[1] ? e1 : e2;
-    const set = (el, o) => Object.entries(o).forEach(([k2, v]) => el.setAttribute(k2, v));
-    set($("a1"), {x1: rx, y1: ry, x2: ex, y2: ey});
-    set($("a2"), {x1: ex, y1: ey, x2: x, y2: y});
-    set($("elb"), {cx: ex, cy: ey});
-    $("grip").setAttribute("transform", `translate(${x},${y})`);
-    const gap = 3 + g * 0.16;                                   // 집게 열림 %, 화면에서 두 집게 사이 간격
-    $("jawL").setAttribute("x", -gap - 5); $("jawR").setAttribute("x", gap);
-    $("shadow").setAttribute("r", 10 + Math.max(0, z) / 7);    // 집게가 높을수록 옅은 원이 큼
-    $("held").setAttribute("transform", `translate(${x},${y}) scale(.7)`);
+  // ---------- SO-101 실제 형상(공식 MuJoCo 모델 so101_new_calib_camera) ----------
+  // 부품마다 겉모양 점(mm, 몸체 좌표)을 관절 각도로 돌려(정방향 기구학) 위·옆에서 본 볼록 껍질로 그린다.
+  // 모델 좌표: 앞 = +X, 왼쪽 = +Y, 위 = +Z. 관절 0° = 위팔 거의 수직 · 아래팔·손목 수평('ㄱ' 자세)
+  const SHAPE = window.SO101_SHAPE || null;
+  const D2R = Math.PI / 180;
+  const qmat = ([w, x, y, z]) => { const n = Math.hypot(w, x, y, z); w /= n; x /= n; y /= n; z /= n;
+    return [1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y), 2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x), 2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y)]; };
+  const mm3 = (A, B) => { const C = new Array(9);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) C[r*3+c] = A[r*3]*B[c] + A[r*3+1]*B[3+c] + A[r*3+2]*B[6+c]; return C; };
+  const mv3 = (A, v) => [A[0]*v[0]+A[1]*v[1]+A[2]*v[2], A[3]*v[0]+A[4]*v[1]+A[5]*v[2], A[6]*v[0]+A[7]*v[1]+A[8]*v[2]];
+  const rz = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, -s, 0, s, c, 0, 0, 0, 1]; };
+  const QB = SHAPE ? SHAPE.bodies.map(b => qmat(b.quat)) : [];
+
+  function fk(qdeg) {                         // 관절(도) → 몸체마다 [회전, 위치mm]
+    const out = [];
+    SHAPE.bodies.forEach((b, i) => {
+      const [R0, p0] = b.parent < 0 ? [[1,0,0,0,1,0,0,0,1], [0,0,0]] : out[b.parent];
+      let R = mm3(R0, QB[i]); const d = mv3(R0, b.pos), p = [p0[0]+d[0], p0[1]+d[1], p0[2]+d[2]];
+      if (b.joint) R = mm3(R, rz((qdeg[b.joint] || 0) * D2R));
+      out.push([R, p]);
+    });
+    return out;
+  }
+  function hull(P) {                          // 2차원 볼록 껍질(단조 사슬)
+    P = P.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+    const lo = [], up = [];
+    for (const p of P) { while (lo.length > 1 && cr(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let k = P.length - 1; k >= 0; k--) { const p = P[k]; while (up.length > 1 && cr(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  // proj(점) → [그림 x, 그림 y, 깊이(클수록 앞에 그림)]
+  function drawArm(gEl, tf, proj) {
+    const polys = SHAPE.geoms.map(g => {
+      const [R, p] = tf[g.body]; let depth = 0;
+      const pts = g.pts.map(v => { const w = mv3(R, v); const q = proj([w[0]+p[0], w[1]+p[1], w[2]+p[2]]); depth += q[2]; return [q[0], q[1]]; });
+      const h = hull(pts);
+      return {k: g.kind, depth: depth / pts.length, d: "M" + h.map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z"};
+    }).sort((a, b) => a.depth - b.depth);
+    gEl.innerHTML = polys.map(o => `<path class="p-${o.k}" d="${o.d}"/>`).join("");
+  }
+  function tipOf(tf) { const [R, p] = tf[SHAPE.tip.body], w = mv3(R, SHAPE.tip.pos); return [w[0]+p[0], w[1]+p[1], w[2]+p[2]]; }
+
+  function qFrom(j) {                         // 서버 관절 값 → 모델 관절(도). 집게 %는 각도 범위로
+    const [g0, g1] = (world && world.robot && world.robot.grip_deg) || [-10, 100];
+    return {...j, gripper: g0 + (j.gripper ?? 30) / 100 * (g1 - g0)};
+  }
+
+  function placeArm() {
+    if (!world || !SHAPE || !shownJ) return;
+    const r = world.robot || {}, S = r.scale || 1, PX = r.pan_x || 38.84, [bx, by] = world.bench.base_mm;
+    const q = qFrom(shownJ);
+    // 탑뷰: 작업대 mm(오른쪽 +x, 아래 +y). 모델 앞(+X) = 보관함 쪽(-y), 모델 왼쪽(+Y) = 작업대 왼쪽(-x). 높을수록 위에 그림
+    const tf = fk(q);
+    const top = (P) => [bx - S * P[1], by - S * (P[0] - PX), P[2]];
+    drawArm($("armTop"), tf, top);
+    const t = top(tipOf(tf));
+    $("shadow").setAttribute("cx", t[0]); $("shadow").setAttribute("cy", t[1]);
+    $("shadow").setAttribute("r", 10 + Math.max(0, shown.z) / 7);    // 집게가 높을수록 옅은 원이 큼
+    $("held").setAttribute("transform", `translate(${t[0]},${t[1]}) scale(.7)`);
+    // 옆모습: 좌우 회전을 0으로 둔 팔 평면, 실제 크기(mm). 보는 사람 쪽(-Y)이 앞
+    const tf0 = fk({...q, shoulder_pan: 0});
+    const side = (P) => [P[0] - PX, -P[2], -P[1]];
+    drawArm($("sideArm"), tf0, side);
+    const ts = side(tipOf(tf0));
+    $("sideTip").textContent = `집게 끝 앞 ${Math.round(ts[0])} · 높이 ${Math.round(-ts[1])} mm`;
+  }
+
+  function drawSide() {                       // 옆모습 바닥·눈금(한 번만)
+    let s = `<rect x="-190" y="0" width="610" height="20" class="s-floor"/>`;
+    for (let z = 100; z <= 300; z += 100) s += `<line x1="-190" y1="${-z}" x2="420" y2="${-z}" class="s-grid"/><text x="-184" y="${-z - 3}" class="s-tick">${z}</text>`;
+    for (let x = -100; x <= 400; x += 100) s += `<text x="${x}" y="15" text-anchor="middle" class="s-tick">${x}</text>`;
+    s += `<line x1="0" y1="0" x2="0" y2="-330" class="s-grid" stroke-dasharray="4 4"/><g id="sideArm"></g>`;
+    $("side").innerHTML = s;
   }
 
   function tick() {          // 화면에서 팔이 부드럽게 따라가게(관제탑은 0.2초 간격으로 위치를 바꿈)
-    for (const k of ["x", "y", "z", "g"]) shown[k] += (target[k] - shown[k]) * 0.22;
-    placeArm(shown.x, shown.y, shown.z, shown.g);
+    if (targetJ) {
+      if (!shownJ) shownJ = {...targetJ};
+      for (const k of JN) shownJ[k] += ((targetJ[k] ?? 0) - (shownJ[k] ?? 0)) * 0.22;
+    }
+    shown.z += (target.z - shown.z) * 0.22;
+    placeArm();
     requestAnimationFrame(tick);
   }
 
@@ -276,21 +350,30 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     if (!r) return;
     $("robotCard").hidden = false;
     const held = a.holding ? `들고 있음 ${a.holding}` : "빈 집게";
-    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, `집게 높이 ${Math.round(a.z)}mm`, held]
+    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, `집게 높이 ${Math.round(a.z)}mm(작업대)`, held]
       .map(t => `<span class="chip">${esc(t)}</span>`).join("");
     $("joints").innerHTML = r.joints.map(j => {
       const v = (a.joints || {})[j.name] ?? 0;
       let bar;
-      if (j.name === "gripper") bar = `<div class="bar"><i style="left:0;width:${Math.max(0, Math.min(100, v))}%"></i></div>`;
-      else {                                                    // -180~180° → 가운데 0 기준 막대
-        const p = Math.max(-180, Math.min(180, v)) / 180 * 50;
-        bar = `<div class="bar mid"><i style="left:${p < 0 ? 50 + p : 50}%;width:${Math.abs(p)}%"></i></div>`;
+      const [lo, hi] = j.range || (j.name === "gripper" ? [0, 100] : [-180, 180]);   // 실제 관절 한계(공식 모델)
+      const pos = (x) => (Math.max(lo, Math.min(hi, x)) - lo) / (hi - lo) * 100;
+      if (j.name === "gripper") bar = `<div class="bar"><i style="left:0;width:${pos(v)}%"></i></div>`;
+      else {                                                    // 0° 위치에서 현재 각도까지 칠함
+        const z0 = pos(0), p = pos(v);
+        bar = `<div class="bar mid" style="--z:${z0}%"><i style="left:${Math.min(z0, p)}%;width:${Math.abs(p - z0)}%"></i></div>`;
       }
+      const near = j.range && j.name !== "gripper" && (v < lo + 5 || v > hi - 5);  // 한계 5° 안
+      bar = bar.replace('class="bar', `title="한계 ${lo}~${hi}${j.unit}" class="bar${near ? " near" : ""}`);
       return `<div class="joint"><span class="id">${j.id}</span><div class="nm"><b>${esc(j.label)}</b> <code>${esc(j.name)}</code>${bar}</div>`+
              `<span class="val">${v.toFixed(1)}${esc(j.unit)}</span></div>`;
     }).join("");
     $("robotNote").innerHTML = `${esc(r.role)}<br>${esc(r.leader)}<br>카메라: ${r.cameras.map(esc).join(" · ")}<br>` +
-      `모터 6개 = 움직이는 축 5개 + 집게 1개 · 각도는 가상 계산(추정), 진짜 값은 로봇 부품이 보정값으로 읽음`;
+      `모터 6개 = 움직이는 축 5개 + 집게 1개 · 막대 = 공식 모델의 관절 한계 안 위치 · 각도는 가상 계산(추정), 진짜 값은 로봇 부품이 보정값으로 읽음` +
+      (r.shape ? `<br>모양: ${esc(r.shape)}` : "");
+    const reach = r.real_reach_mm, [bx, by] = w.bench.base_mm;
+    $("scaleNote").textContent = r.scale && r.scale !== 1 ? `팔 그림·계산 ${r.scale}배(가상 작업대에 맞춤)` +
+      (reach ? ` · 주황 점선 = 실제 크기 팔이 바닥까지 닿는 거리 약 ${Math.round(reach)}mm(추정)` : "") : "";
+    $("reach").innerHTML = reach && r.scale !== 1 ? `<circle cx="${bx}" cy="${by}" r="${reach}" class="s-reach"/>` : "";
   }
 
   function renderBanner(w) {
@@ -341,9 +424,10 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       $("mode").textContent = d.sim ? "가상 시연" : "진짜 부품";
       $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim;
       if (d.world) {
-        if (!world) drawBench(d.world.bench);
+        if (!world) { drawBench(d.world.bench); drawSide(); }
         world = d.world;
-        target = {x: world.arm.x, y: world.arm.y, z: world.arm.z ?? 150, g: world.arm.gripper ?? 30};
+        target = {z: world.arm.z ?? 100};
+        if (world.arm.joints) targetJ = world.arm.joints;
         renderRobot(world);
         renderItems();
         const ph = $("phase");
