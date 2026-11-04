@@ -10,6 +10,10 @@ ls-remote로 확인한 현존 브랜치5개: main413d05b, LF-3-yolo-aruco fc38e5
 
 ## 2/5 로컬 Studio 읽기 조사 — 현재 단계
 
+사용자 제공 스크립트 본문 확인: test_new_pair_teleop.py는 websocket 초기 follower/leader 연결→hold 확인→teleop15초→finally hold 확인→disconnect→별도 POST /api/runtime/sessions/rt-<follower>/stop 순서다. 연결/teleop 자체가 실제 구동이므로 진단용으로 재실행하지 않는다. hold가 실제 제어 루프/드라이버에서 무엇을 하는지는 backend source 검토 전 미확정이다.
+
+home_new_follower.py는 Home 복귀 함수가 아니다. 토크OFF 확인 후 Operating_Mode를 쓰고 set_half_turn_homings()로 보정 offset을 저장하는 초기 중앙 자세 보정 스크립트다. 현재 최종 보정값을 덮어쓸 수 있으므로 robot_home 구현에 재사용/실행하지 않는다. /tmp sentinel 파일은 컨테이너 재생성 후 없을 수 있어 재실행 방지의 영구 보장이 아니다. 실제 정상 Home 동작은 저장된 안전 관절 자세/경로를 별도로 정의해야 한다. 다음은 컨테이너 backend runtime/robot 파일 위치와 설치된 LeRobot follower driver source 위치를 읽기 조회한다. 원본 로컬 스크립트/보정 JSON은 Git에 복사하지 않았다.
+
 사용자 조회 확인(2026-11-04): physical-ai-studio-cuda가 Up3hours/healthy, WorkingDir=/app/application/backend, LeRobot0.6.0. Windows soarm-setup에 test_new_pair_teleop.py·home_new_follower.py·home_new_leader.py·보정/유지 점검 JSON·도구가 존재한다. 파일명만으로 Home 이동 구현이나 전원 재인가 검증 성공을 판단하지 않는다. 다음은 test_new_pair_teleop.py와 home_new_follower.py의 텍스트만 읽어 API·hold/disconnect·목표각 쓰기·캘리브레이션 여부를 확인하는 것이다. 이 단계에서 파일 실행·로봇 연결·모터 명령을 수행하지 않는다.
 
 확인 대상은 기존 soarm-setup 도구 파일명, Docker 컨테이너 실행 상태·작업 경로·LeRobot 버전, 이후 관련 runtime·드라이버 소스다. .env·비밀값·DB·USB 연결·토크·세션·목표각은 변경하지 않는다. 임의 docker start/restart·USB attach·보정 스크립트 실행도 하지 않는다. 이 클라우드 localhost는 사용자 PC와 다르므로 사용자가 VS Code PowerShell에서 읽기 명령을 실행한다.
