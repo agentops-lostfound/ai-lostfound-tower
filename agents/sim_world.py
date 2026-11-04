@@ -165,6 +165,32 @@ SEED_ITEMS = [
 ]
 
 
+# ---------- SO-101 로봇팔 관절(11/4, docs/progress/soarm-local-handoff.md 와 같은 번호) ----------
+# 리더(검정)·팔로워(흰색) 모두 STS3215 모터 6개 = 움직이는 축 5개 + 그리퍼 1개. 리더는 그리퍼 대신 손잡이(트리거)
+# 학습: 리더로 팔로워를 움직이며 에피소드 녹화(관절 값 + 카메라 영상) → 정책 학습(SmolVLA, ACT 비교) → 시연 때는 팔로워만 정책으로 움직임
+SO101_JOINTS = [("shoulder_pan", "좌우 회전"), ("shoulder_lift", "앞뒤 숙임"), ("elbow_flex", "두 긴 팔 접힘"),
+                ("wrist_flex", "끝부분 위아래"), ("wrist_roll", "끝부분 회전"), ("gripper", "집게 열림")]
+HOME_Z, HOME_GRIP = 150.0, 30.0        # 원점 자세: 집게 높이(mm) · 집게 열림(%)
+HOVER_Z, PICK_Z, DROP_Z = 90.0, 15.0, 60.0
+_L1, _L2, _SHOULDER_H, _TOOL = 230.0, 230.0, 110.0, 100.0   # 가상 팔 길이(mm, 화면 그림과 같음 — 실제 SO-101 치수 아님)
+
+
+def so101_joints(x: float, y: float, z: float, gripper: float, roll: float = 0.0) -> dict:
+    """집게 끝 위치(작업대 mm, 높이 z)·열림 → 관절 6개 각도(도, 그리퍼는 %). 화면 표시용 가상 계산(추정)이다.
+    진짜 각도는 로봇 부품이 보정값(homing·min·max)으로 읽는다."""
+    import math
+    dx, dy = x - ROBOT_BASE_MM[0], ROBOT_BASE_MM[1] - y
+    pan = math.degrees(math.atan2(dx, dy))                     # 0 = 보관함 쪽 정면, + = 오른쪽
+    px, pz = math.hypot(dx, dy), z + _TOOL - _SHOULDER_H        # 손목 위치(집게가 아래를 보게)
+    d = min(max(math.hypot(px, pz), 1.0), _L1 + _L2 - 1.0)
+    inner = math.acos(max(-1.0, min(1.0, (_L1 ** 2 + _L2 ** 2 - d ** 2) / (2 * _L1 * _L2))))
+    elbow = 180.0 - math.degrees(inner)                         # 0 = 쭉 폄
+    lift = math.degrees(math.atan2(pz, px) + math.acos(max(-1.0, min(1.0, (_L1 ** 2 + d ** 2 - _L2 ** 2) / (2 * _L1 * d)))))
+    wrist = -90.0 - (lift - elbow)                              # 집게가 바닥을 보게
+    return {"shoulder_pan": round(pan, 1), "shoulder_lift": round(lift, 1), "elbow_flex": round(elbow, 1),
+            "wrist_flex": round(wrist, 1), "wrist_roll": round(roll, 1), "gripper": round(max(0.0, min(100.0, gripper)), 1)}
+
+
 # ---------- 가상 세계 ----------
 class SimWorld:
     """가상 시연의 세계 하나(관제탑이 켜져 있는 동안 기억). IntakeStore 와 DB 부품 역할도 같이 한다."""
@@ -177,8 +203,9 @@ class SimWorld:
         self.contacts: dict[str, dict] = {}       # 저장 여부 확인용(밖으로 나가지 않음)
         self._places = [{"place_id": i + 1, "machine_id": m, "label": label, "use_count": 0}
                         for i, (m, label) in enumerate((m, l) for m, ls in DEMO_PLACES.items() for l in ls)]
-        self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "phase": "대기", "holding": None, "stopped": False,
-                    "target": None}
+        self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "z": HOME_Z, "gripper": HOME_GRIP, "phase": "대기",
+                    "holding": None, "stopped": False, "target": None, "joints": so101_joints(*HOME_MM, HOME_Z, HOME_GRIP)}
+        self.homing: threading.Thread | None = None    # 바구니에 내려놓은 뒤 원점으로 돌아가는 중(뒤에서)
         self.faults = {"grasp_fail": 0, "calib_fail": False}
         self.version = 0
         if seed:
@@ -337,7 +364,12 @@ class SimWorld:
                     "bench": {"size_mm": list(BENCH_MM), "bin_mm": list(BIN_MM), "basket_mm": list(BASKET_MM),
                               "home_mm": list(HOME_MM), "base_mm": list(ROBOT_BASE_MM),
                               "markers_mm": [list(m) for m in MARKERS_MM], "slots_mm": [list(s) for s in SLOTS_MM]},
-                    "faults": dict(self.faults)}
+                    "faults": dict(self.faults),
+                    "robot": {"model": "SO-101", "role": "팔로워(흰색) — 학습된 정책(SmolVLA)이 움직임",
+                              "leader": "리더(검정) — 텔레오퍼레이션으로 학습 에피소드 녹화용(시연 때는 쓰지 않음)",
+                              "joints": [{"id": i + 1, "name": n, "label": l, "unit": "%" if n == "gripper" else "°"}
+                                         for i, (n, l) in enumerate(SO101_JOINTS)],
+                              "cameras": ["탑뷰 카메라(보관함 위, 위치 찾기)", "손목 카메라(팔로워, 집기 때 VLA 입력)"]}}
 
 
 # ---------- 가상 탑뷰 카메라 ----------
@@ -390,27 +422,41 @@ class SimTopview:
 
 # ---------- 가상 로봇팔 ----------
 class SimRobot:
-    """작업대 mm 좌표로 움직이는 가상 로봇팔. 움직이는 동안 세계의 팔 위치를 조금씩 바꿔 화면에서 움직임이 보인다.
-    정지 버튼(robot_stop)은 다른 스레드에서 와도 움직임 중간에 바로 멈춘다(진짜 로봇의 즉시 정지 흉내)."""
+    """작업대 mm 좌표로 움직이는 가상 SO-101 팔로워. 움직이는 동안 세계의 팔 위치·높이·관절 6개를 조금씩 바꿔 화면에서 보인다.
+    정지 버튼(robot_stop)은 다른 스레드에서 와도 움직임 중간에 바로 멈춘다(진짜 로봇의 즉시 정지 흉내).
+    바구니에 내려놓으면 결과(성공)를 먼저 돌려주고, 원점 복귀는 뒤에서 한다(화면의 '바구니 전달' 단계가 늦게 켜지지 않게)."""
 
     STEPS = 12
 
     def __init__(self, world: SimWorld):
         self.world = world
 
-    def _move(self, x: float, y: float, seconds: float, phase: str) -> bool:
+    def _pose(self, **kw) -> None:
+        arm = self.world.arm
+        arm.update(kw)
+        arm["joints"] = so101_joints(arm["x"], arm["y"], arm["z"], arm["gripper"])
+        self.world._touch()
+
+    def _move(self, x=None, y=None, z=None, grip=None, seconds: float = 1.0, phase: str | None = None) -> bool:
         w, arm = self.world, self.world.arm
-        arm["phase"] = phase
-        sx, sy = arm["x"], arm["y"]
+        if phase:
+            arm["phase"] = phase
+        start = {k: arm[k] for k in ("x", "y", "z", "gripper")}
+        goal = {"x": start["x"] if x is None else float(x), "y": start["y"] if y is None else float(y),
+                "z": start["z"] if z is None else float(z), "gripper": start["gripper"] if grip is None else float(grip)}
         for i in range(1, self.STEPS + 1):
             if arm["stopped"]:
                 return False
             t = i / self.STEPS
             t = t * t * (3 - 2 * t)                      # 부드럽게 출발·도착
-            arm["x"], arm["y"] = round(sx + (x - sx) * t, 1), round(sy + (y - sy) * t, 1)
-            w._touch()
+            self._pose(**{k: round(start[k] + (goal[k] - start[k]) * t, 1) for k in goal})
             w.sleep(seconds / self.STEPS)
         return not arm["stopped"]
+
+    def _wait_homing(self) -> None:
+        t = self.world.homing
+        if t is not None and t.is_alive() and t is not threading.current_thread():
+            t.join()
 
     def _blocked(self) -> dict | None:
         if self.world.arm["stopped"]:
@@ -418,42 +464,42 @@ class SimRobot:
         return None
 
     def robot_approach(self, center_mm, center_px) -> dict:
+        self._wait_homing()
         if (b := self._blocked()):
             return b
         x, y = float(center_mm[0]), float(center_mm[1])
         if not (BIN_MM[0] - 20 <= x <= BIN_MM[2] + 20 and BIN_MM[1] - 20 <= y <= BIN_MM[3] + 20):
             return robot_result(False, f"작업대 밖 좌표({x:.0f}, {y:.0f})mm")
         self.world.arm["target"] = self.world.item_at(x, y)
-        if not self._move(x, y, 2.2, "사전 접근"):
+        if not self._move(x, y, HOVER_Z, 70, 2.2, "사전 접근(물건 위)"):
             return robot_result(False, STAFF_STOP_REASON)
-        self.world.arm["phase"] = "접근 완료"
-        self.world._touch()
+        self._pose(phase="접근 완료 · 집게 열림")
         return robot_result(True)
 
     def robot_grasp(self) -> dict:
         if (b := self._blocked()):
             return b
         w, arm = self.world, self.world.arm
-        arm["phase"] = "집는 중(VLA)"
-        w._touch()
-        w.sleep(1.6)
-        if arm["stopped"]:
+        if not self._move(z=PICK_Z, seconds=0.8, phase="집는 중(VLA) · 내려감"):
+            return robot_result(False, STAFF_STOP_REASON)
+        if not self._move(grip=8, seconds=0.5, phase="집는 중(VLA) · 집게 닫음"):
             return robot_result(False, STAFF_STOP_REASON)
         with w._lock:
+            fail = None
             if w.faults["grasp_fail"] > 0:
                 w.faults["grasp_fail"] -= 1
-                arm["phase"] = "집기 실패"
-                w._touch()
-                return robot_result(False, "가상: 물건이 미끄러짐")
+                fail = "가상: 물건이 미끄러짐"
             target = arm.get("target")
-            if not target or w.items.get(target, {}).get("loc") != LOC_BIN:
-                arm["phase"] = "집기 실패"
-                w._touch()
-                return robot_result(False, "그 자리에 물건이 없음")
-            w.move(target, LOC_GRIPPER)
-            arm["holding"] = target
-            arm["phase"] = "들어 올림"
-            w._touch()
+            if not fail and (not target or w.items.get(target, {}).get("loc") != LOC_BIN):
+                fail = "그 자리에 물건이 없음"
+            if not fail:
+                w.move(target, LOC_GRIPPER)
+                arm["holding"] = target
+        if fail:                                          # 빈 집게를 다시 열고 들어 올림
+            self._move(z=HOVER_Z, grip=70, seconds=0.6, phase="집기 실패")
+            return robot_result(False, fail)
+        if not self._move(z=HOVER_Z, seconds=0.6, phase="들어 올림"):
+            return robot_result(False, STAFF_STOP_REASON)
         return robot_result(True)
 
     def robot_verify_grasp(self) -> dict:
@@ -464,40 +510,46 @@ class SimRobot:
         if (b := self._blocked()):
             return b
         w, arm = self.world, self.world.arm
-        if not self._move(BASKET_MM[0], BASKET_MM[1], 2.4, "바구니로 이동"):
+        if not self._move(BASKET_MM[0], BASKET_MM[1], HOVER_Z, None, 2.4, "바구니로 이동"):
+            return robot_result(False, STAFF_STOP_REASON)
+        if not self._move(z=DROP_Z, seconds=0.4, phase="바구니 위로 내림"):
+            return robot_result(False, STAFF_STOP_REASON)
+        if not self._move(grip=70, seconds=0.4, phase="집게 열어 내려놓음"):
             return robot_result(False, STAFF_STOP_REASON)
         with w._lock:
             held = arm.get("holding")
             if held:
                 w.move(held, LOC_BASKET)
             arm["holding"], arm["target"] = None, None
-            arm["phase"] = "바구니에 내려놓음"
-            w._touch()
-        w.sleep(0.6)
-        self._move(HOME_MM[0], HOME_MM[1], 1.6, "원점으로")
-        arm["phase"] = "대기"
-        w._touch()
+        self._pose(phase="바구니에 내려놓음")
+
+        def go_home():
+            w.sleep(0.4)
+            if self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점으로"):
+                self._pose(phase="대기")
+        w.homing = threading.Thread(target=go_home, daemon=True)
+        w.homing.start()
         return robot_result(True)
 
     def robot_stop(self) -> dict:
         self.world.arm["stopped"] = True
-        self.world.arm["phase"] = "정지"
-        self.world._touch()
+        self._pose(phase="정지")
         return robot_result(True)
 
     def robot_home(self) -> dict:
         w, arm = self.world, self.world.arm
+        self._wait_homing()
         arm["stopped"] = False
         held = arm.get("holding")
         if held:                                    # 들고 있던 물건은 직원이 받아 따로 보관(가상)
             w.move(held, LOC_STAFF)
             arm["holding"] = None
         arm["target"] = None
-        self._move(HOME_MM[0], HOME_MM[1], 1.8, "원점 복귀")
-        arm["phase"] = "대기"
-        w._touch()
+        self._move(z=HOVER_Z + 40, grip=HOME_GRIP, seconds=0.6, phase="원점 복귀 · 들어 올림")
+        self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점 복귀")
+        self._pose(phase="대기")
         return robot_result(True)
 
 
-__all__ = ["SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
+__all__ = ["SO101_JOINTS", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
            "lost_station", "mm_to_px", "STATIONS", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]

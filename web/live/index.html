@@ -95,6 +95,25 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .s-basket{fill:none;stroke:var(--accent);stroke-width:2.5} .s-arm{fill:var(--arm)}
 .s-l1{stroke:var(--arm);stroke-width:16;stroke-linecap:round} .s-l2{stroke:var(--arm2);stroke-width:12;stroke-linecap:round}
 .s-ring{fill:none;stroke:var(--arm);stroke-width:4}
+.s-jaw{fill:var(--arm)} .s-shadow{fill:var(--arm);opacity:.12}
+/* 경보 띠 */
+.banner{margin:12px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));padding:10px 14px;border-radius:10px;
+  background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad);font-weight:600;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner small{color:var(--sub);font-weight:400}
+[hidden]{display:none!important}   /* display 를 지정한 요소도 hidden 이면 숨김(경보 띠가 빈 채로 보이던 문제) */
+/* 로봇팔 관절 */
+.robot-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.joints{display:grid;gap:7px}
+.joint{display:grid;grid-template-columns:22px minmax(0,1fr) 62px;gap:8px;align-items:center;font-size:12.5px}
+.joint .id{width:22px;height:22px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-weight:700;font-size:11.5px}
+.joint .nm{min-width:0}
+.joint .nm b{font-weight:600} .joint .nm code{color:var(--sub);font-size:11px}
+.joint .bar{height:6px;border-radius:4px;background:var(--soft);position:relative;margin-top:3px;overflow:hidden}
+.joint .bar i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:4px}
+.joint .bar.mid::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--sub);opacity:.5}
+.joint .val{text-align:right;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.robot-note{color:var(--sub);font-size:11.5px;margin-top:8px;line-height:1.5}
+.story .time{margin-left:auto;color:var(--sub);font-size:11.5px;font-family:ui-monospace,Consolas,monospace}
 </style>
 </head>
 <body>
@@ -108,6 +127,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
   <button id="btnHome" title="로봇 주변을 확인한 뒤에만">원점 복귀</button>
   <button id="btnReset" hidden>가상 세계 초기화</button>
 </header>
+<div class="banner" id="banner" hidden></div>
 <main>
   <section class="col col-left">
     <div class="card">
@@ -132,12 +152,18 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       <h2>본센터 작업대 (탑뷰, mm)</h2>
       <div class="phase" id="phase">대기</div>
       <svg id="bench" viewBox="-20 -20 680 455" role="img" aria-label="보관함과 로봇팔 탑뷰"></svg>
-      <div class="legend"><span>■ 표식(ArUco) 2개 — 보정 기준</span><span>점선 칸 = 보관함 12칸</span><span>회색 팔 = 로봇팔(위에서 본 모습)</span></div>
+      <div class="legend"><span>■ 표식(ArUco) 2개 — 보정 기준</span><span>점선 칸 = 보관함 12칸</span><span>회색 팔 = SO-101 팔로워(위에서 본 모습) · 옅은 원 = 집게 높이(클수록 높음)</span></div>
       <div class="places" id="places"></div>
     </div>
   </section>
 
   <section class="col col-right">
+    <div class="card" id="robotCard" hidden>
+      <h2>로봇팔 SO-101 · 팔로워(흰색)</h2>
+      <div class="robot-meta" id="robotMeta"></div>
+      <div class="joints" id="joints"></div>
+      <div class="robot-note" id="robotNote"></div>
+    </div>
     <div class="card">
       <h2>관제 메시지 (디스코드 관제 채널과 같은 내용)</h2>
       <ul class="log" id="log"></ul>
@@ -150,10 +176,11 @@ svg{display:block;width:100%;height:auto;max-width:100%}
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const COLORS = {"검정":"#2b2b2b","흰색":"#f7f7f7","회색":"#a2a8b1","빨강":"#e05252","파랑":"#3d7be0","남색":"#2e3f73",
-                  "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c"};
+                  "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
   const CAT = {"지갑":"지갑","USB":"USB","립밤":"립밤","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리"};
   const LOC = {kiosk:"등록기계", transit:"이동 중", bin:"보관함", gripper:"그리퍼", basket:"바구니", handed:"인계 완료", staff:"직원 보관"};
-  let seq = 0, world = null, shown = {x: 240, y: 345}, target = {x: 240, y: 345}, failCount = 0, pendingId = null;
+  let seq = 0, world = null, shown = {x: 240, y: 345, z: 150, g: 30}, target = {x: 240, y: 345, z: 150, g: 30}, failCount = 0, pendingId = null;
+  let lastAlert = null;   // 최근 경보(20초 동안 위쪽 띠로 보여 줌)
   const L1 = 230, L2 = 230;
   const NS = "http://www.w3.org/2000/svg";
 
@@ -176,16 +203,17 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     s += `<g id="items"></g>`;
     s += `<circle cx="${rx}" cy="${ry}" r="24" class="s-arm" opacity=".9"/>`;
     s += `<g id="arm"><line id="a1" class="s-l1"/><line id="a2" class="s-l2"/>`;
-    s += `<circle id="elb" r="9" class="s-arm"/><g id="grip"><circle r="15" class="s-ring"/><circle r="4" class="s-arm"/></g><g id="held"></g></g>`;
+    s += `<circle id="elb" r="9" class="s-arm"/><g id="grip"><circle id="shadow" r="20" class="s-shadow"/><rect id="jawL" x="-14" y="-4" width="5" height="18" rx="2" class="s-jaw"/><rect id="jawR" x="9" y="-4" width="5" height="18" rx="2" class="s-jaw"/><circle r="5" class="s-arm"/></g><g id="held"></g></g>`;
     svg.innerHTML = s;
   }
 
   function itemShape(it, x, y) {
     const c = COLORS[it.color] || "#b9b4ff";
+    const tip = `<title>${esc(it.item_id)} · ${esc(it.category || "")} · ${esc(it.color || "")} · ${esc(it.status)}</title>`;
     const light = ["흰색","노랑"].includes(it.color);
     const label = CAT[it.category] || "?";
     const short = it.item_id.slice(-4);
-    return `<g transform="translate(${x},${y})"><rect x="-38" y="-24" width="76" height="48" rx="8" fill="${c}" stroke="rgba(0,0,0,.25)"/>`+
+    return `<g transform="translate(${x},${y})">${tip}<rect x="-38" y="-24" width="76" height="48" rx="8" fill="${c}" stroke="rgba(0,0,0,.25)"/>`+
       `<text y="-4" text-anchor="middle" font-size="13" font-weight="700" fill="${light?"#222":"#fff"}">${esc(label)}</text>`+
       `<text y="13" text-anchor="middle" font-size="10.5" fill="${light?"#333":"#eee"}">${esc(it.item_id.slice(0,1))}…${esc(short)}</text></g>`;
   }
@@ -216,7 +244,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     }).join("");
   }
 
-  function placeArm(x, y) {
+  function placeArm(x, y, z, g) {
     if (!world) return;
     const [rx, ry] = world.bench.base_mm;
     let dx = x - rx, dy = y - ry, d = Math.hypot(dx, dy);
@@ -230,13 +258,48 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     set($("a2"), {x1: ex, y1: ey, x2: x, y2: y});
     set($("elb"), {cx: ex, cy: ey});
     $("grip").setAttribute("transform", `translate(${x},${y})`);
+    const gap = 3 + g * 0.16;                                   // 집게 열림 %, 화면에서 두 집게 사이 간격
+    $("jawL").setAttribute("x", -gap - 5); $("jawR").setAttribute("x", gap);
+    $("shadow").setAttribute("r", 10 + Math.max(0, z) / 7);    // 집게가 높을수록 옅은 원이 큼
     $("held").setAttribute("transform", `translate(${x},${y}) scale(.7)`);
   }
 
   function tick() {          // 화면에서 팔이 부드럽게 따라가게(관제탑은 0.2초 간격으로 위치를 바꿈)
-    shown.x += (target.x - shown.x) * 0.22; shown.y += (target.y - shown.y) * 0.22;
-    placeArm(shown.x, shown.y);
+    for (const k of ["x", "y", "z", "g"]) shown[k] += (target[k] - shown[k]) * 0.22;
+    placeArm(shown.x, shown.y, shown.z, shown.g);
     requestAnimationFrame(tick);
+  }
+
+  // ---------- 로봇팔 관절 ----------
+  function renderRobot(w) {
+    const r = w.robot, a = w.arm;
+    if (!r) return;
+    $("robotCard").hidden = false;
+    const held = a.holding ? `들고 있음 ${a.holding}` : "빈 집게";
+    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, `집게 높이 ${Math.round(a.z)}mm`, held]
+      .map(t => `<span class="chip">${esc(t)}</span>`).join("");
+    $("joints").innerHTML = r.joints.map(j => {
+      const v = (a.joints || {})[j.name] ?? 0;
+      let bar;
+      if (j.name === "gripper") bar = `<div class="bar"><i style="left:0;width:${Math.max(0, Math.min(100, v))}%"></i></div>`;
+      else {                                                    // -180~180° → 가운데 0 기준 막대
+        const p = Math.max(-180, Math.min(180, v)) / 180 * 50;
+        bar = `<div class="bar mid"><i style="left:${p < 0 ? 50 + p : 50}%;width:${Math.abs(p)}%"></i></div>`;
+      }
+      return `<div class="joint"><span class="id">${j.id}</span><div class="nm"><b>${esc(j.label)}</b> <code>${esc(j.name)}</code>${bar}</div>`+
+             `<span class="val">${v.toFixed(1)}${esc(j.unit)}</span></div>`;
+    }).join("");
+    $("robotNote").innerHTML = `${esc(r.role)}<br>${esc(r.leader)}<br>카메라: ${r.cameras.map(esc).join(" · ")}<br>` +
+      `모터 6개 = 움직이는 축 5개 + 집게 1개 · 각도는 가상 계산(추정), 진짜 값은 로봇 부품이 보정값으로 읽음`;
+  }
+
+  function renderBanner(w) {
+    const b = $("banner");
+    if (w && w.arm.stopped) {
+      b.hidden = false; b.innerHTML = `🛑 로봇 정지 <small>주변을 확인한 뒤 위쪽 '원점 복귀' 버튼(두 번 눌러 확인)</small>`;
+    } else if (lastAlert && Date.now() / 1000 - lastAlert.t < 20) {
+      b.hidden = false; b.innerHTML = `⚠️ ${esc(lastAlert.title)} <small>${esc(lastAlert.body || "")}</small>`;
+    } else b.hidden = true;
   }
 
   // ---------- 이야기 ----------
@@ -246,7 +309,8 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       const ids = Object.entries(st.ids || {}).map(([k, v]) => `${{item_id:"물건",claim_id:"찾기",case_id:"사례"}[k]||k} ${v}`).join(" · ");
       const steps = st.stages.map(s => `<li class="${s.state}"><span class="m"></span><span>${esc(s.label)}${s.detail ? `<small>${esc(s.detail)}</small>` : ""}</span></li>`).join("");
       const res = st.result ? `<div class="result ${st.result.ok ? "ok" : "fail"}">${st.result.ok ? "✅" : "⚠️"} ${esc(st.result.text)}</div>` : "";
-      return `<div class="story"><div class="top"><span class="kind ${st.kind}">${st.kind === "found" ? "습득" : "분실"} ${esc(st.story_id)}</span><span class="title">${esc(st.title)}</span></div>`+
+      const secs = Math.round(((st.result ? st.result.t : Date.now() / 1000) - st.started));
+      return `<div class="story"><div class="top"><span class="kind ${st.kind}">${st.kind === "found" ? "습득" : "분실"} ${esc(st.story_id)}</span><span class="title">${esc(st.title)}</span><span class="time">${secs}초</span></div>`+
              `<div class="ids">${esc(ids)}</div><ol class="steps">${steps}</ol>${res}</div>`;
     }).join("");
   }
@@ -255,6 +319,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     const log = $("log");
     for (const e of evs) {
       if (e.channel === "stage") continue;
+      if (e.channel === "alert") lastAlert = e;
       const li = document.createElement("li");
       li.className = e.channel;
       const dt = new Date(e.t * 1000), p2 = n => String(n).padStart(2, "0");
@@ -278,7 +343,8 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       if (d.world) {
         if (!world) drawBench(d.world.bench);
         world = d.world;
-        target = {x: world.arm.x, y: world.arm.y};
+        target = {x: world.arm.x, y: world.arm.y, z: world.arm.z ?? 150, g: world.arm.gripper ?? 30};
+        renderRobot(world);
         renderItems();
         const ph = $("phase");
         ph.textContent = world.arm.stopped ? "🛑 정지 — 확인 후 원점 복귀" : world.arm.phase;
@@ -288,6 +354,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
         $("armChip").textContent = "진짜 부품(/health)";
       }
       addEvents(d.events || []);
+      renderBanner(d.world);
       renderStories(d.stories);
       seq = d.seq;
     } catch (e) {
