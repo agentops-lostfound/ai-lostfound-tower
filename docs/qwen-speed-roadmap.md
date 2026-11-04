@@ -19,6 +19,12 @@
 
 ## 현재: 3/4 추론 엔진 검토 — 공식 호환 확인·로컬 설치 상태 확인 전
 
+사용자 로컬 확인: Ollama 0.40.13, 최초 ps 빈 목록, 기존 mistral:latest는 보존. 다운로드한 qwen3-vl:2b-instruct는 qwen3vl 1.7B+clip projector 406.96M, Q4_K_M, vision 가능, artifact requires 0.30.0이다. 실제 show 요구값을 우선하며 설치 버전은 이를 만족한다. 기존 NF4와 양자화/배포 구성이 다르다.
+
+tools/ollama_vision_trial.py는 loopback /api/chat만 호출하고 기존 소스의 이미지 전처리·PROMPT·템플릿·validate_response·출력 상한/재시도를 사용한다. 동일 자동 crop·384, 3회 자동 요청, temperature=0·top_k=1·top_p=1·num_ctx=4096·keep_alive=5m. format/json schema 유도 옵션은 추가하지 않아 프롬프트만으로 기존 형식을 요구한다. Ollama 내부 renderer/processor와 반복 입력의 prompt cache는 HF와 달라 완전 동등 토큰/시간으로 해석하지 않는다. 첫 로딩과 이후 요청을 구분하고 load/prompt_eval/eval 시간·토큰·done_reason·특징을 확인한다. ps로 실제 GPU 배치를 확인해야 하며 VRAM 부족에 따른 CPU 분산도 가능하다. 같은 사진 반복의 이득은 캐시 영향이 포함될 수 있어 다른 사진 순서도 후속 비교한다.
+
+사용자 실행 전 HF 상주 도구를 exit로 종료한다. 모델 설치만으로 실행 검증 완료라 부르지 않는다. 출력은 source-root/outputs/ollama-trial/<id>/summary.json, 실패 원문은 로컬에만 보존한다. 사진·로그·가중치는 커밋하지 않는다. 클라우드에서 Windows GPU/Ollama 실측은 하지 않았다. 테스트 종료 후 ollama ps로 장치 확인, ollama stop qwen3-vl:2b-instruct로 로드 해제 가능하며 모델 파일은 삭제되지 않는다.
+
 2026-11-04 공식 자료 확인: https://ollama.com/library/qwen3-vl:2b-instruct 에 2B Instruct 모델과 Ollama 0.12.7 요구 안내가 있다. https://docs.ollama.com/windows 는 네이티브 Windows·NVIDIA 지원, https://docs.ollama.com/gpu 는 RTX 3050 지원 목록을 제공한다. 사용자 보고 드라이버 610.88은 확인한 Windows 최소 요구 551.61보다 높다. 실제 메모리 배치·버전·추론 성능 검증은 남아 있다.
 
 우선 Ollama의 기존 설치 버전·보유 모델·로드 상태를 조회한다. 기존 HF NF4 환경은 보존하고 다른 GPU 모델을 동시에 로드하지 않는다. Ollama 후보는 동일 Qwen3-VL 2B Instruct 계열이나 가중치 변환·양자화·processor·template이 달라 엔진 하나만 바꾸는 엄밀한 실험이 아니며 기존 NF4 캐시를 그대로 쓰는 것도 아니다. 모델 정보·실제 GPU 배치·입력/출력 토큰과 원래 8키 검증·정확도를 기록한 뒤 비교한다. 새 엔진이 더 빠르다고 미리 주장하지 않는다. 다음 사용자 행동은 ollama --version / ollama list / ollama ps의 출력 확인이며 설치 유무 확인 전 기존 설정을 변경하지 않는다.
