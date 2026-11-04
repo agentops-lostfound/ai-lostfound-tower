@@ -58,3 +58,8 @@ ArUco 실측 설정이 없으므로 center_world_mm=null은 예상된 상태다.
 ## 검증 상태와 다음 확인
 
 이 문서·스크립트는 소스 검토에 기반한 준비본이다. 클라우드에서 Windows PowerShell 실행·CUDA 설치·모델 추론을 검증하지 않았다. 사용자 PC에서 설치/점검 → 사진 검출 → Qwen 분석 순서로 통과 여부를 확인한 뒤 준비 완료로 기록한다. 오류 공유 시 비밀값·개인정보·원본 사진이 로그에 포함되지 않게 주의한다. 모델·캐시·결과·venv는 커밋하지 않는다.
+
+
+## 2026-11-04 사용자 PC 점검 결과
+
+사용자가 제공한 터미널 로그에서 YOLO 환경(torch 2.9.1+cpu) 의존성 점검과 Qwen 환경(Python 3.11.9, torch 2.9.1+cu128, Transformers 4.57.6, bitsandbytes 0.49.1)의 CUDA kernel 성공을 확인했다. Qwen3-VL-2B-Instruct는 RTX 3050 6GB에서 NF4/float16, 양자화 레이어 300개, model_load_success=true였다. 해당 1회 로딩은 약 5.31초, PyTorch 로딩 peak allocated 약 1.91GiB였다. 이는 이미지 추론 시 peak VRAM이나 전체 프로세스 GPU 사용량이 아니다. 클라우드 직접 실측이 아닌 사용자 실행 로그 확인이며 사진 검출·특징 추론·정확도는 아직 검증 전이다. 다음 단계는 저장 사진의 YOLO 검출이다. 원본 로그·개인 PC 프로세스 목록·모델 파일은 저장소에 추가하지 않았다.
