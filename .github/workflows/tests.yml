@@ -48,7 +48,7 @@ jobs:
       - name: 자동 병합(브랜치는 남김, 11/4)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr merge "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --merge
+        run: gh pr merge "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --merge --delete-branch
       # GITHUB_TOKEN 으로 한 병합은 다른 작업(병합 알림)을 깨우지 않는다 → 알림 작업을 직접 실행(이건 허용됨)
       - name: 병합 알림 실행 요청
         env:
