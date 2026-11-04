@@ -98,6 +98,26 @@ def extract_korean(text):
             'evidence':evidence,'warnings':warnings,'needs_clarification':bool(warnings)}
 
 
+def detail_translation_phrases(extracted):
+    """Remove a category-only lead-in before translating a detail phrase.
+
+    The original evidence and structured attributes remain unchanged.  Only
+    split when the lead-in names a category and contains no detail itself.
+    """
+    phrases = []
+    for evidence in extracted['evidence']['free_phrases']:
+        phrase = evidence['text'].strip()
+        match = re.match(r'^(.+?(?:인데|이고))\s*(.+)$', phrase)
+        if match:
+            lead, detail = match.groups()
+            has_category = any(re.search(pattern, lead, re.I) for _, pattern in CATEGORIES)
+            if has_category and not re.search(DETAIL, lead) and re.search(DETAIL, detail):
+                phrase = detail.strip()
+        if phrase:
+            phrases.append(phrase)
+    return phrases
+
+
 class KoreanFirstParser:
     def __init__(self,offline=False,threads=2,translator=None):
         self.translator=translator or OpusQueryParser(offline=offline,threads=threads)
@@ -110,7 +130,7 @@ class KoreanFirstParser:
         emit('input',{'original_text':text})
         extracted=extract_korean(text)
         emit('korean_extraction',extracted)
-        phrases=[s['text'].strip() for s in extracted['evidence']['free_phrases']]
+        phrases=detail_translation_phrases(extracted)
         translation=''
         tokens=0
         translation_seconds=0.0
