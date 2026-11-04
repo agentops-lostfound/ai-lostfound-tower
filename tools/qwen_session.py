@@ -14,11 +14,15 @@ def main():
     parser.add_argument('--source-root', required=True, type=Path)
     parser.add_argument('--profile', action='store_true', help='Time extraction stages with CUDA synchronization')
     parser.add_argument('--concise', action='store_true', help='Experimental concise values; preserves all eight keys')
+    parser.add_argument('--compact', action='store_true',
+                        help='Experimental 8-position array, validated and converted to original JSON')
     parser.add_argument('--max-edge', type=int, default=512,
                         help='Maximum image edge; baseline 512, experimental 384')
     args = parser.parse_args()
     if args.max_edge < 32:
         parser.error('--max-edge must be at least 32')
+    if args.compact and args.concise:
+        parser.error('Choose --compact or --concise, not both')
     root = args.source_root.resolve()
     for relative in ('qwen/config/settings.py', 'qwen/src/model_loader.py',
                      'vision/item_features.py'):
@@ -30,6 +34,10 @@ def main():
     from config.settings import Settings
     from src.model_loader import load_model
     from vision.item_features import extract_item_features
+    if args.compact:
+        import vision.item_features as feature_module
+        from qwen_compact import install
+        install(feature_module)
     if args.concise:
         import vision.item_features as feature_module
         # Process-local experiment only; no upstream files or schema changed.
@@ -88,7 +96,7 @@ def main():
             return 1
         elapsed = perf_counter() - started
         result = {'request': request_no, 'request_seconds': round(elapsed, 4),
-                  'mode': 'concise' if args.concise else 'baseline',
+                  'mode': 'compact' if args.compact else ('concise' if args.concise else 'baseline'),
                   'max_edge': args.max_edge, 'features': features}
         if profile is not None:
             measured = sum(profile.get(k, 0.0) for k in (

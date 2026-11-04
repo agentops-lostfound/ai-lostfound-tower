@@ -2,6 +2,8 @@
 
 설계 문서, 회의 기록, 시연 시나리오
 
+- [Qwen 속도 개선 4단계](qwen-speed-roadmap.md): 현재 1/4 압축 출력 비교 준비, 단계·상태·다음 행동 표시.
+
 - [Qwen 상주 세션 시험](qwen-session-trial.md): 동일 모델·설정 재사용으로 요청별 로딩 비용 분리. Windows GPU 실측 전.
 
 - [Windows YOLO·Qwen 사진 테스트 준비](setup-vision-trial-windows.md): 별도 clone·venv·모델 준비와 실제 실행 명령. Windows 현장 검증 전.
