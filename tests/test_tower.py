@@ -426,6 +426,7 @@ class ReviewerTest(unittest.TestCase):
             body = json.loads(req.data.decode("utf-8"))
             self.assertEqual(body["format"], "json")
             self.assertIs(body["think"], False)   # 생각 모드 기본 끔
+            self.sent = body
             return Res(json.dumps({"message": {"content": content}}).encode("utf-8"))
         return mock.patch("urllib.request.urlopen", urlopen)
 
@@ -445,6 +446,20 @@ class ReviewerTest(unittest.TestCase):
             self.assertEqual(OllamaReviewer()({})[0], "hold")
         with self.fake('{"verdict": "approve"}'):   # 정해진 값 아님
             self.assertEqual(OllamaReviewer()({})[0], "hold")
+
+    def test_cpu_option(self):
+        """11/4: MAIN_AI_DEVICE=cpu 면 Ollama 에 num_gpu=0 (GPU 안 씀). 기본은 GPU."""
+        import os
+        from unittest import mock
+        from agents.llm_reviewer import OllamaReviewer
+        with self.fake('{"verdict": "ok", "note": "-"}'):
+            with mock.patch.dict(os.environ, {"MAIN_AI_DEVICE": "cpu"}), mock.patch("tools.envfile.load_env", lambda *a, **k: None):
+                OllamaReviewer()({"case": "x"})
+        self.assertEqual(self.sent["options"].get("num_gpu"), 0)
+        with self.fake('{"verdict": "ok", "note": "-"}'):
+            with mock.patch.dict(os.environ, {"MAIN_AI_DEVICE": ""}), mock.patch("tools.envfile.load_env", lambda *a, **k: None):
+                OllamaReviewer()({"case": "x"})
+        self.assertNotIn("num_gpu", self.sent["options"])
 
     def test_reviewer_in_flow(self):
         from agents.llm_reviewer import OllamaReviewer

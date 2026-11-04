@@ -107,3 +107,38 @@ class FilePartTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CapturedAtTest(unittest.TestCase):
+    """11/4: 결과에 촬영 시각(captured_at)이 있으면 그 값으로 나이를 센다(없으면 파일 저장 시각)."""
+
+    def test_parse(self):
+        from agents.vision_adapter import captured_age
+        now = 1_793_760_000.0      # 2026-11-04 (UTC 기준 아무 시각)
+        from datetime import datetime, timezone
+        iso = datetime.fromtimestamp(now - 90, timezone.utc).isoformat()
+        self.assertAlmostEqual(captured_age(iso, now), 90, delta=0.01)
+        self.assertAlmostEqual(captured_age(iso.replace("+00:00", "Z"), now), 90, delta=0.01)
+        for bad in (None, "", "어제", "2026-11-04T10:00:00", 123):
+            self.assertIsNone(captured_age(bad, now), bad)
+        future = datetime.fromtimestamp(now + 60, timezone.utc).isoformat()
+        self.assertIsNone(captured_age(future, now))
+
+    def test_part_uses_captured_at(self):
+        import json
+        import tempfile
+        from datetime import datetime, timedelta, timezone
+        from pathlib import Path
+        from agents.vision_adapter import SequenceFileVisionPart
+        from tools import mock_scene as ms
+        with tempfile.TemporaryDirectory() as tmp:
+            path = ms.write_report(tmp)
+            report = json.loads(Path(path).read_text(encoding="utf-8"))
+            report["captured_at"] = (datetime.now(timezone.utc) - timedelta(seconds=400)).isoformat()
+            Path(path).write_text(json.dumps(report), encoding="utf-8")       # 파일은 방금 저장(새것)
+            part = SequenceFileVisionPart(path, max_age_s=180)
+            self.assertEqual(part.vision_topview(), [])                         # 촬영은 400초 전 → 오래됨
+            self.assertIn("촬영 4", part.last_reason)
+            report["captured_at"] = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+            Path(path).write_text(json.dumps(report), encoding="utf-8")
+            self.assertEqual(len(part.vision_topview()), 7)

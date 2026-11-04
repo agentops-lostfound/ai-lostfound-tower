@@ -34,9 +34,31 @@ class GuardedBackend:
     """반환 중 부품을 감싼다(11/4). 직원 화면 정지 버튼이 눌리면 그 뒤의 로봇 동작 요청은 부품에 보내지 않고 실패로 돌려준다.
     → 흐름은 약속대로 robot_stop + 정지(stopped) + 경보. 흐름 코드(supervisor·graph)는 바꾸지 않는다."""
 
-    def __init__(self, backend, stop_event: threading.Event):
+    def __init__(self, backend, stop_event: threading.Event, lease_factory=None):
         self._be = backend
         self._stop = stop_event
+        self._lease_factory = lease_factory    # user → GpuLease (agents/gpu_lease.py). None 이면 GPU 사용권을 쓰지 않음
+        self._lease = None
+
+    def gpu_acquire(self, user: str) -> tuple[bool, str]:
+        """로봇(VLA)을 움직이기 전에 GPU 사용권을 받는다(11/4). (받음?, 못 받은 이유). 사용권 기능이 꺼져 있으면 (True, "")."""
+        if self._lease_factory is None:
+            return True, "꺼짐"
+        if self._lease is not None:
+            return True, ""
+        from agents.gpu_lease import GpuBusy
+        try:
+            self._lease = self._lease_factory(user).acquire()
+            return True, ""
+        except GpuBusy as e:
+            return False, str(e)
+        except Exception as e:                  # 잠금 파일 오류 등 → 안전하게 못 받은 것으로
+            return False, f"GPU 사용권 확인 실패({type(e).__name__})"
+
+    def gpu_release(self) -> None:
+        if self._lease is not None:
+            self._lease.release()
+            self._lease = None
 
     def __getattr__(self, name: str):
         attr = getattr(self._be, name)
@@ -117,7 +139,7 @@ def parse_visit(payload: dict) -> tuple[str, str | None, dict]:
 class TowerService:
     def __init__(self, backend_factory: Callable[[], object], reporter, recorder: Recorder | None = None,
                  reviewer=None, flow: Callable = run_return, claims: ClaimStore | None = None,
-                 intake: IntakeStore | None = None):
+                 intake: IntakeStore | None = None, gpu_lease=None):
         self.backend_factory = backend_factory   # 요청마다 부품 묶음을 얻는 함수(진짜 부품이면 같은 객체를 돌려줘도 됨)
         self.reporter = reporter
         self.recorder = recorder if recorder is not None else MemoryRecorder()
@@ -127,6 +149,7 @@ class TowerService:
         self.intake = intake if intake is not None else MemoryIntakeStore()
         self._run_lock = threading.Lock()
         self._stop_event = threading.Event()     # 직원 정지 버튼(반환을 새로 시작할 때 지움)
+        self.gpu_lease = gpu_lease                 # user → GpuLease. None = GPU 사용권 안 씀(시험·가짜 부품)
 
     # ---------- 습득물 접수(등록기계 화면) ----------
     def list_places(self, machine_id: str, limit: int = 10) -> list[dict]:
@@ -220,11 +243,13 @@ class TowerService:
             if seen:
                 raise Conflict("duplicate", f"이미 처리한 사례 번호: {req.case_id}")
             self._stop_event.clear()
-            be = GuardedBackend(self.backend_factory(), self._stop_event)
+            be = GuardedBackend(self.backend_factory(), self._stop_event, self.gpu_lease)
             try:
                 out = self.flow(req, be, self.reporter, reviewer=self.reviewer).to_dict()
             except Exception as e:   # 부품이 약속을 어기고 예외를 던진 경우 → 정지 시도 + 직원 확인
                 out = self._crash(req, be, e)
+            finally:
+                be.gpu_release()     # 로봇 동작이 끝났거나 멈췄으면 GPU 사용권을 돌려준다
             if out.get("decision") not in DECISIONS:
                 raise RuntimeError(f"알 수 없는 결정: {out.get('decision')}")
             if claim_id:
@@ -394,8 +419,16 @@ class TowerService:
             sources = be.sources() if callable(getattr(be, "sources", None)) else {"all": type(be).__name__}
         except Exception as e:
             sources = {"error": type(e).__name__}
+        gpu = None
+        if self.gpu_lease is not None:
+            try:
+                from agents.gpu_lease import holder
+                h = holder()
+                gpu = {"lease": "on", "holder": h}
+            except Exception as e:
+                gpu = {"lease": "on", "error": type(e).__name__}
         return {"ok": True, "busy": self._run_lock.locked(), "reviewer": self.reviewer is not None,
-                "send": not getattr(self.reporter, "dry_run", True), "sources": sources}
+                "send": not getattr(self.reporter, "dry_run", True), "sources": sources, "gpu": gpu or {"lease": "off"}}
 
 
 def demo_backend_factory() -> Callable[[], object]:

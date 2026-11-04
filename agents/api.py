@@ -14,6 +14,7 @@
     TOWER_VISION_FILE 탑뷰 결과(result_with_qwen.json) 파일 또는 폴더 → 탑뷰 부품만 진짜 결과로(docs/design/swap_guide.md)
     TOWER_VISION_MAX_AGE  결과를 몇 초까지 믿을지(기본 600, 0 = 검사 안 함)
     TOWER_MATCHER         매칭 부품. 비움/policy = 김건태 matching/policy.py(11/3 기본), simple = 예전 단순 비교
+    TOWER_GPU_LEASE       GPU 사용권(agents/gpu_lease.py). 기본 켬, 0 = 끔. TOWER_GPU_WAIT(초, 기본 60) · TOWER_GPU_FREE_MB(남은 메모리 확인, 기본 없음)
 - 등록기계 화면: GET /places, POST /items, POST /items/{item_id}/features (안내 intake_machine/README.md)
 - 직원 화면: POST /returns/{case_id}/handover — 바구니의 물건을 분실인에게 건넨 뒤 인계 완료로(11/4)
             POST /returns/{case_id}/hold — 건네지 않기로 함(이유 4개 중 하나) → 반환 보류
@@ -91,8 +92,10 @@ def build_service(backend_factory=None) -> TowerService:
         intake = PostgresIntakeStore(dsn)
     if not user_factory:
         backend_factory = _with_vision_file(backend_factory)
+    from agents.gpu_lease import lease_from_env
     return TowerService(backend_factory or demo_backend_factory(), Reporter(dry_run=not _flag("TOWER_SEND")),
-                        recorder=recorder, reviewer=reviewer, claims=claims, intake=intake)
+                        recorder=recorder, reviewer=reviewer, claims=claims, intake=intake,
+                        gpu_lease=lease_from_env())
 
 
 def build_app(service: TowerService | None = None):

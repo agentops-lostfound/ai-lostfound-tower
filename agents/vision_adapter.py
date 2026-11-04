@@ -78,6 +78,21 @@ def adapt_report(report: dict) -> list[dict]:
     return out
 
 
+def captured_age(value, now: float | None = None) -> float | None:
+    """captured_at(예: "2026-11-04T10:45:12+09:00") → 지금부터 몇 초 전인지. 없거나 형식이 틀리거나 시간대가 없으면 None."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    from datetime import datetime
+    try:
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:          # 시간대가 없으면 PC 시간대와 헷갈릴 수 있어 쓰지 않음
+        return None
+    age = (time.time() if now is None else now) - dt.timestamp()
+    return age if age >= -5 else None    # 미래 시각(PC 시계 어긋남)이면 믿지 않음
+
+
 class SequenceFileVisionPart:
     """CompositeBackend(vision=...) 에 꽂는 부품: 가장 최근 시퀀스 결과 파일을 읽는다.
 
@@ -104,11 +119,15 @@ class SequenceFileVisionPart:
             if f is None:
                 self.last_reason = "탑뷰 결과 파일 없음"
                 return []
-            age = time.time() - f.stat().st_mtime
-            if self.max_age_s is not None and age > self.max_age_s:
-                self.last_reason = f"탑뷰 결과가 오래됨({int(age)}초 전) — 보관함을 다시 찍기"
-                return []
             report = json.loads(f.read_text(encoding="utf-8"))
+            # 나이 기준(11/4): 결과에 촬영 시각(captured_at, ISO 8601 + 시간대)이 있으면 그 값, 없으면 파일 저장 시각
+            #   분석(45~76초) 뒤에 저장되므로 저장 시각은 실제 촬영보다 늦다 → captured_at 이 더 정확하다
+            age = captured_age(report.get("captured_at"))
+            if age is None:
+                age = time.time() - f.stat().st_mtime
+            if self.max_age_s is not None and age > self.max_age_s:
+                self.last_reason = f"탑뷰 결과가 오래됨(촬영 {int(age)}초 전) — 보관함을 다시 찍기"
+                return []
             if report.get("sequence", {}).get("status") not in ("complete", "failed", "no_detections"):
                 self.last_reason = "탑뷰 분석이 아직 끝나지 않음"
                 return []
