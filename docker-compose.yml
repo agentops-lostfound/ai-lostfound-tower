@@ -24,26 +24,3 @@ services:
 
 volumes:
   lostfound-db:
-backend:
-    build: ./backend
-    container_name: lostfound-backend
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://lostfound:${POSTGRES_PASSWORD:-lostfound-dev}@db:5432/lostfound
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-
-  frontend:
-    build: ./frontend
-    container_name: lostfound-frontend
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-
-volumes:
-  lostfound-db:
