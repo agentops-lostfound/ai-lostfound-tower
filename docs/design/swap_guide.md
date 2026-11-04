@@ -28,6 +28,8 @@
 
 ## 2. 탑뷰 비전 — 결과 파일 스위치
 - 김건태 님 `vision/sequence.py` 가 만든 `result_with_qwen.json` 을 `agents/vision_adapter.py` 가 계약 모양으로 바꿔 읽는다
+  - **관제탑 입구는 `agents/vision_adapter.py` 하나**(11/4 김건태·변재원 합의). `vision/adapter.py` 는 LF-3 검증·진단용이고, 그 진단(`diagnose_report`)은 관제탑 변환기가 `last_diagnosis` 로 함께 기록한다
+  - **보정 관문**: 표식 2개(대응점 8개 이상) + 오차 3mm 이하 + 물체별 `calibration_valid` 일 때만 `center_mm` 을 붙인다. 아니면 검출·특징은 넘기되(매칭 가능) 로봇은 움직이지 않는다
 - 관제탑 PC `.env` 에 두 줄을 넣고 관제탑을 다시 켠다(값은 예시)
 ```
 TOWER_VISION_FILE=C:\git\ai-lostfound-tower\outputs\vision

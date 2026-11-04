@@ -23,6 +23,7 @@ PHONE = {"category": "phone", "colors": ["Black"], "shape": "rectangle", "materi
 def report(status="complete"):
     """vision/sequence.py 결과와 같은 모양(김건태 브랜치 LF-3-yolo-aruco 기준)"""
     return {"sequence": {"status": status},
+            "calibration": {"valid": True, "correspondence_count": 8, "max_reprojection_error_mm": 0.5},
             "objects": [
                 {"id": 0, "class_name": "cell phone", "confidence": 0.83, "bbox": [10, 20, 110, 220],
                  "center_px": [60, 120], "center_world_mm": None, "qwen": {"status": "ok", "features": WALLET}},
@@ -142,3 +143,68 @@ class CapturedAtTest(unittest.TestCase):
             report["captured_at"] = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
             Path(path).write_text(json.dumps(report), encoding="utf-8")
             self.assertEqual(len(part.vision_topview()), 7)
+
+
+class CalibrationGateTest(unittest.TestCase):
+    """11/4: 표식 2개(대응점 8개) + 오차 3mm 이하 + 물체별 calibration_valid 일 때만 center_mm. 아니면 로봇 안 움직임."""
+
+    def obj(self, **kw):
+        o = {"id": 0, "confidence": 0.8, "bbox": [10, 20, 110, 220], "center_px": [60, 120],
+             "center_world_mm": [120.5, 80.25], "calibration_valid": True, "qwen": {"status": "ok", "features": WALLET}}
+        o.update(kw)
+        return o
+
+    def dets(self, calibration, **kw):
+        return adapt_report({"sequence": {"status": "complete"}, "calibration": calibration, "objects": [self.obj(**kw)]})
+
+    def test_two_markers_pass(self):
+        d = self.dets({"valid": True, "correspondence_count": 8, "max_reprojection_error_mm": 1.2})
+        self.assertEqual(d[0]["center_mm"], [120.5, 80.2])
+
+    def test_blocked_cases_keep_detection_without_mm(self):
+        cases = [None, {"valid": False}, {"valid": True, "correspondence_count": 4},     # 표식 1개
+                 {"valid": True}, {"valid": True, "correspondence_count": 8, "max_reprojection_error_mm": 4.5}]
+        for c in cases:
+            d = self.dets(c)
+            self.assertEqual(len(d), 1, c)                 # 매칭용 검출은 남김
+            self.assertNotIn("center_mm", d[0], c)          # 로봇 좌표는 없음
+        ok = {"valid": True, "correspondence_count": 8}
+        for kw in ({"calibration_valid": False}, {"center_world_mm": None}, {"center_world_mm": [float("nan"), 1]},
+                   {"center_world_mm": [1]}):
+            self.assertNotIn("center_mm", self.dets(ok, **kw)[0], kw)
+
+    def test_part_reason_and_diagnosis(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from agents.vision_adapter import SequenceFileVisionPart
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "result_with_qwen.json"
+            p.write_text(json.dumps({"sequence": {"status": "complete"}, "calibration": {"valid": True, "correspondence_count": 4},
+                                     "objects": [self.obj()]}), encoding="utf-8")
+            part = SequenceFileVisionPart(p, max_age_s=None)
+            self.assertEqual(len(part.vision_topview()), 1)
+            self.assertIn("표식 2개", part.last_reason)
+            self.assertIsNotNone(part.last_diagnosis)       # 김건태 진단 연결
+            # 참고: 김건태 진단은 calibration.valid 만 보고 표식 개수는 보지 않는다(11/4 기준) → 관제탑 검사가 더 엄격
+            self.assertEqual(set(part.last_diagnosis), {"scene_complete", "calibration_valid", "detected_count", "reason_counts"})
+
+    def test_flow_without_calibration_goes_to_staff(self):
+        """보정 없는 탑뷰 결과로 반환 → 매칭은 되지만 로봇은 움직이지 않고 직원 확인."""
+        from agents.backends import CompositeBackend
+        from agents.supervisor import ReturnRequest, run_return
+        from agents.tools import MockBackend
+        from discord_ops.reporter import Reporter
+
+        class V:
+            def vision_topview(_):
+                return adapt_report({"sequence": {"status": "complete"}, "calibration": {"valid": True, "correspondence_count": 4},
+                                     "objects": [self_obj]})
+        self_obj = self.obj()
+        feats = to_features(WALLET, 0.8)
+        mock = MockBackend(db={"A-1": {"status": "본센터 보관", "features": {k: v for k, v in feats.items() if k != "confidence"}}})
+        be = CompositeBackend(vision=V(), fallback=mock)
+        out = run_return(ReturnRequest("CAL1", "A-1"), be, Reporter())
+        self.assertEqual(out.decision, "staff_check", out.reason)
+        self.assertIn("작업대 좌표 없음", out.reason)
+        self.assertFalse(mock.robot_moved())

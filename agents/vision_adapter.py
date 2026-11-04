@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from pathlib import Path
 
@@ -62,17 +63,43 @@ def to_features(qwen: dict | None, confidence: float) -> dict:
             "confidence": conf}
 
 
+# 11/4 결정(이순필·변재원): 작업대 표식(ArUco) 2개가 모두 보여야 보정을 믿는다.
+#   표식 1개 = 모서리 4점이면 보정 공식이 4점에 딱 맞아 오차 검사(max_reprojection_error_mm)가 항상 통과 → 검증 불가
+#   그래서 대응점 8개(표식 2개 × 4) 이상 + 오차 3mm 이하 + 물체별 calibration_valid 일 때만 center_mm 를 넘긴다.
+#   보정이 안 되면 검출·특징은 그대로 넘기되(매칭은 가능) center_mm 를 빼서 로봇은 움직이지 않는다(supervisor.approach).
+MIN_CALIB_POINTS = 8
+MAX_REPROJ_MM = 3.0
+
+
+def calibration_ok(report: dict) -> tuple[bool, str]:
+    """보정을 믿어도 되는지 (결과, 이유). vision/aruco/calibration.py 의 calibrate() 결과 모양을 읽는다."""
+    c = report.get("calibration") if isinstance(report, dict) else None
+    if not isinstance(c, dict) or c.get("valid") is not True:
+        return False, "보정 없음(표식을 못 찾음)"
+    n = c.get("correspondence_count")
+    if not isinstance(n, int) or n < MIN_CALIB_POINTS:
+        return False, f"표식 2개가 모두 보이지 않음(대응점 {n}개 < {MIN_CALIB_POINTS})"
+    err = c.get("max_reprojection_error_mm")
+    if isinstance(err, (int, float)) and err > MAX_REPROJ_MM:
+        return False, f"보정 오차 큼({err:.1f}mm > {MAX_REPROJ_MM}mm)"
+    return True, ""
+
+
 def adapt_report(report: dict) -> list[dict]:
-    """시퀀스 결과 전체 → 계약 모양 검출 목록. 계약에 안 맞는 물건은 뺀다."""
+    """시퀀스 결과 전체 → 계약 모양 검출 목록. 계약에 안 맞는 물건은 뺀다.
+    보정을 믿을 수 있을 때(calibration_ok)만 center_mm 를 붙인다."""
     out = []
+    calib_ok, _ = calibration_ok(report)
     for obj in report.get("objects") or []:
         q = obj.get("qwen") or {}
         feats = to_features(q.get("features") if q.get("status") == "ok" else None, obj.get("confidence", 0.0))
         det = {"box": [round(float(v), 1) for v in obj.get("bbox") or []],
                "center": [round(float(v), 1) for v in obj.get("center_px") or []],
                "features": feats, "vision_id": obj.get("id")}
-        if obj.get("center_world_mm"):
-            det["center_mm"] = [round(float(v), 1) for v in obj["center_world_mm"]]
+        mm = obj.get("center_world_mm")
+        if (calib_ok and obj.get("calibration_valid") is not False and isinstance(mm, (list, tuple)) and len(mm) == 2
+                and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in mm)):
+            det["center_mm"] = [round(float(v), 1) for v in mm]
         if not validate_detection(det):
             out.append(det)
     return out
@@ -93,6 +120,17 @@ def captured_age(value, now: float | None = None) -> float | None:
     return age if age >= -5 else None    # 미래 시각(PC 시계 어긋남)이면 믿지 않음
 
 
+def _diagnose(report: dict) -> dict | None:
+    """김건태 vision/adapter_diagnostics.py 의 진단(검출 실패·미지원 품목·Qwen 오류 개수). 없거나 실패하면 None.
+    진단은 원인 파악용이다 — 로봇·자동 반환 판단에는 쓰지 않는다."""
+    try:
+        from vision.adapter_diagnostics import diagnose_report
+        d = diagnose_report(report, require_calibration=True)
+        return {k: d.get(k) for k in ("scene_complete", "calibration_valid", "detected_count", "reason_counts")}
+    except Exception:
+        return None
+
+
 class SequenceFileVisionPart:
     """CompositeBackend(vision=...) 에 꽂는 부품: 가장 최근 시퀀스 결과 파일을 읽는다.
 
@@ -104,6 +142,7 @@ class SequenceFileVisionPart:
         self.path = Path(path)
         self.max_age_s = max_age_s
         self.last_reason = ""
+        self.last_diagnosis: dict | None = None
 
     def _latest(self) -> Path | None:
         if self.path.is_file():
@@ -132,7 +171,9 @@ class SequenceFileVisionPart:
                 self.last_reason = "탑뷰 분석이 아직 끝나지 않음"
                 return []
             dets = adapt_report(report)
-            self.last_reason = "" if dets else "검출된 물건 없음"
+            ok, why = calibration_ok(report)
+            self.last_reason = ("" if ok else f"{why} — 로봇은 움직이지 않음") if dets else "검출된 물건 없음"
+            self.last_diagnosis = _diagnose(report)
             return dets
         except Exception as e:   # 약속: 예외를 던지지 않고 빈 목록
             self.last_reason = f"탑뷰 결과 읽기 실패({type(e).__name__})"

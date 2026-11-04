@@ -9,6 +9,7 @@
   - `mark`·`visible_text`는 비공개 특징(후보 카드에 안 보임)
 - 탑뷰 검출 1개: `{"box": [x1,y1,x2,y2], "center": [cx,cy], "center_mm": [x,y], "features": {비전 결과}, "object_id": 선택}`
   - `box`·`center` 는 픽셀, `center_mm` 은 작업대 기준 mm(탑뷰 ArUco 보정 결과 `center_world_mm`). 보정이 없으면 `center_mm` 을 빼거나 null (11/4)
+  - 관제탑 변환기는 표식 2개(대응점 8개 이상)·오차 3mm 이하일 때만 `center_mm` 을 붙인다(`agents/vision_adapter.calibration_ok`)
 - 로봇 함수 결과: `{"ok": true}` 또는 `{"ok": false, "reason": "집기 실패"}`
 - 매칭 결과: `{"status": "matched|uncertain|none", "index": 0, "score": 0.86, "margin": 0.29, "ranking": [0,2,1]}`
 - 알림에는 개인정보 없이 물건 번호만 쓴다(전화번호·주민번호·카드번호·이메일 모양이면 전송을 막는다)
