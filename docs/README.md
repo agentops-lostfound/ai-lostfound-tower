@@ -2,6 +2,8 @@
 
 설계 문서, 회의 기록, 시연 시나리오
 
+- [Windows YOLO·Qwen 사진 테스트 준비](setup-vision-trial-windows.md): 별도 clone·venv·모델 준비와 실제 실행 명령. Windows 현장 검증 전.
+
 ## 팀원 진행 기록
 
 - [비전→SO-ARM 연결 상태 검토](progress/vision-robot-integration-review.md): 11/4 원격 브랜치 기준 검출·픽셀/mm·매칭·로봇 모의 구현 및 미연결 구간.
