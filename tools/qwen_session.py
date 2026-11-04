@@ -16,6 +16,8 @@ def main():
     parser.add_argument('--concise', action='store_true', help='Experimental concise values; preserves all eight keys')
     parser.add_argument('--compact', action='store_true',
                         help='Experimental 8-position array, validated and converted to original JSON')
+    parser.add_argument('--no-repeat-ngram-size', type=int, default=0,
+                        help='Experimental repeat blocking; 0 leaves upstream unchanged')
     parser.add_argument('--max-edge', type=int, default=512,
                         help='Maximum image edge; baseline 512, experimental 384')
     args = parser.parse_args()
@@ -23,6 +25,10 @@ def main():
         parser.error('--max-edge must be at least 32')
     if args.compact and args.concise:
         parser.error('Choose --compact or --concise, not both')
+    if args.no_repeat_ngram_size < 0 or args.no_repeat_ngram_size == 1:
+        parser.error('--no-repeat-ngram-size must be 0 or at least 2')
+    if args.no_repeat_ngram_size and (args.compact or args.concise):
+        parser.error('Repetition trial must use the baseline prompt/output format')
     root = args.source_root.resolve()
     for relative in ('qwen/config/settings.py', 'qwen/src/model_loader.py',
                      'vision/item_features.py'):
@@ -55,6 +61,9 @@ def main():
                        log_dir=root / 'outputs/qwen-session/logs')
     started = perf_counter()
     bundle = load_model(settings)
+    if args.no_repeat_ngram_size:
+        from qwen_generation_trial import install_no_repeat
+        install_no_repeat(bundle.model, args.no_repeat_ngram_size)
     print(f'READY: startup {perf_counter() - started:.2f}s. '
           'Enter a JPG/PNG path; type exit to release the process. '
           'First inference is not a warmed benchmark.', flush=True)
@@ -98,6 +107,7 @@ def main():
         result = {'request': request_no, 'request_seconds': round(elapsed, 4),
                   'mode': 'compact' if args.compact else ('concise' if args.concise else 'baseline'),
                   'max_edge': args.max_edge, 'features': features}
+        result['no_repeat_ngram_size'] = args.no_repeat_ngram_size
         if profile is not None:
             measured = sum(profile.get(k, 0.0) for k in (
                 'processor_seconds', 'generate_seconds', 'decode_seconds', 'validation_seconds'))
