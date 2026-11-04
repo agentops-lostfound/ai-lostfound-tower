@@ -30,10 +30,17 @@ class CommandGate:
             self._pending = None
             self._held = False
 
-    def resume(self, *, staff_confirmed=False):
+    def snapshot(self):
+        with self._lock:
+            return {"epoch": self._epoch, "stop_requested": self._stop.is_set(),
+                    "hold_commanded": self._held}
+
+    def resume(self, *, staff_confirmed=False, expected_epoch=None):
         if not staff_confirmed:
             raise PermissionError("직원 확인 필요")
         with self._lock:
+            if expected_epoch is not None and expected_epoch != self._epoch:
+                raise RuntimeError("오래된 재개 요청")
             if not self._held:
                 raise RuntimeError("소유자의 위치 유지 성공 확인 필요")
             self._epoch += 1

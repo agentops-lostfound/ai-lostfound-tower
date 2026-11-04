@@ -43,3 +43,13 @@ Studio 세션 종료 후 /proc fd 조회로 두 USB 포트 소유자가 없음�
 robot/command_gate.py는 send/hold 콜백을 받는 연결 전용 기반 코드다. 초기 정지, 소유자 유지 성공 및 직원 확인 후 재개, 세대 번호로 늦은 추론 결과 폐기, 최신 목표만 유지, 전송 실패 시 재개 차단을 구현했다. I/O 동안 상태 잠금을 잡지 않아 정지 요청은 실행 중 I/O 완료를 기다리지 않는다. 이미 전송 허용된 I/O를 취소하거나 하드웨어 즉시 정지를 보장하지 않는다. tests/test_robot_command_gate.py는 통신 실패·실행 중 I/O·대기 목표 폐기를 가짜 콜백으로 검증한다.
 
 이 관문은 아직 Studio owner의 Zenoh 전송부에 설치되지 않았다. 현 Studio 메시지는 목표와 goal_time만 보내므로 안전한 통합에는 소유자 측 stop/resume 처리 및 모든 목표의 세대 식별, 소유권 통제가 필요하다. 기존 send_action을 새 관문에 단순 연결하는 것만으로 우회 경로가 제거되지는 않는다. 실제 장비 연결 전에 해당 프로토콜 통합 및 모의 시험을 완료해야 한다. 안전 Home 자세·경로도 아직 미정이다.
+
+## 2026-11-04 소유자 JSON 연결부 및 설치 전 패치 후보
+
+robot/owner_bridge.py는 소유자별 무작위 세션 ID, 정지 세대 번호, 재개 시 지정한 writer, 증가하는 sequence로 오래된/중복/다른 소유자 명령을 차단한다. 정지 접수 응답(stop_requested)과 소유 스레드의 위치 유지 목표 전송 완료(hold_commanded)를 구분하며 어느 것도 실제 속도 0 인증은 아니다. staff_confirmed는 호출자의 확인 표시로 인증 기능이 아니고, 실험용 연결은 로컬 전용이다. 현재 별도 웹 UI·인증·관제탑 API 연결은 없다.
+
+검토한 원본 _owner_worker.py SHA256 fb01e47292a94c48fc00cb5e8ec42a4d6ec9d0987ecefaab0da6f60258a7b625에 대해서만 tools/prepare_robot_owner_patch.py가 별도 outputs 폴더에 후보를 생성한다. 원본 ZIP을 입력으로 사용하고 설치된 라이브러리/컨테이너를 변경하지 않는다. 초기 hold, 대기 목표 정지 폐기, 유효 신규 목표, 비대상 소유자 기존 경로의 4가지 모의 시험을 패치된 실제 _run_loop 함수에 대해 수행한다. SDK/Zenoh/USB는 실행하지 않는다.
+
+후보 패치는 새 팔로워 ID 0f876b83-64cd-4bb9-9630-963eaeb3c0b7에서만 기존 /action 명령을 폐기하고 별도 /lf-safety queryable을 사용한다. 새 명령이 없으면 이동하지 않는다. leader·다른 ID의 소유자는 기존 경로를 유지한다. 대상에서는 allow_remote=True를 거부하고 검토한 SO101 클래스와 normalized follower만 허용한다. 실제 Zenoh 전송은 아직 시험하지 않았다. 따라서 기존 Studio Teleoperate·policy와 호환된다고 가정하지 않으며 현재 후보를 site-packages에 복사하지 않는다.
+
+SO101 유지 콜백은 최신 raw 위치를 직접 읽어 raw 목표로 쓰며 토크를 켜지 않는다. 일반 normalized send_action을 유지에 사용하면 범위 밖 현재 자세가 clipping되어 움직일 수 있기 때문이다. 현재 드라이버 connect는 토크/설정 쓰기를 포함하므로 후보의 import·생성과 실제 연결은 구분한다. 준비 도구의 성공은 실제 장비 연결 승인이 아니다. 다음은 컨테이너 내부에서 설치하지 않는 Zenoh 모의 전송 시험, 원본 백업/복원 도구, 제한된 정지 시험용 조작 화면 준비다. 실제 Home 경로는 미구현이다.
