@@ -278,6 +278,13 @@ def build_app(service: TowerService | None = None):
         with open(LIVE_PAGE, encoding="utf-8") as f:
             return HTMLResponse(f.read())
 
+    @app.get("/live/so101_shape.js", include_in_schema=False)
+    def live_so101_shape():
+        """SO-101 실제 형상 점 자료(tools/so101_shape.py 가 공식 모델에서 만듦) — 화면이 로봇팔을 그릴 때 읽음"""
+        from fastapi.responses import Response
+        with open(os.path.join(os.path.dirname(LIVE_PAGE), "so101_shape.js"), encoding="utf-8") as f:
+            return Response(f.read(), media_type="application/javascript")
+
     @app.get("/live/state")
     def live_state(after: int = 0, story: str | None = None) -> dict:
         """after 번 이후의 새 사건 + 가상 세계(가상 시연일 때) + 최근 이야기. 화면이 0.4초마다 부른다"""

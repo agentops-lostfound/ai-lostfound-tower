@@ -71,10 +71,29 @@ class SimPartsTest(unittest.TestCase):
         self.assertTrue(r.robot_deliver()["ok"])
         if w.homing:
             w.homing.join(5)
-        self.assertEqual((w.arm["x"], w.arm["y"], w.arm["phase"]), (240.0, 345.0, "대기"))
+        from agents.sim_world import HOME_MM
+        self.assertEqual((w.arm["x"], w.arm["y"], w.arm["phase"]), (*HOME_MM, "대기"))
         self.assertEqual(sum(1 for i in w.items.values() if i["loc"] == "basket"), 1)
         snap = w.snapshot()
         self.assertEqual(len(snap["robot"]["joints"]), 6)
+        self.assertTrue(all("range" in j for j in snap["robot"]["joints"]))
+
+    def test_so101_real_kinematics_reach_every_spot(self):
+        """실제 SO-101 치수(공식 모델)로 푼 관절: 보관함 12칸·바구니·원점에서 관절 한계 안, 되돌려 계산한 집게 끝이 1mm 안"""
+        import math
+        from agents.sim_world import (ARM_SCALE, BASKET_MM, DROP_Z, HOME_MM, HOME_Z, HOVER_Z, PICK_Z, SLOTS_MM, SO101_LIMITS,
+                                      so101_joints, so101_reach, so101_tip)
+        spots = [(*HOME_MM, HOME_Z), (*BASKET_MM, HOVER_Z), (*BASKET_MM, DROP_Z)]
+        spots += [(x, y, z) for x, y in SLOTS_MM for z in (PICK_Z, HOVER_Z)]
+        for x, y, z in spots:
+            j = so101_joints(x, y, z, 50)
+            for k, v in j.items():
+                lo, hi = SO101_LIMITS[k]
+                self.assertTrue(lo <= v <= hi, (x, y, z, k, v))
+            self.assertLess(math.dist(so101_tip(j), (x, y, z)), 1.0, (x, y, z, j))
+        far = max(math.hypot(x - 240, 410 - y) for x, y in SLOTS_MM)
+        self.assertLess(so101_reach(PICK_Z, 1.0), far)      # 실제 크기 팔로는 보관함 끝 칸에 못 닿음(배율을 쓰는 이유)
+        self.assertGreater(so101_reach(PICK_Z, ARM_SCALE), far)   # 화면 배율 팔은 닿음
 
     def test_robot_stop_halts_motion_midway(self):
         w = SimWorld(speed=1)

@@ -35,7 +35,7 @@ BENCH_MM = (640.0, 420.0)
 BIN_MM = (0.0, 0.0, 480.0, 300.0)                     # x1, y1, x2, y2
 SLOTS_MM = [(60.0 + 120.0 * c, 60.0 + 90.0 * r) for r in range(3) for c in range(4)]   # 보관함 칸 12개
 BASKET_MM = (565.0, 330.0)
-HOME_MM = (240.0, 345.0)
+HOME_MM = (240.0, 210.0)                   # 원점(대기) 자세의 집게 끝 — 실제 SO-101 관절 한계 안(11/4)
 ROBOT_BASE_MM = (240.0, 410.0)
 MARKERS_MM = [(10.0, 10.0), (470.0, 290.0)]          # ArUco 표식 2개(대각선, 11/4 합의)
 PX_SCALE, PX_OFFSET = 2.0, (40.0, 30.0)              # 탑뷰 사진 픽셀 = mm × 2 + 여백(가상 1360×900 사진)
@@ -170,25 +170,93 @@ SEED_ITEMS = [
 # 학습: 리더로 팔로워를 움직이며 에피소드 녹화(관절 값 + 카메라 영상) → 정책 학습(SmolVLA, ACT 비교) → 시연 때는 팔로워만 정책으로 움직임
 SO101_JOINTS = [("shoulder_pan", "좌우 회전"), ("shoulder_lift", "앞뒤 숙임"), ("elbow_flex", "두 긴 팔 접힘"),
                 ("wrist_flex", "끝부분 위아래"), ("wrist_roll", "끝부분 회전"), ("gripper", "집게 열림")]
-HOME_Z, HOME_GRIP = 150.0, 30.0        # 원점 자세: 집게 높이(mm) · 집게 열림(%)
+HOME_Z, HOME_GRIP = 100.0, 30.0        # 원점 자세: 집게 높이(mm) · 집게 열림(%)
 HOVER_Z, PICK_Z, DROP_Z = 90.0, 15.0, 60.0
-_L1, _L2, _SHOULDER_H, _TOOL = 230.0, 230.0, 110.0, 100.0   # 가상 팔 길이(mm, 화면 그림과 같음 — 실제 SO-101 치수 아님)
+
+# 실제 SO-101 치수(mm) — SO-ARM100 공식 MuJoCo 모델 so101_new_calib(Apache-2.0)에서 읽음, tools/so101_shape.py 로 검사
+# 팔 평면(좌우 회전축에서 앞쪽 거리 r, 바닥에서 높이 z) 기준. 관절 0° = 위팔 거의 수직 · 아래팔·손목 수평인 'ㄱ' 자세
+SO101_PAN_X = 38.84                                   # 받침 원점 → 좌우 회전축(앞쪽)
+SO101_SHOULDER = (30.40, 116.60)                      # 좌우 회전축 → 어깨(앞뒤 숙임) 축 (r, z)
+SO101_UPPER = (28.00, 112.57)                         # 어깨 → 팔꿈치 (관절 0° 때 r, z)
+SO101_FORE = (134.90, 5.20)                           # 팔꿈치 → 손목
+SO101_TOOL = (159.30, -7.90)                          # 손목 → 집게 끝(gripperframe)
+SO101_LIMITS = {"shoulder_pan": (-110.0, 110.0), "shoulder_lift": (-100.0, 100.0), "elbow_flex": (-96.8, 96.8),
+                "wrist_flex": (-95.0, 95.0), "wrist_roll": (-157.2, 162.8), "gripper": (0.0, 100.0)}
+SO101_GRIP_DEG = (-10.0, 100.0)                       # 집게 관절 각도 범위(0% 닫힘 ~ 100% 열림, 화면 그림용)
+# 가상 작업대(640×420)는 실제 팔보다 크게 잡혀 있어 화면·계산 모두 팔을 이 배율로 키운다(실제 팔은 1.0).
+# 실제 크기(1.0)로는 보관함 앞줄·바구니에 집게를 수직으로 내릴 수 없다 → docs/design/virtual_demo.md 4-3
+ARM_SCALE = 1.6
 
 
-def so101_joints(x: float, y: float, z: float, gripper: float, roll: float = 0.0) -> dict:
-    """집게 끝 위치(작업대 mm, 높이 z)·열림 → 관절 6개 각도(도, 그리퍼는 %). 화면 표시용 가상 계산(추정)이다.
-    진짜 각도는 로봇 부품이 보정값(homing·min·max)으로 읽는다."""
+def so101_joints(x: float, y: float, z: float, gripper: float, roll: float = 0.0, scale: float | None = None) -> dict:
+    """집게 끝 위치(작업대 mm, 높이 z)·열림 → 관절 6개 각도(도, 그리퍼는 %). 실제 SO-101 기구(배율 scale)로 푼 값이다.
+    각도 부호는 공식 모델과 같다: 좌우 + = 오른쪽, 숙임·접힘·손목 + = 앞·아래로. 진짜 로봇 값은 보정값으로 읽는다(추정과 다를 수 있음).
+    집게는 되도록 바닥을 수직으로 보게 하고, 손목 한계를 넘으면 앞으로 조금씩 기울인다(원점처럼 몸 가까운 자세)."""
     import math
+    s = ARM_SCALE if scale is None else scale
     dx, dy = x - ROBOT_BASE_MM[0], ROBOT_BASE_MM[1] - y
     pan = math.degrees(math.atan2(dx, dy))                     # 0 = 보관함 쪽 정면, + = 오른쪽
-    px, pz = math.hypot(dx, dy), z + _TOOL - _SHOULDER_H        # 손목 위치(집게가 아래를 보게)
-    d = min(max(math.hypot(px, pz), 1.0), _L1 + _L2 - 1.0)
-    inner = math.acos(max(-1.0, min(1.0, (_L1 ** 2 + _L2 ** 2 - d ** 2) / (2 * _L1 * _L2))))
-    elbow = 180.0 - math.degrees(inner)                         # 0 = 쭉 폄
-    lift = math.degrees(math.atan2(pz, px) + math.acos(max(-1.0, min(1.0, (_L1 ** 2 + d ** 2 - _L2 ** 2) / (2 * _L1 * d)))))
-    wrist = -90.0 - (lift - elbow)                              # 집게가 바닥을 보게
-    return {"shoulder_pan": round(pan, 1), "shoulder_lift": round(lift, 1), "elbow_flex": round(elbow, 1),
-            "wrist_flex": round(wrist, 1), "wrist_roll": round(roll, 1), "gripper": round(max(0.0, min(100.0, gripper)), 1)}
+    r = math.hypot(dx, dy)
+    l1, l2, l3 = (math.hypot(*v) * s for v in (SO101_UPPER, SO101_FORE, SO101_TOOL))
+    a1z, a2z, a3z = (math.atan2(v[1], v[0]) for v in (SO101_UPPER, SO101_FORE, SO101_TOOL))   # 0° 자세의 각 마디 방향
+    sx, sz = SO101_SHOULDER[0] * s, SO101_SHOULDER[1] * s
+    best = None
+    for tilt in range(0, 75, 5):                                # 집게 기울기: 0 = 수직 아래
+        pitch = math.radians(-90 + tilt)
+        wx, wz = r - l3 * math.cos(pitch), z - l3 * math.sin(pitch)        # 손목 축 위치
+        vx, vz = wx - sx, wz - sz
+        d = min(max(math.hypot(vx, vz), 1e-6), l1 + l2 - 1e-6)
+        c = max(-1.0, min(1.0, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)))
+        a1 = math.atan2(vz, vx) + math.acos(c)                  # 팔꿈치가 위로 가는 해
+        ex, ez = sx + l1 * math.cos(a1), sz + l1 * math.sin(a1)
+        a2 = math.atan2(wz - ez, wx - ex)
+        lift = math.degrees(a1z - a1)
+        elbow = math.degrees(a2z - a2) - lift
+        wrist = math.degrees(a3z - pitch) - lift - elbow
+        wrist = (wrist + 180) % 360 - 180
+        j = {"shoulder_pan": pan, "shoulder_lift": lift, "elbow_flex": elbow, "wrist_flex": wrist}
+        over = sum(max(0.0, lo - v, v - hi) for k, v in j.items() for lo, hi in [SO101_LIMITS[k]])
+        if best is None or over < best[0] - 1e-9:
+            best = (over, j)
+        if over == 0:
+            break
+    j = best[1]
+    return {"shoulder_pan": round(j["shoulder_pan"], 1), "shoulder_lift": round(j["shoulder_lift"], 1),
+            "elbow_flex": round(j["elbow_flex"], 1), "wrist_flex": round(j["wrist_flex"], 1),
+            "wrist_roll": round(roll, 1), "gripper": round(max(0.0, min(100.0, gripper)), 1)}
+
+
+def so101_tip(j: dict, scale: float | None = None) -> tuple[float, float, float]:
+    """관절 각도(도) → 집게 끝 (작업대 x, y, 높이 z). so101_joints 의 반대(검사·도달 범위 계산용)."""
+    import math
+    s = ARM_SCALE if scale is None else scale
+    lift, elbow, wrist = (math.radians(j[k]) for k in ("shoulder_lift", "elbow_flex", "wrist_flex"))
+    r, z = SO101_SHOULDER[0] * s, SO101_SHOULDER[1] * s
+    turn = 0.0
+    for v, dq in ((SO101_UPPER, lift), (SO101_FORE, elbow), (SO101_TOOL, wrist)):
+        turn += dq                                             # 숙임·접힘·손목은 모두 같은 방향(+ = 앞·아래)으로 돈다
+        a = math.atan2(v[1], v[0]) - turn
+        r += math.hypot(*v) * s * math.cos(a)
+        z += math.hypot(*v) * s * math.sin(a)
+    pan = math.radians(j["shoulder_pan"])
+    return ROBOT_BASE_MM[0] + r * math.sin(pan), ROBOT_BASE_MM[1] - r * math.cos(pan), z
+
+
+def so101_reach(z: float = PICK_Z, scale: float = 1.0) -> float:
+    """집게를 높이 z 까지 내릴 수 있는 가장 먼 거리(좌우 회전축에서 mm). 관절 한계 안 · 집게 끝이 목표에 닿을 때만 인정."""
+    import math
+    best = 0.0
+    for r in range(20, 700, 2):
+        x, y = ROBOT_BASE_MM[0], ROBOT_BASE_MM[1] - r
+        j = so101_joints(x, y, z, 50, scale=scale)
+        tx, ty, tz = so101_tip(j, scale)
+        ok = all(SO101_LIMITS[k][0] <= v <= SO101_LIMITS[k][1] for k, v in j.items())
+        if ok and math.dist((tx, ty, tz), (x, y, z)) < 1.0:
+            best = float(r)
+    return best
+
+
+_REAL_REACH = None   # 실제 크기 팔이 바닥(집기 높이)까지 닿는 거리 — 처음 쓸 때 계산
 
 
 # ---------- 가상 세계 ----------
@@ -356,6 +424,9 @@ class SimWorld:
 
     # ----- 화면용 -----
     def snapshot(self) -> dict:
+        global _REAL_REACH
+        if _REAL_REACH is None:
+            _REAL_REACH = so101_reach(PICK_Z, 1.0)
         with self._lock:
             items = []
             for r in self.items.values():
@@ -370,8 +441,10 @@ class SimWorld:
                     "faults": dict(self.faults),
                     "robot": {"model": "SO-101", "role": "팔로워(흰색) — 학습된 정책(SmolVLA)이 움직임",
                               "leader": "리더(검정) — 텔레오퍼레이션으로 학습 에피소드 녹화용(시연 때는 쓰지 않음)",
-                              "joints": [{"id": i + 1, "name": n, "label": l, "unit": "%" if n == "gripper" else "°"}
-                                         for i, (n, l) in enumerate(SO101_JOINTS)],
+                              "joints": [{"id": i + 1, "name": n, "label": l, "unit": "%" if n == "gripper" else "°",
+                                          "range": list(SO101_LIMITS[n])} for i, (n, l) in enumerate(SO101_JOINTS)],
+                              "scale": ARM_SCALE, "real_reach_mm": _REAL_REACH, "grip_deg": list(SO101_GRIP_DEG), "pan_x": SO101_PAN_X,
+                              "shape": "SO-ARM100 공식 MuJoCo 모델 so101_new_calib_camera(Apache-2.0)",
                               "cameras": ["탑뷰 카메라(보관함 위, 위치 찾기)", "손목 카메라(팔로워, 집기 때 VLA 입력)"]}}
 
 
@@ -554,5 +627,5 @@ class SimRobot:
         return robot_result(True)
 
 
-__all__ = ["SO101_JOINTS", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
+__all__ = ["SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
            "lost_station", "mm_to_px", "STATIONS", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]
