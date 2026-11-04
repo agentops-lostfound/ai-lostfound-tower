@@ -1,8 +1,17 @@
-"""Single-image detection followed by an isolated Qwen process."""
+"""Single-image detection followed by an isolated Qwen process.
+
+11/4 (변재원, 관제탑 연동):
+- report["captured_at"]: 사진을 찍은 시각(ISO 8601 + 시간대). 관제탑은 이 값으로 결과 나이를 센다(분석 45~76초만큼 저장 시각보다 정확)
+  기본값 = 입력 사진 파일의 수정 시각(카메라로 찍어 저장한 시각). 촬영 프로그램이 정확한 시각을 알면 captured_at= 으로 넘긴다
+- Qwen 실행 전에 GPU 사용권("qwen")을 받는다(agents/gpu_lease.py, docs/design/gpu_lease.md). 못 받으면 Qwen 을 띄우지 않고 failed
+  기다리는 최대 초: 환경값 QWEN_GPU_WAIT(기본 120). QWEN_GPU_LEASE=0 이면 사용권을 쓰지 않음
+"""
+from datetime import datetime
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 from time import perf_counter
 
 from .vision_pipeline import run_image
@@ -38,7 +47,39 @@ def _run_qwen(command, *, report_path, **kwargs):
             raise
 
 
-def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_packages=None, cache_dir=None):
+def captured_at_of(image, captured_at=None):
+    """촬영 시각 문자열. 넘긴 값이 있으면 그대로(시간대 없는 값은 PC 시간대를 붙임), 없으면 사진 파일 수정 시각."""
+    if isinstance(captured_at, datetime):
+        dt = captured_at
+    elif isinstance(captured_at, str) and captured_at.strip():
+        dt = datetime.fromisoformat(captured_at.strip().replace("Z", "+00:00"))
+    else:
+        try:
+            dt = datetime.fromtimestamp(Path(image).stat().st_mtime)
+        except OSError:
+            dt = datetime.now()
+    if dt.tzinfo is None:
+        dt = dt.astimezone()
+    return dt.isoformat(timespec="seconds")
+
+
+def _gpu_lease():
+    """GPU 사용권(없거나 꺼져 있으면 None). 저장소 루트의 agents/gpu_lease.py 를 쓴다."""
+    if str(os.environ.get("QWEN_GPU_LEASE") or "1").strip().lower() in ("0", "false", "no", "off"):
+        return None
+    root = str(Path(__file__).resolve().parents[1])
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from agents.gpu_lease import gpu_lease
+    try:
+        wait = float(os.environ.get("QWEN_GPU_WAIT") or 120)
+    except ValueError:
+        wait = 120.0
+    return gpu_lease("qwen", wait=wait)
+
+
+def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_packages=None, cache_dir=None,
+                 captured_at=None):
     qwen_root, qwen_python = Path(qwen_root).resolve(), Path(qwen_python).resolve()
     if not (qwen_root / "src/feature_extractor.py").is_file():
         raise FileNotFoundError(f"Qwen source not found: {qwen_root}")
@@ -49,6 +90,7 @@ def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_
     started = perf_counter()
     print("[1/3] YOLO detection and crop saving...", flush=True)
     report, detection_path = run_image(image, config, device)
+    report["captured_at"] = captured_at_of(image, captured_at)
     print(f"[1/3] {len(report['objects'])} crops saved: {detection_path.parent}", flush=True)
     report["detection_result_path"] = str(detection_path)
     report["sequence"] = {"status": "running", "visual_accuracy_verified": False,
@@ -72,7 +114,11 @@ def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_
     env = dict(os.environ, HF_HUB_OFFLINE="1", PYTHONIOENCODING="utf-8")
     print(f"[2/3] Starting Qwen. Initial loading may take a minute. Log: {log}", flush=True)
     cancelled, process_error = False, None
+    lease = None
     try:
+        lease = _gpu_lease()
+        if lease is not None:
+            lease.acquire()          # STT·VLA 가 GPU 를 쓰는 중이면 기다린다(GpuBusy 면 아래 except)
         with log.open("w", encoding="utf-8") as stream:
             result = _run_qwen(command, report_path=target, cwd=qwen_root, env=env,
                                stdout=stream, stderr=subprocess.STDOUT)
@@ -82,6 +128,14 @@ def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_
         print("Qwen cancelled; saving partial results.", flush=True)
     except OSError as error:
         returncode, process_error = 1, str(error)
+    except Exception as error:     # GpuBusy 등: Qwen 을 띄우지 않음
+        if type(error).__name__ != "GpuBusy":
+            raise
+        returncode, process_error = 1, f"GPU 사용권을 받지 못함: {error}"
+        print(f"[2/3] {process_error}", flush=True)
+    finally:
+        if lease is not None:
+            lease.release()          # Qwen 프로세스가 끝났으므로(메모리 해제) 사용권 반납
     report = json.loads(target.read_text(encoding="utf-8"))
     if returncode:
         for obj in report["objects"]:

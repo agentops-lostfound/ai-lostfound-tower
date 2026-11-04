@@ -1,4 +1,8 @@
-"""Local faster-whisper transcription with explicit device and Korean output."""
+"""Local faster-whisper transcription with explicit device and Korean output.
+
+11/4 (변재원, 관제탑 연동): device='cuda' 면 모델을 올리기 전에 GPU 사용권("stt")을 받고 close() 때 돌려준다
+(agents/gpu_lease.py). 순서: STT 입력 확정 → close() → Qwen → VLA. 기다리는 최대 초 STT_GPU_WAIT(기본 30), STT_GPU_LEASE=0 이면 끔.
+못 받으면 GpuBusy → 화면에 "잠시 후 다시" 또는 글자 입력 안내."""
 from dataclasses import dataclass
 from importlib.metadata import version
 import os
@@ -45,6 +49,24 @@ class KoreanTranscriber:
                 self._dll_handles.append(os.add_dll_directory(str(directory)))
                 # Native DLL loaders may also use PATH rather than AddDllDirectory.
                 os.environ['PATH']=str(directory)+os.pathsep+os.environ.get('PATH','')
+        self._lease=None
+        if self.config.device=='cuda' and str(os.environ.get('STT_GPU_LEASE') or '1').strip().lower() not in ('0','false','no','off'):
+            import sys
+            if str(ROOT) not in sys.path:
+                sys.path.insert(0,str(ROOT))
+            from agents.gpu_lease import gpu_lease
+            try:
+                wait=float(os.environ.get('STT_GPU_WAIT') or 30)
+            except ValueError:
+                wait=30.0
+            self._lease=gpu_lease('stt',wait=wait).acquire()   # GpuBusy 면 여기서 올라감(모델 안 올림)
+        try:
+            self._load()
+        except BaseException:
+            self.close()
+            raise
+
+    def _load(self):
         from faster_whisper import WhisperModel
         from faster_whisper.utils import download_model
         import ctranslate2
@@ -92,6 +114,12 @@ class KoreanTranscriber:
 
     def close(self):
         self.model=None
+        import gc
+        gc.collect()                       # GPU 메모리를 실제로 비운 뒤 사용권을 넘긴다
+        lease=getattr(self,'_lease',None)
+        if lease is not None:
+            lease.release()
+            self._lease=None
         # Keep native library search handles until process exit; a second instance may use them.
 
     def __enter__(self):
