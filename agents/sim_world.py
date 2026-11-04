@@ -205,7 +205,8 @@ class SimWorld:
                         for i, (m, label) in enumerate((m, l) for m, ls in DEMO_PLACES.items() for l in ls)]
         self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "z": HOME_Z, "gripper": HOME_GRIP, "phase": "대기",
                     "holding": None, "stopped": False, "target": None, "joints": so101_joints(*HOME_MM, HOME_Z, HOME_GRIP)}
-        self.homing: threading.Thread | None = None    # 바구니에 내려놓은 뒤 원점으로 돌아가는 중(뒤에서)
+        self.homing: threading.Thread | None = None
+        self._seq: dict[str, int] = {}                 # 접수 번호 앞부분별 마지막 순번(초기화해도 유지)    # 바구니에 내려놓은 뒤 원점으로 돌아가는 중(뒤에서)
         self.faults = {"grasp_fail": 0, "calib_fail": False}
         self.version = 0
         if seed:
@@ -257,7 +258,9 @@ class SimWorld:
                     raise IntakeError("place_id: 이 등록기계의 추천 장소가 아닙니다")
                 p["use_count"] += 1
             prefix = f"{MACHINE_LETTERS[intake['machine_id']]}-{day:%Y%m%d}-"
-            seq = 1 + sum(1 for k in self.items if k.startswith(prefix))
+            # 초기화해도 번호는 이어진다(11/4 무작위 시험: 디스코드에 남은 옛 진행판 번호와 새 물건 번호가 겹쳤음)
+            seq = max(self._seq.get(prefix, 0), sum(1 for k in self.items if k.startswith(prefix))) + 1
+            self._seq[prefix] = seq
             item_id = make_item_id(intake["machine_id"], day, seq)
             row = {"item_id": item_id, "machine_id": intake["machine_id"], "place_id": intake.get("place_id"),
                    "place_text": intake["place_text"], "photo_path": intake.get("photo_path"),

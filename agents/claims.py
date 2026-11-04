@@ -25,6 +25,11 @@ _PII = [re.compile(r"01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}"),        # 전화번�
         re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")]                      # 이메일
 
 
+def has_pii(text: str) -> bool:
+    """전화번호·주민등록번호·이메일 모양이 있으면 True (장소·설명 같은 자유 입력 칸 검사용, 11/4)."""
+    return any(p.search(text or "") for p in _PII)
+
+
 class ClaimError(ValueError):
     """찾기 요청 형식 오류(HTTP 422)."""
 
@@ -61,6 +66,8 @@ def parse_claim(payload: object) -> dict:
     desc = payload.get("description", {})
     if not isinstance(desc, dict) or not all(isinstance(v, str) for v in desc.values()):
         raise ClaimError("description: {칸: 글자} 형식")
+    if any(has_pii(v) for v in desc.values()):     # 11/4: 확인 질문 답 등에 전화번호를 쓰면 설명에 저장되던 문제
+        raise ClaimError("description: 전화번호·주민등록번호·이메일 같은 개인정보는 설명에 쓰지 않습니다")
     errs = validate_description(desc)
     if errs:
         raise ClaimError("description: " + "; ".join(errs))

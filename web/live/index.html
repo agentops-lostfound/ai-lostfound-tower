@@ -397,7 +397,8 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       } else if (kind === "found") {
         $("tryMsg").textContent = `접수 번호 ${d.item_id} · ${d.place_text} · ${d.features}`;
       } else {
-        $("tryMsg").textContent = `찾기 번호 ${d.claim_id} · 후보 ${d.item_id} · 확인 질문 ${d.quiz_passed ? "통과" : "미통과"}`;
+        $("tryMsg").textContent = d.staff ? `후보 ${d.candidates.length}개 구별 불가 → 직원 확인` :
+          `찾기 번호 ${d.claim_id} · 후보 ${d.item_id} · 확인 질문 ${d.quiz_passed ? "통과" : "미통과"}`;
       }
     } catch (e) { $("tryMsg").textContent = "⚠️ " + e.message; }
   });
@@ -405,7 +406,12 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     if (!pendingId) return;
     try {
       const d = await post(`/sim/lost/${pendingId}/answer`, {text: $("tryAns").value.trim() || "모름"});
-      pendingId = null; $("tryQ").hidden = true; $("tryAns").value = "";
+      $("tryAns").value = "";
+      if (d.pending_id) {                                   // 질문이 하나 더 있음
+        pendingId = d.pending_id; $("tryQText").textContent = "확인 질문: " + d.question; return;
+      }
+      pendingId = null; $("tryQ").hidden = true;
+      if (d.staff) { $("tryMsg").textContent = `후보 ${d.candidates.length}개 구별 불가 → 직원 확인`; return; }
       $("tryMsg").textContent = `찾기 번호 ${d.claim_id} · 후보 ${d.item_id} · 확인 질문 ${d.quiz_passed ? "통과" : "미통과"}`;
     } catch (e) { $("tryMsg").textContent = "⚠️ " + e.message; }
   };
