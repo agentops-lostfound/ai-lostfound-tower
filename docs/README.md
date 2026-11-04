@@ -10,6 +10,8 @@
 
 ## 팀원 진행 기록
 
+- [YOLO·Qwen 전체 시간 비교](progress/vision-latency-summary.md): 같은 폰 후속 요청8.10→5.68초, 초기 시작비용과 다른 사진 비교의 한계 구분.
+
 - [비전→SO-ARM 연결 상태 검토](progress/vision-robot-integration-review.md): 11/4 원격 브랜치 기준 검출·픽셀/mm·매칭·로봇 모의 구현 및 미연결 구간.
 
 - [최신 사용자 구매 후보 검수](progress/procurement-user-selection.md): 확정 후보군·제시 가격·미정 수량/대안·예산 시나리오. 구매 미완료.
