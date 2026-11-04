@@ -14,7 +14,11 @@ def main():
     parser.add_argument('--source-root', required=True, type=Path)
     parser.add_argument('--profile', action='store_true', help='Time extraction stages with CUDA synchronization')
     parser.add_argument('--concise', action='store_true', help='Experimental concise values; preserves all eight keys')
+    parser.add_argument('--max-edge', type=int, default=512,
+                        help='Maximum image edge; baseline 512, experimental 384')
     args = parser.parse_args()
+    if args.max_edge < 32:
+        parser.error('--max-edge must be at least 32')
     root = args.source_root.resolve()
     for relative in ('qwen/config/settings.py', 'qwen/src/model_loader.py',
                      'vision/item_features.py'):
@@ -39,7 +43,7 @@ def main():
             'Return compact JSON without explanatory prose. Template follows:\n')
     # Exactly the same immutable Settings instance for preload and every request:
     # the upstream lru_cache key includes log_dir and all other settings.
-    settings = replace(Settings(), max_edge=512, offline=True,
+    settings = replace(Settings(), max_edge=args.max_edge, offline=True,
                        log_dir=root / 'outputs/qwen-session/logs')
     started = perf_counter()
     bundle = load_model(settings)
@@ -84,7 +88,8 @@ def main():
             return 1
         elapsed = perf_counter() - started
         result = {'request': request_no, 'request_seconds': round(elapsed, 4),
-                  'mode': 'concise' if args.concise else 'baseline', 'features': features}
+                  'mode': 'concise' if args.concise else 'baseline',
+                  'max_edge': args.max_edge, 'features': features}
         if profile is not None:
             measured = sum(profile.get(k, 0.0) for k in (
                 'processor_seconds', 'generate_seconds', 'decode_seconds', 'validation_seconds'))
