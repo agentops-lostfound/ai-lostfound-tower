@@ -30,12 +30,13 @@ POST /items
   "place_id": 3,                         // 추천 칩을 골랐을 때만
   "place_text": "화장실",                 // 필수: 고른 칩 글자 또는 직접 입력(128자 이하)
   "finder": {"name": "김습득", "phone": "010-1234-5678"},   // 선택: 둘 다 비우면 저장 안 함(저장 = 동의)
-  "photo_path": "photos/A/20261103_0001.jpg"                // 선택: 사진 파일 상대 경로
+  "photo": "data:image/jpeg;base64,/9j/4AAQ..."             // 선택(11/4): 찍은 사진 data URL 그대로(jpeg·png·webp, 5MB 이하)
 }
 → {"item_id": "A-20261103-0001", "received_at": "...", "status": "등록기계 보관",
    "place_text": "화장실", "contact_saved": true}
 ```
 - 받지 않는 칸(물건 특징, 발견 시각 등)을 보내면 422 와 이유가 돌아온다
+- `photo` 는 관제탑이 형식·크기·실제 파일 종류를 확인하고 `data/photos/기계번호/` 에 저장, DB 에는 경로만 남긴다(사진은 Git 에 안 올림). 이미 저장된 사진 경로를 줄 때만 `photo_path`(둘 중 하나)
 - 응답에는 연락처가 나오지 않는다(`contact_saved` 로 저장 여부만)
 
 ### 특징 채우기 — 뒤에서 도는 Qwen 작업(김건태 LF-3)
@@ -46,6 +47,38 @@ POST /items/A-20261103-0001/features
 ```
 - 공개 특징(색·모양·재질)과 비공개 특징(표시·글자 = 확인 질문 정답)을 나눠 저장한다. 응답에는 공개 특징만
 
+## 2-1. 화면 연결 방법 (11/4 — 지금 시안 `web/found-item-intake.html` 기준)
+**화면은 관제탑이 직접 열어 준다**: `http://<관제탑 PC 주소>:8100/intake?machine=KIOSK-A`
+- 같은 주소에서 열리므로 `fetch("/places?...")` 처럼 앞부분 없이 부르면 된다(다른 주소에서 열면 브라우저가 막음)
+- 파일을 `intake_machine/index.html` 로 옮기면 그 파일을 연다(없으면 지금 시안)
+
+시안에서 바꿀 곳(위 1장 결정 기준)
+| 지금 | 바꿀 것 |
+| --- | --- |
+| 물건 종류(`category`)·상세 설명(`description`) 칸 | 삭제 — Qwen 이 사진으로 채움(보내면 422) |
+| 장소 빠른 버튼(고정) | `GET /places?machine_id=…` 결과로 칩 만들기, 고르면 `place_id`·`place_text` |
+| 이름·전화 `required` | `required` 빼고 [건너뛰기] — 비우면 `finder` 를 보내지 않음 |
+| 접수 번호를 화면이 만듦(`A-YYMMDD-무작위`) | `POST /items` 응답의 `item_id` 를 크게 표시(중복 없음) |
+| JSON 다운로드(전화번호·사진 포함) | 삭제 — 개인정보가 파일로 남지 않게 |
+| 접수 완료 화면 | 10초 뒤 처음 화면, 연락처는 다시 보여 주지 않음 |
+
+제출 부분 예시(그대로 붙여 써도 됨)
+```js
+const machine = new URLSearchParams(location.search).get('machine') || 'KIOSK-A';
+// 추천 장소 칩
+const places = await fetch('/places?machine_id=' + encodeURIComponent(machine)).then(r => r.json());
+// 접수
+const body = { machine_id: machine, place_text: $('location').value.trim(), photo: selectedPhotoData };
+if (chosenPlaceId) body.place_id = chosenPlaceId;
+const name = $('finder-name').value.trim(), phone = $('finder-phone').value.trim();
+if (name || phone) body.finder = { name: name || null, phone: phone || null };
+const res = await fetch('/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const data = await res.json();
+if (res.ok) showReceipt(data.item_id);                         // 접수 번호 = 서버가 준 값
+else if (res.status === 422) showError(data.detail);           // 이유 그대로 보여 주기
+else showError('잠시 후 다시 해 주세요. 급하면 역무실로 와 주세요.');   // 503 등
+```
+
 ## 3. 오류
 | 코드 | 뜻 | 화면에서 |
 | --- | --- | --- |
@@ -55,4 +88,6 @@ POST /items/A-20261103-0001/features
 
 ## 4. 확인 방법
 - 관제탑 켜기 → 브라우저 `http://127.0.0.1:8100/docs` 에서 `POST /items` 를 직접 눌러 볼 수 있다
+- 화면: `http://127.0.0.1:8100/intake?machine=KIOSK-A` → 접수 후 직원 화면·DB 에 접수 번호가 생기는지
+- 같은 교육원 안의 다른 기기(태블릿)에서 열려면 관제탑을 `--host 0.0.0.0` 으로 켜야 함(외부 공개는 TBD, 지금은 관제탑 PC 에서만)
 - 시험: `python -m unittest tests.test_intake`

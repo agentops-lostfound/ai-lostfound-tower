@@ -18,7 +18,8 @@ from dataclasses import fields
 from typing import Callable
 
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
-from agents.intake import IntakeError, IntakeStore, MemoryIntakeStore, parse_features, parse_intake, receipt, valid_item_id
+from agents.intake import (IntakeError, IntakeStore, MemoryIntakeStore, decode_photo, parse_features, parse_intake, receipt,
+                           save_photo, valid_item_id)
 from agents.contracts import (CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
                               DECISIONS, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, HOLD_REASONS, STAFF_STOP_REASON)
 from agents.records import MemoryRecorder, Recorder
@@ -139,7 +140,7 @@ def parse_visit(payload: dict) -> tuple[str, str | None, dict]:
 class TowerService:
     def __init__(self, backend_factory: Callable[[], object], reporter, recorder: Recorder | None = None,
                  reviewer=None, flow: Callable = run_return, claims: ClaimStore | None = None,
-                 intake: IntakeStore | None = None, gpu_lease=None):
+                 intake: IntakeStore | None = None, gpu_lease=None, photo_dir=None):
         self.backend_factory = backend_factory   # 요청마다 부품 묶음을 얻는 함수(진짜 부품이면 같은 객체를 돌려줘도 됨)
         self.reporter = reporter
         self.recorder = recorder if recorder is not None else MemoryRecorder()
@@ -149,6 +150,7 @@ class TowerService:
         self.intake = intake if intake is not None else MemoryIntakeStore()
         self._run_lock = threading.Lock()
         self._stop_event = threading.Event()     # 직원 정지 버튼(반환을 새로 시작할 때 지움)
+        self.photo_dir = photo_dir                 # 등록기계 사진 저장 폴더(None = TOWER_PHOTO_DIR 또는 저장소/data)
         self.gpu_lease = gpu_lease                 # user → GpuLease. None = GPU 사용권 안 씀(시험·가짜 부품)
 
     # ---------- 습득물 접수(등록기계 화면) ----------
@@ -164,15 +166,35 @@ class TowerService:
             raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
 
     def create_item(self, payload: object) -> dict:
-        """등록기계: 접수 → 접수 번호. 연락처는 저장만 하고 돌려주지 않는다."""
+        """등록기계: 접수 → 접수 번호. 연락처는 저장만 하고 돌려주지 않는다.
+        11/4: "photo"(data URL)를 함께 보내면 관제탑이 사진을 저장하고 photo_path 를 채운다(photo_path 와 같이 보내면 422)."""
+        photo_file = None
         try:
-            intake = parse_intake(payload)
+            body = dict(payload) if isinstance(payload, dict) else payload
+            photo = body.pop("photo", None) if isinstance(body, dict) else None
+            if photo is not None and isinstance(body, dict) and body.get("photo_path") is not None:
+                raise IntakeError("photo 와 photo_path 는 하나만")
+            intake = parse_intake(body)
+            if photo is not None:
+                raw, ext = decode_photo(photo)
+                intake["photo_path"], photo_file = save_photo(raw, ext, intake["machine_id"], self.photo_dir)
             row = self.intake.create(intake)
         except IntakeError as e:
+            self._drop(photo_file)
             raise RequestError(str(e)) from e
         except Exception as e:
+            self._drop(photo_file)
             raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
         return receipt(row)
+
+    @staticmethod
+    def _drop(path) -> None:
+        """접수가 저장되지 않았으면 먼저 저장한 사진도 지운다(주인 없는 사진을 남기지 않게)."""
+        if path is not None:
+            try:
+                path.unlink()
+            except OSError:
+                pass
 
     def set_item_features(self, item_id: str, payload: object) -> dict:
         """뒤에서 도는 Qwen 작업: 특징 채우기. 돌려주는 값은 공개 특징만(비공개 특징 = 확인 질문 정답)."""

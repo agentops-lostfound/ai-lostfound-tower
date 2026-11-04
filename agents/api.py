@@ -15,7 +15,8 @@
     TOWER_VISION_MAX_AGE  결과를 몇 초까지 믿을지(기본 600, 0 = 검사 안 함)
     TOWER_MATCHER         매칭 부품. 비움/policy = 김건태 matching/policy.py(11/3 기본), simple = 예전 단순 비교
     TOWER_GPU_LEASE       GPU 사용권(agents/gpu_lease.py). 기본 켬, 0 = 끔. TOWER_GPU_WAIT(초, 기본 60) · TOWER_GPU_FREE_MB(남은 메모리 확인, 기본 없음)
-- 등록기계 화면: GET /places, POST /items, POST /items/{item_id}/features (안내 intake_machine/README.md)
+- 등록기계 화면: GET /intake?machine=KIOSK-A(화면), GET /places, POST /items(사진 data URL 포함 가능), POST /items/{item_id}/features (안내 intake_machine/README.md)
+    TOWER_PHOTO_DIR  등록기계 사진 저장 폴더(기본 저장소/data → data/photos/기계/…, Git 에 안 올림)
 - 직원 화면: POST /returns/{case_id}/handover — 바구니의 물건을 분실인에게 건넨 뒤 인계 완료로(11/4)
             POST /returns/{case_id}/hold — 건네지 않기로 함(이유 4개 중 하나) → 반환 보류
             POST /robot/stop (반환 진행 중에도) · POST /robot/home (주변 확인 뒤, 진행 중이면 409)
@@ -33,7 +34,10 @@ if __package__ in (None, ""):
 from agents.service import (Conflict, NotFound, RequestError, TowerService, Unavailable,  # noqa: E402
                             demo_backend_factory)
 
-STAFF_PAGE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "staff-desk", "index.html")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STAFF_PAGE = os.path.join(ROOT, "web", "staff-desk", "index.html")
+# 등록기계 화면(11/4): intake_machine/index.html 이 생기면 그것을, 아니면 지금 화면 시안(web/found-item-intake.html)을 연다
+INTAKE_PAGES = [os.path.join(ROOT, "intake_machine", "index.html"), os.path.join(ROOT, "web", "found-item-intake.html")]
 
 
 def _flag(name: str) -> bool:
@@ -131,7 +135,8 @@ def build_app(service: TowerService | None = None):
     @app.post("/items")
     def create_item(payload: dict = Body(...)) -> dict:
         """등록기계 화면: 습득물 접수 → 접수 번호. 본문: machine_id, place_text(필수), place_id(추천 고른 경우),
-        finder {name, phone}(둘 다 선택 — 비우면 저장 안 함), photo_path(선택). 연락처는 응답에 나오지 않음"""
+        finder {name, phone}(둘 다 선택 — 비우면 저장 안 함), photo(선택, data:image/jpeg;base64,… 5MB 이하) 또는 photo_path.
+        연락처는 응답에 나오지 않음"""
         try:
             return svc.create_item(payload)
         except RequestError as e:
@@ -233,6 +238,16 @@ def build_app(service: TowerService | None = None):
             raise HTTPException(status_code=422, detail=str(e))
         except Conflict as e:
             raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+
+    @app.get("/intake", include_in_schema=False)
+    def intake_page():
+        """등록기계 화면(태블릿). 관제탑과 같은 주소에서 열려 API 를 바로 부른다. 기계 번호는 주소 뒤 ?machine=KIOSK-A"""
+        from fastapi.responses import HTMLResponse
+        for path in INTAKE_PAGES:
+            if os.path.isfile(path):
+                with open(path, encoding="utf-8") as f:
+                    return HTMLResponse(f.read())
+        raise HTTPException(status_code=404, detail="등록기계 화면 파일 없음")
 
     @app.get("/staff", include_in_schema=False)
     def staff_page():

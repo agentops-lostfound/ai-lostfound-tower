@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+from pathlib import Path
 import threading
 from datetime import date, datetime, timezone
 from typing import Callable, Protocol
@@ -73,6 +74,66 @@ def parse_intake(payload: object) -> dict:
         raise IntakeError("photo_path: 사진 파일 상대 경로(영문·숫자·_ . / -)")
     return {"machine_id": machine, "place_id": place_id, "place_text": place_text, "finder": contact,
             "photo_path": photo}
+
+
+# ---------- 사진 받기 (11/4, 등록기계 화면 연결용) ----------
+# 화면은 찍은 사진을 data URL("data:image/jpeg;base64,....") 그대로 POST /items 의 "photo" 칸에 넣어 보낸다.
+# 관제탑이 형식·크기·파일 머리(매직 바이트)를 확인하고 TOWER_PHOTO_DIR(기본 저장소/data) 아래 photos/기계/ 에 저장,
+# DB 에는 상대 경로(photo_path)만 남긴다. 사진은 Git 에 올리지 않는다(.gitignore data/photos/).
+PHOTO_MAX_BYTES = 5 * 1024 * 1024
+PHOTO_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+DATA_URL_RE = re.compile(r"^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$")
+
+
+def _sniff(raw: bytes) -> str | None:
+    if raw[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if raw[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def decode_photo(data_url: object) -> tuple[bytes, str]:
+    """data URL → (사진 바이트, 확장자). 형식·크기·실제 파일 종류가 맞지 않으면 IntakeError."""
+    import base64
+    import binascii
+    if not isinstance(data_url, str):
+        raise IntakeError("photo: data URL 문자열(data:image/jpeg;base64,...)")
+    m = DATA_URL_RE.match(data_url.strip())
+    if not m:
+        raise IntakeError("photo: jpeg·png·webp 의 data URL 만 받는다")
+    if len(m.group(2)) > PHOTO_MAX_BYTES * 4 // 3 + 16:
+        raise IntakeError(f"photo: {PHOTO_MAX_BYTES // (1024 * 1024)}MB 이하")
+    try:
+        raw = base64.b64decode("".join(m.group(2).split()), validate=True)
+    except (binascii.Error, ValueError):
+        raise IntakeError("photo: base64 형식 오류") from None
+    if not raw or len(raw) > PHOTO_MAX_BYTES:
+        raise IntakeError(f"photo: 비어 있거나 {PHOTO_MAX_BYTES // (1024 * 1024)}MB 초과")
+    kind = _sniff(raw)
+    if kind != m.group(1):
+        raise IntakeError("photo: 파일 내용이 사진 형식과 다름")
+    return raw, PHOTO_TYPES[kind]
+
+
+def photo_root(env: dict | None = None) -> Path:
+    import os
+    env = os.environ if env is None else env
+    return Path(env.get("TOWER_PHOTO_DIR") or Path(__file__).resolve().parent.parent / "data")
+
+
+def save_photo(raw: bytes, ext: str, machine_id: str, root: Path | None = None) -> tuple[str, Path]:
+    """사진 저장 → (DB 에 넣을 상대 경로, 실제 파일). 이름은 날짜-무작위(접수 번호 전이라 겹치지 않게)."""
+    import uuid
+    from datetime import datetime
+    root = Path(root) if root else photo_root()
+    rel = f"photos/{machine_id}/{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:8]}{ext}"
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(raw)
+    return rel, path
 
 
 def receipt(row: dict) -> dict:

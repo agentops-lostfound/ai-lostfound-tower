@@ -221,3 +221,71 @@ class PostgresStoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IntakePhotoTest(unittest.TestCase):
+    """11/4: 등록기계 화면이 사진(data URL)을 POST /items 에 함께 보내면 관제탑이 저장하고 photo_path 를 채운다."""
+
+    JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+    PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+    def url(self, raw, kind="image/jpeg"):
+        import base64
+        return f"data:{kind};base64," + base64.b64encode(raw).decode()
+
+    def setUp(self):
+        import tempfile
+        from agents.service import TowerService, demo_backend_factory
+        from discord_ops.reporter import Reporter
+        self.tmp = tempfile.TemporaryDirectory()
+        self.svc = TowerService(demo_backend_factory(), Reporter(), photo_dir=self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def files(self):
+        from pathlib import Path
+        return sorted(p for p in Path(self.tmp.name).rglob("*") if p.is_file())
+
+    def test_decode(self):
+        from agents.intake import IntakeError, decode_photo
+        self.assertEqual(decode_photo(self.url(self.JPEG)), (self.JPEG, ".jpg"))
+        self.assertEqual(decode_photo(self.url(self.PNG, "image/png"))[1], ".png")
+        bad = [None, 123, "abc", self.url(self.JPEG, "image/gif"), "data:image/jpeg;base64,@@@",
+               self.url(self.PNG, "image/jpeg"),                        # 내용은 png 인데 jpeg 라고 함
+               self.url(b"", "image/jpeg"), self.url(b"\xff\xd8\xff" + b"0" * (5 * 1024 * 1024))]
+        for b in bad:
+            with self.assertRaises(IntakeError, msg=str(b)[:40]):
+                decode_photo(b)
+
+    def test_create_with_photo(self):
+        out = self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "2번 출구 계단", "photo": self.url(self.JPEG)})
+        self.assertTrue(out["item_id"].startswith("A-"))
+        files = self.files()
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0].read_bytes(), self.JPEG)
+        self.assertEqual(files[0].parent.name, "KIOSK-A")
+        row = self.svc.intake.items[out["item_id"]]
+        self.assertTrue(row["photo_path"].startswith("photos/KIOSK-A/") and row["photo_path"].endswith(".jpg"))
+        self.assertNotIn("photo", out)                                     # 응답에 사진을 돌려주지 않음
+
+    def test_bad_requests_leave_no_file(self):
+        from agents.service import RequestError, Unavailable
+        for body in ({"machine_id": "KIOSK-A", "place_text": "x", "photo": "abc"},
+                     {"machine_id": "KIOSK-A", "place_text": "x", "photo": self.url(self.JPEG), "photo_path": "a.jpg"},
+                     {"machine_id": "KIOSK-Z", "place_text": "x", "photo": self.url(self.JPEG)},
+                     {"machine_id": "KIOSK-A", "photo": self.url(self.JPEG)}):     # 장소 없음
+            with self.assertRaises(RequestError):
+                self.svc.create_item(body)
+        self.assertEqual(self.files(), [])
+        def boom(intake):
+            raise ConnectionError("DB 꺼짐")
+        self.svc.intake.create = boom
+        with self.assertRaises(Unavailable):
+            self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "x", "photo": self.url(self.JPEG)})
+        self.assertEqual(self.files(), [])                                 # 저장 실패면 사진도 지움
+
+    def test_without_photo_unchanged(self):
+        out = self.svc.create_item({"machine_id": "KIOSK-B", "place_text": "대합실"})
+        self.assertIsNone(self.svc.intake.items[out["item_id"]]["photo_path"])
+        self.assertEqual(self.files(), [])
