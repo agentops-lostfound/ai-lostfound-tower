@@ -64,7 +64,17 @@ def require_idle():
         except (FileNotFoundError, ProcessLookupError):
             continue
         except PermissionError as error:
-            raise RuntimeError(f"프로세스 {proc.name} 사용 상태를 확인할 수 없습니다") from error
+            identity = "unknown"
+            try:
+                identity = next(line.strip() for line in (proc / "status").read_text().splitlines()
+                                if line.startswith("Uid:"))
+            except (OSError, StopIteration):
+                pass
+            raise RuntimeError(
+                f"프로세스 {proc.name} 사용 상태를 확인할 수 없습니다 "
+                f"(검사 EUID={os.geteuid()}, 대상 {identity}). "
+                "확인하지 못한 프로세스를 건너뛰지 않고 중단합니다."
+            ) from error
     if busy:
         raise RuntimeError(f"활성 소유자/세션/USB 사용 PID: {sorted(busy)}. 적용·복원 중단")
 
@@ -134,7 +144,9 @@ def read_backup(directory, transport):
 
 def atomic_write(path, content):
     path = Path(path)
-    mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
+    previous = path.stat() if path.exists() else None
+    owner = previous if previous is not None else path.parent.stat()
+    mode = previous.st_mode & 0o777 if previous is not None else 0o644
     handle, temporary = tempfile.mkstemp(prefix=".lf-patch-", dir=path.parent)
     try:
         with os.fdopen(handle, "wb") as stream:
@@ -142,6 +154,8 @@ def atomic_write(path, content):
             stream.flush()
             os.fsync(stream.fileno())
         os.chmod(temporary, mode)
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            os.chown(temporary, owner.st_uid, owner.st_gid)
         os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):

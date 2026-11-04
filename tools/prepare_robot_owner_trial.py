@@ -24,7 +24,9 @@ def execute(*arguments):
 
 
 def manager(record, operation):
-    command = ["docker", "exec", CONTAINER, "python", record["container_dir"] + "/manage_robot_owner_patch.py", operation]
+    # 프로세스 조사/코드 백업에만 관리자 권한을 사용한다.
+    # 상태·정지 화면과 장비 제어 작업자는 기존 사용자로 실행한다.
+    command = ["docker", "exec", "--user", "0", CONTAINER, "python", record["container_dir"] + "/manage_robot_owner_patch.py", operation]
     if operation in ("check", "backup"):
         command += ["--candidate", record["container_dir"] + "/candidate"]
     if operation in ("backup", "apply", "rollback"):
