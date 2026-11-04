@@ -8,14 +8,14 @@
 
 - 필요: `pip install "psycopg[binary]"`, DB 켜기 `docker compose up -d` (center/schema.sql 자동 적용)
 - 약속(docs/contracts/mcp_tools.md): 예외를 던지지 않는다. 읽기 실패·없음 → None, 쓰기 실패 → {"ok": False, "reason": ...}
-- 상태를 바꿀 때마다 item_status_log 에 changed_by='tower' 로 남긴다(같은 거래 안에서)
+- 상태를 바꿀 때마다 item_status_log 에 누가 바꿨는지(기본 'tower', 직원 화면 인계·취소는 'staff') 남긴다(같은 거래 안에서)
 - DATABASE_URL(비밀번호 포함)은 출력하지 않는다
 """
 from __future__ import annotations
 
 from typing import Callable
 
-from agents.contracts import ACTIVE_STATUSES, ITEM_STATUS, robot_result
+from agents.contracts import ACTIVE_STATUSES, CHANGED_BY, ITEM_STATUS, robot_result
 
 SQL_GET_ITEM = (
     "SELECT item_id, status, category, features, private_features, object_id "
@@ -27,7 +27,7 @@ SQL_LIST_ACTIVE = (
 SQL_LOCK_ITEM = "SELECT status FROM item WHERE item_id = %s FOR UPDATE"
 SQL_SET_STATUS = "UPDATE item SET status = %s, updated_at = now() WHERE item_id = %s"
 SQL_LOG_STATUS = (
-    "INSERT INTO item_status_log (item_id, from_status, to_status, changed_by) VALUES (%s, %s, %s, 'tower')"
+    "INSERT INTO item_status_log (item_id, from_status, to_status, changed_by) VALUES (%s, %s, %s, %s)"
 )
 
 
@@ -75,9 +75,11 @@ class PostgresDbPart:
             return None
         return [{"item_id": iid, "status": st, "features": {**(f or {}), **(p or {})}} for iid, st, f, p in rows]
 
-    def db_set_status(self, item_id: str, status: str) -> dict:
+    def db_set_status(self, item_id: str, status: str, changed_by: str = "tower") -> dict:
         if status not in ITEM_STATUS:
             return robot_result(False, f"모르는 상태: {status}")
+        if changed_by not in CHANGED_BY:
+            return robot_result(False, f"모르는 변경 주체: {changed_by}")
         try:
             with self._connect(self._dsn) as conn:   # with 블록 = 거래 하나(끝나면 commit, 예외면 rollback)
                 with conn.cursor() as cur:
@@ -86,7 +88,7 @@ class PostgresDbPart:
                     if row is None:
                         return robot_result(False, "물건 기록 없음")
                     cur.execute(SQL_SET_STATUS, (status, item_id))
-                    cur.execute(SQL_LOG_STATUS, (item_id, row[0], status))
+                    cur.execute(SQL_LOG_STATUS, (item_id, row[0], status, changed_by))
             return robot_result(True)
         except Exception as e:
             self.last_error = type(e).__name__

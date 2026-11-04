@@ -265,7 +265,7 @@ class ApiRoutesTest(unittest.TestCase):
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
-                                     ("POST", "/returns/{case_id}/handover")])
+                                     ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold")])
         self.assertEqual(r[("POST", "/returns")](ok_payload())["decision"], DECISION_RETURNED)
         for payload, code in ((ok_payload(), 409), (ok_payload(case="R2", phone="010"), 422)):
             with self.assertRaises(self.HTTPException) as cm:
@@ -283,6 +283,9 @@ class ApiRoutesTest(unittest.TestCase):
             with self.assertRaises(self.HTTPException) as cm:
                 r[("POST", "/returns/{case_id}/handover")](*args)
             self.assertEqual(cm.exception.status_code, code, args)
+        with self.assertRaises(self.HTTPException) as cm:          # 이미 인계 완료 → 보류 불가
+            r[("POST", "/returns/{case_id}/hold")]("R1", {"reason": "기타"})
+        self.assertEqual(cm.exception.status_code, 409)
 
     def test_db_down_is_503(self):
         from agents import api
@@ -315,6 +318,7 @@ class HandoverTest(unittest.TestCase):
         self.assertIn("인계 대기", out["reason"])
         self.assertEqual(self.status(), "인계 대기")              # 시연 부품도 요청 사이에 상태가 이어짐
         res = self.svc.handover("H1", {"staff_confirmed": True})
+        self.assertEqual(self.svc.backend_factory().db_get_item("A-W01")["changed_by"], "staff")
         self.assertEqual(res, {"case_id": "H1", "item_id": "A-W01", "status": "인계 완료"})
         self.assertEqual(self.status(), "인계 완료")
         self.assertTrue(any(m["channel"] == "progress" and "인계 완료" in m["title"] for m in self.rep.messages))
@@ -354,6 +358,31 @@ class HandoverTest(unittest.TestCase):
             self.svc.handover("H5", {"staff_confirmed": True})
         self.svc.backend_factory = orig
         self.assertEqual(self.status(), "인계 대기")
+
+    def test_hold_from_wait(self):
+        self.svc.start_return(ok_payload(case="H6"))
+        for body in ({}, {"reason": "그냥"}, {"reason": "본인 아님", "memo": "이름"}, {"reason": None}):
+            with self.assertRaises(RequestError, msg=repr(body)):
+                self.svc.hold_handover("H6", body)
+        res = self.svc.hold_handover("H6", {"reason": "본인 아님"})
+        self.assertEqual(res["status"], "반환 보류")
+        self.assertEqual(self.status(), "반환 보류")
+        self.assertEqual(self.svc.backend_factory().db_get_item("A-W01")["changed_by"], "staff")
+        self.assertTrue(any(m["channel"] == "alert" and "본인 아님" in m["title"] for m in self.rep.messages))
+        with self.assertRaises(Conflict) as cm:
+            self.svc.hold_handover("H6", {"reason": "기타"})
+        self.assertEqual(cm.exception.kind, "duplicate")
+        with self.assertRaises(Conflict) as cm:          # 보류된 물건은 인계 완료로 못 감
+            self.svc.handover("H6", {"staff_confirmed": True})
+        self.assertEqual(cm.exception.kind, "state")
+
+    def test_hold_after_done_refused(self):
+        self.svc.start_return(ok_payload(case="H7"))
+        self.svc.handover("H7", {"staff_confirmed": True})
+        with self.assertRaises(Conflict) as cm:
+            self.svc.hold_handover("H7", {"reason": "분실인 거부"})
+        self.assertEqual(cm.exception.kind, "state")
+        self.assertEqual(self.status(), "인계 완료")
 
     def test_schema_and_migration_list_all_statuses(self):
         from agents.contracts import ITEM_STATUS

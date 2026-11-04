@@ -20,7 +20,7 @@ from typing import Callable
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
 from agents.intake import IntakeError, IntakeStore, MemoryIntakeStore, parse_features, parse_intake, receipt, valid_item_id
 from agents.contracts import (CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
-                              DECISIONS, HANDOVER_DONE, HANDOVER_WAIT)
+                              DECISIONS, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, HOLD_REASONS)
 from agents.records import MemoryRecorder, Recorder
 from agents.supervisor import Outcome, ReturnRequest, run_return
 
@@ -251,13 +251,10 @@ class TowerService:
             pass
         return Outcome(req.case_id, DECISION_STOPPED, reason).to_dict()
 
-    def handover(self, case_id: str, payload: object) -> dict:
-        """직원 화면: 바구니의 물건을 분실인에게 건넸다 → 물건 상태 인계 대기 → 인계 완료 (11/4).
-        본문은 {"staff_confirmed": true} 만 받는다. 로봇은 움직이지 않으므로 반환 실행 잠금을 쓰지 않는다."""
+    def _waiting_item(self, case_id: str):
+        """인계할 물건 찾기: 반환 기록(바구니까지 전달) → 물건 → 지금 상태. (부품, 물건 번호, 상태)"""
         if not ID_RE.match(case_id or ""):
             raise RequestError("case_id: 영문·숫자·-·_ 1~32자")
-        if not isinstance(payload, dict) or set(payload) != {"staff_confirmed"} or payload["staff_confirmed"] is not True:
-            raise RequestError('본문은 {"staff_confirmed": true} 만 보냅니다(직원이 건넨 것을 확인한 뒤)')
         try:
             row = self.recorder.get(case_id)
         except Exception as e:
@@ -271,12 +268,19 @@ class TowerService:
         item = be.db_get_item(item_id)
         if item is None:
             raise NotFound(f"물건 기록 없음: {item_id}")
-        status = item.get("status")
+        return be, item_id, item.get("status")
+
+    def handover(self, case_id: str, payload: object) -> dict:
+        """직원 화면: 바구니의 물건을 분실인에게 건넸다 → 물건 상태 인계 대기 → 인계 완료 (11/4).
+        본문은 {"staff_confirmed": true} 만 받는다. 로봇은 움직이지 않으므로 반환 실행 잠금을 쓰지 않는다."""
+        if not isinstance(payload, dict) or set(payload) != {"staff_confirmed"} or payload["staff_confirmed"] is not True:
+            raise RequestError('본문은 {"staff_confirmed": true} 만 보냅니다(직원이 건넨 것을 확인한 뒤)')
+        be, item_id, status = self._waiting_item(case_id)
         if status == HANDOVER_DONE:
             raise Conflict("duplicate", f"이미 인계 완료: 물건 {item_id}")
         if status != HANDOVER_WAIT:
             raise Conflict("state", f"인계 대기 상태가 아님(지금 {status}) — 직원이 물건 위치 확인")
-        r = be.db_set_status(item_id, HANDOVER_DONE)
+        r = be.db_set_status(item_id, HANDOVER_DONE, changed_by="staff")
         if not (r or {}).get("ok"):
             raise Unavailable(f"상태 기록 실패: {(r or {}).get('reason', '')}")
         try:
@@ -284,6 +288,25 @@ class TowerService:
         except Exception:
             pass
         return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_DONE}
+
+    def hold_handover(self, case_id: str, payload: object) -> dict:
+        """직원 화면: 인계 대기 중에 건네지 않기로 함(본인 아님 등) → 반환 보류 + 경보 (11/4).
+        본문 {"reason": HOLD_REASONS 중 하나}. 자유 입력은 받지 않는다(기록·알림에 개인정보가 섞이지 않게)."""
+        if not isinstance(payload, dict) or set(payload) != {"reason"} or payload["reason"] not in HOLD_REASONS:
+            raise RequestError(f'본문은 {{"reason": {" | ".join(HOLD_REASONS)}}} 만 보냅니다')
+        be, item_id, status = self._waiting_item(case_id)
+        if status == HANDOVER_HOLD:
+            raise Conflict("duplicate", f"이미 반환 보류: 물건 {item_id}")
+        if status != HANDOVER_WAIT:
+            raise Conflict("state", f"인계 대기 상태가 아님(지금 {status}) — 인계 취소할 수 없음")
+        r = be.db_set_status(item_id, HANDOVER_HOLD, changed_by="staff")
+        if not (r or {}).get("ok"):
+            raise Unavailable(f"상태 기록 실패: {(r or {}).get('reason', '')}")
+        try:
+            self.reporter.alert(case_id, f"인계 취소 → 반환 보류({payload['reason']})", f"물건 {item_id} · 바구니에서 꺼내 보관, 직원 확인")
+        except Exception:
+            pass
+        return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_HOLD, "reason": payload["reason"]}
 
     def get_case(self, case_id: str) -> dict | None:
         if not ID_RE.match(case_id or ""):

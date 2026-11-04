@@ -34,7 +34,7 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("db_get_item", "변재원 LF-8", "접수 번호로 물건 기록(특징 JSON·상태)을 읽는다",
              {"item_id": "접수 번호"}, "{item_id, status, features}", "없으면 None"),
     ToolSpec("db_set_status", "변재원 LF-8", "물건 상태를 바꾸고 기록을 남긴다",
-             {"item_id": "접수 번호", "status": "contracts.ITEM_STATUS 중 하나"}, "{ok, reason}", "실패하면 로봇을 움직이지 않음"),
+             {"item_id": "접수 번호", "status": "contracts.ITEM_STATUS 중 하나", "changed_by": "tower(기본) | staff"}, "{ok, reason}", "실패하면 로봇을 움직이지 않음"),
     ToolSpec("db_list_active", "변재원 LF-8", "보관함에 있을 수 있는 물건(contracts.ACTIVE_STATUSES) 목록 — 닮은 물건 검사용",
              {}, "[{item_id, status, features}]", "None → 닮은 물건 검사 불가, 자동 반환하지 않음"),
     ToolSpec("robot_approach", "김건태 LF-21", "작업대 mm 좌표를 로봇 좌표로 바꿔 Home → 경유점 → 접근 자세로 이동",
@@ -122,13 +122,14 @@ class MockBackend:
         rec = self.db.get(item_id)
         return None if rec is None else {"item_id": item_id, **copy.deepcopy(rec)}
 
-    def db_set_status(self, item_id: str, status: str) -> dict:
+    def db_set_status(self, item_id: str, status: str, changed_by: str = "tower") -> dict:
         self.calls.append(f"db_set_status:{status}")
         if item_id not in self.db:
             return robot_result(False, "물건 기록 없음")
         if status in self.status_fail:
             return robot_result(False, "DB 쓰기 실패")
         self.db[item_id]["status"] = status
+        self.db[item_id]["changed_by"] = changed_by     # 가짜 DB: 마지막으로 바꾼 주체(시험 확인용)
         return robot_result(True)
 
     def db_list_active(self) -> list[dict] | None:

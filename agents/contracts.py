@@ -43,6 +43,11 @@ CONTACT_RETENTION_DAYS = 30
 ITEM_STATUS = ["등록기계 보관", "회수 중", "본센터 보관", "확인 중", "승인·수령 예약", "반환 중", "인계 대기", "인계 완료", "반환 보류"]
 HANDOVER_WAIT = "인계 대기"
 HANDOVER_DONE = "인계 완료"
+HANDOVER_HOLD = "반환 보류"
+# 인계 대기에서 직원이 건네지 않고 멈출 때 고르는 이유(자유 입력 없음 → 개인정보가 기록에 들어가지 않음)
+HOLD_REASONS = ["본인 아님", "물건 다름", "분실인 거부", "기타"]
+# 상태를 바꾼 주체(DB item_status_log.changed_by). 관제탑 반환 흐름 = tower, 직원 화면 인계·취소 = staff
+CHANGED_BY = ["tower", "staff"]
 # 본센터 보관함에 있을 수 있는 상태(닮은 물건 검사 대상). 등록기계 보관·인계 대기(바구니)·인계 완료는 보관함에 없다
 ACTIVE_STATUSES = [s for s in ITEM_STATUS if s not in ("등록기계 보관", HANDOVER_WAIT, HANDOVER_DONE)]
 
