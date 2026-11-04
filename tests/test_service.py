@@ -493,3 +493,18 @@ class HandoverTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HealthReviewerDeviceTest(unittest.TestCase):
+    """11/4: /health 에 LLM 검토 장치(cpu/gpu)를 보여 준다."""
+
+    def test_device_shown(self):
+        class R:
+            device = "cpu"
+
+            def __call__(self, summary):
+                return "ok", ""
+        h = TowerService(demo_backend_factory(), Reporter(), reviewer=R()).health()
+        self.assertEqual((h["reviewer"], h["reviewer_device"]), (True, "cpu"))
+        h = TowerService(demo_backend_factory(), Reporter()).health()
+        self.assertEqual((h["reviewer"], h["reviewer_device"]), (False, None))

@@ -44,7 +44,7 @@
 
 ## 5. 통합 때 주의할 점 (변재원 검토)
 - **모델 확정(11/4)**: 검출 **YOLO26n**, 특징 추출 **Qwen3-VL-2B-Instruct**(Hugging Face, NF4 4-bit). Jira·발표 표기도 이 이름으로
-- **GPU 메모리(시연 PC RTX 3050 6GB)**: STT·Qwen3-VL-2B·SmolVLA를 동시에 올리지 않는다(순서: STT → 해제 → 촬영·Qwen → 해제 → CPU 매칭 → VLA, 김건태 11/4). LLM 검토(Ollama `qwen3-vl:4b-instruct`, Q4 약 3.3GB)는 비전과 **다른 모델**이라 켜면 메모리를 더 쓴다 → 시연에서는 끈다(`TOWER_REVIEWER` 비움)
+- **GPU 메모리(시연 PC RTX 3050 6GB)**: STT·Qwen3-VL-2B·SmolVLA를 동시에 올리지 않는다(순서: STT → 해제 → 촬영·Qwen → 해제 → CPU 매칭 → VLA, 김건태 11/4). LLM 검토(Ollama `qwen3-vl:4b-instruct`, Q4 약 3.6GB)는 비전과 **다른 모델**이라 시연에서는 **CPU 로 돌린다**(`MAIN_AI_DEVICE=cpu`, GPU 를 쓰지 않음)
 - **카메라가 달라 특징이 어긋날 위험**: 접수 특징은 등록기계(포토박스 LED 조명)에서, 비교할 특징은 본센터 탑뷰(다른 조명·각도)에서 뽑는다. 색·글자가 다르게 읽히면 매칭이 자주 '불확실'이 되어 직원 확인으로 빠진다 → 같은 지갑을 두 카메라로 찍어 항목별 일치율을 먼저 재고, 덜 맞는 항목은 매칭 가중치를 낮춘다(LF-20)
-- **LLM 검토는 기본 꺼짐**: 시연 PC에서 `python evaluation/run_cases.py --reviewer` 로 잘못된 보류가 0건일 때만 켠다
+- **LLM 검토는 코드 기본 꺼짐, 시연 PC 는 CPU 로 켬(11/4 결정)**: `.env` `TOWER_REVIEWER=1` + `MAIN_AI_DEVICE=cpu`. 11/4 교육원 PC 실측(`run_cases.py --reviewer`): 잘못된 보류 0건 · 평균 3.8초(GPU 2.7초) · 처음 올리기 11.5초 · `ollama ps` 100% CPU. `/health` 의 `reviewer_device` 로 확인. Ollama 가 꺼져 있으면 검토는 보류(직원 확인)
 - **(LLM 검토용) Qwen3-VL-4B는 instruct판을 쓴다(11/2 시연 PC 측정)**: `qwen3-vl:4b` 는 생각 전용판이라 `"think": false` 를 보내도 무시하고 답마다 생각 글 약 1,800~2,500자(약 500~700토큰, 10~14초)를 먼저 쓴다. `qwen3-vl:4b-instruct` 로 바꾸면 같은 JSON 답이 22토큰 · 평균 2.7초 · 생각 글자 0, 처음 올리기 약 7초(100% GPU). 특징 JSON 추출(LF-3)은 11/4 확정대로 Qwen3-VL-2B(Hugging Face)를 쓴다
