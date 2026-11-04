@@ -1,0 +1,633 @@
+{
+  "basis": "Saved Qwen observations; duplicate runs and extraction errors retained. No photos or local paths.",
+  "runs": [
+    {
+      "run": "262a3fbb20e1489495aa30dd55cf18e9",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: phone; colors: dark blue; shape: rectangular; materials: plastic; distinctive features: a cartoon sticker of a Pokémon character on the back of the phone; stickers present; sticker shape: cartoon; sticker position: lower left",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "dark blue"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "cartoon",
+                "position": "lower left"
+              }
+            ],
+            "distinctive_features": [
+              "a cartoon sticker of a Pokémon character on the back of the phone"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "category: phone; colors: white; shape: rectangular; materials: plastic; logos or text: Apple logo; distinctive features: crack on the back, damaged Apple logo, camera module with two lenses; stickers present; sticker shape: triangle; sticker position: center",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "triangle",
+                "position": "center"
+              }
+            ],
+            "distinctive_features": [
+              "crack on the back",
+              "damaged Apple logo",
+              "camera module with two lenses"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "2fa66a50d89e4a788480166975c2a7b6",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: HONOR; distinctive features: camera module, card slot; no stickers",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "cardholder",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "HONOR"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "card slot"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: black, green; shape: rectangular; materials: plastic; logos or text: MIDAS; distinctive features: logo; stickers present; sticker shape: rectangular; sticker position: top",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black",
+              "green"
+            ],
+            "shape": "rectangular",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "MIDAS"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangular",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "4560b8a53f4b4eeb96718439dc8f595a",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "colors: black; shape: rectangle; materials: plastic; distinctive features: screen is black, phone is in a case; no stickers",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "screen is black",
+              "phone is in a case"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: logo; distinctive features: small square logo; stickers present; sticker shape: square; sticker position: bottom-right",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "personal",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "logo"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "square",
+                "position": "bottom-right"
+              }
+            ],
+            "distinctive_features": [
+              "small square logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "60fd6277bc07490fbefd8d4b9446093e",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: HONOR; distinctive features: camera module, card slot; no stickers",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "cardholder",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "HONOR"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "card slot"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: black, green; shape: rectangular; materials: plastic; logos or text: MIDAS; distinctive features: logo; stickers present; sticker shape: rectangular; sticker position: top",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black",
+              "green"
+            ],
+            "shape": "rectangular",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "MIDAS"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangular",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: usb; colors: black, red; shape: rectangular; materials: plastic; logos or text: SanDisk; distinctive features: text on the side, red edge; stickers present; sticker shape: rectangle; sticker position: top",
+          "features": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "SanDisk"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangle",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "text on the side",
+              "red edge"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "cb97b414627b47d8a349c9ca3323d3f1",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: wallet; colors: black; shape: rectangle; materials: leather; logos or text: HONOR; distinctive features: camera module, card slot; no stickers",
+          "features": {
+            "category": "wallet",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangle",
+            "wallet_type": "cardholder",
+            "materials": [
+              "leather"
+            ],
+            "logos_or_text": [
+              "HONOR"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "card slot"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: black, green; shape: rectangular; materials: plastic; logos or text: MIDAS; distinctive features: logo; stickers present; sticker shape: rectangular; sticker position: top",
+          "features": {
+            "category": "other",
+            "colors": [
+              "black",
+              "green"
+            ],
+            "shape": "rectangular",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "MIDAS"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangular",
+                "position": "top"
+              }
+            ],
+            "distinctive_features": [
+              "logo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "d3dfa2e2135248a399780e4d21a08f0f",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "colors: dark blue; shape: rectangle; materials: plastic; logos or text: pokemon; distinctive features: pokemon sticker; stickers present; sticker shape: cartoon; sticker position: bottom left",
+          "features": {
+            "category": "other",
+            "colors": [
+              "dark blue"
+            ],
+            "shape": "rectangle",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "pokemon"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "cartoon",
+                "position": "bottom left"
+              }
+            ],
+            "distinctive_features": [
+              "pokemon sticker"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "colors: white; shape: rectangle; materials: plastic; logos or text: Apple logo; distinctive features: camera module, damaged area; no stickers",
+          "features": {
+            "category": "other",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangle",
+            "wallet_type": null,
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module",
+              "damaged area"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "ed1419ed60194204be814b8393c12a43",
+      "candidates": [
+        {
+          "id": 1,
+          "text": "category: phone; colors: white; shape: rectangular; materials: plastic; logos or text: Apple logo; distinctive features: camera module with two lenses, single visible crack on the back, small chip or scratch near the bottom left corner; no stickers",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "absent",
+            "stickers": [],
+            "distinctive_features": [
+              "camera module with two lenses",
+              "single visible crack on the back",
+              "small chip or scratch near the bottom left corner"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "f7e7af5f8fc742ea93d49212029ecb79",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: phone; colors: dark blue; shape: rectangular; materials: plastic; distinctive features: a cartoon sticker of a Pokémon character on the back of the phone; stickers present; sticker shape: cartoon; sticker position: lower left",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "dark blue"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "cartoon",
+                "position": "lower left"
+              }
+            ],
+            "distinctive_features": [
+              "a cartoon sticker of a Pokémon character on the back of the phone"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "category: phone; colors: white; shape: rectangular; materials: plastic; logos or text: Apple logo; distinctive features: crack on the back, damaged Apple logo, camera module with two lenses; stickers present; sticker shape: triangle; sticker position: center",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "triangle",
+                "position": "center"
+              }
+            ],
+            "distinctive_features": [
+              "crack on the back",
+              "damaged Apple logo",
+              "camera module with two lenses"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "qwen_only_2fcc3f870f2d4d1e8c84d528e95c5b10",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: lip_balm; colors: orange, white; shape: cylinder; materials: plastic; logos or text: AVENZA; distinctive features: orange cap, white cap, text on cap; stickers present; sticker shape: rectangle; sticker position: side",
+          "features": {
+            "category": "lip_balm",
+            "colors": [
+              "orange",
+              "white"
+            ],
+            "shape": "cylinder",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "AVENZA"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangle",
+                "position": "side"
+              }
+            ],
+            "distinctive_features": [
+              "orange cap",
+              "white cap",
+              "text on cap"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": "db05d2b6f5a54d40837f0213969e2f55",
+      "candidates": [
+        {
+          "id": 0,
+          "text": "category: phone; colors: white; shape: rectangular; materials: plastic; logos or text: Apple logo; distinctive features: damaged Apple logo, crack in the back of the phone; stickers present; sticker shape: triangle; sticker position: center",
+          "features": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "Apple logo"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "triangle",
+                "position": "center"
+              }
+            ],
+            "distinctive_features": [
+              "damaged Apple logo",
+              "crack in the back of the phone"
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "text": "category: power_bank; colors: black; shape: rectangular; materials: plastic; logos or text: VOVA; distinctive features: black color, VOVA logo, small size, USB port; stickers present; sticker shape: rectangle; sticker position: bottom",
+          "features": {
+            "category": "power_bank",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [
+              "VOVA"
+            ],
+            "sticker_status": "present",
+            "stickers": [
+              {
+                "shape": "rectangle",
+                "position": "bottom"
+              }
+            ],
+            "distinctive_features": [
+              "black color",
+              "VOVA logo",
+              "small size",
+              "USB port"
+            ]
+          }
+        },
+        {
+          "id": 2,
+          "text": "colors: dark green, brown; shape: rectangular; materials: plastic; distinctive features: dark green body, brown base, blurred text or logo",
+          "features": {
+            "category": "unknown",
+            "colors": [
+              "dark green",
+              "brown"
+            ],
+            "shape": "rectangular",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "unknown",
+            "stickers": [],
+            "distinctive_features": [
+              "dark green body",
+              "brown base",
+              "blurred text or logo"
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "text": "colors: black; shape: rectangular; distinctive features: a black rectangular object with four circular white patches on the side",
+          "features": {
+            "category": "unknown",
+            "colors": [
+              "black"
+            ],
+            "shape": "rectangular",
+            "materials": [],
+            "logos_or_text": [],
+            "sticker_status": "unknown",
+            "stickers": [],
+            "distinctive_features": [
+              "a black rectangular object with four circular white patches on the side"
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "text": "colors: black; shape: loop; materials: plastic; distinctive features: black color, loop shape, black cord",
+          "features": {
+            "category": "unknown",
+            "colors": [
+              "black"
+            ],
+            "shape": "loop",
+            "materials": [
+              "plastic"
+            ],
+            "logos_or_text": [],
+            "sticker_status": "unknown",
+            "stickers": [],
+            "distinctive_features": [
+              "black color",
+              "loop shape",
+              "black cord"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

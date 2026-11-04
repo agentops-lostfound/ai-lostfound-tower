@@ -1,0 +1,135 @@
+{
+  "objects": [
+    {
+      "id": 0,
+      "qwen": {
+        "status": "ok",
+        "features": {
+          "category": "phone",
+          "colors": [
+            "white"
+          ],
+          "shape": "rectangular",
+          "materials": [
+            "plastic"
+          ],
+          "logos_or_text": [
+            "Apple logo"
+          ],
+          "sticker_status": "present",
+          "stickers": [
+            {
+              "shape": "triangle",
+              "position": "center"
+            }
+          ],
+          "distinctive_features": [
+            "damaged Apple logo",
+            "crack in the back of the phone"
+          ]
+        }
+      }
+    },
+    {
+      "id": 1,
+      "qwen": {
+        "status": "ok",
+        "features": {
+          "category": "power_bank",
+          "colors": [
+            "black"
+          ],
+          "shape": "rectangular",
+          "materials": [
+            "plastic"
+          ],
+          "logos_or_text": [
+            "VOVA"
+          ],
+          "sticker_status": "present",
+          "stickers": [
+            {
+              "shape": "rectangle",
+              "position": "bottom"
+            }
+          ],
+          "distinctive_features": [
+            "black color",
+            "VOVA logo",
+            "small size",
+            "USB port"
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "qwen": {
+        "status": "ok",
+        "features": {
+          "category": "unknown",
+          "colors": [
+            "dark green",
+            "brown"
+          ],
+          "shape": "rectangular",
+          "materials": [
+            "plastic"
+          ],
+          "logos_or_text": [],
+          "sticker_status": "unknown",
+          "stickers": [],
+          "distinctive_features": [
+            "dark green body",
+            "brown base",
+            "blurred text or logo"
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "qwen": {
+        "status": "ok",
+        "features": {
+          "category": "unknown",
+          "colors": [
+            "black"
+          ],
+          "shape": "rectangular",
+          "materials": [],
+          "logos_or_text": [],
+          "sticker_status": "unknown",
+          "stickers": [],
+          "distinctive_features": [
+            "a black rectangular object with four circular white patches on the side"
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "qwen": {
+        "status": "ok",
+        "features": {
+          "category": "unknown",
+          "colors": [
+            "black"
+          ],
+          "shape": "loop",
+          "materials": [
+            "plastic"
+          ],
+          "logos_or_text": [],
+          "sticker_status": "unknown",
+          "stickers": [],
+          "distinctive_features": [
+            "black color",
+            "loop shape",
+            "black cord"
+          ]
+        }
+      }
+    }
+  ]
+}
