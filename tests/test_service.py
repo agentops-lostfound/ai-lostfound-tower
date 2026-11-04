@@ -169,8 +169,10 @@ class TeamChannelTest(unittest.TestCase):
         from discord_ops import reporter as rmod
         sent = []
         import tools.notify as nmod
-        orig_notify, orig_env = nmod.notify, dict(os.environ)
+        import tools.envfile as emod
+        orig_notify, orig_env, orig_load = nmod.notify, dict(os.environ), emod.load_env
         try:
+            emod.load_env = lambda *a, **k: None   # PC 의 .env(팀 웹후크 있음)를 다시 읽어 시험이 흔들리지 않게
             nmod.notify = lambda title, body="", env_key="": sent.append(env_key) or True
             os.environ.pop("DISCORD_WEBHOOK_TEAM", None)
             os.environ["DISCORD_WEBHOOK_URL"] = "https://discord.com/api/webhooks/x/y"
@@ -181,6 +183,7 @@ class TeamChannelTest(unittest.TestCase):
             self.assertEqual(sent, ["DISCORD_WEBHOOK_URL"])
         finally:
             nmod.notify = orig_notify
+            emod.load_env = orig_load
             os.environ.clear()
             os.environ.update(orig_env)
 
