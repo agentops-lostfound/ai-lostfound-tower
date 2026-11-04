@@ -7,6 +7,8 @@
 - [SO ARM 로컬 구축·보정 인계](progress/soarm-local-handoff.md): 새 SO101 장비 최종 보정·텔레오퍼레이션 보고와 다음 검증. 클라우드 재검증·학습 미실행.
 - [구매 조사 인계 및 채택 판단](progress/procurement-handoff-2026-11-03.md): 최신 수량·다른 세션의 후보 조사·271,470원 제안 조합. 가격 재검증·구매 미완료.
 
+- [구매품목 리스트업 완료·최종 요구서](progress/procurement-user-selection.md): 이순필 담당, 2026-11-03 완료. 최종 수량·선정·링크와 요구서 총액 280,698원. 실제 구매 완료 여부는 미확인.
+
 - [구매 준비 및 촬영·집기 환경 검토](progress/procurement-plan.md): 30만원 배분, 물품 목록, 바닥 실험·포토박스 기준. 실제 견적·구매 미완료.
 
 - [Qwen 지연 검토 및 개선 제안](progress/qwen-latency-review.md): LF-3 작업 브랜치 코드 검토, 우선순위와 실측 계획. GPU 최적화 구현·성능 검증은 미완료.
