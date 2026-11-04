@@ -253,15 +253,23 @@ class ApiRoutesTest(unittest.TestCase):
         fake.FastAPI, fake.HTTPException, fake.Body = FakeFastAPI, HTTPException, (lambda *a, **k: None)
         self.HTTPException = HTTPException
         sys.modules["fastapi"] = fake
+        responses = types.ModuleType("fastapi.responses")
+
+        class HTMLResponse:
+            def __init__(self, content):
+                self.body = content.encode("utf-8")
+        responses.HTMLResponse = HTMLResponse
+        sys.modules["fastapi.responses"] = responses
 
     def tearDown(self):
         sys.modules.pop("fastapi", None)
+        sys.modules.pop("fastapi.responses", None)
 
     def test_routes_and_status_codes(self):
         from agents import api
         api.build_app(service())
         r = self.routes
-        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/places"),
+        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
@@ -277,6 +285,7 @@ class ApiRoutesTest(unittest.TestCase):
         self.assertEqual(cm.exception.status_code, 404)
         self.assertEqual(r[("GET", "/returns/{case_id}")]("R1")["case_id"], "R1")
         self.assertEqual(len(r[("GET", "/tools")]()), 12)
+        self.assertIn("습득물", r[("GET", "/intake")]().body.decode("utf-8"))     # 11/4 등록기계 화면을 같은 주소에서
         # 11/4 인계: 바구니 전달(인계 대기) → 직원 확인 → 인계 완료, 두 번째는 409
         self.assertEqual(r[("POST", "/returns/{case_id}/handover")]("R1", {"staff_confirmed": True})["status"], "인계 완료")
         for args, code in ((("R1", {"staff_confirmed": True}), 409), (("NONE", {"staff_confirmed": True}), 404),
