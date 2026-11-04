@@ -10,6 +10,8 @@
 
 ## 팀원 진행 기록
 
+- [11/4 관제탑 변경 확인·LF-11/12 작업 브리핑](progress/tower-change-briefing-2026-11-04.md): main PR 반영·로봇 실제 부품·2마커 관문·GPU 인계와 상주 시험 한계.
+
 - [YOLO·Qwen 전체 시간 비교](progress/vision-latency-summary.md): 같은 폰 후속 요청8.10→5.68초, 초기 시작비용과 다른 사진 비교의 한계 구분.
 
 - [비전→SO-ARM 연결 상태 검토](progress/vision-robot-integration-review.md): 11/4 원격 브랜치 기준 검출·픽셀/mm·매칭·로봇 모의 구현 및 미연결 구간.
