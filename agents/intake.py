@@ -57,6 +57,10 @@ def parse_intake(payload: object) -> dict:
     if place_id is not None and (isinstance(place_id, bool) or not isinstance(place_id, int) or place_id < 1):
         raise IntakeError("place_id: 추천 장소 번호(1 이상 정수) 또는 비움")
     place_text = _text(payload.get("place_text"), "place_text", 128, required=True)
+    # 11/4 무작위 시험에서 발견: 장소 칸에 전화번호를 함께 쓰면 그대로 저장됐다(디스코드 알림만 막히고 DB 에는 남음)
+    from agents.claims import has_pii
+    if has_pii(place_text):
+        raise IntakeError("place_text: 전화번호·주민등록번호·이메일 같은 개인정보는 장소에 쓰지 않습니다(연락처 칸은 따로 있음)")
     finder = payload.get("finder")
     contact = None
     if finder is not None:

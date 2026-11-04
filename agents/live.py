@@ -28,6 +28,14 @@ STEP_STAGE = {"메인 AI 승인 · 수령 예약": "approve", "직원 확인 완
               "집기 실패": "grasp", "바구니 전달 완료": "deliver", "인계 완료": "handover"}
 
 
+# 경보 내용 → 실패로 칠할 단계(11/4 무작위 시험: '지금 진행 중인 단계'만 보면 확인 질문 미통과가 '방문'에 칠해졌다)
+ALERT_STAGE = [("확인 질문", "approve"), ("동의", "approve"), ("본인인증", "approve"), ("메인 AI 검토", "approve"),
+               ("승인 보류", "approve"), ("물건 기록 없음", "approve"), ("신분증", "visit"), ("안쪽 특징 불일치", "visit"),
+               ("보관함에서 물건", "topview"), ("매칭", "match"), ("닮은 물건", "match"), ("작업대 좌표", "approach"),
+               ("GPU", "approach"), ("사전 접근", "approach"), ("집기", "grasp"), ("바구니", "deliver"),
+               ("인계", "handover")]
+
+
 class LiveBoard:
     def __init__(self):
         self._lock = threading.Lock()
@@ -86,6 +94,9 @@ class LiveBoard:
             st = self.stories.get(story_id)
             if st:
                 st["result"] = {"text": result, "ok": ok, "t": time.time()}
+                for s in st["stages"]:     # 11/4 화면 시험: 끝난 이야기에 '진행 중'(깜박임) 단계가 남아 있었다
+                    if s["state"] == "active":
+                        s["state"] = "done" if ok else "todo"
             self._seq += 1
             self._events.append({"seq": self._seq, "t": time.time(), "story": story_id, "channel": "result",
                                  "title": result, "body": "ok" if ok else "fail", "stage": None})
@@ -115,7 +126,7 @@ class LiveBoard:
         if st and stage:
             self.stage(stage, "fail" if step == "집기 실패" else "done", body, sid)
         elif st and channel == "alert":
-            key = self._active_stage(sid)
+            key = next((k for word, k in ALERT_STAGE if word in title), None) or self._active_stage(sid)
             if key:
                 self.stage(key, "fail", body, sid)
         return ev

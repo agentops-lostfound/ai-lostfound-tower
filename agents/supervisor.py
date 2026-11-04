@@ -24,8 +24,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable
 
 from agents.contracts import (
-    DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, HANDOVER_WAIT, MATCH_OK, STAFF_STOP_REASON,
-    valid_point_mm, validate_detection,
+    DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, HANDOVER_WAIT, MATCH_OK, NONE,
+    STAFF_STOP_REASON, UNKNOWN, valid_point_mm, validate_detection,
 )
 from agents.tools import feature_similarity
 
@@ -173,9 +173,16 @@ def lookalike(c: Ctx, picked: dict) -> str:
     if not isinstance(others, list):
         return "닮은 물건 검사 불가(보관 중 물건 목록 읽기 실패) — 자동 반환 안 함"
     target = feature_similarity(c.item.get("features") or {}, picked)
+    known = lambda v: isinstance(v, str) and v not in ("", UNKNOWN, NONE)  # noqa: E731
+    want_cat = picked.get("category") if known(picked.get("category")) else (c.item.get("features") or {}).get("category")
     twins = []
     for o in others:
         if not isinstance(o, dict) or o.get("item_id") == c.req.item_id:
+            continue
+        # 11/4 무작위 시험에서 발견: 품목을 보지 않아 흰색 목업폰을 찾을 때 흰색 보조배터리·핸드크림도 '닮은 물건'으로 셌다
+        #   품목이 둘 다 알려져 있고 다르면 사진으로 충분히 구별되므로 뺀다(품목을 모르면 지금처럼 검사)
+        o_cat = (o.get("features") or {}).get("category")
+        if known(want_cat) and known(o_cat) and o_cat != want_cat:
             continue
         s = feature_similarity(o.get("features") or {}, picked)
         if s >= LOOKALIKE_MIN and s >= target - LOOKALIKE_MARGIN:

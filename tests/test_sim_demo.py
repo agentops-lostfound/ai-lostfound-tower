@@ -174,12 +174,45 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "분홍")
         p = self.d.lost("은색 USB 잃어버렸어요")
         out = self.d.answer(p["pending_id"], "SanDisk")
-        self.assertTrue(out["quiz_passed"])
+        self.assertTrue(out.get("staff"))                               # 똑같은 USB 2개 → 고르지 않고 직원 확인
+        self.assertEqual(len(out["candidates"]), 2)
         self.assertTrue(self.d.wait_idle())
         res = story_of(self.svc, out["story_id"])["result"]
         self.assertFalse(res["ok"])
-        self.assertIn("staff_check", res["text"])                      # 똑같은 USB 2개 → 자동 반환 안 함
+        self.assertIn("staff_check", res["text"])
         self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["category"] == "USB" and i["loc"] == "bin"), 2)
+
+    def test_lookalike_ignores_other_categories(self):
+        """11/4 무작위 시험 발견: 흰색 목업폰을 찾을 때 흰색 보조배터리·핸드크림을 '닮은 물건'으로 세면 안 됨"""
+        r = self.lost("흰색 모형폰 잃어버렸어요")
+        st = story_of(self.svc, r["story_id"])
+        self.assertTrue(st["result"]["ok"], st["result"])
+        self.assertEqual(self.svc.world.items[r["item_id"]]["category"], "모형폰")
+
+    def test_place_and_color_questions_are_asked(self):
+        """11/4: 글자 없는 물건이면 역(등록기계 물건)·색을 먼저 묻는다(예전에는 묻지 않고 오답 처리)"""
+        self.found()
+        p = self.d.lost("카드지갑 잃어버렸어요")
+        self.assertIn("색", p["question"])                     # 지갑 후보가 여럿 → 색부터
+        p2 = self.d.answer(p["pending_id"], "검정이요")
+        self.assertIn("어느 역", p2["question"])               # 검정 지갑은 서면역 등록기계 물건 → 역 확인
+        out = self.d.answer(p2["pending_id"], "서면역이요")
+        self.assertTrue(out["quiz_passed"])
+        self.assertTrue(self.d.wait_idle())
+        self.assertTrue(story_of(self.svc, out["story_id"])["result"]["ok"])
+
+    def test_pii_rejected_in_place_and_description(self):
+        with self.assertRaises(RequestError):
+            self.d.found("서면역 010-1234-5678 에 떨어져 있었어요 검정 지갑")
+        p = self.d.lost("은색 USB 잃어버렸어요")
+        with self.assertRaises(RequestError):
+            self.d.answer(p["pending_id"], "010-9999-8888")
+
+    def test_item_numbers_continue_after_reset(self):
+        a = self.found()["item_id"]
+        self.d.reset()
+        b = self.found()["item_id"]
+        self.assertNotEqual(a, b)
 
     def test_bad_messages(self):
         with self.assertRaises(RequestError):
@@ -221,6 +254,18 @@ class LiveBoardTest(unittest.TestCase):
         states = {s["key"]: s["state"] for s in b.story(sid)["stages"]}
         self.assertEqual((states["approve"], states["visit"]), ("done", "fail"))
 
+    def test_alert_keyword_and_finish_clear_active(self):
+        b = LiveBoard()
+        rep = LiveReporter(Reporter(), b)
+        sid = b.new_story("lost", "t")
+        with b.bind(sid):
+            b.stage("claim", "done")
+            b.stage("visit", "active")
+            rep.alert("R", "확인 질문 미통과 — 승인하지 않음")
+        b.finish(sid, "반환 안 함", False)
+        states = {s["key"]: s["state"] for s in b.story(sid)["stages"]}
+        self.assertEqual((states["approve"], states["visit"]), ("fail", "todo"))   # 진행 중 표시가 남지 않음
+
 
 class FakeClient:
     def __init__(self):
@@ -257,6 +302,16 @@ class BotCoreTest(unittest.TestCase):
         self.assertEqual(story, "T002")
         self.assertEqual(c.client.calls[-1], ("/sim/lost/p1/answer", {"text": "VOVA"}))
         self.assertEqual(c.handle("u", "VOVA")[1], None)        # 답은 한 번만
+
+    def test_new_report_drops_old_question(self):
+        """11/4 무작위 시험 발견: 답하지 않은 옛 질문이 남아 다음 말이 옛 질문의 답으로 들어가면 안 됨"""
+        c = bot.BotCore(FakeClient())
+        c.handle("u", "지갑 잃어버렸어요")
+        self.assertIn("u", c.pending)
+        c.handle("u", "서면역 앞에서 검정 지갑 주웠어요")          # 새 신고
+        self.assertNotIn("u", c.pending)
+        reply, _ = c.handle("u", "VOVA")
+        self.assertIn("모르겠어요", reply)
 
     def test_follow_updates_until_result(self):
         c = bot.BotCore(FakeClient())

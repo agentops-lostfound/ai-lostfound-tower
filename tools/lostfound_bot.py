@@ -136,9 +136,15 @@ class BotCore:
             if pend and time.time() - pend[1] > PENDING_TTL_S:
                 self.pending.pop(author, None)
                 pend = None
+            if pend and kind != "unknown":          # 11/4 무작위 시험: 새 신고·명령이 오면 답하지 않은 옛 질문은 버린다
+                self.pending.pop(author, None)       #   (남아 있으면 다음 말이 옛 질문의 답으로 들어가 엉뚱한 찾기 요청이 생겼다)
+                pend = None
             if pend and kind == "unknown":          # 확인 질문 답(명령·새 신고가 아니면)
                 self.pending.pop(author, None)
                 d = self.client.post(f"/sim/lost/{pend[0]}/answer", {"text": text})
+                if d.get("pending_id"):                    # 질문이 하나 더 있음(예: 색으로 후보를 좁힌 뒤 확인 질문)
+                    self.pending[author] = (d["pending_id"], time.time())
+                    return f"**확인 질문:** {d['question']} (모르면 `모름`)", None
                 return self._claimed(d), d.get("story_id")
             if kind == "help":
                 return HELP, None
@@ -174,6 +180,9 @@ class BotCore:
 
     @staticmethod
     def _claimed(d: dict) -> str:
+        if d.get("staff"):                                  # 후보를 구별할 수 없어 직원 확인
+            ids = ", ".join(f"`{c['item_id']}`" for c in d.get("candidates", [])[:3])
+            return f"🙋 후보 {len(d.get('candidates', []))}개({ids})를 구별할 수 없어요 — 자동 반환하지 않고 방문 때 직원이 함께 확인합니다"
         return (f"📝 **찾기 요청** `{d['claim_id']}` → 후보 `{d['item_id']}` · 확인 질문 "
                 f"{'통과' if d.get('quiz_passed') else '미통과(관제탑이 반환을 막는 장면)'}\n→ 방문·반환 과정을 진행판에서 보여 드려요")
 
