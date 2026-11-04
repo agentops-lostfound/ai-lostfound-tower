@@ -67,3 +67,11 @@ data/captures/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local speech recordings (model caches and outputs are ignored above)
+*.[wW][aA][vV]
+*.[mM][pP]3
+*.[mM]4[aA]
+*.[fF][lL][aA][cC]
+*.[oO][gG][gG]
+*.[wW][eE][bB][mM]
