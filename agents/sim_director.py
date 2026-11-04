@@ -301,7 +301,7 @@ class SimDirector:
                 self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
 
     def reset(self) -> dict:
-        """세계를 처음 상태로(보관함 시연 물건 4개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지)."""
+        """세계를 처음 상태로(보관함 시연 물건 8개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지)."""
         w = self.world
         with w._lock:
             w.items.clear()
@@ -311,7 +311,7 @@ class SimDirector:
             w.seed()
         SimRobot(w).robot_home()
         self.pending.clear()
-        self.rep.progress("SIM", "가상 세계 초기화", "보관함 시연 물건 4개 · 로봇 원점")
+        self.rep.progress("SIM", "가상 세계 초기화", f"보관함 시연 물건 {len(w.items)}개 · 로봇 원점")
         return w.snapshot()
 
 

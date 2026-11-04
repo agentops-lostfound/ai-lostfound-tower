@@ -19,7 +19,7 @@ from agents.contracts import MATCH_NONE, MATCH_OK, MATCH_UNCERTAIN, NONE, UNKNOW
 CATEGORY_EN = {"지갑": "card_wallet", "USB": "usb", "립밤": "lip_balm", "모형폰": "phone",
                "핸드크림": "hand_cream", "보조배터리": "power_bank"}
 COLOR_EN = {"검정": "black", "흰색": "white", "회색": "gray", "빨강": "red", "파랑": "blue", "남색": "navy",
-            "초록": "green", "노랑": "yellow", "갈색": "brown"}
+            "초록": "green", "노랑": "yellow", "갈색": "brown", "분홍": "pink"}
 STATUS = {"matched": MATCH_OK, "needs_confirmation": MATCH_UNCERTAIN, "no_match": MATCH_NONE}
 
 

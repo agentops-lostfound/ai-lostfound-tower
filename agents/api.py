@@ -337,7 +337,7 @@ def build_app(service: TowerService | None = None):
 
     @app.post("/sim/reset")
     def sim_reset() -> dict:
-        """가상 세계 초기화(보관함 시연 물건 4개·로봇 원점). 반환 진행 중이면 409"""
+        """가상 세계 초기화(보관함 시연 물건 8개·로봇 원점). 반환 진행 중이면 409"""
         d = _sim()
         if svc.health()["busy"]:
             raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
