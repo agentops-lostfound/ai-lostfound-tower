@@ -3,7 +3,8 @@
 한줄 설명: 반환 직전 기록을 LLM에게 한 번 더 보여 주고 "이상하면 보류"만 받는다. 승인 권한은 없다.
 
 - Ollama(PC에서 AI 모델을 돌리는 프로그램)의 /api/chat 에 요청한다. 인터넷·유료 API가 필요 없다.
-- .env: OLLAMA_URL(기본 http://localhost:11434), MAIN_AI_MODEL(기본 qwen3-vl:4b-instruct), OLLAMA_KEEP_ALIVE(기본 5m)
+- .env: OLLAMA_URL(기본 http://localhost:11434), MAIN_AI_MODEL(기본 qwen3-vl:4b-instruct), OLLAMA_KEEP_ALIVE(기본 5m),
+        MAIN_AI_DEVICE(gpu 기본 | cpu = GPU 안 씀, 시연용 11/4)
 - 주의(11/4): 비전 특징 추출은 Qwen3-VL-2B(Hugging Face, NF4)로 확정 — 이 검토 모델(Ollama 4B Q4 약 3.3GB)과 다른 모델이다.
   켜면 GPU 메모리를 더 쓰므로 시연 PC(RTX 3050 6GB)에서는 끈다(TOWER_REVIEWER 비움). 켤 때는 비전·VLA와 동시에 올리지 않는다
 - LLM에는 개인정보를 보내지 않는다(지금 보내는 값: 사례 번호·접수 번호·상태).
@@ -42,13 +43,16 @@ class OllamaReviewer:
         self.durations: list[float] = []   # 호출마다 걸린 초(평균·최대 측정용)
         self.stats: list[dict] = []        # Ollama가 알려 주는 시간 내역(어디서 느린지)
         self.on_error = on_error if on_error in ("ok", "hold") else "hold"
+        # 11/4: MAIN_AI_DEVICE=cpu 면 GPU 를 쓰지 않는다(Ollama num_gpu=0) → 시연 PC 에서 STT·Qwen·VLA 와 GPU 를 다투지 않고
+        #       2차 검토 장면을 실제로 보여 줄 수 있다. 느려지는 만큼은 PC 실측(TBD). 검토는 글자만 보므로 글자 전용 작은 모델도 가능
+        self.device = (os.environ.get("MAIN_AI_DEVICE") or "gpu").strip().lower()
 
     def _ask(self, summary: dict) -> str:
         body = {
             "model": self.model, "stream": False, "format": "json", "keep_alive": self.keep_alive, "think": self.think,
             "messages": [{"role": "system", "content": SYSTEM},
                          {"role": "user", "content": json.dumps(summary, ensure_ascii=False)}],
-            "options": {"temperature": 0},
+            "options": {"temperature": 0, **({"num_gpu": 0} if self.device == "cpu" else {})},
         }
         req = urllib.request.Request(f"{self.url}/api/chat", data=json.dumps(body).encode("utf-8"),
                                      headers={"Content-Type": "application/json"}, method="POST")
