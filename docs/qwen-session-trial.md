@@ -1,5 +1,9 @@
 # LF-11 Qwen 상주 세션 시험
 
+## 폰 저신뢰도 검출 진단 (2026-11-04)
+
+사용자 test1 사진에서 기본 confidence 0.25는 검출 0개였지만 별도 로컬 설정 0.10에서 1개 검출됐다. 공유 debug 박스는 폰 전체를 대체로 감쌌으며 class_name=microwave, 표시 점수 약 0.18이었다. 클래스 오분류와 위치 검출을 분리해 평가한다. YOLO 이름을 Qwen에 주입하지 않는 구조이므로 이 crop으로 실제 phone 특징 추출이 되는지 저신뢰도 설정의 통합 시퀀스를 시험할 수 있다. 단일 사진 박스 관찰이며 위치 정답 IoU·전체 미검출/오검출 평가는 아직 없다. confidence 0.10의 운영 채택이나 microwave→phone 강제 매핑은 하지 않는다. 실제 mm 좌표 보정·로봇 구동과도 별개다.
+
 ## test4 통합 실행 및 배경 박스 관찰 (2026-11-04)
 
 사용자가 test4.jpg로 YOLO→Qwen 시퀀스를 실행했다. 검출 1개, detection_seconds=2.8028, total_seconds=22.2083, complete·qwen_failed=0. 공유된 debug 이미지는 폰이 아닌 세로 립밤 사진이며 박스가 책상/프레임 거의 전체를 감싼다. 따라서 연결·JSON 실행 성공이지 립밤 bbox 검출 성공으로 기록하지 않는다. 디버그의 중심점이 물품 근처여도 큰 배경 박스의 중심일 수 있다. 실제 class_name·confidence·bbox·crop·Qwen 특징을 result_with_qwen.json에서 확인해야 한다.
