@@ -1,5 +1,9 @@
 # LF-11 Qwen 상주 세션 시험
 
+## 상주 시퀀스 저장 특징 확인 (2026-11-04)
+
+사용자가 두 번째 resident_result.json을 제공했다. YOLO microwave 0.18427의 폰 외곽 박스·중심을 유지하며 해당 crop의 Qwen phone·blue·rectangle·plastic·three camera lenses/three sensors/small white dot이 같은 objects[0]에 저장됐다. qwen.status=ok, elapsed 약 5.41초. 파일 전달·개체별 위치/특징 연결과 기록은 확인했으나 센서 개수·재질의 정답까지 검증한 것은 아니다. center_world_mm=null·calibration_valid=false를 유지하므로 로봇 이동 준비 완료가 아니다. 시험 도구는 원본 YOLO 클래스명을 그대로 보존하며 Qwen category로 덮어쓰지 않는다. 다음 우선순위는 LF-3 담당과 프로젝트 물품용 검출 모델·데이터 계획을 맞추는 것이며 임계값만 낮춘 결과를 운영 승인하지 않는다.
+
 ## 상주 Qwen 자동 시퀀스 사용자 검증 (2026-11-04)
 
 동일 test1 원본 2회: startup 8.25초(모델 로딩 약 3.99초 포함), CPU YOLO+crop 2.7253/2.6820초, Qwen 추출 5.8643/5.4040초, 요청 전체 8.5956/8.0983초. 두 번 모두 objects=1·complete·JSON 첫 시도 성공. 모델 metadata는 캐시 기록이며 요청마다 재로딩한 시간이 아니다. 초기 준비는 별도이고 첫 준비+첫 요청은 약 16.85초다. Qwen 상주·384와 YOLO 자동 crop 연결을 사용자 PC에서 기능 확인했다. 특징 본문은 이 로그 발췌에 없으므로 resident_result.json을 별도 확인한다.
