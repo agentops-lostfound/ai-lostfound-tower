@@ -1,5 +1,13 @@
 # LF-11 Qwen 상주 세션 시험
 
+## 384 다른 물품 확인 및 자동 연결 도구 (2026-11-04)
+
+사용자 지갑 원본 384 1회 7.2546초·110 출력 토큰, 수동 립밤 crop 384 1회 6.5496초·118토큰, 모두 첫 시도 JSON 성공. 기존 특징과 대체로 일관되지만 립밤 black cap 등 정확도 확인은 남는다. 384는 기능 시험용 잠정값이며 학습된 검출기·다양한 사진 품질 평가를 대체하지 않는다.
+
+tools/vision_qwen_session.py는 별도 실험용 연결 도구다. Qwen 환경에서 모델을 미리 한 번 로딩하고 입력 사진마다 vision Python subprocess로 CPU YOLO 검출·crop을 만든 뒤 같은 Qwen/Settings로 crop을 순차 분석한다. YOLO 자체는 아직 요청마다 재시작하며 Qwen만 상주한다. 초기 startup과 요청 total_seconds를 분리한다. 출력은 실행 폴더의 resident_result.json으로 기존 result_with_qwen.json과 구분하며 관제탑 자동 연결은 하지 않는다. 원래 비전·Qwen·공통 계약 코드는 변경하지 않는다. 오류 시 부분 결과를 보존하고 세션을 종료한다. 같은 Settings 유지로 로더 캐시를 재사용한다.
+
+Windows 실행: 팀 pil2ya에서 git pull 후 .venv-qwen Python으로 tools/vision_qwen_session.py --source-root <테스트 소스 루트> --vision-python <.venv-vision/python.exe> --config <테스트 lowconf YAML> --max-edge 384. Photo>에는 crop이 아닌 원본 사진을 입력한다. 동일 폰 원본을 2회 분석해 Qwen 재로딩 없이 YOLO→crop→Qwen이 연결되는지 확인한다. lowconf는 진단용이며 오검출·mm 보정 무효 상태에서 로봇을 구동하지 않는다. 클라우드에서는 GPU·Windows 실측을 하지 않았다.
+
 ## 자동 폰 crop 384 절충 결과 (2026-11-04)
 
 사용자 3회 요청 5.6654/5.2082/5.2079초, 중앙값 5.2082초. 같은 crop의 512 중앙값 7.4333초 대비 약 29.9% 감소, 모두 첫 시도 성공·86 출력 토큰·동일 특징이다. 입력 448토큰, image_grid_thw=1×12×24. 256에서 마지막 재시도의 grid와 같아도 픽셀 내용·생성 경로가 달라 384의 안정성은 동일 grid로 예측할 수 없다.
