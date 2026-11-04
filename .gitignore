@@ -38,3 +38,4 @@ Thumbs.db
 
 # 로컬 원본에서 생성한 소유자 패치 후보 (설치 전 산출물)
 /outputs/robot-owner-patch/
+/outputs/robot-owner-trial/

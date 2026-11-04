@@ -59,3 +59,9 @@ SO101 유지 콜백은 최신 raw 위치를 직접 읽어 raw 목표로 쓰며 �
 사용자가 패치 후보 a4add9deceb34f9ea9289c8843dc8aa9 생성과 소유자 루프 4개 시험 통과를 보고했다. tools/test_robot_owner_zenoh.py를 추가해 후보 manifest/파일 해시 검증 후 후보 OwnerBridge 자체를 별도 패키지 이름으로 로드한다. 검토한 vendor owner 모듈·SDK·실물 드라이버는 import/실행하지 않는다. 별도의 가짜 소유 스레드와 loopback Zenoh peer 두 개가 임시 이름으로 통신한다. 제어 콜백에서 모터 I/O가 발생하지 않는지, 유지 확인 전 재개 차단, 대기 목표 폐기, 오래된 명령 거부, 실행 중 가짜 I/O 완료를 기다리지 않는 정지 접수를 확인한다.
 
 클라우드에서 eclipse-zenoh 1.10.2로 5개 시나리오 통과. 전체 테스트 133개 실행, 2개 건너뜀. stop_rpc_seconds는 loopback 가짜 장비의 요청 왕복 시간이며 실물 로봇 정지 시간이나 최악 지연 보장이 아니다. 사용자 컨테이너의 라이브러리 버전에서 동일 시험이 필요하며 새 패키지 설치·Studio 재시작 없이 임시 폴더에 시험 파일과 후보만 복사한다. 해당 시험은 초기 토크 ON·실물 유지·안전 Home 경로·직원 화면·네트워크 손실 후 처리 검증을 대체하지 않는다.
+
+## 2026-11-04 사용자 Zenoh 통신 통과 및 4/5 준비
+
+사용자 컨테이너 eclipse-zenoh 1.9.0에서 ZENOH_FAKE_ROBOT_OK, hardware_connected=false, installed_files_changed=false를 확인했다. stop_rpc_seconds=0.0002564169990364462는 가짜 장비 통신 왕복 측정으로 실물 정지 성능에 사용하지 않는다. 기존 a4add9de 후보를 이어서 사용하며 보정/모의 시험을 다시 시작하지 않는다.
+
+적용·복원 관리자와 Windows 준비 실행기, 상태·정지 전용 화면을 추가했다. 사용 순서와 한계는 docs/progress/robot-owner-trial-guide.md를 따른다. 현재 단계는 원본 백업/적용과 실물 조작 화면 준비이며 실제 연결/이동은 아직 하지 않는다. 기존 보정값과 후보 코드는 바꾸지 않았다. Home 구현이나 로봇 전체 제어 통합 완료로 보고하지 않는다.
