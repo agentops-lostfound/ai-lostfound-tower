@@ -59,3 +59,46 @@ class SpeechTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 stt.transcribe(Path(tmp)/'missing.wav')
         stt.model.transcribe.assert_not_called()
+
+
+class SpeechGpuLeaseTests(unittest.TestCase):
+    """11/4 관제탑 연동: cuda 면 모델을 올리기 전에 GPU 사용권("stt"), close() 때 반납."""
+
+    def test_close_releases_lease(self):
+        import os
+        from agents.gpu_lease import GpuLease, holder
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "gpu.lock"
+            stt = KoreanTranscriber.__new__(KoreanTranscriber)
+            stt.model = object()
+            stt._lease = GpuLease("stt", path=lock).acquire()
+            self.assertEqual(holder(lock)["user"], "stt")
+            stt.close()
+            self.assertIsNone(holder(lock))
+            self.assertIsNone(stt.model)
+
+    def test_busy_gpu_blocks_cuda_load(self):
+        import os
+        from agents.gpu_lease import GpuBusy, GpuLease
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "gpu.lock"
+            env = {"GPU_LEASE_FILE": str(lock), "STT_GPU_WAIT": "0"}
+            with GpuLease("vla", path=lock), patch.dict(os.environ, env), \
+                 patch.object(KoreanTranscriber, "_load") as load:
+                with self.assertRaises(GpuBusy):
+                    KoreanTranscriber(SpeechConfig())        # 기본 cuda
+            load.assert_not_called()
+
+    def test_cpu_needs_no_lease_and_load_failure_releases(self):
+        import os
+        from agents.gpu_lease import holder
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "gpu.lock"
+            with patch.dict(os.environ, {"GPU_LEASE_FILE": str(lock)}), patch.object(KoreanTranscriber, "_load"):
+                stt = KoreanTranscriber(SpeechConfig(model='small', device='cpu', compute_type='int8'))
+                self.assertIsNone(stt._lease)
+            with patch.dict(os.environ, {"GPU_LEASE_FILE": str(lock)}), \
+                 patch.object(KoreanTranscriber, "_load", side_effect=RuntimeError("모델 없음")):
+                with self.assertRaises(RuntimeError):
+                    KoreanTranscriber(SpeechConfig())
+            self.assertIsNone(holder(lock))                     # 올리다 실패해도 열쇠 반납
