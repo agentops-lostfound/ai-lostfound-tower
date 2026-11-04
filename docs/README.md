@@ -10,9 +10,11 @@
 
 ## 팀원 진행 기록
 
+- **[이순필(pil2ya) 팀 공유 최신 현황 — 2026-11-04](progress/pil2ya-team-update-2026-11-04.md)**: 완료·실물 확인·모의 시험·미완료를 구분한 요약. 팀원은 이 문서부터 확인.
+
 - [정지·Home 작업 5단계](progress/robot-stop-home-roadmap.md): 전체 원격 브랜치 확인 후 로컬 읽기 조사·무동작 구현·실물 검증·팀 연결 순서.
 
-- [소유자 패치 적용·복원 및 조작 화면 준비](progress/robot-owner-trial-guide.md): 검증한 기존 후보의 백업·적용·원본 복원과 상태·정지 화면. 실제 연결·Home은 후속 단계.
+- [소유자 패치 적용·복원 및 조작 화면](progress/robot-owner-trial-guide.md): 실물 정지 확인과 근거리 Home 실물 시험 절차. Home의 실제 결과는 대기 중.
 
 - [Home 자세 설정과 변경 기능](design/robot-home-settings.md): 사용자 지정 접힌 자세, 로컬 설정·버전·이력, 추후 설정 화면 요구. 복귀 경로 검증은 별도.
 
