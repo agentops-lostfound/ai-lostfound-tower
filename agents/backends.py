@@ -22,7 +22,7 @@ GROUPS: dict[str, tuple[str, ...]] = {
     "matcher": ("match_item",),                                     # 김건태 LF-20
     "db": ("db_get_item", "db_set_status", "db_list_active"),       # 변재원 LF-8
     "robot": ("robot_approach", "robot_grasp", "robot_verify_grasp",  # 김건태 LF-19·21, 이순필 LF-11
-              "robot_deliver", "robot_stop"),
+              "robot_deliver", "robot_stop", "robot_home"),
 }
 METHODS = tuple(m for names in GROUPS.values() for m in names)
 
@@ -39,7 +39,8 @@ class Backend(Protocol):
     def robot_grasp(self) -> dict: ...
     def robot_verify_grasp(self) -> dict: ...
     def robot_deliver(self) -> dict: ...
-    def robot_stop(self) -> dict: ...
+    def robot_stop(self) -> dict: ...    # 11/4: 그 자리에서 즉시 정지만(원점 복귀 안 함)
+    def robot_home(self) -> dict: ...    # 11/4: 저장된 경로로 원점 복귀 — 직원이 확인한 뒤 버튼으로만
 
 
 def check_part(part: object, group: str) -> list[str]:

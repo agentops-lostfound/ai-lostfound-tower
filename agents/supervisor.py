@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable
 
 from agents.contracts import (
-    DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, HANDOVER_WAIT, MATCH_OK,
+    DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED, HANDOVER_WAIT, MATCH_OK, STAFF_STOP_REASON,
     valid_point_mm, validate_detection,
 )
 from agents.tools import feature_similarity
@@ -92,7 +92,9 @@ class Ctx:
 def _stop(c: Ctx) -> str:
     """로봇 정지. 정지 자체가 실패하면 알림 문구에 붙일 말을 돌려준다(약속: 정지 실패 → 직원 호출)."""
     r = c.backend.robot_stop()
-    return "" if isinstance(r, dict) and r.get("ok") else " · 정지 실패 — 직원 즉시 호출"
+    if isinstance(r, dict) and r.get("ok"):
+        return " · 로봇 정지(직원이 확인 후 원점 복귀 버튼)"
+    return " · 정지 실패 — 직원 즉시 호출"
 
 
 def _set_status(c: Ctx, status: str) -> bool:
@@ -209,8 +211,11 @@ def grasp(c: Ctx) -> bool:
             c.step("집기 성공", f"{attempt}번째 시도")
             return False
         c.reporter.progress(c.req.case_id, "집기 실패", f"{attempt}번째 시도: {v['reason']}")
+        if v.get("reason") == STAFF_STOP_REASON:     # 직원이 정지 버튼을 눌렀으면 다시 집지 않는다
+            break
     note = _stop(c)
-    return c.finish(DECISION_STOPPED, f"집기 실패 — 정지, 직원 호출{note}", alert=True)
+    why = f"({STAFF_STOP_REASON})" if v.get("reason") == STAFF_STOP_REASON else ""
+    return c.finish(DECISION_STOPPED, f"집기 실패{why} — 정지, 직원 호출{note}", alert=True)
 
 
 def deliver(c: Ctx) -> bool:

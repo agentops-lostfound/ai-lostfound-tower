@@ -194,7 +194,7 @@ def check_gpu(runner: Callable[[list[str]], str] | None = None) -> Check:
         name, total, used = [x.strip() for x in line.splitlines()[0].split(",")]
         free_gb = (float(total) - float(used)) / 1024
         level = OK if free_gb >= 3.5 else WARN
-        tip = "" if level == OK else " → Qwen3-VL-4B(약 3.3GB)와 다른 모델을 함께 올리지 않기"
+        tip = "" if level == OK else " → STT·Qwen3-VL-2B·SmolVLA·LLM 검토 모델을 함께 올리지 않기"
         return Check("GPU", level, f"{name} · 남은 메모리 {free_gb:.1f}GB{tip}")
     except Exception as e:
         return Check("GPU", WARN, f"읽기 실패({type(e).__name__})")

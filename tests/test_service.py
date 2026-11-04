@@ -265,7 +265,8 @@ class ApiRoutesTest(unittest.TestCase):
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
-                                     ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold")])
+                                     ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold"),
+                                     ("POST", "/robot/home"), ("POST", "/robot/stop")])
         self.assertEqual(r[("POST", "/returns")](ok_payload())["decision"], DECISION_RETURNED)
         for payload, code in ((ok_payload(), 409), (ok_payload(case="R2", phone="010"), 422)):
             with self.assertRaises(self.HTTPException) as cm:
@@ -275,7 +276,7 @@ class ApiRoutesTest(unittest.TestCase):
             r[("GET", "/returns/{case_id}")]("NONE")
         self.assertEqual(cm.exception.status_code, 404)
         self.assertEqual(r[("GET", "/returns/{case_id}")]("R1")["case_id"], "R1")
-        self.assertEqual(len(r[("GET", "/tools")]()), 11)
+        self.assertEqual(len(r[("GET", "/tools")]()), 12)
         # 11/4 인계: 바구니 전달(인계 대기) → 직원 확인 → 인계 완료, 두 번째는 409
         self.assertEqual(r[("POST", "/returns/{case_id}/handover")]("R1", {"staff_confirmed": True})["status"], "인계 완료")
         for args, code in ((("R1", {"staff_confirmed": True}), 409), (("NONE", {"staff_confirmed": True}), 404),
@@ -300,6 +301,102 @@ class ApiRoutesTest(unittest.TestCase):
             with self.assertRaises(self.HTTPException) as cm:
                 call()
             self.assertEqual(cm.exception.status_code, 503)
+
+
+class RobotButtonsTest(unittest.TestCase):
+    """11/4: 직원 화면 정지(반환 중에도) · 원점 복귀(주변 확인 뒤, 진행 중이면 거부)."""
+
+    def make(self):
+        from agents.tools import MockBackend
+        self.rep = Reporter()
+        holder = {}
+
+        def factory():
+            be = MockBackend(bin_items=[{"object_id": "W01", "features": {"color": "검정"}, "center": [100, 200]}],
+                             db={"A-W01": {"status": "본센터 보관", "features": {"color": "검정"}}})
+            holder["be"] = be
+            return be
+        self.svc = TowerService(factory, self.rep)
+        return holder
+
+    def test_stop_during_return(self):
+        self.rep = Reporter()
+        svc = self.svc = TowerService(demo_backend_factory(), self.rep)
+        base = svc.backend_factory
+
+        def factory():
+            be = base()
+            mock = be.fallback
+            real = mock.robot_approach
+
+            def approach(mm, px):          # 사전 접근 도중 직원이 정지 버튼을 누름
+                r = real(mm, px)
+                svc.stop_robot()
+                return r
+            mock.robot_approach = approach
+            self.mock = mock
+            return be
+        svc.backend_factory = factory
+        out = svc.start_return(ok_payload(case="S1"))
+        self.assertEqual(out["decision"], DECISION_STOPPED, out["reason"])
+        self.assertIn("직원 정지 버튼", out["reason"])
+        self.assertNotIn("robot_grasp", self.mock.calls)       # 정지 뒤 집기 명령은 부품에 가지 않음
+        self.assertTrue(any(m["channel"] == "alert" and "직원 정지 버튼" in m["title"] for m in self.rep.messages))
+        svc.backend_factory = base                              # 다음 반환은 정지 표시가 지워진 채로 시작
+        self.assertEqual(svc.start_return(ok_payload(case="S2", item="A-W02"))["decision"], DECISION_RETURNED)
+
+    def test_stop_when_idle_and_fail(self):
+        holder = self.make()
+        res = self.svc.stop_robot()
+        self.assertEqual((res["ok"], res["running"]), (True, False))
+        self.assertIn("robot_stop", holder["be"].calls)
+        base = self.svc.backend_factory
+
+        def bad():
+            be = base()
+            be.stop_ok = False
+            return be
+        self.svc.backend_factory = bad
+        res = self.svc.stop_robot()
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("정지 실패" in m["title"] for m in self.rep.messages if m["channel"] == "alert"))
+
+    def test_home(self):
+        holder = self.make()
+        for body in ({}, {"staff_confirmed": False}, None):
+            with self.assertRaises(RequestError):
+                self.svc.robot_home(body)
+        self.assertEqual(self.svc.robot_home({"staff_confirmed": True})["ok"], True)
+        self.assertIn("robot_home", holder["be"].calls)
+        self.svc._run_lock.acquire()           # 반환 진행 중
+        try:
+            with self.assertRaises(Conflict) as cm:
+                self.svc.robot_home({"staff_confirmed": True})
+            self.assertEqual(cm.exception.kind, "busy")
+        finally:
+            self.svc._run_lock.release()
+
+    def test_home_fail_alerts(self):
+        self.make()
+        base = self.svc.backend_factory
+
+        def bad():
+            be = base()
+            be.home_ok = False
+            return be
+        self.svc.backend_factory = bad
+        self.assertFalse(self.svc.robot_home({"staff_confirmed": True})["ok"])
+        self.assertTrue(any("원점 복귀 실패" in m["title"] for m in self.rep.messages if m["channel"] == "alert"))
+
+    def test_guard_passes_other_calls(self):
+        from agents.service import GuardedBackend
+        from agents.tools import MockBackend
+        ev = threading.Event()
+        be = GuardedBackend(MockBackend(db={"A-1": {"status": "본센터 보관", "features": {}}}), ev)
+        ev.set()
+        self.assertIsNotNone(be.db_get_item("A-1"))           # DB 는 막지 않음
+        self.assertTrue(be.robot_stop()["ok"])                # 정지는 막지 않음
+        self.assertEqual(be.robot_grasp(), {"ok": False, "reason": "직원 정지 버튼"})
 
 
 class HandoverTest(unittest.TestCase):

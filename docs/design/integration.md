@@ -20,7 +20,7 @@
 # vision/part.py (예시 이름)
 class VisionPart:
     def vision_topview(self) -> list[dict]:
-        ...   # YOLO26s 검출 + Qwen3-VL 특징 JSON
+        ...   # YOLO26n 검출 + Qwen3-VL-2B 특징 JSON (11/4 확정)
 ```
 2. 빠진 함수가 없는지 확인
 ```python

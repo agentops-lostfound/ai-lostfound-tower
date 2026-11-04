@@ -27,9 +27,9 @@
 ```
 [교육원] capture_images.py 로 촬영 → Label Studio 라벨링 → prepare_dataset.py
         → python tools/hub_sync.py upload --kind data --local datasets/vision_v1103 --path vision_v1103
-[집 PC]  python vision/train_yolo.py --dataset vision_v1103 --name yolo26s_v1103 --download --upload
+[집 PC]  python vision/train_yolo.py --dataset vision_v1103 --name yolo26n_v1103 --download --upload
         → 디스코드에 "학습 완료 · mAP" 알림
-[교육원] python tools/hub_sync.py download --kind model --path yolo26s_v1103 --local models/yolo26s_v1103
+[교육원] python tools/hub_sync.py download --kind model --path yolo26n_v1103 --local models/yolo26n_v1103
         → 평가 → 기존보다 좋으면 models/stable/ 로 확정
 ```
 

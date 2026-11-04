@@ -22,7 +22,7 @@ flowchart LR
     MCP[MCP 서버]
   end
   subgraph Parts[부품 — 각 담당]
-    V[비전<br/>YOLO26s + Qwen3-VL<br/>김건태 LF-3]
+    V[비전<br/>YOLO26n + Qwen3-VL-2B<br/>김건태 LF-3]
     M[매칭<br/>김건태 LF-20]
     D[DB 부품<br/>변재원 LF-8]
     R[로봇<br/>SO-101 · SmolVLA<br/>김건태 LF-19·21 · 이순필 LF-11]

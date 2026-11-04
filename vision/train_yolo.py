@@ -3,11 +3,11 @@
 한줄 설명: 집 PC 팀원은 이 파일 하나만 실행하면 되고, 결과는 Hub에 올라가 교육원에서 누구나 받을 수 있다.
 
 사용법 (집 PC)
-    python vision/train_yolo.py --dataset vision_v1103 --name yolo26s_v1103 --download --upload
+    python vision/train_yolo.py --dataset vision_v1103 --name yolo26n_v1103 --download --upload
 교육원 PC에서 작은 시험 (학습 2에폭)
     python vision/train_yolo.py --dataset vision_v1103 --name smoke --epochs 2 --batch 4
 무엇을 할지만 확인
-    python vision/train_yolo.py --dataset vision_v1103 --name yolo26s_v1103 --dry-run
+    python vision/train_yolo.py --dataset vision_v1103 --name yolo26n_v1103 --dry-run
 
 결과 (models/<name>/)
     best.pt · best.onnx · best_openvino_model/ · metrics.json · data.yaml
@@ -116,8 +116,8 @@ def summary(m: dict) -> str:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="YOLO 학습 파이프라인")
     ap.add_argument("--dataset", required=True, help="datasets/ 아래 폴더 이름 (예: vision_v1103)")
-    ap.add_argument("--name", required=True, help="결과 이름 (예: yolo26s_v1103)")
-    ap.add_argument("--model", default="yolo26s.pt", help="시작 가중치 (기본 yolo26s.pt)")
+    ap.add_argument("--name", required=True, help="결과 이름 (예: yolo26n_v1103)")
+    ap.add_argument("--model", default="yolo26n.pt", help="시작 가중치 (기본 yolo26n.pt, 11/4 확정)")
     ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--imgsz", type=int, default=640)
     ap.add_argument("--batch", type=int, default=16, help="RTX 4070 SUPER 16, 교육원 RTX 3050은 4~8 권장(추정)")

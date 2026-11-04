@@ -20,11 +20,34 @@ from typing import Callable
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
 from agents.intake import IntakeError, IntakeStore, MemoryIntakeStore, parse_features, parse_intake, receipt, valid_item_id
 from agents.contracts import (CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
-                              DECISIONS, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, HOLD_REASONS)
+                              DECISIONS, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, HOLD_REASONS, STAFF_STOP_REASON)
 from agents.records import MemoryRecorder, Recorder
 from agents.supervisor import Outcome, ReturnRequest, run_return
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
+# 직원 정지 버튼을 누른 뒤 막을 로봇 동작(정지·원점 복귀는 막지 않음)
+ROBOT_MOVES = ("robot_approach", "robot_grasp", "robot_verify_grasp", "robot_deliver")
+
+
+class GuardedBackend:
+    """반환 중 부품을 감싼다(11/4). 직원 화면 정지 버튼이 눌리면 그 뒤의 로봇 동작 요청은 부품에 보내지 않고 실패로 돌려준다.
+    → 흐름은 약속대로 robot_stop + 정지(stopped) + 경보. 흐름 코드(supervisor·graph)는 바꾸지 않는다."""
+
+    def __init__(self, backend, stop_event: threading.Event):
+        self._be = backend
+        self._stop = stop_event
+
+    def __getattr__(self, name: str):
+        attr = getattr(self._be, name)
+        if name not in ROBOT_MOVES or not callable(attr):
+            return attr
+
+        def guarded(*a, **k):
+            if self._stop.is_set():
+                return {"ok": False, "reason": STAFF_STOP_REASON}
+            return attr(*a, **k)
+        return guarded
 GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id", "item_id")]
 ALLOWED = {"case_id", "item_id", *GATE_FIELDS}
 VISIT_GATES = ["visitor_id_match", "inner_feature_ok", "staff_confirmed"]   # 본센터 방문 때 직원 화면이 채움
@@ -103,6 +126,7 @@ class TowerService:
         self.claims = claims if claims is not None else MemoryClaimStore()
         self.intake = intake if intake is not None else MemoryIntakeStore()
         self._run_lock = threading.Lock()
+        self._stop_event = threading.Event()     # 직원 정지 버튼(반환을 새로 시작할 때 지움)
 
     # ---------- 습득물 접수(등록기계 화면) ----------
     def list_places(self, machine_id: str, limit: int = 10) -> list[dict]:
@@ -195,7 +219,8 @@ class TowerService:
                 raise Unavailable(f"기록 저장소 연결 실패({type(e).__name__}) — 중복 확인을 못 해 실행하지 않음") from e
             if seen:
                 raise Conflict("duplicate", f"이미 처리한 사례 번호: {req.case_id}")
-            be = self.backend_factory()
+            self._stop_event.clear()
+            be = GuardedBackend(self.backend_factory(), self._stop_event)
             try:
                 out = self.flow(req, be, self.reporter, reviewer=self.reviewer).to_dict()
             except Exception as e:   # 부품이 약속을 어기고 예외를 던진 경우 → 정지 시도 + 직원 확인
@@ -307,6 +332,47 @@ class TowerService:
         except Exception:
             pass
         return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_HOLD, "reason": payload["reason"]}
+
+    # ---------- 로봇 정지 · 원점 복귀(직원 화면 버튼, 11/4) ----------
+    def stop_robot(self) -> dict:
+        """정지 버튼: 반환 진행 중에도 누를 수 있다. 다음 로봇 동작을 막고 robot_stop(즉시 정지만)을 부른다."""
+        running = self._run_lock.locked()
+        self._stop_event.set()
+        try:
+            r = self.backend_factory().robot_stop() or {}
+        except Exception as e:
+            r = {"ok": False, "reason": f"정지 명령 오류({type(e).__name__})"}
+        ok = bool(r.get("ok"))
+        try:
+            self.reporter.alert("STAFF", f"🛑 직원 정지 버튼{' (반환 진행 중)' if running else ''}"
+                                f"{'' if ok else ' — 정지 실패, 즉시 전원 차단·직원 호출'}",
+                                "로봇 정지. 상황 확인 후 직원 화면 '원점 복귀'")
+        except Exception:
+            pass
+        return {"ok": ok, "reason": r.get("reason", ""), "running": running}
+
+    def robot_home(self, payload: object) -> dict:
+        """원점 복귀 버튼: 직원이 주변을 확인한 뒤에만. 반환이 진행 중이면 거부(409 busy). 본문 {"staff_confirmed": true}"""
+        if not isinstance(payload, dict) or set(payload) != {"staff_confirmed"} or payload["staff_confirmed"] is not True:
+            raise RequestError('본문은 {"staff_confirmed": true} 만 보냅니다(로봇 주변을 확인한 뒤)')
+        if not self._run_lock.acquire(blocking=False):
+            raise Conflict("busy", "반환이 진행 중입니다. 먼저 정지 버튼을 누르고 반환이 끝난 뒤 원점 복귀하세요")
+        try:
+            try:
+                r = self.backend_factory().robot_home() or {}
+            except Exception as e:
+                r = {"ok": False, "reason": f"원점 복귀 오류({type(e).__name__})"}
+            ok = bool(r.get("ok"))
+            try:
+                if ok:
+                    self.reporter.progress("STAFF", "원점 복귀 완료", "직원 화면 버튼")
+                else:
+                    self.reporter.alert("STAFF", f"원점 복귀 실패: {r.get('reason', '')}", "직원이 로봇 상태를 직접 확인")
+            except Exception:
+                pass
+            return {"ok": ok, "reason": r.get("reason", "")}
+        finally:
+            self._run_lock.release()
 
     def get_case(self, case_id: str) -> dict | None:
         if not ID_RE.match(case_id or ""):

@@ -48,6 +48,8 @@ HANDOVER_HOLD = "반환 보류"
 HOLD_REASONS = ["본인 아님", "물건 다름", "분실인 거부", "기타"]
 # 상태를 바꾼 주체(DB item_status_log.changed_by). 관제탑 반환 흐름 = tower, 직원 화면 인계·취소 = staff
 CHANGED_BY = ["tower", "staff"]
+# 직원 화면 정지 버튼을 누른 뒤 로봇 동작이 돌려받는 실패 이유(재시도하지 않음)
+STAFF_STOP_REASON = "직원 정지 버튼"
 # 본센터 보관함에 있을 수 있는 상태(닮은 물건 검사 대상). 등록기계 보관·인계 대기(바구니)·인계 완료는 보관함에 없다
 ACTIVE_STATUSES = [s for s in ITEM_STATUS if s not in ("등록기계 보관", HANDOVER_WAIT, HANDOVER_DONE)]
 

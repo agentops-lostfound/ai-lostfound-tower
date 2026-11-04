@@ -50,6 +50,10 @@
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   details summary { cursor: pointer; color: var(--muted); }
   [hidden] { display: none !important; }
+  /* 11/4 로봇 정지·원점 복귀: 화면 위에 늘 보이게(반환 진행 중에도 누를 수 있음) */
+  .robotbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; gap: 8px;
+              align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  button.stop { background: var(--bad); color: #fff; border-color: var(--bad); font-weight: 700; padding: 10px 18px; }
 </style>
 </head>
 <body>
@@ -58,6 +62,13 @@
     <h1>본센터 직원 화면 · 방문 확인</h1>
     <span class="muted" id="health">관제탑 확인 중…</span>
   </header>
+
+  <div class="robotbar" role="region" aria-label="로봇 조작">
+    <button id="robotStop" class="stop">🛑 정지</button>
+    <button id="robotHome">원점 복귀</button>
+    <button id="robotHomeOk" class="primary" hidden>주변 확인함 · 복귀</button>
+    <span class="muted" id="robotMsg">정지는 반환 중에도 바로 누릅니다. 원점 복귀는 로봇 주변을 확인한 뒤에만.</span>
+  </div>
 
   <section>
     <h2>1. 찾기 번호 조회</h2>
@@ -273,6 +284,25 @@
   $("claimId").addEventListener("keydown", function (e) { if (e.key === "Enter") lookup(); });
   $("start").addEventListener("click", start);
   $("demoMake").addEventListener("click", demoMake);
+
+  // 로봇 정지(언제든) · 원점 복귀(한 번 더 확인) — 11/4
+  $("robotStop").addEventListener("click", async function () {
+    $("robotMsg").textContent = "정지 요청 중…";
+    var r = await api("POST", "/robot/stop");
+    if (r.status === 200 && r.data.ok) $("robotMsg").textContent = "🛑 정지함" + (r.data.running ? " (진행 중이던 반환은 다음 동작에서 멈춥니다)" : "") + " · 확인 후 원점 복귀";
+    else $("robotMsg").textContent = "정지 실패: " + (r.data && r.data.reason ? r.data.reason : detail(r)) + " — 즉시 전원 차단·담당자 호출";
+  });
+  $("robotHome").addEventListener("click", function () {
+    $("robotHome").hidden = true; $("robotHomeOk").hidden = false;
+    $("robotMsg").textContent = "로봇 팔 주변에 사람·물건이 없는지 확인한 뒤 누르세요";
+  });
+  $("robotHomeOk").addEventListener("click", async function () {
+    $("robotHomeOk").disabled = true; $("robotMsg").textContent = "원점 복귀 중…";
+    var r = await api("POST", "/robot/home", { staff_confirmed: true });
+    $("robotHomeOk").disabled = false; $("robotHomeOk").hidden = true; $("robotHome").hidden = false;
+    if (r.status === 200 && r.data.ok) $("robotMsg").textContent = "원점 복귀 완료";
+    else $("robotMsg").textContent = "원점 복귀 안 됨: " + (r.status === 200 ? r.data.reason : detail(r));
+  });
   health(); recent(); setInterval(health, 15000);
 })();
 </script>

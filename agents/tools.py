@@ -46,7 +46,10 @@ TOOLS: list[ToolSpec] = [
              {}, "{ok, reason}", "실패로 처리"),
     ToolSpec("robot_deliver", "이순필 LF-11", "저장한 경로로 바구니까지 옮겨 그리퍼 열기",
              {}, "{ok, reason}", "정지 + #관제-알림"),
-    ToolSpec("robot_stop", "이순필 LF-11", "즉시 정지하고 Home 으로 복귀", {}, "{ok, reason}", "직원 호출"),
+    ToolSpec("robot_stop", "이순필 LF-11", "그 자리에서 즉시 정지만(원점 복귀 안 함, 11/4). 반환 진행 중에도 직원 화면 정지 버튼으로 부름",
+             {}, "{ok, reason}", "직원 호출"),
+    ToolSpec("robot_home", "이순필 LF-11", "저장된 경로로 원점(Home) 복귀. 직원이 상황을 확인한 뒤 직원 화면 버튼으로만 부름(11/4)",
+             {}, "{ok, reason}", "직원 호출(원점 복귀 실패 — 손으로 확인)"),
     ToolSpec("notify", "변재원 LF-17", "디스코드 관제 채널에 알림(개인정보 없이 물건 번호만)",
              {"channel": "progress|alert|score", "text": "내용"}, "{ok}", "알림 실패는 흐름을 멈추지 않음"),
 ]
@@ -93,6 +96,7 @@ class MockBackend:
     approach_ok: bool = True
     deliver_ok: bool = True
     stop_ok: bool = True
+    home_ok: bool = True
     status_fail: set = field(default_factory=set)   # 실패시킬 상태 이름(시험용, 예: {"반환 중"})
     list_ok: bool = True                            # False 면 db_list_active 가 None(목록 읽기 실패 시험용)
     calls: list[str] = field(default_factory=list)
@@ -163,6 +167,10 @@ class MockBackend:
     def robot_stop(self) -> dict:
         self.calls.append("robot_stop")
         return robot_result(self.stop_ok, "정지 명령 실패")
+
+    def robot_home(self) -> dict:
+        self.calls.append("robot_home")
+        return robot_result(self.home_ok, "원점 복귀 실패")
 
     def robot_moved(self) -> bool:
         return any(c.startswith("robot_") and c != "robot_stop" for c in self.calls)

@@ -25,7 +25,8 @@
 | `robot_grasp` | 김건태 LF-19 | SmolVLA 근거리 집기·들기 | 없음 | `{ok, reason}` | 1번만 재시도, 그래도 실패면 정지 |
 | `robot_verify_grasp` | 김건태 LF-19 | 그리퍼 닫힘 + 탑뷰 재확인 | 없음 | `{ok, reason}` | 실패로 처리 |
 | `robot_deliver` | 이순필 LF-11 | 바구니까지 이동·그리퍼 열기 | 없음 | `{ok, reason}` | 정지 + 알림 |
-| `robot_stop` | 이순필 LF-11 | 즉시 정지·Home | 없음 | `{ok, reason}` | 직원 호출 |
+| `robot_stop` | 이순필 LF-11 | **그 자리에서 즉시 정지만**(원점 복귀 안 함, 11/4). 반환 중에도 직원 화면 🛑 버튼(`POST /robot/stop`) | 없음 | `{ok, reason}` | 직원 호출 |
+| `robot_home` | 이순필 LF-11 | 저장된 경로로 원점 복귀. 직원이 주변 확인 뒤 버튼(`POST /robot/home`)으로만, 반환 중이면 거부 (11/4) | 없음 | `{ok, reason}` | 직원 호출 |
 | `notify` | 변재원 LF-17 | 관제 채널 알림 | channel(progress·alert·score), text | `{ok}` | 흐름은 멈추지 않음 |
 
 ## 3. AI에게 여는 범위
@@ -42,7 +43,8 @@
 - 건네지 않기로 하면(본인 아님·물건 다름·분실인 거부·기타) `POST /returns/{case_id}/hold` → `반환 보류` + 경보. 직원 화면에서 바꾼 상태는 기록에 `changed_by=staff`
 
 ## 5. 통합 때 주의할 점 (변재원 검토)
-- **GPU 메모리(시연 PC RTX 3050 6GB)**: Qwen3-VL-4B(Q4 약 3.3GB)와 SmolVLA를 동시에 올리지 않는다. 탑뷰 특징 추출이 끝나면 VLM을 내리고(Ollama `keep_alive: 0`) 집기 정책을 올린다. 메인 AI LLM 검토도 같은 Qwen3-VL-4B를 써서 모델을 하나 더 올리지 않는다
+- **모델 확정(11/4)**: 검출 **YOLO26n**, 특징 추출 **Qwen3-VL-2B-Instruct**(Hugging Face, NF4 4-bit). Jira·발표 표기도 이 이름으로
+- **GPU 메모리(시연 PC RTX 3050 6GB)**: STT·Qwen3-VL-2B·SmolVLA를 동시에 올리지 않는다(순서: STT → 해제 → 촬영·Qwen → 해제 → CPU 매칭 → VLA, 김건태 11/4). LLM 검토(Ollama `qwen3-vl:4b-instruct`, Q4 약 3.3GB)는 비전과 **다른 모델**이라 켜면 메모리를 더 쓴다 → 시연에서는 끈다(`TOWER_REVIEWER` 비움)
 - **카메라가 달라 특징이 어긋날 위험**: 접수 특징은 등록기계(포토박스 LED 조명)에서, 비교할 특징은 본센터 탑뷰(다른 조명·각도)에서 뽑는다. 색·글자가 다르게 읽히면 매칭이 자주 '불확실'이 되어 직원 확인으로 빠진다 → 같은 지갑을 두 카메라로 찍어 항목별 일치율을 먼저 재고, 덜 맞는 항목은 매칭 가중치를 낮춘다(LF-20)
 - **LLM 검토는 기본 꺼짐**: 시연 PC에서 `python evaluation/run_cases.py --reviewer` 로 잘못된 보류가 0건일 때만 켠다
-- **Qwen3-VL-4B는 instruct판을 쓴다(11/2 시연 PC 측정)**: `qwen3-vl:4b` 는 생각 전용판이라 `"think": false` 를 보내도 무시하고 답마다 생각 글 약 1,800~2,500자(약 500~700토큰, 10~14초)를 먼저 쓴다. `qwen3-vl:4b-instruct` 로 바꾸면 같은 JSON 답이 22토큰 · 평균 2.7초 · 생각 글자 0, 처음 올리기 약 7초(100% GPU). 특징 JSON 추출(LF-3)도 `ollama pull qwen3-vl:4b-instruct` 로 받아 이 이름을 쓴다
+- **(LLM 검토용) Qwen3-VL-4B는 instruct판을 쓴다(11/2 시연 PC 측정)**: `qwen3-vl:4b` 는 생각 전용판이라 `"think": false` 를 보내도 무시하고 답마다 생각 글 약 1,800~2,500자(약 500~700토큰, 10~14초)를 먼저 쓴다. `qwen3-vl:4b-instruct` 로 바꾸면 같은 JSON 답이 22토큰 · 평균 2.7초 · 생각 글자 0, 처음 올리기 약 7초(100% GPU). 특징 JSON 추출(LF-3)은 11/4 확정대로 Qwen3-VL-2B(Hugging Face)를 쓴다
