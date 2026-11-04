@@ -1,0 +1,22 @@
+[
+ {"text":"흰색 아이폰이고 뒷면이 심하게 파손돼 있어요.","source":"vpu","target":0,"expected":{"category":"phone","colors":["white"],"sticker_status":"unknown"}},
+ {"text":"제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요.","source":"vpu","target":0,"expected":{"category":"phone","colors":["white"],"sticker_status":"unknown"}},
+ {"text":"하얀 아이폰인데 뒤가 완전 박살났어요. 그거 찾아주세요.","source":"vpu","target":0,"expected":{"category":"phone","colors":["white"],"sticker_status":"unknown"}},
+ {"text":"어제 어디서 잃어버렸는지는 기억 안 나는데, 흰색 아이폰이고 뒷면이 심하게 깨져 있어요.","source":"vpu","target":0,"expected":{"category":"phone","colors":["white"],"sticker_status":"unknown"}},
+ {"text":"검정색 아니고 흰색 아이폰이에요. 뒷면이 심하게 깨져 있어요.","source":"vpu","target":0,"expected":{"category":"phone","colors":["white"],"sticker_status":"unknown"}},
+ {"text":"진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.","source":"phones","target":0,"expected":{"category":"phone","colors":["dark blue"],"sticker_status":"present"}},
+ {"text":"남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요.","source":"phones","target":0,"expected":{"category":"phone","colors":["navy"],"sticker_status":"present"}},
+ {"text":"파란 폰인데 스티커는 하나도 없어요.","source":"phones","target":null,"expected":{"category":"phone","colors":["blue"],"sticker_status":"absent"}},
+ {"text":"검은색 보조배터리인데 VOVA라고 적혀 있어요.","source":"vpu","target":1,"expected":{"category":"power_bank","colors":["black"],"sticker_status":"unknown"}},
+ {"text":"검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요.","source":"vpu","target":1,"expected":{"category":"power_bank","colors":["black"],"sticker_status":"absent"}},
+ {"text":"검정색에 빨간 테두리가 있는 작은 USB예요.","source":"vpu","target":2,"expected":{"category":"usb","colors":["black","red"],"sticker_status":"unknown"}},
+ {"text":"검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요.","source":"usb","target":0,"expected":{"category":"usb","colors":["black","red"],"sticker_status":"unknown"}},
+ {"text":"SanDisk USB를 찾고 있어요. 색은 기억나지 않아요.","source":"usb","target":0,"expected":{"category":"usb","colors":[],"sticker_status":"unknown"}},
+ {"text":"흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요.","source":"vpu","target":null,"expected":{"category":"phone","colors":["white"],"sticker_status":"unknown"}},
+ {"text":"빨간색 아이폰이고 카메라가 하나예요.","source":"vpu","target":null,"expected":{"category":"phone","colors":["red"],"sticker_status":"unknown"}},
+ {"text":"노란색 카드지갑을 찾고 있어요.","source":"vpu","target":null,"expected":{"category":"card_wallet","colors":["yellow"],"sticker_status":"unknown"}},
+ {"text":"검은색 물건인데 뭔지는 잘 기억 안 나요.","source":"vpu","target":"ambiguous","expected":{"category":"unknown","colors":["black"],"sticker_status":"unknown"}},
+ {"text":"지갑인데 남색인지 검정인지 모르겠어요.","source":"vpu","target":"ambiguous","expected":{"category":"wallet","colors":[],"sticker_status":"unknown"}},
+ {"text":"검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요.","source":"black_phone","target":0,"expected":{"category":"phone","colors":["black"],"sticker_status":"absent"}},
+ {"text":"아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다. 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소.","source":"vpu","target":0,"expected":{"category":"phone","colors":["white"],"sticker_status":"unknown"}}
+]

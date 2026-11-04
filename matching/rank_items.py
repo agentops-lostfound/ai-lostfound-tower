@@ -12,11 +12,14 @@ from .hybrid import HybridMatcher
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--query", required=True, help="English description; translation is a separate step")
+    parser.add_argument("--query", required=True, help="English by default; Korean with --parse-korean")
     parser.add_argument("--candidates", required=True, type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
-    parser.add_argument("--query-features", type=Path, help="Explicit structured conditions JSON; no automatic extraction")
+    inputs = parser.add_mutually_exclusive_group()
+    inputs.add_argument("--query-features", type=Path, help="Explicit structured conditions JSON")
+    inputs.add_argument("--parse-korean", action="store_true", help="Extract English conditions with optional CPU text model")
+    parser.add_argument("--parser-backend", choices=("opus", "korean-first", "deepl", "qwen-translate", "qwen-direct"), default="korean-first")
     parser.add_argument("--threads", type=int, default=2)
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--benchmark", type=int, default=0, help="Extra warm requests on the same loaded model")
@@ -26,7 +29,17 @@ def main():
     started = perf_counter()
     try:
         config = load_config(args.config)
+        parsed_query = None
         constraints = json.loads(args.query_features.read_text(encoding="utf-8-sig")) if args.query_features else {"free_text": args.query}
+        if args.parse_korean:
+            from .query_parser import QueryParser
+            from .translated_query import OpusQueryParser, TranslatedQueryParser
+            from .api_translation import DeepLQueryParser
+            from .korean_query import KoreanFirstParser
+            backend = {"opus": OpusQueryParser, "korean-first": KoreanFirstParser, "deepl": DeepLQueryParser, "qwen-translate": TranslatedQueryParser,
+                       "qwen-direct": QueryParser}[args.parser_backend]
+            parsed_query = backend(offline=args.offline, threads=args.threads).parse(args.query)
+            constraints = parsed_query["features"]
         attributes(constraints)
         if set(constraints) - {"category", "colors", "sticker_status", "free_text"}:
             raise ValueError("Query features support category, colors, sticker_status, free_text")
@@ -34,6 +47,9 @@ def main():
         candidates, skipped = read_candidates(data)
         matcher = HybridMatcher(config, threads=args.threads, offline=args.offline)
         ranking, decision, timing = matcher.match(candidates, constraints)
+        if parsed_query:
+            from .query_parser import guard_decision
+            decision = guard_decision(decision, parsed_query)
         warm = []
         for _ in range(args.benchmark):
             begin = perf_counter()
@@ -42,10 +58,10 @@ def main():
         ranker = matcher.ranker
         prep = {"total_candidate_count": len(candidates)}
         report = {"status": decision["status"], "decision": decision, "config": config,
-                  "query_features": constraints, "model": MODEL,
+                  "query_features": constraints, "parsed_query": parsed_query, "model": MODEL,
                   "provider": "CPUExecutionProvider", "query": args.query,
                   "source": str(args.candidates.resolve()), "ranking": ranking, "skipped": skipped,
-                  "notice": "Experimental policy; scores are not probabilities. Structured conditions are supplied separately, not extracted from query. No robot action is performed.",
+                  "notice": "Experimental policy; scores are not probabilities. Optional text extraction may be inaccurate. No robot action is performed.",
                   "timing": {"model_init_seconds": ranker.init_seconds if ranker else 0,
                              **prep, **timing, "warm_samples": len(warm),
                              "warm_median_seconds": median(warm) if warm else None,

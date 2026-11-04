@@ -1,0 +1,10 @@
+[
+  {"text":"곤색 카드지갑인데 뒤에 별 스티커가 있어요.","expected":{"category":"card_wallet","colors":["navy"],"sticker_status":"present","needs_clarification":false}},
+  {"text":"파란색 아니고 검정 폰이에요. 스티커는 없어요.","expected":{"category":"phone","colors":["black"],"sticker_status":"absent","needs_clarification":false}},
+  {"text":"지갑 잃어버렸어요.","expected":{"category":"wallet","colors":[],"sticker_status":"unknown","needs_clarification":false}},
+  {"text":"파랑인지 검정인지 기억 안 나는 지갑이에요.","expected":{"category":"wallet","colors":[],"sticker_status":"unknown","needs_clarification":true}},
+  {"text":"검정 몸체에 빨간 테두리가 있는 USB예요.","expected":{"category":"usb","colors":["black","red"],"sticker_status":"unknown","needs_clarification":false}},
+  {"text":"흰색 아이폰인데 뒤에 애플 로고가 있고 카메라가 두 개예요.","expected":{"category":"phone","colors":["white"],"sticker_status":"unknown","needs_clarification":false}},
+  {"text":"검은 보조배터리에 VOVA라고 쓰여 있어요.","expected":{"category":"power_bank","colors":["black"],"sticker_status":"unknown","needs_clarification":false}},
+  {"text":"지갑 뒷면에는 스티커가 없어요.","expected":{"category":"wallet","colors":[],"sticker_status":"unknown","needs_clarification":true}}
+]

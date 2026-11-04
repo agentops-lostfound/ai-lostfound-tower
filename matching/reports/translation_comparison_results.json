@@ -1,0 +1,4267 @@
+{
+  "note": "Development-set experiments; attribute agreement is not translation accuracy. No unguarded automatic actions were executed.",
+  "experiments": [
+    {
+      "method": "qwen",
+      "summary": {
+        "completed": 20,
+        "translation_successes": 20,
+        "exact_attribute_cases": 10,
+        "translation_median_seconds": 2.5217974499992124,
+        "primary_policy_states": {
+          "matched": 8,
+          "no_match": 6,
+          "needs_confirmation": 6
+        },
+        "candidate_groups": 11,
+        "candidate_records": 22,
+        "matching_comparisons": 220
+      },
+      "cases": [
+        {
+          "text": "흰색 아이폰이고 뒷면이 심하게 파손돼 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "흰색 아이폰이고 뒷면이 심하게 파손돼 있어요.",
+            "translation": "A white iPhone with the back severely damaged.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A white iPhone with the back severely damaged."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.2989000999987184,
+              "output_tokens": 10
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요.",
+            "translation": "The iPhone is white, but it's broken on the back.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "The iPhone is white, but it's broken on the back."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.6014456000011705,
+              "output_tokens": 14
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "하얀 아이폰인데 뒤가 완전 박살났어요. 그거 찾아주세요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "하얀 아이폰인데 뒤가 완전 박살났어요. 그거 찾아주세요.",
+            "translation": "A white iPhone, but the one behind is completely broken. Please find it.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A white iPhone, but the one behind is completely broken. Please find it."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.906229500000336,
+              "output_tokens": 17
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "어제 어디서 잃어버렸는지는 기억 안 나는데, 흰색 아이폰이고 뒷면이 심하게 깨져 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "어제 어디서 잃어버렸는지는 기억 안 나는데, 흰색 아이폰이고 뒷면이 심하게 깨져 있어요.",
+            "translation": "Where did I lose it? I can't remember. I have a white iPhone, and the back is seriously broken.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "Where did I lose it? I can't remember. I have a white iPhone, and the back is seriously broken."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Uncertainty wording requires manual review of its scope."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 4.059556100000918,
+              "output_tokens": 25
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정색 아니고 흰색 아이폰이에요. 뒷면이 심하게 깨져 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "검정색 아니고 흰색 아이폰이에요. 뒷면이 심하게 깨져 있어요.",
+            "translation": "The iPhone is not bright yellow and has a serious crack on the back.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "yellow"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "The iPhone is not bright yellow and has a serious crack on the back."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.8870099000014307,
+              "output_tokens": 16
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+          "source": "phones",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "dark blue"
+            ],
+            "sticker_status": "present"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+            "translation": "A bright blue phone with a character sticker on the left side of the back.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "blue"
+              ],
+              "sticker_status": "present",
+              "free_text": "A bright blue phone with a character sticker on the left side of the back."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 3.0140920000012557,
+              "output_tokens": 17
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요.",
+          "source": "phones",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "navy"
+            ],
+            "sticker_status": "present"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요.",
+            "translation": "A pink smartphone with a Pokémon sticker on the bottom left.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "pink"
+              ],
+              "sticker_status": "present",
+              "free_text": "A pink smartphone with a Pokémon sticker on the bottom left."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.50620550000167,
+              "output_tokens": 13
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "파란 폰인데 스티커는 하나도 없어요.",
+          "source": "phones",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "blue"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "파란 폰인데 스티커는 하나도 없어요.",
+            "translation": "A red phone has no sticker.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "red"
+              ],
+              "sticker_status": "absent",
+              "free_text": "A red phone has no sticker."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 1.712604399999691,
+              "output_tokens": 8
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은색 보조배터리인데 VOVA라고 적혀 있어요.",
+          "source": "vpu",
+          "target": 1,
+          "expected": {
+            "category": "power_bank",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "category"
+          ],
+          "parsed": {
+            "original_text": "검은색 보조배터리인데 VOVA라고 적혀 있어요.",
+            "translation": "A black battery with VOVA as its name.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A black battery with VOVA as its name."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.134737899999891,
+              "output_tokens": 11
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.037858767168862606,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.037858767168862606,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요.",
+          "source": "vpu",
+          "target": 1,
+          "expected": {
+            "category": "power_bank",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [
+            "category"
+          ],
+          "parsed": {
+            "original_text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요.",
+            "translation": "A black battery with a VOVA label and no sticker.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "absent",
+              "free_text": "A black battery with a VOVA label and no sticker."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.4145648999983678,
+              "output_tokens": 13
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.05922695994377147,
+            "reasons": [
+              "weak_attribute_match",
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.05922695994377147,
+            "reasons": [
+              "weak_attribute_match",
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정색에 빨간 테두리가 있는 작은 USB예요.",
+          "source": "vpu",
+          "target": 2,
+          "expected": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "검정색에 빨간 테두리가 있는 작은 USB예요.",
+            "translation": "A small USB with a red border in the pink color.",
+            "features": {
+              "category": "usb",
+              "colors": [
+                "red",
+                "pink"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A small USB with a red border in the pink color."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.537389399996755,
+              "output_tokens": 13
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요.",
+          "source": "usb",
+          "target": 0,
+          "expected": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요.",
+            "translation": "A USB with a red border, labeled SanDisk.",
+            "features": {
+              "category": "usb",
+              "colors": [
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A USB with a red border, labeled SanDisk."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.3622921999995015,
+              "output_tokens": 12
+            }
+          },
+          "primary_run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "SanDisk USB를 찾고 있어요. 색은 기억나지 않아요.",
+          "source": "usb",
+          "target": 0,
+          "expected": {
+            "category": "usb",
+            "colors": [],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "SanDisk USB를 찾고 있어요. 색은 기억나지 않아요.",
+            "translation": "Find the SanDisk USB. It's not glowing.",
+            "features": {
+              "category": "usb",
+              "colors": [],
+              "sticker_status": "unknown",
+              "free_text": "Find the SanDisk USB. It's not glowing."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.261057699997764,
+              "output_tokens": 12
+            }
+          },
+          "primary_run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "below_min_score"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "below_min_score",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요.",
+            "translation": "A white iPhone, with no damage on the back.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A white iPhone, with no damage on the back."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.317293399999471,
+              "output_tokens": 12
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "빨간색 아이폰이고 카메라가 하나예요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "빨간색 아이폰이고 카메라가 하나예요.",
+            "translation": "A red iPhone with a camera.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A red iPhone with a camera."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 1.6631140999998024,
+              "output_tokens": 8
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "노란색 카드지갑을 찾고 있어요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "card_wallet",
+            "colors": [
+              "yellow"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "노란색 카드지갑을 찾고 있어요.",
+            "translation": "Find the red card wallet.",
+            "features": {
+              "category": "card_wallet",
+              "colors": [
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "Find the red card wallet."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 1.567134900000383,
+              "output_tokens": 7
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은색 물건인데 뭔지는 잘 기억 안 나요.",
+          "source": "vpu",
+          "target": "ambiguous",
+          "expected": {
+            "category": "unknown",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검은색 물건인데 뭔지는 잘 기억 안 나요.",
+            "translation": "A black object, but I don't remember what it is.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "A black object, but I don't remember what it is."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Uncertainty wording requires manual review of its scope."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.585566400000971,
+              "output_tokens": 14
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 3,
+            "margin": 0.0061242410114833445,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 3,
+            "margin": 0.0061242410114833445,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "지갑인데 남색인지 검정인지 모르겠어요.",
+          "source": "vpu",
+          "target": "ambiguous",
+          "expected": {
+            "category": "wallet",
+            "colors": [],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "지갑인데 남색인지 검정인지 모르겠어요.",
+            "translation": "I don't know if it's a red or black wallet.",
+            "features": {
+              "category": "wallet",
+              "colors": [],
+              "sticker_status": "unknown",
+              "free_text": "I don't know if it's a red or black wallet."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Alternative colors need clarification."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.5732333999985713,
+              "output_tokens": 14
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.00268612802028656,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.00268612802028656,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요.",
+          "source": "black_phone",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요.",
+            "translation": "A black phone with a white screen and a case, no stickers.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white",
+                "black"
+              ],
+              "sticker_status": "absent",
+              "free_text": "A black phone with a white screen and a case, no stickers."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Check whether the description refers to a case or the item itself.",
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 2.779581500002678,
+              "output_tokens": 15
+            }
+          },
+          "primary_run": "4560b8a53f4b4eeb96718439dc8f595a",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다. 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다. 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소.",
+            "translation": "The student's phone is broken badly and white, but I don't know where it was lost. Anyway, my phone is white and broken, so I'll check.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "The student's phone is broken badly and white, but I don't know where it was lost. Anyway, my phone is white and broken, so I'll check."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Qwen/Qwen3-0.6B",
+            "mode": "translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 1.9403836999990745,
+              "parse_seconds": 5.7176953999987745,
+              "output_tokens": 35
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "method": "opus",
+      "summary": {
+        "completed": 20,
+        "translation_successes": 20,
+        "exact_attribute_cases": 14,
+        "translation_median_seconds": 0.506937599999219,
+        "primary_policy_states": {
+          "matched": 10,
+          "needs_confirmation": 8,
+          "no_match": 2
+        },
+        "candidate_groups": 11,
+        "candidate_records": 22,
+        "matching_comparisons": 220
+      },
+      "cases": [
+        {
+          "text": "흰색 아이폰이고 뒷면이 심하게 파손돼 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "흰색 아이폰이고 뒷면이 심하게 파손돼 있어요.",
+            "translation": "White iPhone, and the back is badly damaged.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "White iPhone, and the back is badly damaged."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.4942961999986437,
+              "output_tokens": 12
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요.",
+            "translation": "It's my white iPhone, and it's broken behind a lot.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's my white iPhone, and it's broken behind a lot."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.47236640000119223,
+              "output_tokens": 18
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "하얀 아이폰인데 뒤가 완전 박살났어요. 그거 찾아주세요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "하얀 아이폰인데 뒤가 완전 박살났어요. 그거 찾아주세요.",
+            "translation": "It's a white iPhone, and it's totally broken back.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a white iPhone, and it's totally broken back."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.42562069999985397,
+              "output_tokens": 17
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "어제 어디서 잃어버렸는지는 기억 안 나는데, 흰색 아이폰이고 뒷면이 심하게 깨져 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "어제 어디서 잃어버렸는지는 기억 안 나는데, 흰색 아이폰이고 뒷면이 심하게 깨져 있어요.",
+            "translation": "I don't remember where I lost it yesterday, the white iPhone, and the back is badly broken.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "I don't remember where I lost it yesterday, the white iPhone, and the back is badly broken."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Uncertainty wording requires manual review of its scope."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.6076404999985243,
+              "output_tokens": 24
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정색 아니고 흰색 아이폰이에요. 뒷면이 심하게 깨져 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검정색 아니고 흰색 아이폰이에요. 뒷면이 심하게 깨져 있어요.",
+            "translation": "It's not black, it's a white iPhone, and the back is badly broken.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's not black, it's a white iPhone, and the back is badly broken."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "A negated color was omitted; check the translation."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.5729486999989604,
+              "output_tokens": 22
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+          "source": "phones",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "dark blue"
+            ],
+            "sticker_status": "present"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+            "translation": "It's a dark blue phone and there's a character sticker on the bottom left.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "dark blue"
+              ],
+              "sticker_status": "present",
+              "free_text": "It's a dark blue phone and there's a character sticker on the bottom left."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.5603308999998262,
+              "output_tokens": 22
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요.",
+          "source": "phones",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "navy"
+            ],
+            "sticker_status": "present"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요.",
+            "translation": "It's a dark cell phone with a pocket sticker at the bottom left of the back.",
+            "features": {
+              "category": "phone",
+              "colors": [],
+              "sticker_status": "present",
+              "free_text": "It's a dark cell phone with a pocket sticker at the bottom left of the back."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.5195789999997942,
+              "output_tokens": 22
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": 0.03417613506317152,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": 0.03417613506317152,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "파란 폰인데 스티커는 하나도 없어요.",
+          "source": "phones",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "blue"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "파란 폰인데 스티커는 하나도 없어요.",
+            "translation": "It's a blue phone. No stickers.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "blue"
+              ],
+              "sticker_status": "absent",
+              "free_text": "It's a blue phone. No stickers."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.3871298000012757,
+              "output_tokens": 13
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "weak_attribute_match"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "weak_attribute_match",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은색 보조배터리인데 VOVA라고 적혀 있어요.",
+          "source": "vpu",
+          "target": 1,
+          "expected": {
+            "category": "power_bank",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "category"
+          ],
+          "parsed": {
+            "original_text": "검은색 보조배터리인데 VOVA라고 적혀 있어요.",
+            "translation": "It's a black side battery. It says \"VOA.\"",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a black side battery. It says \"VOA.\""
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.38648810000086087,
+              "output_tokens": 17
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.03994432517460422,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.03994432517460422,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요.",
+          "source": "vpu",
+          "target": 1,
+          "expected": {
+            "category": "power_bank",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [
+            "category",
+            "sticker_status"
+          ],
+          "parsed": {
+            "original_text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요.",
+            "translation": "It's a black side battery. It says \"VOA,\" and there's no sticker.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a black side battery. It says \"VOA,\" and there's no sticker."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Scoped sticker absence was not treated as global absence.",
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.5837289999981294,
+              "output_tokens": 25
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.07520168168204167,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.07520168168204167,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정색에 빨간 테두리가 있는 작은 USB예요.",
+          "source": "vpu",
+          "target": 2,
+          "expected": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검정색에 빨간 테두리가 있는 작은 USB예요.",
+            "translation": "It's a little USB with a red border on black.",
+            "features": {
+              "category": "usb",
+              "colors": [
+                "black",
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a little USB with a red border on black."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.3385928999996395,
+              "output_tokens": 15
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.01434780491722959,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.01434780491722959,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요.",
+          "source": "usb",
+          "target": 0,
+          "expected": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요.",
+            "translation": "It's a black USB, and it says the edges are red and it's called Sandisk.",
+            "features": {
+              "category": "usb",
+              "colors": [
+                "black",
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a black USB, and it says the edges are red and it's called Sandisk."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.6209390999974858,
+              "output_tokens": 25
+            }
+          },
+          "primary_run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "SanDisk USB를 찾고 있어요. 색은 기억나지 않아요.",
+          "source": "usb",
+          "target": 0,
+          "expected": {
+            "category": "usb",
+            "colors": [],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "SanDisk USB를 찾고 있어요. 색은 기억나지 않아요.",
+            "translation": "I'm looking for Sandisk USB. I don't remember color.",
+            "features": {
+              "category": "usb",
+              "colors": [],
+              "sticker_status": "unknown",
+              "free_text": "I'm looking for Sandisk USB. I don't remember color."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Uncertainty wording requires manual review of its scope."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.5306692000012845,
+              "output_tokens": 19
+            }
+          },
+          "primary_run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요.",
+            "translation": "White iPhone, no gold or damage on the back.",
+            "features": {
+              "category": "phone",
+              "colors": [],
+              "sticker_status": "unknown",
+              "free_text": "White iPhone, no gold or damage on the back."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Alternative colors need clarification."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.5284234999999171,
+              "output_tokens": 13
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": 0.5825850218534471,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": 0.5825850218534471,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "빨간색 아이폰이고 카메라가 하나예요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "빨간색 아이폰이고 카메라가 하나예요.",
+            "translation": "It's a red iPhone. It's got one camera.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a red iPhone. It's got one camera."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.35617740000088816,
+              "output_tokens": 16
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "노란색 카드지갑을 찾고 있어요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "card_wallet",
+            "colors": [
+              "yellow"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "category"
+          ],
+          "parsed": {
+            "original_text": "노란색 카드지갑을 찾고 있어요.",
+            "translation": "I'm looking for a yellow card.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "yellow"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "I'm looking for a yellow card."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.2727496000006795,
+              "output_tokens": 11
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은색 물건인데 뭔지는 잘 기억 안 나요.",
+          "source": "vpu",
+          "target": "ambiguous",
+          "expected": {
+            "category": "unknown",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검은색 물건인데 뭔지는 잘 기억 안 나요.",
+            "translation": "It's black stuff. I don't remember what it was.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's black stuff. I don't remember what it was."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Uncertainty wording requires manual review of its scope."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.4258961999985331,
+              "output_tokens": 17
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.02153757640293663,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.02153757640293663,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "지갑인데 남색인지 검정인지 모르겠어요.",
+          "source": "vpu",
+          "target": "ambiguous",
+          "expected": {
+            "category": "wallet",
+            "colors": [],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [
+            "category",
+            "colors"
+          ],
+          "parsed": {
+            "original_text": "지갑인데 남색인지 검정인지 모르겠어요.",
+            "translation": "I don't know if it's black or black.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "I don't know if it's black or black."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.38321020000148565,
+              "output_tokens": 15
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.024883304323468747,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.024883304323468747,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요.",
+          "source": "black_phone",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요.",
+            "translation": "There's a black phone, there's a black screen, there's a case, there's no sticker.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "absent",
+              "free_text": "There's a black phone, there's a black screen, there's a case, there's no sticker."
+            },
+            "needs_clarification": true,
+            "warnings": [
+              "Check whether the description refers to a case or the item itself.",
+              "Check the object to which each color applies."
+            ],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.7201988999986497,
+              "output_tokens": 29
+            }
+          },
+          "primary_run": "4560b8a53f4b4eeb96718439dc8f595a",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다. 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다. 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소.",
+            "translation": "I don't know where I've lost it, but look for my phone because it's white and it's full of crap.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "I don't know where I've lost it, but look for my phone because it's white and it's full of crap."
+            },
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Helsinki-NLP/opus-mt-ko-en",
+            "mode": "opus_translate_then_rules",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 33.70652530000007,
+              "parse_seconds": 0.7918191999997362,
+              "output_tokens": 32
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "method": "korean-first",
+      "summary": {
+        "completed": 20,
+        "translation_successes": 20,
+        "exact_attribute_cases": 20,
+        "translation_median_seconds": 0.25548995000002606,
+        "primary_policy_states": {
+          "matched": 12,
+          "needs_confirmation": 6,
+          "no_match": 2
+        },
+        "candidate_groups": 11,
+        "candidate_records": 22,
+        "matching_comparisons": 220,
+        "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+        "mode": "korean_first",
+        "phrase_translation_calls": 16
+      },
+      "cases": [
+        {
+          "text": "흰색 아이폰이고 뒷면이 심하게 파손돼 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "흰색 아이폰이고 뒷면이 심하게 파손돼 있어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a white iPhone, and the back is badly damaged."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "white"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "아이폰",
+                    "start": 3,
+                    "end": 6,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "흰색",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "white"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "흰색 아이폰이고 뒷면이 심하게 파손돼 있어요",
+                    "start": 0,
+                    "end": 24
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a white iPhone, and the back is badly damaged.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.24785420000000613,
+              "translation_seconds": 0.24650430000002643,
+              "output_tokens": 16
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's my white iPhone, and it's got a lot of broken backs."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "white"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "폰",
+                    "start": 2,
+                    "end": 3,
+                    "normalized": "phone"
+                  },
+                  {
+                    "text": "아이폰",
+                    "start": 8,
+                    "end": 11,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "하얀색",
+                    "start": 4,
+                    "end": 7,
+                    "normalized": "white"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "제 폰 하얀색 아이폰인데 뒤가 많이 깨졌어요",
+                    "start": 0,
+                    "end": 24
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's my white iPhone, and it's got a lot of broken backs.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.3041243000000122,
+              "translation_seconds": 0.30403810000001386,
+              "output_tokens": 21
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "하얀 아이폰인데 뒤가 완전 박살났어요. 그거 찾아주세요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "하얀 아이폰인데 뒤가 완전 박살났어요. 그거 찾아주세요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a white iPhone, and the back of it's totally broken."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "white"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "아이폰",
+                    "start": 3,
+                    "end": 6,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "하얀",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "white"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "하얀 아이폰인데 뒤가 완전 박살났어요",
+                    "start": 0,
+                    "end": 20
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a white iPhone, and the back of it's totally broken.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.2741078000000243,
+              "translation_seconds": 0.2740220000000022,
+              "output_tokens": 19
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "어제 어디서 잃어버렸는지는 기억 안 나는데, 흰색 아이폰이고 뒷면이 심하게 깨져 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "어제 어디서 잃어버렸는지는 기억 안 나는데, 흰색 아이폰이고 뒷면이 심하게 깨져 있어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a white iPhone, and the back is badly broken."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "white"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "아이폰",
+                    "start": 28,
+                    "end": 31,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "흰색",
+                    "start": 25,
+                    "end": 27,
+                    "normalized": "white"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": " 흰색 아이폰이고 뒷면이 심하게 깨져 있어요",
+                    "start": 24,
+                    "end": 48
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a white iPhone, and the back is badly broken.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.2750715000000241,
+              "translation_seconds": 0.2749832000000083,
+              "output_tokens": 16
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정색 아니고 흰색 아이폰이에요. 뒷면이 심하게 깨져 있어요.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검정색 아니고 흰색 아이폰이에요. 뒷면이 심하게 깨져 있어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "Brand: iPhone. The back is badly broken."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "white"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "아이폰",
+                    "start": 11,
+                    "end": 14,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "흰색",
+                    "start": 8,
+                    "end": 10,
+                    "normalized": "white"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": " 뒷면이 심하게 깨져 있어요",
+                    "start": 18,
+                    "end": 33
+                  }
+                ],
+                "negated_colors": [
+                  {
+                    "text": "검정색",
+                    "start": 0,
+                    "end": 3,
+                    "normalized": "black"
+                  }
+                ],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "The back is badly broken.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.15645109999996976,
+              "translation_seconds": 0.15636339999997517,
+              "output_tokens": 8
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+          "source": "phones",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "dark blue"
+            ],
+            "sticker_status": "present"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "dark blue"
+              ],
+              "sticker_status": "present",
+              "free_text": "It's a dark blue phone and there's a character sticker at the bottom left."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "dark blue"
+                ],
+                "sticker_status": "present"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "폰",
+                    "start": 7,
+                    "end": 8,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "진한 파란색",
+                    "start": 0,
+                    "end": 6,
+                    "normalized": "dark blue"
+                  }
+                ],
+                "stickers": [
+                  {
+                    "text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요",
+                    "start": 0,
+                    "end": 33
+                  }
+                ],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "진한 파란색 폰이고 뒷면 왼쪽 아래에 캐릭터 스티커가 있어요",
+                    "start": 0,
+                    "end": 33
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a dark blue phone and there's a character sticker at the bottom left.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.37058319999999867,
+              "translation_seconds": 0.3702306000000135,
+              "output_tokens": 22
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요.",
+          "source": "phones",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "navy"
+            ],
+            "sticker_status": "present"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "navy"
+              ],
+              "sticker_status": "present",
+              "free_text": "It's a dark cell phone with a pocket-mon sticker at the bottom left of the back."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "navy"
+                ],
+                "sticker_status": "present"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "휴대폰",
+                    "start": 3,
+                    "end": 6,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "남색",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "navy"
+                  }
+                ],
+                "stickers": [
+                  {
+                    "text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요",
+                    "start": 0,
+                    "end": 34
+                  }
+                ],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "남색 휴대폰인데 뒤쪽 왼쪽 아래에 포켓몬 스티커가 붙어 있어요",
+                    "start": 0,
+                    "end": 34
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a dark cell phone with a pocket-mon sticker at the bottom left of the back.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.34939650000001166,
+              "translation_seconds": 0.3493154999999888,
+              "output_tokens": 24
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "파란 폰인데 스티커는 하나도 없어요.",
+          "source": "phones",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "blue"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "파란 폰인데 스티커는 하나도 없어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "blue"
+              ],
+              "sticker_status": "absent",
+              "free_text": "It's a blue phone. No stickers."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "blue"
+                ],
+                "sticker_status": "absent"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "폰",
+                    "start": 3,
+                    "end": 4,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "파란",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "blue"
+                  }
+                ],
+                "stickers": [
+                  {
+                    "text": "파란 폰인데 스티커는 하나도 없어요",
+                    "start": 0,
+                    "end": 19
+                  }
+                ],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "파란 폰인데 스티커는 하나도 없어요",
+                    "start": 0,
+                    "end": 19
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a blue phone. No stickers.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.22848970000001145,
+              "translation_seconds": 0.22840580000001864,
+              "output_tokens": 13
+            }
+          },
+          "primary_run": "262a3fbb20e1489495aa30dd55cf18e9",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "weak_attribute_match"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "weak_attribute_match",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은색 보조배터리인데 VOVA라고 적혀 있어요.",
+          "source": "vpu",
+          "target": 1,
+          "expected": {
+            "category": "power_bank",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검은색 보조배터리인데 VOVA라고 적혀 있어요.",
+            "features": {
+              "category": "power_bank",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a black side battery. It says \"VOA.\" Visible text: VOVA."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "power_bank",
+                "colors": [
+                  "black"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "보조배터리",
+                    "start": 4,
+                    "end": 9,
+                    "normalized": "power_bank"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "검은색",
+                    "start": 0,
+                    "end": 3,
+                    "normalized": "black"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [
+                  {
+                    "text": "VOVA",
+                    "start": 12,
+                    "end": 16
+                  }
+                ],
+                "free_phrases": [
+                  {
+                    "text": "검은색 보조배터리인데 VOVA라고 적혀 있어요",
+                    "start": 0,
+                    "end": 25
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a black side battery. It says \"VOA.\"",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.25096630000001596,
+              "translation_seconds": 0.2508867999999893,
+              "output_tokens": 17
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 1,
+            "top_candidate_id": 1,
+            "margin": 0.267761919233534,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.267761919233534,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요.",
+          "source": "vpu",
+          "target": 1,
+          "expected": {
+            "category": "power_bank",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요.",
+            "features": {
+              "category": "power_bank",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "absent",
+              "free_text": "It's called the VOVA, and there's no sticker."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "power_bank",
+                "colors": [
+                  "black"
+                ],
+                "sticker_status": "absent"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "보조배터리",
+                    "start": 3,
+                    "end": 8,
+                    "normalized": "power_bank"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "검은",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "black"
+                  }
+                ],
+                "stickers": [
+                  {
+                    "text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요",
+                    "start": 0,
+                    "end": 32
+                  }
+                ],
+                "logos_or_text": [
+                  {
+                    "text": "VOVA",
+                    "start": 11,
+                    "end": 15
+                  }
+                ],
+                "free_phrases": [
+                  {
+                    "text": "검은 보조배터리인데 VOVA라고 쓰여 있고 스티커는 없어요",
+                    "start": 0,
+                    "end": 32
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's called the VOVA, and there's no sticker.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.31514960000004066,
+              "translation_seconds": 0.3150662999999554,
+              "output_tokens": 20
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.2636828541755677,
+            "reasons": [
+              "weak_attribute_match"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.2636828541755677,
+            "reasons": [
+              "weak_attribute_match",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정색에 빨간 테두리가 있는 작은 USB예요.",
+          "source": "vpu",
+          "target": 2,
+          "expected": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검정색에 빨간 테두리가 있는 작은 USB예요.",
+            "features": {
+              "category": "usb",
+              "colors": [
+                "black",
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a little USB with a red ring in black."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "usb",
+                "colors": [
+                  "black",
+                  "red"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "USB",
+                    "start": 19,
+                    "end": 22,
+                    "normalized": "usb"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "검정색",
+                    "start": 0,
+                    "end": 3,
+                    "normalized": "black"
+                  },
+                  {
+                    "text": "빨간",
+                    "start": 5,
+                    "end": 7,
+                    "normalized": "red"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "검정색에 빨간 테두리가 있는 작은 USB예요",
+                    "start": 0,
+                    "end": 24
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a little USB with a red ring in black.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.21409059999996316,
+              "translation_seconds": 0.21387650000002623,
+              "output_tokens": 15
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.027081413401497723,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 4,
+            "margin": 0.027081413401497723,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요.",
+          "source": "usb",
+          "target": 0,
+          "expected": {
+            "category": "usb",
+            "colors": [
+              "black",
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요.",
+            "features": {
+              "category": "usb",
+              "colors": [
+                "black",
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a black USB, and it says the edges are red and it's called Sandisk."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "usb",
+                "colors": [
+                  "black",
+                  "red"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "USB",
+                    "start": 3,
+                    "end": 6,
+                    "normalized": "usb"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "검정",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "black"
+                  },
+                  {
+                    "text": "빨갛",
+                    "start": 15,
+                    "end": 17,
+                    "normalized": "red"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [
+                  {
+                    "text": "SanDisk",
+                    "start": 19,
+                    "end": 26
+                  }
+                ],
+                "free_phrases": [
+                  {
+                    "text": "검정 USB인데 가장자리는 빨갛고 SanDisk라고 적혀 있어요",
+                    "start": 0,
+                    "end": 35
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a black USB, and it says the edges are red and it's called Sandisk.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.3812216000000035,
+              "translation_seconds": 0.38113080000005084,
+              "output_tokens": 25
+            }
+          },
+          "primary_run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "SanDisk USB를 찾고 있어요. 색은 기억나지 않아요.",
+          "source": "usb",
+          "target": 0,
+          "expected": {
+            "category": "usb",
+            "colors": [],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "SanDisk USB를 찾고 있어요. 색은 기억나지 않아요.",
+            "features": {
+              "category": "usb",
+              "colors": [],
+              "sticker_status": "unknown",
+              "free_text": "Visible text: SanDisk."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "usb",
+                "colors": [],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "USB",
+                    "start": 8,
+                    "end": 11,
+                    "normalized": "usb"
+                  }
+                ],
+                "colors": [],
+                "stickers": [],
+                "logos_or_text": [
+                  {
+                    "text": "SanDisk",
+                    "start": 0,
+                    "end": 7
+                  }
+                ],
+                "free_phrases": [],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.00011519999998199637,
+              "translation_seconds": 0.0,
+              "output_tokens": 0
+            }
+          },
+          "primary_run": "94b94ac4e53c4314b2bfa42d96c4b34b",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "White iPhone, no gold or damage on the back."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "white"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "아이폰",
+                    "start": 3,
+                    "end": 6,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "흰색",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "white"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "흰색 아이폰인데 뒷면에는 금이나 파손이 전혀 없어요",
+                    "start": 0,
+                    "end": 28
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "White iPhone, no gold or damage on the back.",
+            "needs_clarification": true,
+            "warnings": [
+              "Translation contains gold without a Korean gold-color statement; inspect crack ambiguity."
+            ],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.3121353999999883,
+              "translation_seconds": 0.31196299999999155,
+              "output_tokens": 13
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "빨간색 아이폰이고 카메라가 하나예요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "red"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "빨간색 아이폰이고 카메라가 하나예요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "red"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "It's a red iPhone. It's got one camera."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "red"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "아이폰",
+                    "start": 4,
+                    "end": 7,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "빨간색",
+                    "start": 0,
+                    "end": 3,
+                    "normalized": "red"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "빨간색 아이폰이고 카메라가 하나예요",
+                    "start": 0,
+                    "end": 19
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "It's a red iPhone. It's got one camera.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.23107120000003079,
+              "translation_seconds": 0.23099530000001778,
+              "output_tokens": 16
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "노란색 카드지갑을 찾고 있어요.",
+          "source": "vpu",
+          "target": null,
+          "expected": {
+            "category": "card_wallet",
+            "colors": [
+              "yellow"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "노란색 카드지갑을 찾고 있어요.",
+            "features": {
+              "category": "card_wallet",
+              "colors": [
+                "yellow"
+              ],
+              "sticker_status": "unknown",
+              "free_text": ""
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "card_wallet",
+                "colors": [
+                  "yellow"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "카드지갑",
+                    "start": 4,
+                    "end": 8,
+                    "normalized": "card_wallet"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "노란색",
+                    "start": 0,
+                    "end": 3,
+                    "normalized": "yellow"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 6.100000001652006e-05,
+              "translation_seconds": 0.0,
+              "output_tokens": 0
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "no_match",
+            "selected_id": null,
+            "reason": "no_eligible_candidates"
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "reason": "no_eligible_candidates",
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은색 물건인데 뭔지는 잘 기억 안 나요.",
+          "source": "vpu",
+          "target": "ambiguous",
+          "expected": {
+            "category": "unknown",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검은색 물건인데 뭔지는 잘 기억 안 나요.",
+            "features": {
+              "category": "unknown",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "unknown",
+              "free_text": ""
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "unknown",
+                "colors": [
+                  "black"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [],
+                "colors": [
+                  {
+                    "text": "검은색",
+                    "start": 0,
+                    "end": 3,
+                    "normalized": "black"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 5.7599999990998185e-05,
+              "translation_seconds": 0.0,
+              "output_tokens": 0
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.0,
+            "reasons": [
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 1,
+            "margin": 0.0,
+            "reasons": [
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "지갑인데 남색인지 검정인지 모르겠어요.",
+          "source": "vpu",
+          "target": "ambiguous",
+          "expected": {
+            "category": "wallet",
+            "colors": [],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "지갑인데 남색인지 검정인지 모르겠어요.",
+            "features": {
+              "category": "wallet",
+              "colors": [],
+              "sticker_status": "unknown",
+              "free_text": ""
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "wallet",
+                "colors": [],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "지갑",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "wallet"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "남색",
+                    "start": 5,
+                    "end": 7,
+                    "normalized": "navy"
+                  },
+                  {
+                    "text": "검정",
+                    "start": 10,
+                    "end": 12,
+                    "normalized": "black"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [
+                "Korean color alternatives were left unspecified."
+              ],
+              "needs_clarification": true
+            },
+            "translation": "",
+            "needs_clarification": true,
+            "warnings": [
+              "Korean color alternatives were left unspecified."
+            ],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 6.560000002764355e-05,
+              "translation_seconds": 0.0,
+              "output_tokens": 0
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 2,
+            "margin": 0.0,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 2,
+            "margin": 0.0,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "below_min_score",
+              "small_margin",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요.",
+          "source": "black_phone",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "black"
+            ],
+            "sticker_status": "absent"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "black"
+              ],
+              "sticker_status": "absent",
+              "free_text": "Black phone, black screen, case, no stickers."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "black"
+                ],
+                "sticker_status": "absent"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "폰",
+                    "start": 3,
+                    "end": 4,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "검은",
+                    "start": 0,
+                    "end": 2,
+                    "normalized": "black"
+                  }
+                ],
+                "stickers": [
+                  {
+                    "text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요",
+                    "start": 0,
+                    "end": 30
+                  }
+                ],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "검은 폰이고 검정 화면과 케이스가 있고 스티커는 없어요",
+                    "start": 0,
+                    "end": 30
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": [
+                  {
+                    "text": "검정",
+                    "start": 7,
+                    "end": 9,
+                    "normalized": "black"
+                  }
+                ]
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "Black phone, black screen, case, no stickers.",
+            "needs_clarification": false,
+            "warnings": [],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.26001360000003615,
+              "translation_seconds": 0.25992800000000216,
+              "output_tokens": 14
+            }
+          },
+          "primary_run": "4560b8a53f4b4eeb96718439dc8f595a",
+          "policy_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match"
+            ]
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unknown_requested_attributes",
+              "weak_attribute_match",
+              "unvalidated_query_parser"
+            ]
+          }
+        },
+        {
+          "text": "아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다. 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소.",
+          "source": "vpu",
+          "target": 0,
+          "expected": {
+            "category": "phone",
+            "colors": [
+              "white"
+            ],
+            "sticker_status": "unknown"
+          },
+          "attribute_mismatches": [],
+          "parsed": {
+            "original_text": "아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다. 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소.",
+            "features": {
+              "category": "phone",
+              "colors": [
+                "white"
+              ],
+              "sticker_status": "unknown",
+              "free_text": "Brand: iPhone. I don't know where I lost it."
+            },
+            "korean_extraction": {
+              "features": {
+                "category": "phone",
+                "colors": [
+                  "white"
+                ],
+                "sticker_status": "unknown"
+              },
+              "evidence": {
+                "category": [
+                  {
+                    "text": "폰",
+                    "start": 8,
+                    "end": 9,
+                    "normalized": "phone"
+                  },
+                  {
+                    "text": "아이폰",
+                    "start": 27,
+                    "end": 30,
+                    "normalized": "phone"
+                  },
+                  {
+                    "text": "폰",
+                    "start": 62,
+                    "end": 63,
+                    "normalized": "phone"
+                  }
+                ],
+                "colors": [
+                  {
+                    "text": "하얀색",
+                    "start": 21,
+                    "end": 24,
+                    "normalized": "white"
+                  },
+                  {
+                    "text": "흰색",
+                    "start": 64,
+                    "end": 66,
+                    "normalized": "white"
+                  }
+                ],
+                "stickers": [],
+                "logos_or_text": [],
+                "free_phrases": [
+                  {
+                    "text": "아니 선생님 제폰이 진짜 개박살나있고 하얀색이고 아이폰입니다",
+                    "start": 0,
+                    "end": 33
+                  },
+                  {
+                    "text": " 근데 어디서 잃어버렸는지 모르겠음 ㅋㅋ 아무튼 내폰 흰색이고 작살나 있으니까 찾아보소",
+                    "start": 34,
+                    "end": 82
+                  }
+                ],
+                "negated_colors": [],
+                "scoped_colors": []
+              },
+              "warnings": [],
+              "needs_clarification": false
+            },
+            "translation": "I don't know where I lost it.",
+            "needs_clarification": true,
+            "warnings": [
+              "A Korean damage statement may have been lost in phrase translation."
+            ],
+            "requires_review": true,
+            "model": "Korean dictionary/rules + Helsinki-NLP/opus-mt-ko-en",
+            "mode": "korean_first",
+            "device": "cpu",
+            "timing": {
+              "model_init_seconds": 0.5843916000000036,
+              "parse_seconds": 0.5146244999999681,
+              "translation_seconds": 0.5145286000000056,
+              "output_tokens": 12
+            }
+          },
+          "primary_run": "db05d2b6f5a54d40837f0213969e2f55",
+          "policy_decision": {
+            "status": "matched",
+            "selected_id": 0,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": []
+          },
+          "final_decision": {
+            "status": "needs_confirmation",
+            "selected_id": null,
+            "top_candidate_id": 0,
+            "margin": null,
+            "reasons": [
+              "unvalidated_query_parser"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
