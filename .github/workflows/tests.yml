@@ -5,6 +5,8 @@ name: tests
 
 on:
   pull_request:
+    # ready_for_review: 초안(Draft)을 '검토 준비 완료'로 바꿀 때도 시험·자동 병합이 돌게(11/4)
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
