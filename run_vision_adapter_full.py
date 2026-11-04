@@ -82,7 +82,8 @@ def main() -> int:
         print("[FAIL] Model sequence incomplete; do not use for downstream action")
         return 1
     if len(inspection) != len(report.get("objects", [])):
-        print("[WARN] Some objects were excluded from the canonical adapter output")
+        print("[FAIL] Some objects were excluded from the canonical adapter output")
+        return 2
     if handshake != inspection:
         print("[FAIL] Adapter / CompositeBackend mismatch")
         return 3
