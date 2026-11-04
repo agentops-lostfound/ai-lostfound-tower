@@ -4,6 +4,8 @@
 
 ## 팀원 진행 기록
 
+- [비전→SO-ARM 연결 상태 검토](progress/vision-robot-integration-review.md): 11/4 원격 브랜치 기준 검출·픽셀/mm·매칭·로봇 모의 구현 및 미연결 구간.
+
 - [최신 사용자 구매 후보 검수](progress/procurement-user-selection.md): 확정 후보군·제시 가격·미정 수량/대안·예산 시나리오. 구매 미완료.
 
 - [SO ARM 로컬 구축·보정 인계](progress/soarm-local-handoff.md): 새 SO101 장비 최종 보정·텔레오퍼레이션 보고와 다음 검증. 클라우드 재검증·학습 미실행.
