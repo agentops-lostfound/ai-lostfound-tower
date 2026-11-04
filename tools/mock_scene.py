@@ -103,7 +103,9 @@ def build_report(items: dict = ITEMS) -> tuple[dict, dict]:
                         "confidence": 0.8, "bbox": [cx - 45, cy - 30, cx + 45, cy + 30], "center_px": [cx, cy],
                         "center_world_mm": [round(40.0 * vid, 1), 150.0], "qwen": q})
         truth[vid] = item_id
-    return {"sequence": {"status": "complete"}, "objects": objects}, truth
+    # 표식 2개(대응점 8개)로 보정이 된 장면 — 11/4 결정: 보정이 없으면 로봇이 움직이지 않는다
+    return {"sequence": {"status": "complete"}, "objects": objects,
+            "calibration": {"valid": True, "correspondence_count": 8, "max_reprojection_error_mm": 0.4}}, truth
 
 
 def write_report(folder: str | Path, items: dict = ITEMS, age_s: float = 0) -> Path:
