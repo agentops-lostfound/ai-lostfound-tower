@@ -427,7 +427,9 @@ class TowerService:
                 gpu = {"lease": "on", "holder": h}
             except Exception as e:
                 gpu = {"lease": "on", "error": type(e).__name__}
+        device = getattr(self.reviewer, "device", None) if self.reviewer is not None else None
         return {"ok": True, "busy": self._run_lock.locked(), "reviewer": self.reviewer is not None,
+                "reviewer_device": device,     # 11/4: LLM 검토가 cpu 인지 gpu 인지(.env MAIN_AI_DEVICE)
                 "send": not getattr(self.reporter, "dry_run", True), "sources": sources, "gpu": gpu or {"lease": "off"}}
 
 
