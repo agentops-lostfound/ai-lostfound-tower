@@ -142,7 +142,7 @@ class RecorderServiceTest(unittest.TestCase):
         out = svc.start_return({"case_id": "D1", "item_id": "A-W01", **self.gates()})
         self.assertEqual(out["decision"], "returned")
         self.assertTrue(out["recorded"])
-        self.assertEqual([t for _, _, t in db.log], ["승인·수령 예약", "반환 중", "인계 완료"])
+        self.assertEqual([t for _, _, t in db.log], ["승인·수령 예약", "반환 중", "인계 대기"])
         row = svc.get_case("D1")
         self.assertEqual(row["item_id"], "A-W01")
         self.assertEqual(len(row["steps"]), len(out["steps"]))

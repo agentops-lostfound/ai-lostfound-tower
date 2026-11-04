@@ -7,7 +7,8 @@
 - 비전 결과: 고정 항목 JSON `category · color · shape · mark · visible_text · material · confidence`
   - 판단 불가 `확인 불가`, 표시가 없음을 확인 `없음`, 카드·신분증 글자 `개인정보 가림`
   - `mark`·`visible_text`는 비공개 특징(후보 카드에 안 보임)
-- 탑뷰 검출 1개: `{"box": [x1,y1,x2,y2], "center": [cx,cy], "features": {비전 결과}, "object_id": 선택}` (픽셀 단위)
+- 탑뷰 검출 1개: `{"box": [x1,y1,x2,y2], "center": [cx,cy], "center_mm": [x,y], "features": {비전 결과}, "object_id": 선택}`
+  - `box`·`center` 는 픽셀, `center_mm` 은 작업대 기준 mm(탑뷰 ArUco 보정 결과 `center_world_mm`). 보정이 없으면 `center_mm` 을 빼거나 null (11/4)
 - 로봇 함수 결과: `{"ok": true}` 또는 `{"ok": false, "reason": "집기 실패"}`
 - 매칭 결과: `{"status": "matched|uncertain|none", "index": 0, "score": 0.86, "margin": 0.29, "ranking": [0,2,1]}`
 - 알림에는 개인정보 없이 물건 번호만 쓴다(전화번호·주민번호·카드번호·이메일 모양이면 전송을 막는다)
@@ -20,7 +21,7 @@
 | `db_get_item` | 변재원 LF-8 | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
 | `db_set_status` | 변재원 LF-8 | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
 | `db_list_active` | 변재원 LF-8 | 보관함에 있을 수 있는 물건 목록(닮은 물건 검사, 11/3) | 없음 | `[{item_id, status, features}]` | `None` → 자동 반환 안 함 |
-| `robot_approach` | 김건태 LF-21 | 픽셀 → 로봇 좌표, 접근 자세로 이동 | center | `{ok, reason}` | 정지 + 알림 |
+| `robot_approach` | 김건태 LF-21 | 작업대 mm → 로봇 좌표, 접근 자세로 이동 | center_mm `[x, y]` (11/4, 픽셀 아님) | `{ok, reason}` | 정지 + 알림. mm 좌표가 없으면 관제탑이 부르지 않음(직원 확인) |
 | `robot_grasp` | 김건태 LF-19 | SmolVLA 근거리 집기·들기 | 없음 | `{ok, reason}` | 1번만 재시도, 그래도 실패면 정지 |
 | `robot_verify_grasp` | 김건태 LF-19 | 그리퍼 닫힘 + 탑뷰 재확인 | 없음 | `{ok, reason}` | 실패로 처리 |
 | `robot_deliver` | 이순필 LF-11 | 바구니까지 이동·그리퍼 열기 | 없음 | `{ok, reason}` | 정지 + 알림 |
@@ -36,7 +37,8 @@
 - 진짜 부품 연결: `agents/backends.py` 의 `CompositeBackend(vision=…, matcher=…, db=…, robot=…)` — 안내 docs/design/integration.md
 
 ## 4. 상태 이름
-`등록기계 보관 → 회수 중 → 본센터 보관 → 확인 중 → 승인·수령 예약 → 반환 중 → 인계 완료` (막히면 `반환 보류`)
+`등록기계 보관 → 회수 중 → 본센터 보관 → 확인 중 → 승인·수령 예약 → 반환 중 → 인계 대기 → 인계 완료` (막히면 `반환 보류`)
+- 11/4: 로봇이 바구니에 넣으면 `인계 대기`, 직원이 분실인에게 건넨 뒤 직원 화면 버튼(`POST /returns/{case_id}/handover`)으로 `인계 완료`
 
 ## 5. 통합 때 주의할 점 (변재원 검토)
 - **GPU 메모리(시연 PC RTX 3050 6GB)**: Qwen3-VL-4B(Q4 약 3.3GB)와 SmolVLA를 동시에 올리지 않는다. 탑뷰 특징 추출이 끝나면 VLM을 내리고(Ollama `keep_alive: 0`) 집기 정책을 올린다. 메인 AI LLM 검토도 같은 Qwen3-VL-4B를 써서 모델을 하나 더 올리지 않는다

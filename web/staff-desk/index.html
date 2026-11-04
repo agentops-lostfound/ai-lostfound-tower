@@ -118,6 +118,21 @@
   var current = null;          // 조회한 찾기 요청
   var tries = {};              // 같은 찾기 번호로 다시 시도할 때 사례 번호 뒤에 붙일 번호
   var NAMES = { consent: "필수 동의", id_verified: "신분증 OCR 인증", quiz_passed: "확인 질문" };
+
+  // 11/4: 로봇은 바구니까지만(인계 대기). 직원이 분실인에게 건넨 뒤 이 버튼으로 인계 완료를 남긴다
+  function handoverRow(caseId) {
+    var row = el("div", undefined, "row");
+    var btn = el("button", "분실인에게 건넴 → 인계 완료", "primary");
+    var msg = el("span", "바구니의 물건을 직접 건넨 뒤 누릅니다", "muted");
+    btn.addEventListener("click", async function () {
+      btn.disabled = true; msg.textContent = "저장 중…";
+      var h = await api("POST", "/returns/" + encodeURIComponent(caseId) + "/handover", { staff_confirmed: true });
+      if (h.status === 200) { msg.textContent = "인계 완료 · 물건 " + h.data.item_id; recent(); }
+      else { msg.textContent = "저장 안 됨: " + detail(h); btn.disabled = !(h.status === 503); }
+    });
+    row.appendChild(btn); row.appendChild(msg);
+    return row;
+  }
   var DECISION = { returned: ["ok", "✅ 반환 완료"], rejected: ["bad", "⛔ 반환 안 함"],
                    staff_check: ["warn", "🙋 직원 확인 필요"], stopped: ["bad", "🛑 로봇 정지"] };
 
@@ -201,6 +216,7 @@
         r.data.steps.forEach(function (s) { ol.appendChild(el("li", s)); });
         box.appendChild(ol);
       }
+      if (r.data.decision === "returned") box.appendChild(handoverRow(r.data.case_id));
       $("startMsg").textContent = "";
       var again = await api("GET", "/claims/" + encodeURIComponent(current.claim_id));
       if (again.status === 200) { current = again.data; }

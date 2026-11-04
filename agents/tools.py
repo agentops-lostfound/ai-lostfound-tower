@@ -37,8 +37,8 @@ TOOLS: list[ToolSpec] = [
              {"item_id": "접수 번호", "status": "contracts.ITEM_STATUS 중 하나"}, "{ok, reason}", "실패하면 로봇을 움직이지 않음"),
     ToolSpec("db_list_active", "변재원 LF-8", "보관함에 있을 수 있는 물건(contracts.ACTIVE_STATUSES) 목록 — 닮은 물건 검사용",
              {}, "[{item_id, status, features}]", "None → 닮은 물건 검사 불가, 자동 반환하지 않음"),
-    ToolSpec("robot_approach", "김건태 LF-21", "픽셀 좌표를 로봇 좌표로 바꿔 Home → 경유점 → 접근 자세로 이동",
-             {"center": "[cx, cy] 픽셀"}, "{ok, reason}", "정지 + #관제-알림"),
+    ToolSpec("robot_approach", "김건태 LF-21", "작업대 mm 좌표를 로봇 좌표로 바꿔 Home → 경유점 → 접근 자세로 이동",
+             {"center_mm": "[x, y] 작업대 기준 mm (탑뷰 ArUco 보정 결과). 없으면 관제탑이 부르지 않음"}, "{ok, reason}", "정지 + #관제-알림"),
     ToolSpec("robot_grasp", "김건태 LF-19", "접근 자세에서 SmolVLA로 집고 안전한 높이까지 들기",
              {}, "{ok, reason}", "1번만 다시 시도, 그래도 실패하면 정지"),
     ToolSpec("robot_verify_grasp", "김건태 LF-19", "그리퍼 닫힘 정도 + 탑뷰 재확인으로 집기 성공 확인",
@@ -103,9 +103,13 @@ class MockBackend:
         out = []
         for it in self.bin_items:
             cx, cy = it.get("center", [320, 240])
-            out.append({"box": [cx - 40, cy - 30, cx + 40, cy + 30], "center": [cx, cy],
-                        "features": {"category": "지갑", "confidence": 0.9, **copy.deepcopy(it["features"])},
-                        "object_id": it.get("object_id")})
+            det = {"box": [cx - 40, cy - 30, cx + 40, cy + 30], "center": [cx, cy],
+                   "features": {"category": "지갑", "confidence": 0.9, **copy.deepcopy(it["features"])},
+                   "object_id": it.get("object_id")}
+            mm = it.get("center_mm", [float(cx), float(cy)])   # 가짜: 보정됐다고 치고 픽셀 값을 mm 로. None 이면 보정 안 됨 시험
+            if mm is not None:
+                det["center_mm"] = mm
+            out.append(det)
         return out
 
     def match_item(self, query: dict, detections: list[dict]) -> dict:
@@ -133,8 +137,9 @@ class MockBackend:
         return [{"item_id": k, "status": v.get("status"), "features": copy.deepcopy(v.get("features", {}))}
                 for k, v in self.db.items() if v.get("status") in ACTIVE_STATUSES]
 
-    def robot_approach(self, center) -> dict:
+    def robot_approach(self, center_mm) -> dict:
         self.calls.append("robot_approach")
+        self.last_approach = center_mm      # 시험에서 무엇을 넘겼는지 확인
         return robot_result(self.approach_ok, "접근 실패")
 
     def robot_grasp(self) -> dict:

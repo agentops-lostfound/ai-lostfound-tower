@@ -20,7 +20,7 @@ from typing import Callable
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
 from agents.intake import IntakeError, IntakeStore, MemoryIntakeStore, parse_features, parse_intake, receipt, valid_item_id
 from agents.contracts import (CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
-                              DECISIONS)
+                              DECISIONS, HANDOVER_DONE, HANDOVER_WAIT)
 from agents.records import MemoryRecorder, Recorder
 from agents.supervisor import Outcome, ReturnRequest, run_return
 
@@ -44,7 +44,7 @@ class NotFound(LookupError):
 
 
 class Conflict(RuntimeError):
-    """중복 사례 번호 또는 다른 반환 진행 중(HTTP 409). kind: duplicate | busy"""
+    """중복 사례 번호 또는 다른 반환 진행 중(HTTP 409). kind: duplicate | busy | state(인계할 수 없는 상태)"""
 
     def __init__(self, kind: str, message: str):
         super().__init__(message)
@@ -251,6 +251,40 @@ class TowerService:
             pass
         return Outcome(req.case_id, DECISION_STOPPED, reason).to_dict()
 
+    def handover(self, case_id: str, payload: object) -> dict:
+        """직원 화면: 바구니의 물건을 분실인에게 건넸다 → 물건 상태 인계 대기 → 인계 완료 (11/4).
+        본문은 {"staff_confirmed": true} 만 받는다. 로봇은 움직이지 않으므로 반환 실행 잠금을 쓰지 않는다."""
+        if not ID_RE.match(case_id or ""):
+            raise RequestError("case_id: 영문·숫자·-·_ 1~32자")
+        if not isinstance(payload, dict) or set(payload) != {"staff_confirmed"} or payload["staff_confirmed"] is not True:
+            raise RequestError('본문은 {"staff_confirmed": true} 만 보냅니다(직원이 건넨 것을 확인한 뒤)')
+        try:
+            row = self.recorder.get(case_id)
+        except Exception as e:
+            raise Unavailable(f"기록 저장소 연결 실패({type(e).__name__})") from e
+        if row is None:
+            raise NotFound(f"반환 기록 없음: {case_id}")
+        if row.get("decision") != DECISION_RETURNED:
+            raise Conflict("state", f"바구니까지 전달된 반환이 아님(결과 {row.get('decision')}) — 인계할 물건 없음")
+        item_id = row.get("item_id")
+        be = self.backend_factory()
+        item = be.db_get_item(item_id)
+        if item is None:
+            raise NotFound(f"물건 기록 없음: {item_id}")
+        status = item.get("status")
+        if status == HANDOVER_DONE:
+            raise Conflict("duplicate", f"이미 인계 완료: 물건 {item_id}")
+        if status != HANDOVER_WAIT:
+            raise Conflict("state", f"인계 대기 상태가 아님(지금 {status}) — 직원이 물건 위치 확인")
+        r = be.db_set_status(item_id, HANDOVER_DONE)
+        if not (r or {}).get("ok"):
+            raise Unavailable(f"상태 기록 실패: {(r or {}).get('reason', '')}")
+        try:
+            self.reporter.progress(case_id, "인계 완료", f"물건 {item_id} · 직원이 분실인에게 건넴")
+        except Exception:
+            pass
+        return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_DONE}
+
     def get_case(self, case_id: str) -> dict | None:
         if not ID_RE.match(case_id or ""):
             raise RequestError("case_id: 영문·숫자·-·_ 1~32자")
@@ -278,7 +312,7 @@ class TowerService:
 def demo_backend_factory() -> Callable[[], object]:
     """진짜 부품이 없을 때 쓰는 시연용 부품: 보관함에 W01~W07, 접수 번호 A-W01 ~ A-W07.
 
-    요청마다 새 가짜 부품을 만든다(집기 시도 횟수 같은 상태가 다음 요청에 남지 않게).
+    요청마다 새 가짜 부품을 만든다(집기 시도 횟수 같은 상태가 다음 요청에 남지 않게). 물건 상태만 이어진다.
     """
     import json
     from pathlib import Path
@@ -288,13 +322,14 @@ def demo_backend_factory() -> Callable[[], object]:
 
     spec = json.loads((Path(__file__).resolve().parent.parent / "evaluation" / "test_cases.json").read_text(encoding="utf-8"))
     objs = spec["objects"]
+    # 물건 상태는 관제탑이 켜져 있는 동안 요청끼리 이어진다(반환 → 인계 대기 → 직원 인계 완료를 시연할 수 있게, 11/4)
+    db = {f"A-{oid}": {"status": "본센터 보관", "features": objs[oid], "object_id": oid} for oid in objs}
 
     def make():
         bin_items = [{"object_id": oid, "features": objs[oid], "center": [100 + 80 * i, 240]}
                      for i, oid in enumerate(spec["bin"])]
-        db = {f"A-{oid}": {"status": "본센터 보관", "features": objs[oid], "object_id": oid} for oid in objs}
         return CompositeBackend(fallback=MockBackend(bin_items=bin_items, db=db))
     return make
 
 
-__all__ = ["TowerService", "RequestError", "Conflict", "Unavailable", "parse_request", "demo_backend_factory", "GATE_FIELDS"]
+__all__ = ["TowerService", "RequestError", "Conflict", "Unavailable", "NotFound", "parse_request", "demo_backend_factory", "GATE_FIELDS"]

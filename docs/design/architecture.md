@@ -66,6 +66,7 @@ flowchart LR
 | `GET /claims/{claim_id}` | 직원 화면: 찾기 요청 조회(가린 이름·물건·예약·웹 확인) | 200 | 404 없음 · 422 번호 형식 |
 | `GET /staff` | 직원 화면(본센터 방문 확인) 페이지 | 200 | — |
 | `POST /returns` | 반환 흐름 실행 | 200 + 결과(decision·reason·approved·steps…·recorded) | 422 형식 오류 · 404 없는 찾기 번호 · 409 같은 사례 번호·이미 방문 처리(duplicate) 또는 다른 반환 진행 중(busy) · 503 DB 연결 안 됨 |
+| `POST /returns/{case_id}/handover` | 직원 화면: 바구니의 물건을 분실인에게 건넴 → `인계 대기` → `인계 완료` (11/4). 본문 `{"staff_confirmed": true}` | 200 + item_id·status | 404 없는 사례 · 409 이미 인계(duplicate)·인계할 상태 아님(state) · 422 본문 · 503 DB |
 | `GET /returns` | 최근 기록(단계 제외) | 200 | — |
 | `GET /returns/{case_id}` | 기록 하나(단계 포함) | 200 | 404 없음 · 422 번호 형식 |
 

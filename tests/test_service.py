@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.contracts import DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED  # noqa: E402
 from agents.records import MemoryRecorder, to_record  # noqa: E402
 from agents.service import (  # noqa: E402
-    GATE_FIELDS, Conflict, RequestError, TowerService, demo_backend_factory, parse_request,
+    GATE_FIELDS, Conflict, NotFound, RequestError, TowerService, Unavailable, demo_backend_factory, parse_request,
 )
 from discord_ops.reporter import Reporter  # noqa: E402
 
@@ -264,7 +264,8 @@ class ApiRoutesTest(unittest.TestCase):
         self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/claims"), ("POST", "/items"),
-                                     ("POST", "/items/{item_id}/features"), ("POST", "/returns")])
+                                     ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
+                                     ("POST", "/returns/{case_id}/handover")])
         self.assertEqual(r[("POST", "/returns")](ok_payload())["decision"], DECISION_RETURNED)
         for payload, code in ((ok_payload(), 409), (ok_payload(case="R2", phone="010"), 422)):
             with self.assertRaises(self.HTTPException) as cm:
@@ -275,6 +276,13 @@ class ApiRoutesTest(unittest.TestCase):
         self.assertEqual(cm.exception.status_code, 404)
         self.assertEqual(r[("GET", "/returns/{case_id}")]("R1")["case_id"], "R1")
         self.assertEqual(len(r[("GET", "/tools")]()), 11)
+        # 11/4 인계: 바구니 전달(인계 대기) → 직원 확인 → 인계 완료, 두 번째는 409
+        self.assertEqual(r[("POST", "/returns/{case_id}/handover")]("R1", {"staff_confirmed": True})["status"], "인계 완료")
+        for args, code in ((("R1", {"staff_confirmed": True}), 409), (("NONE", {"staff_confirmed": True}), 404),
+                           (("R1", {"staff_confirmed": False}), 422), (("R 1", {"staff_confirmed": True}), 422)):
+            with self.assertRaises(self.HTTPException) as cm:
+                r[("POST", "/returns/{case_id}/handover")](*args)
+            self.assertEqual(cm.exception.status_code, code, args)
 
     def test_db_down_is_503(self):
         from agents import api
@@ -289,6 +297,72 @@ class ApiRoutesTest(unittest.TestCase):
             with self.assertRaises(self.HTTPException) as cm:
                 call()
             self.assertEqual(cm.exception.status_code, 503)
+
+
+class HandoverTest(unittest.TestCase):
+    """11/4: 로봇이 바구니에 넣으면 인계 대기, 직원이 건넨 뒤 인계 완료."""
+
+    def setUp(self):
+        self.rep = Reporter()
+        self.svc = TowerService(demo_backend_factory(), self.rep)
+
+    def status(self, item="A-W01"):
+        return self.svc.backend_factory().db_get_item(item)["status"]
+
+    def test_wait_then_done(self):
+        out = self.svc.start_return(ok_payload(case="H1"))
+        self.assertEqual(out["decision"], DECISION_RETURNED)
+        self.assertIn("인계 대기", out["reason"])
+        self.assertEqual(self.status(), "인계 대기")              # 시연 부품도 요청 사이에 상태가 이어짐
+        res = self.svc.handover("H1", {"staff_confirmed": True})
+        self.assertEqual(res, {"case_id": "H1", "item_id": "A-W01", "status": "인계 완료"})
+        self.assertEqual(self.status(), "인계 완료")
+        self.assertTrue(any(m["channel"] == "progress" and "인계 완료" in m["title"] for m in self.rep.messages))
+        with self.assertRaises(Conflict) as cm:
+            self.svc.handover("H1", {"staff_confirmed": True})
+        self.assertEqual(cm.exception.kind, "duplicate")
+
+    def test_not_returned_case_cannot_handover(self):
+        self.svc.start_return(ok_payload(case="H2", quiz_passed=False))
+        with self.assertRaises(Conflict) as cm:
+            self.svc.handover("H2", {"staff_confirmed": True})
+        self.assertEqual(cm.exception.kind, "state")
+        self.assertEqual(self.status(), "본센터 보관")
+
+    def test_status_moved_elsewhere(self):
+        self.svc.start_return(ok_payload(case="H3"))
+        self.svc.backend_factory().db_set_status("A-W01", "반환 보류")   # 직원이 다른 처리를 한 경우
+        with self.assertRaises(Conflict) as cm:
+            self.svc.handover("H3", {"staff_confirmed": True})
+        self.assertEqual(cm.exception.kind, "state")
+
+    def test_bad_body(self):
+        self.svc.start_return(ok_payload(case="H4"))
+        for body in ({}, {"staff_confirmed": "true"}, {"staff_confirmed": True, "x": 1}, [], None):
+            with self.assertRaises(RequestError, msg=repr(body)):
+                self.svc.handover("H4", body)
+        with self.assertRaises(NotFound):
+            self.svc.handover("H9", {"staff_confirmed": True})
+
+    def test_status_write_fail_is_503(self):
+        self.svc.start_return(ok_payload(case="H5"))
+        be = self.svc.backend_factory()
+        orig = self.svc.backend_factory
+        be.fallback.status_fail = {"인계 완료"}
+        self.svc.backend_factory = lambda: be
+        with self.assertRaises(Unavailable):
+            self.svc.handover("H5", {"staff_confirmed": True})
+        self.svc.backend_factory = orig
+        self.assertEqual(self.status(), "인계 대기")
+
+    def test_schema_and_migration_list_all_statuses(self):
+        from agents.contracts import ITEM_STATUS
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "center", "migrations", "004_handover_wait_1104.sql"), encoding="utf-8") as f:
+            mig = f.read()
+        for text in (schema_text(), mig):
+            for s in ITEM_STATUS:
+                self.assertIn(f"'{s}'", text)
 
 
 if __name__ == "__main__":

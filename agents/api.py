@@ -15,6 +15,7 @@
     TOWER_VISION_MAX_AGE  결과를 몇 초까지 믿을지(기본 600, 0 = 검사 안 함)
     TOWER_MATCHER         매칭 부품. 비움/policy = 김건태 matching/policy.py(11/3 기본), simple = 예전 단순 비교
 - 등록기계 화면: GET /places, POST /items, POST /items/{item_id}/features (안내 intake_machine/README.md)
+- 직원 화면: POST /returns/{case_id}/handover — 바구니의 물건을 분실인에게 건넨 뒤 인계 완료로(11/4)
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
@@ -176,6 +177,20 @@ def build_app(service: TowerService | None = None):
         - 1단계: case_id, item_id + 관문 결과 6개(시연·시험용)"""
         try:
             return svc.start_return(payload)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+    @app.post("/returns/{case_id}/handover")
+    def handover(case_id: str, payload: dict = Body(...)) -> dict:
+        """직원 화면: 바구니의 물건을 분실인에게 건넴 → 인계 대기 → 인계 완료. 본문 {"staff_confirmed": true}"""
+        try:
+            return svc.handover(case_id, payload)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
         except NotFound as e:

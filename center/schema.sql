@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS item (
     received_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     status           VARCHAR(16) NOT NULL DEFAULT '등록기계 보관'
                      CHECK (status IN ('등록기계 보관', '회수 중', '본센터 보관', '확인 중',
-                                       '승인·수령 예약', '반환 중', '인계 완료', '반환 보류')),
+                                       '승인·수령 예약', '반환 중', '인계 대기', '인계 완료', '반환 보류')),
     category         VARCHAR(16) NOT NULL DEFAULT '확인 불가', -- contracts.CATEGORIES (MVP: 지갑)
     features         JSONB       NOT NULL DEFAULT '{}',     -- 공개 특징: color·shape·material·confidence
     private_features JSONB       NOT NULL DEFAULT '{}',     -- 비공개 특징: mark·visible_text (후보 카드·MCP에 안 보임)
