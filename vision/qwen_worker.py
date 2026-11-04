@@ -56,6 +56,7 @@ def main():
         if records:
             record = max(records, key=lambda p: p.stat().st_mtime_ns)
             obj["qwen"]["benchmark"] = json.loads(record.read_text(encoding="utf-8"))
+            obj["qwen"]["warnings"] = obj["qwen"]["benchmark"].get("warnings", [])
         save(args.report, report)
         print(f'object_{obj["id"]}: {obj["qwen"]["status"]}', flush=True)
     return 1 if failed else 0
