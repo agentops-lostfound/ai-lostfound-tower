@@ -19,6 +19,14 @@
 
 ## 현재: 3/4 추론 엔진 검토 — 공식 호환 확인·로컬 설치 상태 확인 전
 
+### 첫 Ollama 현장 결과 (2026-11-04)
+
+동일 자동 폰 crop 384 3회: 전체 요청 27.55095/0.93788/0.94881초, 첫 load 6.15334초·prompt_eval 20.43743초·eval 0.87048초. 이후 load 약 0.0035초·prompt_eval 약 0.0105초·eval 약 0.87초. input_tokens=1434, output_tokens=88, 모두 첫 시도 성공. ollama ps는 100% GPU·2.0GB·context4096·llamacpp였다.
+
+동일 입력 캐시가 적용된 반복 요청의 이득이 커 HF 약5.21초 대비 일반 신규 사진이 5배 이상 빨라졌다고 주장하지 않는다. 큰 prompt_eval 비용은 이미지 처리·런타임 입력 경로 등 내부 계측 범위가 달라 순수 텍스트 prefill로 단정하지 않는다. HF448 입력 토큰과 Ollama1434는 내부 이미지 전처리·template 차이로 직접 동등 비교하지 않는다. 출력은 phone·blue·rectangular·plastic이지만 four lenses and a flash로 바뀌어 앞서 이미지의 큰 렌즈3개+작은 원형 요소 해석과 차이가 있다. 의미 정확도·세부 개수 정답 확인이 필요하다.
+
+다음은 모델을 unload하지 않고 crop A→지갑 B→립밤 C→crop A로 각1회 요청해 모델 상주 신규 이미지 지연과 반복 입력 캐시 지연을 분리한다. 각 응답의 load/prompt_eval/eval/전체 시간·특징과 ps를 비교한다. 사용자가 이미 stop했거나5분 경과해 unload되면 load 시간을 별도로 표시한다. 아직 엔진 교체 채택은 보류하고 4단계는 시작하지 않는다.
+
 사용자 로컬 확인: Ollama 0.40.13, 최초 ps 빈 목록, 기존 mistral:latest는 보존. 다운로드한 qwen3-vl:2b-instruct는 qwen3vl 1.7B+clip projector 406.96M, Q4_K_M, vision 가능, artifact requires 0.30.0이다. 실제 show 요구값을 우선하며 설치 버전은 이를 만족한다. 기존 NF4와 양자화/배포 구성이 다르다.
 
 tools/ollama_vision_trial.py는 loopback /api/chat만 호출하고 기존 소스의 이미지 전처리·PROMPT·템플릿·validate_response·출력 상한/재시도를 사용한다. 동일 자동 crop·384, 3회 자동 요청, temperature=0·top_k=1·top_p=1·num_ctx=4096·keep_alive=5m. format/json schema 유도 옵션은 추가하지 않아 프롬프트만으로 기존 형식을 요구한다. Ollama 내부 renderer/processor와 반복 입력의 prompt cache는 HF와 달라 완전 동등 토큰/시간으로 해석하지 않는다. 첫 로딩과 이후 요청을 구분하고 load/prompt_eval/eval 시간·토큰·done_reason·특징을 확인한다. ps로 실제 GPU 배치를 확인해야 하며 VRAM 부족에 따른 CPU 분산도 가능하다. 같은 사진 반복의 이득은 캐시 영향이 포함될 수 있어 다른 사진 순서도 후속 비교한다.
