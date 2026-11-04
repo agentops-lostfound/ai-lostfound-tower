@@ -115,9 +115,33 @@ def preflight(record, expected_file, *, sync_goal=False):
     return result
 
 
+def capture_home(record, expected_file):
+    if not record.get("patch_installed") or manager(record, "check").get("result") != "ALREADY_INSTALLED":
+        raise RuntimeError("기존 패치 적용 상태를 확인하지 못했습니다")
+    expected_file = Path(expected_file).resolve()
+    reference = json.loads(expected_file.read_text(encoding="utf-8-sig"))
+    if reference.get("serial") != "5B91030622":
+        raise RuntimeError("새 팔로워의 보정 기준이 아닙니다")
+    for name in ("robot_home_snapshot.py", "robot_bounded_stop_trial.py", "test_robot_owner_zenoh.py"):
+        execute("docker", "cp", str(ROOT / "tools" / name),
+                CONTAINER + ":" + record["container_dir"] + "/" + name)
+    target = record["container_dir"] + "/home-calibration-reference.json"
+    execute("docker", "cp", str(expected_file), CONTAINER + ":" + target)
+    output = record["container_dir"] + "/home-candidate-" + uuid.uuid4().hex + ".json"
+    result = json.loads(execute("docker", "exec", CONTAINER, "python",
+        record["container_dir"] + "/robot_home_snapshot.py", "--output-file", output,
+        "--calibration-reference", target))
+    if result.get("result") != "HOME_CANDIDATE_SAVED" or result.get("movement_commands_sent") != 0:
+        raise RuntimeError("후보 저장 결과 검증 실패")
+    destination = Path(record["local_backup"]) / Path(output).name
+    execute("docker", "cp", CONTAINER + ":" + output, str(destination))
+    result["windows_file"] = str(destination)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight", "move-test"))
+    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight", "move-test", "capture-home"))
     parser.add_argument("--candidate-dir")
     parser.add_argument("--trial")
     parser.add_argument("--expected-file", default=str(ROOT.parent / "soarm-setup/new-follower-calibration-complete.json"))
@@ -132,6 +156,9 @@ def main():
     if not args.trial:
         parser.error("--trial 필요")
     record = load_trial(args.trial)
+    if args.operation == "capture-home":
+        print(json.dumps(capture_home(record, args.expected_file), ensure_ascii=True, indent=2))
+        return
     if args.operation == "move-test":
         if not args.confirm_ready:
             parser.error("실물 이동 시험입니다. 준비 확인 후 --confirm-ready가 필요합니다")
