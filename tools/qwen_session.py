@@ -12,6 +12,7 @@ from time import perf_counter
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-root', required=True, type=Path)
+    parser.add_argument('--profile', action='store_true', help='Time extraction stages with CUDA synchronization')
     args = parser.parse_args()
     root = args.source_root.resolve()
     for relative in ('qwen/config/settings.py', 'qwen/src/model_loader.py',
@@ -29,7 +30,7 @@ def main():
     settings = replace(Settings(), max_edge=512, offline=True,
                        log_dir=root / 'outputs/qwen-session/logs')
     started = perf_counter()
-    load_model(settings)
+    bundle = load_model(settings)
     print(f'READY: startup {perf_counter() - started:.2f}s. '
           'Enter a JPG/PNG path; type exit to release the process. '
           'First inference is not a warmed benchmark.', flush=True)
@@ -53,7 +54,15 @@ def main():
         request_no += 1
         started = perf_counter()
         try:
-            features = extract_item_features(photo, settings)
+            profile = None
+            if args.profile:
+                import torch
+                import vision.item_features as feature_module
+                from qwen_profile import profile_request
+                with profile_request(bundle, feature_module, torch) as profile:
+                    features = extract_item_features(photo, settings)
+            else:
+                features = extract_item_features(photo, settings)
         except KeyboardInterrupt:
             break
         except Exception as exc:
@@ -61,9 +70,15 @@ def main():
             # CUDA session or silently change execution settings.
             print(f'Inference failed ({type(exc).__name__}): {exc}', file=sys.stderr)
             return 1
-        print(json.dumps({'request': request_no,
-                          'request_seconds': round(perf_counter() - started, 4),
-                          'features': features}, ensure_ascii=False, indent=2), flush=True)
+        elapsed = perf_counter() - started
+        result = {'request': request_no, 'request_seconds': round(elapsed, 4), 'features': features}
+        if profile is not None:
+            measured = sum(profile.get(k, 0.0) for k in (
+                'processor_seconds', 'generate_seconds', 'decode_seconds', 'validation_seconds'))
+            profile['other_seconds'] = max(0.0, elapsed - measured)
+            profile['other_includes'] = 'preprocessing, GPU transfer, logging, instrumentation overhead'
+            result['profile'] = profile
+        print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
     return 0
 
 

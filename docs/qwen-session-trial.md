@@ -35,3 +35,8 @@ READY 후 Photo>에 사진 전체 경로를 넣는다. 이후 같은 경로를 �
 사용자 제공 3회 로그: startup 8.84초(모델 로딩 3.95초 포함), 요청별 8.9840 / 8.3622 / 8.5487초. 3회 중앙값 8.5487초, 첫 요청 제외 2회 평균 8.45545초(표본이 작아 일반 성능으로 확정하지 않음). 앞선 별도 프로세스 함수 전체 19.6453초 대비 요청 중앙값은 약 56.5% 짧으나 서로 다른 실행이며 startup을 제외한 비교다. 상주 첫 시작 자체를 없앤 것은 아니다.
 
 모든 요청 JSON 검증은 attempts=1, 특징 출력은 동일했다. 사용자 이전 평가상 결과는 꽤 정확했으나 정답 데이터셋 기반 정확도 검증은 아니다. 로그에 model_load_seconds=3.95가 반복되는 것은 캐시 metadata 재사용이며 요청마다 더하지 않는다. 모델 metadata 출력은 세션 시작 1회였다. 전처리는 약 0.020~0.030초, inference_seconds는 약 8.33~8.95초여서 다음 계측 대상은 processor·전송·generate·decode·validation 분리와 토큰 수다. 원본 사진·원본 로그는 커밋하지 않았다. 운영 YOLO 시퀀스는 아직 이 상주 도구에 연결하지 않았다.
+
+
+## 다음 실험: --profile 구간 계측
+
+상주 명령 끝에 --profile을 추가한다. 같은 사진 3회 후 exit. processor_seconds, generate_seconds, decode_seconds, validation_seconds, input_tokens, output_tokens, generate_calls를 요청별로 기록한다. other_seconds는 파일 전처리·GPU 전송·로그·계측 비용의 합으로 GPU 전송만 분리한 값이 아니다. CUDA 동기화가 추가되어 비계측 이전 기록과 완전히 동일 조건은 아니다. generate_seconds는 이미지 인코딩·prefill·토큰 생성을 포함하고 순수 decode 시간이 아니다. 재시도 시 시간·출력 토큰·호출 수는 합산하며 input_tokens는 마지막 시도 길이다. 원래 특징 모듈은 변경하지 않고 함수 래퍼를 요청 종료 시 복원한다. 클라우드에서는 구문·모의 토큰 집계/복원 확인·기존 시험만 수행했고 Windows GPU 계측 검증은 다음 사용자 실행으로 확인한다.
