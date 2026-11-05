@@ -1,0 +1,107 @@
+"""시작 전 점검은 읽기 전용이며 목표값 쓰기 요청을 거부한다."""
+from dataclasses import asdict, dataclass
+from pathlib import Path
+import json
+import tempfile
+import unittest
+
+from tools.robot_start_preflight import inspect_bus, diagnose_bus, NAMES
+
+
+@dataclass
+class Calibration:
+    id: int
+    drive_mode: int = 0
+    homing_offset: int = 0
+    range_min: int = 800
+    range_max: int = 3200
+
+
+class FakeBus:
+    def __init__(self):
+        self.calibration = {name: Calibration(i+1) for i, name in enumerate(NAMES)}
+        self.data = {name: {"Torque_Enable": 0, "Operating_Mode": 0,
+                           "Present_Position": 2000+i, "Goal_Position": 1000}
+                     for i, name in enumerate(NAMES)}
+        self.writes = []
+
+    def read_calibration(self):
+        return self.calibration
+
+    def ping(self, name):
+        return 777
+
+    def read(self, register, name, normalize=False):
+        return self.data[name][register]
+
+    def write(self, register, name, value, normalize=False):
+        if register != "Goal_Position" or normalize:
+            raise AssertionError("raw 목표 이외의 쓰기 금지")
+        self.writes.append((register, name, value))
+        self.data[name][register] = value
+
+
+class StartPreflightTests(unittest.TestCase):
+    def setUp(self):
+        self.bus = FakeBus()
+        self.expected = {name: asdict(cal) for name, cal in self.bus.calibration.items()}
+
+    def test_read_only_preserves_goal_and_torque(self):
+        result = inspect_bus(self.bus, self.expected)
+        self.assertEqual(result["result"], "PREFLIGHT_READ_ONLY_OK")
+        self.assertEqual(self.bus.writes, [])
+        self.assertEqual(result["joints"]["shoulder_pan"]["goal_delta_ticks"], -1000)
+
+    def test_sync_is_blocked_before_any_bus_access(self):
+        class UnreachableBus:
+            def read_calibration(self):
+                raise AssertionError("버스에 접근하면 안 됩니다")
+        with self.assertRaisesRegex(RuntimeError, "사용 중단"):
+            inspect_bus(UnreachableBus(), self.expected, sync_goal=True)
+
+    def test_torque_on_or_unexpected_mode_blocks_all_writes(self):
+        for register, value in (("Torque_Enable", 1), ("Operating_Mode", 1)):
+            bus = FakeBus()
+            bus.data[NAMES[-1]][register] = value
+            with self.assertRaises(RuntimeError):
+                inspect_bus(bus, self.expected)
+            self.assertEqual(bus.writes, [])
+
+    def test_changed_calibration_blocks_all_writes(self):
+        self.bus.calibration[NAMES[0]].homing_offset = 200
+        with self.assertRaises(RuntimeError):
+            inspect_bus(self.bus, self.expected)
+        self.assertEqual(self.bus.writes, [])
+
+    def test_sync_rejected_even_when_goal_already_matches(self):
+        for state in self.bus.data.values():
+            state["Goal_Position"] = state["Present_Position"]
+        with self.assertRaisesRegex(RuntimeError, "사용 중단"):
+            inspect_bus(self.bus, self.expected, sync_goal=True)
+        self.assertEqual(self.bus.writes, [])
+
+
+class CalibrationDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.bus = FakeBus()
+        self.expected = {name: asdict(cal) for name, cal in self.bus.calibration.items()}
+    def test_mismatch_and_live_torque_are_reported_without_writes(self):
+        self.bus.calibration[NAMES[0]].homing_offset = 200
+        self.bus.data[NAMES[-1]]["Torque_Enable"] = 1
+        with tempfile.TemporaryDirectory() as folder:
+            result = diagnose_bus(self.bus, self.expected, backup_dir=folder)
+            saved = json.loads(Path(result["backup"]).read_text())
+        self.assertEqual(result["result"], "CALIBRATION_MISMATCH")
+        self.assertEqual(result["differences"][NAMES[0]]["homing_offset"],
+                         {"expected": 0, "actual": 200})
+        self.assertEqual(result["joints"][NAMES[-1]]["torque"], 1)
+        self.assertEqual(saved, result)
+        self.assertEqual(self.bus.writes, [])
+
+    def test_matching_diagnostic_does_not_align_goals(self):
+        with tempfile.TemporaryDirectory() as folder:
+            result = diagnose_bus(self.bus, self.expected, backup_dir=folder)
+        self.assertEqual(result["result"], "CALIBRATION_MATCH")
+        self.assertEqual(result["differences"], {})
+        self.assertFalse(result["writes_performed"])
+        self.assertEqual(self.bus.writes, [])
