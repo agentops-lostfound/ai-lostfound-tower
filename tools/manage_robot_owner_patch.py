@@ -11,6 +11,7 @@ import uuid
 EXPECTED_SOURCE = "fb01e47292a94c48fc00cb5e8ec42a4d6ec9d0987ecefaab0da6f60258a7b625"
 FILES = ("_owner_worker.py", "_lf_command_gate.py", "_lf_owner_bridge.py")
 SERIALS = ("5B91045573", "5B91030622")
+MANUAL_GUARD_FILE = Path("/app/storage/lf-robot-safety/manual-pose-5B91030622.json")
 
 
 def digest(content):
@@ -201,6 +202,8 @@ def apply(backup_dir, transport):
 
 def rollback(backup_dir, transport):
     require_idle()
+    if MANUAL_GUARD_FILE.exists() or MANUAL_GUARD_FILE.is_symlink():
+        raise RuntimeError("수동 자세 변경이 종료되지 않아 원본 복원을 차단합니다. 현재 자세 유지 복구가 필요합니다")
     record, original, data = read_backup(backup_dir, transport)
     transport = Path(transport)
     for name in FILES:

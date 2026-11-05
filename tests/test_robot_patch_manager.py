@@ -93,3 +93,15 @@ class PatchManagerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.make_backup()
         self.assertFalse(self.backup.exists())
+
+
+    def test_manual_pose_guard_blocks_original_rollback(self):
+        self.make_backup()
+        manager.apply(self.backup, self.transport)
+        before = (self.transport / manager.FILES[0]).read_bytes()
+        guard = Path(self.temp.name) / "manual.json"
+        guard.write_text("{}")
+        with patch.object(manager, "MANUAL_GUARD_FILE", guard):
+            with self.assertRaisesRegex(RuntimeError, "수동 자세 변경"):
+                manager.rollback(self.backup, self.transport)
+        self.assertEqual((self.transport / manager.FILES[0]).read_bytes(), before)
