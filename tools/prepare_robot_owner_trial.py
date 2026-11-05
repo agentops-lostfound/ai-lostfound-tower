@@ -171,7 +171,7 @@ def upgrade_telemetry(record, trial_file):
     return {**result, "windows_backup": str(destination), "trial_file": str(trial_file)}
 
 
-def capture_home(record, expected_file):
+def capture_home(record, expected_file, *, expected_session=None, expected_epoch=None):
     if not record.get("patch_installed") or manager(record, "check").get("result") != "ALREADY_INSTALLED":
         raise RuntimeError("기존 패치 적용 상태를 확인하지 못했습니다")
     expected_file = Path(expected_file).resolve()
@@ -184,9 +184,14 @@ def capture_home(record, expected_file):
     target = record["container_dir"] + "/home-calibration-reference.json"
     execute("docker", "cp", str(expected_file), CONTAINER + ":" + target)
     output = record["container_dir"] + "/home-candidate-" + uuid.uuid4().hex + ".json"
-    result = json.loads(execute("docker", "exec", CONTAINER, "python",
-        record["container_dir"] + "/robot_home_snapshot.py", "--output-file", output,
-        "--calibration-reference", target))
+    command = ["docker", "exec", CONTAINER, "python",
+               record["container_dir"] + "/robot_home_snapshot.py", "--output-file", output,
+               "--calibration-reference", target]
+    if expected_session is not None:
+        if type(expected_epoch) is not int:
+            raise ValueError("현재 명령 세대가 필요합니다")
+        command += ["--expected-session", expected_session, "--expected-epoch", str(expected_epoch)]
+    result = json.loads(execute(*command))
     if result.get("result") != "HOME_CANDIDATE_SAVED" or result.get("movement_commands_sent") != 0:
         raise RuntimeError("후보 저장 결과 검증 실패")
     destination = Path(record["local_backup"]) / Path(output).name
@@ -257,7 +262,9 @@ def main():
         execute("docker", "cp", str(ROOT / "robot/home_profiles.py"),
                 CONTAINER + ":" + record["container_dir"] + "/home_profiles.py")
         subprocess.run([sys.executable, str(ROOT / "tools/robot_stop_panel.py"),
-                        "--container-dir", record["container_dir"]], check=True)
+                        "--container-dir", record["container_dir"],
+                        "--trial-file", str(Path(args.trial).resolve()),
+                        "--expected-file", str(Path(args.expected_file).resolve())], check=True)
         return
     result = manager(record, args.operation)
     record["patch_installed"] = args.operation == "apply"

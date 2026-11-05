@@ -83,3 +83,11 @@ class HomeSnapshotTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.capture()
         self.assertEqual(self.path.read_text(), "keep existing candidate")
+
+
+    def test_wrong_preview_session_or_epoch_never_saves(self):
+        for session, epoch in (("old-owner", 2), ("test-owner", 1)):
+            with self.assertRaisesRegex(RuntimeError, "명령 세대"):
+                capture(self.client, self.path, self.reference, sleep=lambda seconds: None,
+                        expected_session=session, expected_epoch=epoch)
+            self.assertFalse(self.path.exists())

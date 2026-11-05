@@ -20,12 +20,15 @@ except ImportError:
 NAMES = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")
 
 
-def capture(client, output_file, reference, *, sleep=time.sleep):
+def capture(client, output_file, reference, *, sleep=time.sleep, expected_session=None, expected_epoch=None):
     if reference.get("serial") != "5B91030622" or set(reference.get("calibration", {})) != set(NAMES):
         raise RuntimeError("최종 팔로워 보정 기준 파일 불일치")
     initial = client.rpc("status")
     if not initial.get("ok") or not initial.get("stop_requested") or not initial.get("hold_commanded"):
         raise RuntimeError("정지 요청 및 유지 명령 완료 상태에서만 기록합니다")
+    if ((expected_session is not None and initial.get("session") != expected_session)
+            or (expected_epoch is not None and initial.get("epoch") != expected_epoch)):
+        raise RuntimeError("화면에서 확인한 소유자 또는 명령 세대가 바뀌었습니다")
     samples = []
     for _ in range(20):
         state = client.rpc("status")
@@ -70,18 +73,21 @@ def capture(client, output_file, reference, *, sleep=time.sleep):
         os.fsync(stream.fileno())
     return {"result": "HOME_CANDIDATE_SAVED", "container_file": str(path),
             "positions": profile["positions"], "home_approved": False,
-            "path_verified": False, "movement_commands_sent": 0}
+            "path_verified": False, "movement_commands_sent": 0,
+            "owner_session": initial["session"], "epoch": initial["epoch"]}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-file", required=True)
     parser.add_argument("--calibration-reference", required=True)
+    parser.add_argument("--expected-session")
+    parser.add_argument("--expected-epoch", type=int)
     args = parser.parse_args()
     reference = json.loads(Path(args.calibration_reference).read_text(encoding="utf-8-sig"))
     client = Client()
     try:
-        print(json.dumps(capture(client, args.output_file, reference), ensure_ascii=True, indent=2))
+        print(json.dumps(capture(client, args.output_file, reference, expected_session=args.expected_session, expected_epoch=args.expected_epoch), ensure_ascii=True, indent=2))
     finally:
         client.close()
 
