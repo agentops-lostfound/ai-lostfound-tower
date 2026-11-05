@@ -112,7 +112,7 @@
   async function loadPlaces() {
     const chips = document.querySelector('.quick'); chips.replaceChildren();
     try {
-      const res = await fetch('/places?machine_id=' + encodeURIComponent(machine));
+      const res = await fetch('/api/kiosk/places?machine_id=' + encodeURIComponent(machine));
       if (!res.ok) throw new Error();
       const places = await res.json();
       places.forEach(place => {
@@ -164,7 +164,7 @@
     if(name||phone)body.finder={name:name||null,phone:phone||null};
     const submit=form.querySelector('.submit'); submit.disabled=true; submit.textContent='접수 중…';
     try{
-      const res=await fetch('/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const res=await fetch('/api/kiosk/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const data=await res.json();
       if(!res.ok){const detail=typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||data);
         throw new Error(res.status===422?detail:'접수 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');}
