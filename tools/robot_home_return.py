@@ -63,7 +63,9 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
     result = {"result": "HOME_ABORTED", "route": "local_pan_trial",
               "profile_revision": profile["revision"], "start": start,
               "target": profile["positions"], "sent_targets": 0,
-              "automatic_retry": False, "general_path_verified": False}
+              "automatic_retry": False, "general_path_verified": False,
+              "request_acknowledgement": "queued_only", "position_trace": [],
+              "last_requested_target": None}
     if all(abs(start[i]-profile["positions"][i]) <= TOLERANCE for i in range(6)):
         latest = client.rpc("status")
         if (not latest.get("ok") or latest.get("session") != expected_session
@@ -111,7 +113,7 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
                 raise Interrupted("Home 도중 정지 요청")
             if current.get("epoch") != token:
                 raise Interrupted("Home 도중 제어 세대 변경")
-            measured()
+            observed = measured()
             target = list(start)
             target[0] = start[0] + (end[0]-start[0]) * index / 60
             reply = client.rpc("action", session=expected_session, epoch=token, writer=writer,
@@ -121,6 +123,10 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
                     raise Interrupted("Home 도중 정지 요청")
                 raise RuntimeError("Home 목표 요청 거부")
             result["sent_targets"] += 1
+            result["last_requested_target"] = target
+            if index == 1 or index % 10 == 0:
+                result["position_trace"].append({"sequence": index,
+                    "requested_pan": target[0], "observed_pan_before_request": observed[0]})
             sleep(0.05)
         # 모터가 마지막 작은 목표에 도달할 시간을 제한적으로 관측한다.
         for _ in range(30):

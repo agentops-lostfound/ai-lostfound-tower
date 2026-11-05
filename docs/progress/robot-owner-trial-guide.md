@@ -152,3 +152,16 @@ py -3.11 .\tools\prepare_robot_owner_trial.py diagnose --trial "$trialFile"
 - 확인한 LeRobot write 및 scservo_sdk 1.0.0 전송 함수는 별도의 토크 ON 명령을 추가하지 않는다. 펌웨어 동작의 공식 확정은 아니다.
 - 유사 보고: https://github.com/huggingface/lerobot/issues/3585 . 목표값 쓰기의 토크 자동 활성화와 범위 밖 목표 위험에 관한 사용자 보고로, 제조사 보증이나 이 장비의 원인 확정 자료는 아니다.
 - 기존 `--sync-goal`을 토크 OFF 작업으로 취급한 가정을 폐기하고 호스트/컨테이너/함수 입구에서 차단했다. 시작 시 목표값 쓰기는 실제 구동 가능 단계로 설계해야 한다. 현재 Home 실물 시험 재개는 보류한다.
+
+
+## Home 근거리 재시험 · 11월 5일
+
+사용자 Home revision 2에서 HOME_ALREADY_REACHED 및 sent_targets=0 확인. 수동 정지 시험은 pan -3.8788326→-3.5833025, 관측 차이 0.29553(4틱), 나머지 관절 불변, 정지 후 관측 구간 변화 0으로 종료됐다. 이어진 Home 요청은 60회 접수됐으나 위치가 그대로여서 HOME_ABORTED(도달 오차 확인 실패), 종료 정지·유지 완료를 확인했다. 설치 드라이버의 오프라인 변환은 pan 2151→2147, 다른 관절 목표 불변으로 정상이다. CW/CCW 데드존 1만으로 실패 원인은 확정되지 않는다. PID·허용 오차는 변경하지 않는다.
+
+`home-offset`은 현재 위치에 계속 더하는 대신 선택한 Home pan+0.8로 한정한다. 시작 및 관측 위치는 Home으로부터 1단위 안, 다른 관절은 Home 대비 0.2단위 안이어야 한다. 기존 회당 이동 상한 1단위도 유지한다. 이미 목표 근처면 이동하지 않는다. 기존 소유자와 정지 화면 및 --confirm-ready가 필요하고, 자동 연결/보정/토크 ON/설정 변경을 제공하지 않는다.
+
+```powershell
+py -3.11 .\tools\prepare_robot_owner_trial.py home-offset --trial "$trialFile" --confirm-ready
+```
+
+정상 동작이면 HOME_OFFSET_SEQUENCE_COMPLETE와 종료 정지·유지 완료를 확인한다. 이는 요청 시퀀스 완료이며 실제 위치 확인은 final_positions, offset_reached를 함께 본다. 이어 패널 Home을 한 번 실행한다. Home 및 offset 결과의 position_trace는 표본 요청 목표와 관측 pan 위치이며, queued_only는 모터 Goal 레지스터 기록 성공을 보장하지 않는다. 미이동을 성공으로 처리하거나 허용 오차를 완화하지 않는다. Home의 정지 허용 경로·기존 소유자 패치는 변경하지 않았다. 갱신된 Home 결과를 받으려면 패널을 재시작한다.
