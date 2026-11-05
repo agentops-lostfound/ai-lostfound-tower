@@ -80,7 +80,10 @@ def calibration_ok(report: dict) -> tuple[bool, str]:
     if not isinstance(n, int) or n < MIN_CALIB_POINTS:
         return False, f"표식 2개가 모두 보이지 않음(대응점 {n}개 < {MIN_CALIB_POINTS})"
     err = c.get("max_reprojection_error_mm")
-    if isinstance(err, (int, float)) and err > MAX_REPROJ_MM:
+    if (not isinstance(err, (int, float)) or isinstance(err, bool)
+            or not math.isfinite(err) or err < 0):
+        return False, "보정 오차 측정값 없음/무효"
+    if err > MAX_REPROJ_MM:
         return False, f"보정 오차 큼({err:.1f}mm > {MAX_REPROJ_MM}mm)"
     return True, ""
 
@@ -88,16 +91,38 @@ def calibration_ok(report: dict) -> tuple[bool, str]:
 def adapt_report(report: dict) -> list[dict]:
     """시퀀스 결과 전체 → 계약 모양 검출 목록. 계약에 안 맞는 물건은 뺀다.
     보정을 믿을 수 있을 때(calibration_ok)만 center_mm 를 붙인다."""
+    # LF3_UNIFIED_SAFETY_V1: only confirmed full analysis may authorize coordinates.
+    # Partial reports may retain features for staff review, never center_mm.
+    if not isinstance(report, dict):
+        return []
+    sequence_complete = report.get("sequence", {}).get("status") == "complete" if isinstance(report.get("sequence"), dict) else False
+    objects = report.get("objects")
+    if not isinstance(objects, list):
+        return []
+    ids = [obj.get("id") for obj in objects if isinstance(obj, dict)]
+    if len(ids) != len(objects) or any(type(i) is not int for i in ids) or len(set(ids)) != len(ids):
+        return []  # Ambiguous object identity cannot be matched to a robot target.
     out = []
     calib_ok, _ = calibration_ok(report)
-    for obj in report.get("objects") or []:
+    for obj in objects:
+        bbox, center = obj.get("bbox"), obj.get("center_px")
+        conf = obj.get("confidence")
+        def finite_numbers(values, count):
+            return (isinstance(values, (list, tuple)) and len(values) == count
+                    and all(type(v) in (int, float) and math.isfinite(v) for v in values))
+        if (not finite_numbers(bbox, 4) or not (bbox[0] < bbox[2] and bbox[1] < bbox[3])
+                or not finite_numbers(center, 2) or type(conf) not in (int, float)
+                or not math.isfinite(conf) or not 0 <= conf <= 1):
+            continue  # Keep other objects for staff investigation; no invalid coordinates.
         q = obj.get("qwen") or {}
-        feats = to_features(q.get("features") if q.get("status") == "ok" else None, obj.get("confidence", 0.0))
+        if not isinstance(q, dict):
+            q = {}
+        feats = to_features(q.get("features") if q.get("status") == "ok" else None, conf)
         det = {"box": [round(float(v), 1) for v in obj.get("bbox") or []],
                "center": [round(float(v), 1) for v in obj.get("center_px") or []],
                "features": feats, "vision_id": obj.get("id")}
         mm = obj.get("center_world_mm")
-        if (calib_ok and obj.get("calibration_valid") is not False and isinstance(mm, (list, tuple)) and len(mm) == 2
+        if (sequence_complete and q.get("status") == "ok" and feats["category"] != UNKNOWN and calib_ok and obj.get("calibration_valid") is True and isinstance(mm, (list, tuple)) and len(mm) == 2
                 and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in mm)):
             det["center_mm"] = [round(float(v), 1) for v in mm]
         if not validate_detection(det):

@@ -60,5 +60,8 @@ def run_image(image_path, config_path=None, device=None, aruco_only=False):
               "runtime": runtime, "versions": {name: version(name) for name in ["opencv-python", "numpy", "PyYAML"] + ([] if aruco_only else ["ultralytics"])},
               "objects": objects, "markers": markers,
               "calibration": calibration, "debug_path": str(debug_path)}
+    from .installation_coordinates import work_context, coordinate_chain, load_installation
+    report['coordinate_context']=work_context(config['aruco'])
+    report['coordinate_chain']=coordinate_chain(report,load_installation())
     (run_dir / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     return report, run_dir / "result.json"

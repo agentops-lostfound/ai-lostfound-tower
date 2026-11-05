@@ -57,7 +57,7 @@ def _unique_object(pairs):
     return value
 
 
-def validate_response(raw):
+def validate_response(raw, *, warnings=None):
     text = raw.strip()
     fence = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
     if fence:
@@ -80,13 +80,20 @@ def validate_response(raw):
         raise ValueError("shape must be string or null")
     if value["sticker_status"] not in ("present", "absent", "unknown") or not isinstance(value["stickers"], list):
         raise ValueError("Invalid sticker status or list")
-    if (value["sticker_status"] == "present") != bool(value["stickers"]):
-        raise ValueError("present requires stickers; absent/unknown requires empty stickers")
     for sticker in value["stickers"]:
         if not isinstance(sticker, dict) or set(sticker) != {"shape", "position"}:
             raise ValueError("Sticker requires shape and position")
         if any(v is not None and not isinstance(v, str) for v in sticker.values()):
             raise ValueError("Sticker values must be string or null")
+    if (value["sticker_status"] == "present") != bool(value["stickers"]):
+        # Discard contradictory observations, never invent presence/absence.
+        value['sticker_status'] = 'unknown'
+        value['stickers'] = []
+        # Prevent the discarded claim from leaking back into semantic matching.
+        value['distinctive_features'] = [v for v in value['distinctive_features']
+                                         if not re.search(r'sticker|decal', v, re.I)]
+        if warnings is not None:
+            warnings.append('inconsistent_sticker_fields_discarded')
     return value
 
 
@@ -125,7 +132,8 @@ def extract_item_features(image, settings) -> dict:
                                                 skip_special_tokens=True)[0]
             del output, inputs
             try:
-                features = validate_response(raw)
+                warnings = []
+                features = validate_response(raw, warnings=warnings)
             except (ValueError, TypeError) as exc:
                 last_error = exc
                 settings.log_dir.mkdir(parents=True, exist_ok=True)
@@ -136,6 +144,12 @@ def extract_item_features(image, settings) -> dict:
                     '\nPrevious output failed validation. Produce complete valid JSON. Error: ' + str(exc))
                 continue
             record['validation_success'] = True
+            record['warnings'] = warnings
+            if warnings:
+                settings.log_dir.mkdir(parents=True, exist_ok=True)
+                (settings.log_dir / f'discarded-{uuid4().hex}.json').write_text(
+                    json.dumps({'raw_response': raw, 'warnings': warnings, 'attempt': attempt+1},
+                               ensure_ascii=False, indent=2), encoding='utf-8')
             return features
         raise RuntimeError(f'JSON validation failed after {settings.retries+1} attempts: {last_error}')
     except Exception as exc:

@@ -44,18 +44,30 @@ class QwenMatchingPart:
         objects = self.report.get("objects")
         if not isinstance(objects, list) or len(objects) != len(detections):
             return _hold("incomplete_scene")
-        ids = [d.get("object_id") for d in detections]
+        # Canonical adapter uses vision_id; retain the older object_id contract.
+        if any("vision_id" in d and "object_id" in d and
+               (type(d["object_id"]) is not int or d["vision_id"] != d["object_id"])
+               for d in detections):
+            return _hold("conflicting_ids")
+        ids = [d.get("vision_id", d.get("object_id")) for d in detections]
         if any(type(i) is not int for i in ids) or len(set(ids)) != len(ids):
             return _hold("invalid_ids")
         by_id = {o["id"]: o for o in objects if isinstance(o, dict) and type(o.get("id")) is int}
         if len(by_id) != len(objects) or set(by_id) != set(ids):
             return _hold("id_mismatch")
-        for det in detections:
-            original = by_id[det["object_id"]]
+        for det, object_id in zip(detections, ids):
+            original = by_id[object_id]
             qwen = original.get("qwen")
             if not isinstance(qwen, dict) or qwen.get("status") != "ok":
                 return _hold("qwen_not_ok")
-            if det["box"] != original.get("bbox") or det["center"] != original.get("center_px"):
+            def same_geometry(actual, raw):
+                if (not isinstance(raw, (list, tuple)) or len(raw) != len(actual)
+                        or any(type(v) not in (int, float) or not math.isfinite(v) for v in raw)
+                        or any(type(v) not in (int, float) or not math.isfinite(v) for v in actual)):
+                    return False
+                expected = [round(float(v), 1) for v in raw] if "vision_id" in det else list(raw)
+                return list(actual) == expected
+            if not same_geometry(det["box"], original.get("bbox")) or not same_geometry(det["center"], original.get("center_px")):
                 return _hold("geometry_mismatch")
 
         # The existing reader preserves the original Qwen fields, including
@@ -77,7 +89,11 @@ class QwenMatchingPart:
         try:
             public_ranking = [{"object_id": row["id"], "index": id_to_index[row["id"]],
                                "score": round(float(row["final_score"]), 4),
-                               "eligible": bool(row["eligible"])} for row in ranking]
+                               "eligible": bool(row["eligible"]),
+                               "rejection_reasons": row.get("rejection_reasons", []),
+                               "attribute_scores": row.get("attribute_scores", {}),
+                               "cosine_similarity": row.get("cosine_similarity")}
+                              for row in ranking]
             if any(not math.isfinite(r["score"]) for r in public_ranking):
                 return _hold("invalid_score")
             margin = decision.get("margin")
@@ -93,6 +109,7 @@ class QwenMatchingPart:
             "scene_object_count": len(objects),
             "engine_status": decision.get("status"),
             "engine_top_candidate_id": best_id,
+            "engine_decision": decision,
             "ranking": public_ranking,
             "robot_authorized": False,
         }
