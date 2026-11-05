@@ -77,6 +77,7 @@
 
   var host, root, wrap, panel, launcher, log, form, input, sendBtn, countEl, modeEl, dotEl, statusEl;
   var busy = false, history = [], suggestions = [], lastFocus = null, loadedOnce = false;
+  var activeRequest = null, conversationVersion = 0, statusLoading = false;
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -196,18 +197,32 @@
     return m;
   }
 
-  function api(path, body) {
+  function api(path, body, controller) {
     var init = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
+    controller = controller || new AbortController();
+    init.signal = controller.signal;
+    var timer = setTimeout(function () { controller.abort(); }, 30000);
     return fetch(API + path, init).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (data) {
+      return r.json().catch(function () { throw new Error("서버 응답을 읽지 못했어요. 다시 시도해 주세요."); }).then(function (data) {
         if (!r.ok) {
           var d = data && data.detail;
           var msg = typeof d === "string" ? d : r.status === 503 ? "챗봇이 아직 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요." : "요청을 처리하지 못했어요.";
           throw new Error(msg);
         }
+        if (!data || typeof data !== "object" || Array.isArray(data) ||
+            (path === "/chat/questions" && (typeof data.answer !== "string" || !data.answer.trim() ||
+              !Array.isArray(data.sources || []) || !Array.isArray(data.candidates || []) ||
+              !(data.sources || []).every(function (s) { return s && typeof s === "object" && !Array.isArray(s); }) ||
+              !(data.candidates || []).every(function (c) { return c && typeof c === "object" && !Array.isArray(c); })))) {
+          throw new Error("서버 응답 형식을 확인하지 못했어요. 다시 시도해 주세요.");
+        }
         return data;
       });
-    }, function () { throw new Error("서버에 연결하지 못했어요. 인터넷 연결이나 관제탑 상태를 확인해 주세요."); });
+    }).catch(function (err) {
+      if (controller.signal.aborted) throw new Error("응답 시간이 길어 요청을 멈췄어요. 잠시 후 다시 시도해 주세요.");
+      if (err instanceof TypeError) throw new Error("서버에 연결하지 못했어요. 인터넷 연결이나 관제탑 상태를 확인해 주세요.");
+      throw err;
+    }).finally(function () { clearTimeout(timer); });
   }
 
   function badgeText(res) {
@@ -267,41 +282,56 @@
     input.setAttribute("aria-busy", String(v));
   }
 
-  function send(text, suggestionId) {
+  function send(text, suggestionId, retryHistory) {
     var q = (text || "").trim();
     if (busy || !q) return;
-    if (q.length > MAX_LEN) q = q.slice(0, MAX_LEN);
+    if (q.length > MAX_LEN) { statusEl.textContent = "질문을 500자 이하로 줄여 주세요. 입력한 내용은 그대로 남겨 뒀어요."; return; }
     var welcome = root.querySelector(".welcome");
     if (welcome) welcome.remove();
-    line("user", q);
-    input.value = "";
+    var userLine = line("user", q);
+    if (input.value.trim() === q) input.value = "";
     input.dispatchEvent(new Event("input"));
     var pending = line("bot pending", "질문을 확인하고 있어요…");
     setBusy(true);
     statusEl.textContent = "답변 준비 중";
-    var body = { question: q, history: history.slice(-MAX_HISTORY) };
+    var body = { question: q, history: (retryHistory || history).slice(-MAX_HISTORY) };
     if (suggestionId) body.suggestion_id = suggestionId;
-    api("/chat/questions", body).then(function (res) {
-      history = history.concat([q]).slice(-MAX_HISTORY);
+    var request = { controller: new AbortController(), version: conversationVersion };
+    activeRequest = request;
+    api("/chat/questions", body, request.controller).then(function (res) {
+      if (activeRequest !== request) return;
+      history = body.history.concat([q]).slice(-MAX_HISTORY);
       pending.remove();
       var m = line("bot", res.answer || "답변을 만들지 못했어요. 질문을 조금 바꿔 다시 물어봐 주세요.");
       addExtras(m, res);
       statusEl.textContent = res.agent === "search" || res.agent === "both" ? "후보는 본인 물건 확정이 아니에요" : "안내 완료 · 근거를 펼쳐 볼 수 있어요";
       scroll();
-    }, function (err) {
+    }).catch(function (err) {
+      if (activeRequest !== request) return;
       pending.remove();
       var m = line("bot error", err.message);
       var retry = el("button", "retry", "다시 보내기");
       retry.type = "button";
-      retry.addEventListener("click", function () { m.remove(); var u = log.querySelectorAll(".msg.user"); if (u.length) u[u.length - 1].remove(); send(q, suggestionId); });
+      retry.addEventListener("click", function () { if (busy || request.version !== conversationVersion) return; m.remove(); userLine.remove(); send(q, suggestionId, body.history); });
       m.append(retry);
       statusEl.textContent = "전송하지 못했어요";
-    }).then(function () { setBusy(false); input.focus(); });
+    }).finally(function () {
+      if (activeRequest !== request) return;
+      activeRequest = null;
+      setBusy(false);
+      if (!panel.hidden && (document.activeElement === host || document.activeElement === input)) input.focus();
+    });
   }
 
   function resetChat() {
-    if (busy) return;
+    var previous = activeRequest;
+    activeRequest = null;
+    conversationVersion++;
+    if (previous) previous.controller.abort();
+    setBusy(false);
     history = [];
+    input.value = "";
+    input.dispatchEvent(new Event("input"));
     log.replaceChildren();
     showWelcome();
     statusEl.textContent = "이 화면의 대화를 지웠어요";
@@ -309,12 +339,15 @@
   }
 
   function loadStatus() {
+    if (statusLoading) return;
+    statusLoading = true;
     api("/chat/health").then(function (h) {
-      if (!h.ready) { modeEl.textContent = "준비 중 — 관제탑 확인 필요"; dotEl.className = "dot off"; return; }
+      if (!h.ready) { loadedOnce = false; modeEl.textContent = "준비 중 — 관제탑 확인 필요"; dotEl.className = "dot off"; return; }
       dotEl.className = "dot";
       modeEl.textContent = h.search_mode === "demo_sqlite" ? "이용 안내 + 가상 물건 검색" : h.search_mode === "postgres" ? "이용 안내 + 본인인증 후 물건 검색" : "이용 안내";
       return api("/chat/suggestions").then(function (s) { suggestions = (s && s.items) || []; renderChips(); });
-    }).catch(function () { modeEl.textContent = "연결 확인 필요"; dotEl.className = "dot off"; });
+    }).catch(function () { loadedOnce = false; modeEl.textContent = "연결 확인 필요"; dotEl.className = "dot off"; })
+      .finally(function () { statusLoading = false; });
   }
 
   function openPanel() {
@@ -325,7 +358,7 @@
     wrap.classList.add("open"); // 휴대폰 폭에서는 창이 화면을 덮으므로 동그란 버튼을 숨긴다(창의 ✕ 로 닫음)
     launcher.setAttribute("aria-expanded", "true");
     if (!loadedOnce) { loadedOnce = true; loadStatus(); }
-    setTimeout(function () { input.focus(); }, 0);
+    setTimeout(function () { if (!panel.hidden) input.focus(); }, 0);
   }
 
   function closePanel() {

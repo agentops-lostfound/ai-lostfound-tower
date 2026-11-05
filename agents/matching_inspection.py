@@ -56,6 +56,23 @@ class MatchingInspection:
         finally:
             self._lock.release()
 
+    def ask_bound(self, question, scene, inventory_check):
+        """Internal preparation only; binding validation never grants identity."""
+        from agents.scene_bindings import BoundScene
+        if type(scene) is not BoundScene:
+            return {**result('inspection_unavailable', 'scene_binding_invalid'), 'inventory_link_checked': False}
+        performed = False
+        try:
+            output = self.ask(question, scene.snapshot())
+            performed = output['matching_performed'] is True
+            if output['matching_performed'] and output['candidate_numbers']:
+                scene.resolve_candidates(output['candidate_numbers'], capture_id=scene._capture_id,
+                    report_sha256=scene._digest, inventory_check=inventory_check)
+                return {**output, 'inventory_link_checked': True}
+            return {**output, 'inventory_link_checked': False}
+        except ValueError:
+            return {**result('inspection_unavailable', 'scene_or_inventory_changed', matched=performed), 'inventory_link_checked': False}
+
     def _ask(self, question, report):
         # Do not turn unresolved/unsupported item constraints into color-only matches.
         evidence = extract_korean(question)
