@@ -15,6 +15,8 @@ COLORS = [
  ('green',r'초록색|초록|녹색'), ('pink',r'분홍색|분홍|핑크'), ('orange',r'주황색|주황'),
  ('purple',r'보라색|보라'), ('gray',r'회색'), ('brown',r'갈색'), ('silver',r'은색'), ('gold',r'금색|황금색')]
 DETAIL = r'스티커|데칼|깨|파손|박살|작살|흠집|긁|금이|금이나|균열|카메라|렌즈|로고|적혀|쓰여|써\s*있|가죽|플라스틱|무늬|테두리|가장자리|원통|사각|직사각'
+# Evidence only: never map these out-of-scope objects to a supported item.
+UNSUPPORTED_CATEGORY = r'우산|열쇠|이어폰|헤드폰|노트북|안경|가방|시계'
 
 
 def span(text, start, end, value=None):
@@ -28,7 +30,14 @@ def extract_korean(text):
     if not isinstance(text,str) or not text.strip() or len(text)>1500:
         raise ValueError('Description must contain 1..1500 characters')
     warnings=[]
-    evidence={'category':[], 'colors':[], 'stickers':[], 'logos_or_text':[], 'free_phrases':[], 'negated_colors':[], 'scoped_colors':[]}
+    evidence={'category':[], 'colors':[], 'stickers':[], 'logos_or_text':[], 'free_phrases':[], 'negated_colors':[], 'scoped_colors':[], 'unsupported_categories':[], 'uncertain_categories':[]}
+    block_reasons=[]
+    for m in re.finditer(UNSUPPORTED_CATEGORY,text):
+        if not re.match(r'\s*(?:은|는|이|가)?\s*아니',text[m.end():]):
+            evidence['unsupported_categories'].append(span(text,*m.span()))
+    if evidence['unsupported_categories']:
+        block_reasons.append('unsupported_category_mention')
+        warnings.append('Unsupported item mention preserved; do not match using color alone.')
     for m in re.finditer(r'[A-Za-z][A-Za-z0-9-]{1,30}',text):
         if m.group().lower() not in ('usb','iphone'):
             evidence['logos_or_text'].append(span(text,*m.span()))
@@ -43,11 +52,20 @@ def extract_korean(text):
                 warnings.append('Negated category requires review.')
                 continue
             evidence['category'].append(span(text,*m.span(),value))
+            if re.match(r'\s*(?:처럼|같이|같은|인지|인지는|일지도)',text[m.end():]):
+                evidence['uncertain_categories'].append(span(text,*m.span(),value))
             if value not in categories:
                 categories.append(value)
     category=categories[0] if len(categories)==1 else 'unknown'
     if len(categories)>1:
         warnings.append('Multiple Korean category mentions require review.')
+    if evidence['uncertain_categories']:
+        block_reasons.append('uncertain_category_mention')
+        warnings.append('Category resemblance or uncertainty is not confirmed identity.')
+        category='unknown'
+    if category=='unknown':
+        block_reasons.append('unresolved_item_category')
+        warnings.append('Item category is unresolved; a color-only candidate cannot be confirmed.')
     occupied=set()
     colors=[]
     for value,pattern in COLORS:
@@ -95,7 +113,8 @@ def extract_korean(text):
     elif len(set(statuses))>1:
         warnings.append('Conflicting sticker statements require review.')
     return {'features':{'category':category,'colors':colors,'sticker_status':sticker},
-            'evidence':evidence,'warnings':warnings,'needs_clarification':bool(warnings)}
+            'evidence':evidence,'warnings':warnings,'needs_clarification':bool(warnings),
+            'match_block_reasons':block_reasons}
 
 
 def detail_translation_phrases(extracted):
@@ -155,6 +174,7 @@ class KoreanFirstParser:
                          'method':'Korean evidence + dictionary attributes + clause translation'})
         return {'original_text':text,'features':features,'korean_extraction':extracted,'translation':translation,
                 'needs_clarification':bool(warnings),'warnings':warnings,'requires_review':True,
+                'match_block_reasons':extracted['match_block_reasons'],
                 'model':self.model_id,'mode':'korean_first','device':'cpu',
                 'timing':{'model_init_seconds':self.init_seconds,'parse_seconds':perf_counter()-started,
                           'translation_seconds':translation_seconds,'output_tokens':tokens}}

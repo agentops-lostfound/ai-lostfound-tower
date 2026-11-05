@@ -14,8 +14,8 @@ from agents.chat_conversation import natural_question
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
-ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md"}
-APPROVED_CORPUS_SHA256 = 'fea3d43ea8819cd8e3b428c89a6a122923a5eeaee52c2e4698c2d3ca073ff3b7'
+ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md"}
+APPROVED_CORPUS_SHA256 = '930e0faf42ede6cce8e44822fc8d077bb94f25dae31400dcfcf734a5e0904ae7'
 SUGGESTIONS = [
     ("pickup", "물건을 수령하려면 어떻게 해야 하나요?", ["수령", "찾기", "준비물", "예약"]),
     ("site_help", "사진으로 물건 설명은 어떻게 입력하나요?", ["사진", "설명", "입력", "녹음", "음성", "사용법"]),

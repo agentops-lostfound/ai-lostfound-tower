@@ -68,6 +68,10 @@ class CompositeBackend:
     def __getattr__(self, name: str):
         if name in METHODS:
             return getattr(self._route.get(name, self.fallback), name)
+        if name == "robot_state":                 # 11/5 선택 함수(docs/contracts/robot_api.md): 진짜 로봇 부품이 가지면 그것
+            robot = self._route.get("robot_stop")
+            if robot is not None and callable(getattr(robot, "robot_state", None)):
+                return robot.robot_state
         # 시험용 확인 함수(robot_moved 등)는 가짜 부품 쪽 것을 쓴다
         return getattr(self.fallback, name)
 

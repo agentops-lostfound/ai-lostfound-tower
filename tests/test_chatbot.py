@@ -142,7 +142,8 @@ class RagTests(unittest.TestCase):
             return {'message': {'content': json.dumps({'passage_ids': list(range(len(passages)))})}}
         result = GroundedRag(Guidance(), model='local-test', request=generate).ask('수령 절차 알려줘')
         self.assertTrue(result['generation_used'])
-        self.assertIn('별도 확정 안내', result['answer'])
+        self.assertIn('확정 안내', result['answer'])
+        self.assertIn('연결이 완료됐다는 뜻은 아닙니다', result['answer'])
         self.assertIn('retrieved_passages', payloads[0]['messages'][1]['content'])
         self.assertTrue(result['sources'])
 

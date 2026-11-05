@@ -33,7 +33,10 @@ class GuidanceTests(unittest.TestCase):
     def test_pickup_answer_has_literal_document_evidence(self):
         result = self.guide.ask("물건을 수령하려면 어떻게 해야 하나요?")
         self.assertEqual(result["status"], "answered")
-        self.assertIn("예약", result["answer"])
+        self.assertIn("키오스크에서 셀프", result["answer"])
+        self.assertIn("연결이 완료됐다는 뜻은 아닙니다", result["answer"])
+        self.assertEqual(result['sources'][0]['path'], 'web/README.md')
+        self.assertNotIn('직원 최종 확인을 거쳐', result['answer'])
         self.assertTrue(result["sources"])
         self.assertIn("프로젝트", result["scope"])
         self.assertFalse(result["item_search_performed"])

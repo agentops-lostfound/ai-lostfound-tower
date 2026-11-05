@@ -67,6 +67,39 @@ class BridgeTests(unittest.TestCase):
                 return ([{'id': 123, 'final_score': .7, 'eligible': True}], {'status': 'matched'}, {})
         self.assertEqual(QwenMatchingPart(report, Wrong()).match_item({}, detections)['reason'], 'unrecognized_ranked_id')
 
+    def test_canonical_adapter_rounding_and_unmeasured_scene(self):
+        from agents.vision_adapter import adapt_report
+        report, _ = fixture()
+        report['objects'][0].update(confidence=.9, bbox=[5.123, 6.234, 25.345, 40.456],
+                                    center_px=[15.234, 23.456])
+        detections = adapt_report(report)
+        self.assertEqual(detections[0]['vision_id'], 9)
+        self.assertNotIn('center_mm', detections[0])
+        bridge = QwenMatchingPart(report, FakeMatcher())
+        result = bridge.match_item({'category': 'phone'}, detections)
+        self.assertEqual(result['index'], 0)
+        self.assertEqual(result['status'], 'uncertain')
+        self.assertEqual(bridge.last_diagnostics['engine_status'], 'matched')
+        detections[0]['center'][0] += .1
+        self.assertEqual(bridge.match_item({}, detections)['reason'], 'geometry_mismatch')
+
+    def test_conflicting_ids_denied(self):
+        report, detections = fixture()
+        detections[0]['vision_id'] = 10
+        self.assertEqual(QwenMatchingPart(report, FakeMatcher()).match_item({}, detections)['reason'], 'conflicting_ids')
+
+    def test_nonfinite_geometry_denied(self):
+        report, detections = fixture()
+        detections[0]['center'][0] = float('nan')
+        self.assertEqual(QwenMatchingPart(report, FakeMatcher()).match_item({}, detections)['reason'], 'geometry_mismatch')
+
+    def test_reordered_detections_keep_identity(self):
+        report, detections = fixture()
+        report['objects'].append(copy.deepcopy(report['objects'][0]) | {'id': 10})
+        detections = [copy.deepcopy(detections[0]) | {'object_id': 10}, detections[0]]
+        bridge = QwenMatchingPart(report, FakeMatcher())
+        self.assertEqual(bridge.match_item({}, detections)['index'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()

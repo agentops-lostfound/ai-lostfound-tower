@@ -1,11 +1,11 @@
 [
   {
     "topic": "pickup",
-    "title": "분실물 수령 절차 — 프로젝트 유스케이스 UC-1",
-    "path": "docs/design/usecases.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/bb36df80d8f3dd21b2f2264d0669bedd9cdc2a91/docs/design/usecases.md#uc-1-분실물-반환-처리",
-    "evidence": "동의 → 본인인증 → 확인 질문 → 메인 AI 승인·수령 예약 → 방문 신분증 대조 → 안쪽 특징 확인 → 직원 최종 확인",
-    "answer": "프로젝트 설계에서는 웹에서 동의·본인인증·확인 질문을 거쳐 승인과 수령 예약을 진행합니다. 방문 시 신분증 대조와 물건의 안쪽 특징 확인, 직원 최종 확인을 거쳐 반환 절차가 진행됩니다. 실제 운영기관의 방문 장소·시간은 별도 확정 안내가 필요합니다."
+    "title": "분실물 수령 방향 — 11/5 팀 화면 흐름",
+    "path": "web/README.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/fe9e935/web/README.md#2-화면이-따를-흐름-115-칠판-정리",
+    "evidence": "[분실인 웹·챗봇]    분실 확인 → (물건 있으면) 본센터 방문 안내\n[관제 모니터링]     전체 진행(/live)\n```\n- \"본센터 여부\"는 등록기계 정보로 판단한다: 팀 DB `machine.kind` 가 `center` 면 본센터(`center/schema.sql`)\n- 신분 확인은 본센터 키오스크가 직접(셀프, 11/5 결정 a). 직원 확인 단계는 일단 뺀다",
+    "answer": "11월 5일 팀 설계는 분실인 웹·챗봇에서 물건을 확인하고 본센터 방문을 안내하는 흐름입니다. 본센터 신분 확인은 키오스크에서 셀프로 진행하는 방향이며 직원 확인 단계는 일단 제외됐습니다. 이는 설계 방향으로, 현재 화면의 인증·반환 연결이 완료됐다는 뜻은 아닙니다. 구체적인 준비물과 실제 방문 장소·시간은 확정 안내가 필요합니다."
   },
   {
     "topic": "consent",

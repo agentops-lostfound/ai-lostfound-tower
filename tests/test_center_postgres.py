@@ -3,11 +3,14 @@ import os
 import unittest
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from center.collections import CollectionStore, CollectionError
 from center.statistics import Statistics
 from center.places import Places
 from discord_ops.reporter import Reporter
+from agents.intake import PostgresIntakeStore, parse_intake
+from agents.chat_search import PostgresItemSearch, SearchAgent
+from agents.lost_input import KST
 
 
 @unittest.skipUnless(os.environ.get("LF_SUPPORT_TEST_DSN"), "disposable PostgreSQL not configured")
@@ -87,3 +90,67 @@ class PostgresIntegration(unittest.TestCase):
         page = store.recommend("KIOSK-A")
         self.assertEqual(len(page["places"]), 5)
         self.assertEqual(len(store.recommend("KIOSK-A", page["next_offset"])["places"]), 2)
+
+    def receive_wallets(self):
+        dsn = os.environ['LF_SUPPORT_TEST_DSN']
+        intake = PostgresIntakeStore(dsn)
+        ids = []
+        for _ in range(2):
+            row = intake.create(parse_intake({'machine_id': 'KIOSK-A', 'place_text': '가상 통합 시험 장소'}))
+            ids.append(row['item_id'])
+            self.assertTrue(intake.set_features(row['item_id'], {'category': '지갑', 'color': '검정',
+                'shape': 'rectangular', 'mark': '합성 비공개 정답'}))
+        received = datetime.fromisoformat(row['received_at']).astimezone(KST)
+        context = {'lost_date': (received.date()-timedelta(days=1)).isoformat(),
+                   'lost_line': '2호선', 'lost_station': '해운대역'}
+        agent = SearchAgent(PostgresItemSearch(dsn), authorize=lambda token: token == 'synthetic-verified-session')
+        return ids, received, context, agent
+
+    def assert_search_and_count(self, agent, context, expected_ids, received):
+        token = 'synthetic-verified-session'
+        result = agent.ask('검정 지갑 찾아줘', token, context)
+        self.assertEqual(result['status'], 'items_found' if expected_ids else 'items_not_found')
+        actual = {agent.resolve_candidate(result['search_result_id'], number, token)
+                  for number in range(1, len(result['candidates'])+1)}
+        self.assertEqual(actual, set(expected_ids))
+        self.assertNotIn('합성 비공개 정답', str(result))
+        for item_id in expected_ids:
+            self.assertNotIn(item_id, str(result))
+        count = Statistics(self.connect).ask(f'{received.date()} 등록기계 A에 들어온 지갑 몇 개?', received)
+        self.assertEqual(count['count'], 2)
+
+    def test_intake_pickup_partial_arrival_search_and_statistics_share_one_database(self):
+        ids, received, context, agent = self.receive_wallets()
+        self.assert_search_and_count(agent, context, ids, received)
+        first = self.store.pickup('KIOSK-A', ids, 'integrated-retry-001')
+        retry = self.store.pickup('KIOSK-A', ids, 'integrated-retry-001')
+        self.assertEqual(first['collection_id'], retry['collection_id'])
+        self.assert_search_and_count(agent, context, [], received)
+        cid = first['collection_id']
+        partial = self.store.arrive(cid, [ids[0]])
+        self.assertEqual(partial['missing_item_ids'], [ids[1]])
+        self.assert_search_and_count(agent, context, [ids[0]], received)
+        self.store.arrive(cid, [ids[0]])  # Replaying a saved arrival must not add history.
+        self.store.arrive(cid, [ids[1]])
+        self.assert_search_and_count(agent, context, ids, received)
+        with self.connect() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM collection').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT count(*) FROM item_status_log WHERE item_id=ANY(%s)', (ids,)).fetchone()[0], 6)
+            self.assertEqual(conn.execute('SELECT count(*) FROM collection_alert WHERE resolved_at IS NULL').fetchone()[0], 0)
+
+    def test_failed_collection_keeps_search_and_statistics_and_does_not_grant_identity(self):
+        ids, received, context, agent = self.receive_wallets()
+        with self.assertRaises(CollectionError):
+            self.store.pickup('KIOSK-B', ids, 'integrated-wrong-machine')
+        with self.assertRaises(CollectionError):
+            self.store.pickup('KIOSK-A', [ids[0], 'A-W99'], 'integrated-missing-item')
+        self.assert_search_and_count(agent, context, ids, received)
+        from unittest.mock import patch
+        with patch.object(agent.database, 'search', wraps=agent.database.search) as query:
+            for token in (None, 'synthetic-forged-session'):
+                result = agent.ask('검정 지갑 찾아줘', token, context)
+                self.assertEqual(result['status'], 'authentication_required')
+                self.assertFalse(result['item_search_performed'])
+            query.assert_not_called()
+        with self.connect() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM collection').fetchone()[0], 0)

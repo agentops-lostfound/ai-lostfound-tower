@@ -28,7 +28,7 @@ def report(status="complete"):
                 {"id": 0, "class_name": "cell phone", "confidence": 0.83, "bbox": [10, 20, 110, 220],
                  "center_px": [60, 120], "center_world_mm": None, "qwen": {"status": "ok", "features": WALLET}},
                 {"id": 1, "class_name": "cell phone", "confidence": 0.79, "bbox": [200, 30, 300, 230],
-                 "center_px": [250, 130], "center_world_mm": [120.5, 80.25], "qwen": {"status": "ok", "features": PHONE}},
+                 "center_px": [250, 130], "center_world_mm": [120.5, 80.25], "calibration_valid": True, "qwen": {"status": "ok", "features": PHONE}},
                 {"id": 2, "class_name": "toothbrush", "confidence": 0.15, "bbox": [400, 50, 430, 120],
                  "center_px": [415, 85], "qwen": {"status": "failed", "features": None}},
                 {"id": 3, "class_name": "bad", "confidence": 0.5, "bbox": [5, 5, 1, 1], "center_px": [3, 3],
