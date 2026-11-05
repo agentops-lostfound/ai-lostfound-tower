@@ -161,7 +161,7 @@ class HomeController:
             state = "completed" if response.get("ok") and code in ("HOME_REACHED", "HOME_ALREADY_REACHED") else "error"
             if response.get("ok") and code == "HOME_STOPPED":
                 state = "stopped"
-            message = {"HOME_REACHED": "Home 도달 · 유지 명령 완료",
+            message = {"HOME_REACHED": "Home 허용 범위 도달 · 실제 복귀 확인 · 유지 명령 완료",
                        "HOME_ALREADY_REACHED": "이미 Home 범위 안에 있습니다 · 이동 없음",
                        "HOME_STOPPED": "Home 중단 · 자동 재시작 없음"}.get(code,
                           result.get("reason") or response.get("error") or "Home 결과 확인 실패")
@@ -210,7 +210,7 @@ PAGE = r'''<!doctype html><html lang="ko"><meta charset="utf-8">
 <button id="stop" disabled>정지 요청</button>
 <button id="home" disabled>저장한 Home으로 복귀 · 근거리 시험</button>
 <div id="home-state" role="status">Home 시험 대기</div>
-<small>현재는 Home 근처에서 맨 아래 좌우 회전만 복귀합니다. 다른 관절이 달라졌거나 멀리 떨어진 자세에서는 실행을 거부합니다.<br>‘유지 명령 전송 완료’는 실제 팔의 정지 상태와 함께 확인하세요.</small>
+<small>현재는 Home 근처에서 맨 아래 좌우 회전만 복귀합니다. 도달 오차 6틱 이내와 실제 복귀 진척 2틱 이상을 함께 확인합니다. 다른 관절이 달라졌거나 멀리 떨어진 자세에서는 실행을 거부합니다.<br>‘유지 명령 전송 완료’는 실제 팔의 정지 상태와 함께 확인하세요.</small>
 <pre id="detail"></pre><pre id="home-detail"></pre>
 <script>
 const token=__TOKEN__,homeEnabled=__HOME_ENABLED__;let current=null,busy=false,stopping=false,homeRunning=false,homeStarting=false,statusHealthy=false,homeAvailable=true;
