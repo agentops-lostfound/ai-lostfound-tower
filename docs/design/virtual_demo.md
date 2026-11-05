@@ -111,6 +111,7 @@ python -m unittest discover -s tests          # 통과 확인
 - 로그인이 없다 → 직원 화면의 정지·인계 버튼도 누구나 누를 수 있다. 가상 시연(`TOWER_SIM=1`)일 때만, 시험하는 동안만 연다
 - 끝나면: 관제탑 Ctrl+C → `tools\start_tower.bat`(기본) · 관리자 PowerShell `Get-NetFirewallRule -DisplayName "LostFound*" | Remove-NetFirewallRule`
 - Windows 방화벽 자체는 끄지 않는다(11/4 꺼져 있던 것을 다시 켬)
+- 팀 DB(5434)·화면 앞문(8080)도 다른 PC 에서 쓰려면: `web/README.md` 5-1 (`.env` `DB_BIND=0.0.0.0`, 비밀번호 먼저 변경)
 
 ## 4-3. 로봇팔 구성 — SO-101 리더·팔로워 (11/4 실물 사진 확인)
 

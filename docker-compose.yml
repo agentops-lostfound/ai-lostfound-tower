@@ -13,7 +13,9 @@ services:
       POSTGRES_DB: lostfound
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lostfound-dev}
     ports:
-      - "127.0.0.1:5434:5432"     # 이 PC 안에서만(5433 은 교육원 PC 수업용 PostgreSQL 18 이 사용). 다른 PC에 열 때는 팀과 정한 뒤 바꾼다
+      # 기본은 이 PC 안에서만(127.0.0.1). 팀원 PC 에서 접속하려면 .env 에 DB_BIND=0.0.0.0 → docker compose up -d
+      # (그 전에 비밀번호를 기본값에서 바꾸고 방화벽은 교육원 대역만 — web/README.md 5-1). 5433 은 수업용 PostgreSQL 18 이 사용
+      - "${DB_BIND:-127.0.0.1}:5434:5432"
     volumes:
       - lostfound-db:/var/lib/postgresql/data
       - ./center/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -29,7 +31,7 @@ services:
     container_name: lostfound-web
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${WEB_BIND:-0.0.0.0}:8080:80"      # 화면 앞문은 원래 모든 주소(다른 PC 는 방화벽 규칙이 있어야 들어옴). 이 PC 만: WEB_BIND=127.0.0.1
     environment:
       TOWER_URL: ${TOWER_URL:-http://host.docker.internal:8100}
     extra_hosts:
