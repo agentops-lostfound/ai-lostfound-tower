@@ -1,11 +1,12 @@
-# Separate experimental taxonomy; NOT compatible with vision.config.CLASSES.
+# Six-class item taxonomy for the 11/5 self-service flow.
+# Keep class indices aligned with dataset label IDs and trained weights.
 # Replace path with the absolute dataset directory on this machine.
 path: /absolute/path/to/lostfound_six_class
 train: images/train
 val: images/val
 test: images/test
 names:
-  0: phone
+  0: model_phone
   1: usb
   2: lip_balm
   3: hand_cream
