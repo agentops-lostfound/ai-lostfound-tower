@@ -273,7 +273,7 @@ class ApiRoutesTest(unittest.TestCase):
         from agents import api
         api.build_app(service())
         r = self.routes
-        new_api = [("GET", p) for p in ("/api/admin/claims/{claim_id}", "/api/admin/live/state", "/api/admin/me", "/api/admin/returns",
+        new_api = [("GET", "/admin")] + [("GET", p) for p in ("/api/admin/claims/{claim_id}", "/api/admin/live/state", "/api/admin/me", "/api/admin/returns",
                                         "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",

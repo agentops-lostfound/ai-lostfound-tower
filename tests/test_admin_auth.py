@@ -97,6 +97,24 @@ class AdminApi(unittest.TestCase):
             self.assertEqual(c.post("/api/admin/login", json={"password": "x"}).status_code, 401)
         self.assertEqual(c.post("/api/admin/login", json={"password": "pw"}).status_code, 429)
 
+    def test_pages_use_api_paths(self):
+        """화면이 새 주소(/api/…)를 부르고, 관리자 화면은 로그인 없이도 열린다(데이터 API 만 잠김)"""
+        c = self.client(password="pw", secret="s")
+        self.assertIn("관리자 로그인", c.get("/admin").text)
+        root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
+        def read(name):
+            with open(os.path.join(root, name, "index.html"), encoding="utf-8") as f:
+                return f.read()
+        self.assertIn("/api/admin/live/state", read("live"))
+        self.assertIn("/api/robot/stop", read("live"))
+        self.assertIn("/api/admin/robot/home", read("live"))
+        self.assertNotIn("fetch(`/live/state", read("live"))
+        self.assertIn('"/api/admin" + path', read("staff-desk"))
+        self.assertIn("/api/kiosk/places", read("kiosk"))
+        self.assertIn("/api/kiosk/items", read("kiosk"))
+        self.assertIn("/api/kiosk/places", read("intake"))
+        self.assertIn("분실접수", read("kiosk"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -46,7 +46,7 @@ except ImportError:           # fastapi 없이 import 만 할 때
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 화면 = web/<이름>/index.html (11/5 정리, 화면 지도: web/README.md). 관제탑과 같은 주소에서 열려 API 를 바로 부른다
 WEB_DIR = os.path.join(ROOT, "web")
-PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live"}   # 주소 → 폴더
+PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live", "admin": "admin"}   # 주소 → 폴더
 LIVE_PAGE = os.path.join(WEB_DIR, "live", "index.html")     # 실시간 화면(보관함·로봇팔·진행)
 
 
@@ -335,6 +335,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def lost_page():
         """분실인 웹(분실 확인) — web/lost/ (김재민, 서버 연결 전 시안)"""
         return _page("lost")
+
+    @app.get("/admin", include_in_schema=False)
+    def admin_page():
+        """관리자 관제 — web/admin/ (로그인 화면 + 관제 모니터링·직원 화면을 탭으로). 화면 자체는 열려 있고 데이터 API 가 잠긴다"""
+        return _page("admin")
 
     @app.get("/staff", include_in_schema=False)
     def staff_page():
