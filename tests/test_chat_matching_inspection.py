@@ -140,3 +140,25 @@ class InspectionTests(unittest.TestCase):
                 release.set()
             self.assertEqual(first.result()['candidate_numbers'], [1])
         self.assertEqual(inspector.ask('회색 USB', synthetic_scene())['candidate_numbers'], [2])
+
+    def test_source_scene_mutation_during_model_call_cannot_change_snapshot(self):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        entered, release = threading.Event(), threading.Event()
+        self.addCleanup(release.set)
+        inspector, scene = MatchingInspection(), synthetic_scene()
+        original = inspector.parser.parse
+        def blocked(text):
+            entered.set()
+            if not release.wait(2):
+                raise RuntimeError('test timeout')
+            return original(text)
+        inspector.parser.parse = blocked
+        with ThreadPoolExecutor(1) as worker:
+            pending = worker.submit(inspector.ask, '검정 지갑', scene)
+            try:
+                self.assertTrue(entered.wait(1))
+                scene['objects'][0]['qwen']['features']['colors'] = ['white']
+            finally:
+                release.set()
+            self.assertEqual(pending.result()['candidate_numbers'], [1])

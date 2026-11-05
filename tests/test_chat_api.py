@@ -107,7 +107,8 @@ class ChatRoutesTest(unittest.TestCase):
         self.assertEqual(self.code(self.routes[("GET", "/chat/suggestions")]), 503)
         h = self.routes[("GET", "/chat/health")]()
         self.assertFalse(h["ready"])
-        self.assertIn("langgraph", h["error"])
+        self.assertIn("설치·설정", h["error"])
+        self.assertNotIn("langgraph", h["error"])
 
     def test_lazy_chatbot_builds_once_and_retries_after_failure(self):
         from agents.chat_api import LazyChatbot
@@ -123,13 +124,32 @@ class ChatRoutesTest(unittest.TestCase):
             lazy.get()
         self.assertEqual((lazy.get(), lazy.get(), n["calls"], lazy.error), ("BOT", "BOT", 2, None))
 
+    def test_internal_failure_details_are_not_returned_by_health_or_question(self):
+        from agents.chat_api import LazyChatbot, add_chat_routes
+        secret = 'SYNTHETIC_PRIVATE_DSN_TOKEN'
+        def broken():
+            raise RuntimeError(secret)
+        add_chat_routes(self.app, LazyChatbot(broken))
+        health = self.routes[('GET', '/chat/health')]()
+        self.assertFalse(health['ready'])
+        self.assertNotIn(secret, str(health))
+        class FailingBot(FakeBot):
+            def ask(self, *_args):
+                raise RuntimeError(secret)
+        add_chat_routes(self.app, FailingBot())
+        with self.assertRaises(self.HTTPException) as failure:
+            self.routes[('POST', '/chat/questions')]({'question': '안녕'}, None)
+        self.assertEqual(failure.exception.status_code, 503)
+        self.assertNotIn(secret, str(failure.exception.detail))
+
     def test_widget_files(self):
         from agents.chat_api import add_chat_routes
         add_chat_routes(self.app, FakeBot())
         js = self.routes[("GET", "/chat-widget/widget.js")]()
         self.assertTrue(os.path.isfile(js.path))
         self.assertEqual(js.media_type, "application/javascript")
-        src = open(js.path, encoding="utf-8").read()
+        with open(js.path, encoding="utf-8") as source:
+            src = source.read()
         for needle in ("data-chatbot-open", "/chat/questions", "attachShadow", "isComposing", "LostFoundChat"):
             self.assertIn(needle, src)
         self.assertNotIn("localStorage", src)                                  # 대화는 저장하지 않음
