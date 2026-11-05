@@ -36,6 +36,7 @@
 - MCP `db_get_item` 은 비공개 특징(`mark`·`visible_text`)을 뺀 값만 돌려준다(확인 질문 정답이 외부 AI에 새지 않게, 11/3)
 - 흐름은 `db_set_status` 가 `{ok: false}` 면 로봇을 움직이지 않고, `robot_stop` 이 실패하면 알림에 "직원 즉시 호출"을 붙인다(11/3)
 - 닮은 물건 검사(11/3): 매칭으로 고른 물건이 다른 보관 중 물건(`contracts.ACTIVE_STATUSES`)과도 찾는 물건만큼 닮았으면(점수 0.6 이상, 차이 0.15 미만) 자동 반환하지 않고 직원 확인 — 사진으로 구별할 수 없는 물건을 잘못 돌려주지 않기 위해
+- 로봇 함수 6개의 층 구조·상태 읽기(`robot_state`, `GET /robot/state`)·순필님 `robot/owner_bridge.py` 와 맞추기: **docs/contracts/robot_api.md** (11/5 재정립)
 - 진짜 부품 연결: `agents/backends.py` 의 `CompositeBackend(vision=…, matcher=…, db=…, robot=…)` — 안내 docs/design/integration.md
 
 ## 4. 상태 이름

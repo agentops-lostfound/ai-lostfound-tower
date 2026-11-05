@@ -16,7 +16,7 @@
     TOWER_MATCHER         매칭 부품. 비움/policy = 김건태 matching/policy.py(11/3 기본), simple = 예전 단순 비교
     TOWER_SIM=1       전체 가상 시연(등록기계·Qwen·탑뷰·로봇팔 가상, docs/design/virtual_demo.md). TOWER_SIM_SPEED(시간 배수, 기본 1)
     TOWER_GPU_LEASE       GPU 사용권(agents/gpu_lease.py). 기본 켬, 0 = 끔. TOWER_GPU_WAIT(초, 기본 60) · TOWER_GPU_FREE_MB(남은 메모리 확인, 기본 없음)
-- 등록기계 화면: GET /intake?machine=KIOSK-A(화면), GET /places, POST /items(사진 data URL 포함 가능), POST /items/{item_id}/features (안내 intake_machine/README.md)
+- 등록기계 화면: GET /intake?machine=KIOSK-A(화면), GET /places, POST /items(사진 data URL 포함 가능), POST /items/{item_id}/features (안내 web/intake/README.md)
     TOWER_PHOTO_DIR  등록기계 사진 저장 폴더(기본 저장소/data → data/photos/기계/…, Git 에 안 올림)
 - 직원 화면: POST /returns/{case_id}/handover — 바구니의 물건을 분실인에게 건넨 뒤 인계 완료로(11/4)
             POST /returns/{case_id}/hold — 건네지 않기로 함(이유 4개 중 하나) → 반환 보류
@@ -38,12 +38,10 @@ from agents.service import (Conflict, NotFound, RequestError, TowerService, Unav
                             demo_backend_factory)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STAFF_PAGE = os.path.join(ROOT, "web", "staff-desk", "index.html")
-LIVE_PAGE = os.path.join(ROOT, "web", "live", "index.html")     # 11/4 실시간 화면(보관함·로봇팔·진행)
-# 등록기계 화면(11/4): intake_machine/index.html 이 생기면 그것을, 아니면 지금 화면 시안(web/found-item-intake.html)을 연다
-KIOSK_PAGE = os.path.join(ROOT, "web", "found-item-kiosk.html")           # 11/4 습득자 키오스크(재민 님 시안을 관제탑 API 에 연결)
-LOST_PAGE = os.path.join(ROOT, "web", "remote-lost-item-claim.html")      # 11/4 분실자 비대면 반환 화면(시안)
-INTAKE_PAGES = [os.path.join(ROOT, "intake_machine", "index.html"), os.path.join(ROOT, "web", "found-item-intake.html")]
+# 화면 = web/<이름>/index.html (11/5 정리, 화면 지도: web/README.md). 관제탑과 같은 주소에서 열려 API 를 바로 부른다
+WEB_DIR = os.path.join(ROOT, "web")
+PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live"}   # 주소 → 폴더
+LIVE_PAGE = os.path.join(WEB_DIR, "live", "index.html")     # 실시간 화면(보관함·로봇팔·진행)
 
 
 def _flag(name: str) -> bool:
@@ -241,6 +239,11 @@ def build_app(service: TowerService | None = None):
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
+    @app.get("/robot/state")
+    def robot_state() -> dict:
+        """로봇 상태(단계·정지·들고 있는 물건·관절 6개). 계약 docs/contracts/robot_api.md (11/5)"""
+        return svc.robot_state()
+
     @app.post("/robot/stop")
     def robot_stop() -> dict:
         """직원 화면 🛑 정지: 반환 진행 중에도 동작. 다음 로봇 동작을 막고 즉시 정지(원점 복귀 안 함)"""
@@ -256,44 +259,39 @@ def build_app(service: TowerService | None = None):
         except Conflict as e:
             raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
 
+    def _page(name: str):
+        from fastapi.responses import HTMLResponse
+        path = os.path.join(WEB_DIR, PAGES[name], "index.html")
+        if not os.path.isfile(path):
+            raise HTTPException(status_code=404, detail=f"화면 파일 없음: web/{PAGES[name]}/index.html")
+        with open(path, encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+
     @app.get("/intake", include_in_schema=False)
     def intake_page():
-        """등록기계 화면(태블릿). 관제탑과 같은 주소에서 열려 API 를 바로 부른다. 기계 번호는 주소 뒤 ?machine=KIOSK-A"""
-        from fastapi.responses import HTMLResponse
-        for path in INTAKE_PAGES:
-            if os.path.isfile(path):
-                with open(path, encoding="utf-8") as f:
-                    return HTMLResponse(f.read())
-        raise HTTPException(status_code=404, detail="등록기계 화면 파일 없음")
+        """등록기계(습득 신고) 화면 — web/intake/ (김재민). 기계 번호는 주소 뒤 ?machine=KIOSK-A"""
+        return _page("intake")
 
     @app.get("/kiosk", include_in_schema=False)
     def kiosk_page():
-        """습득자 키오스크 화면(재민 님 시안). 같은 주소에서 열려 /places·/items 를 바로 부른다. 기계는 ?machine=KIOSK-A"""
-        from fastapi.responses import HTMLResponse
-        with open(KIOSK_PAGE, encoding="utf-8") as f:
-            return HTMLResponse(f.read())
+        """키오스크 화면 — web/kiosk/ (김재민). 습득 신고 + 분실 확인 + 본센터 회수로 넓힐 화면. ?machine=KIOSK-A"""
+        return _page("kiosk")
 
     @app.get("/lost", include_in_schema=False)
     def lost_page():
-        """분실자 비대면 반환 화면(시안, 서버 연결 전)"""
-        from fastapi.responses import HTMLResponse
-        with open(LOST_PAGE, encoding="utf-8") as f:
-            return HTMLResponse(f.read())
+        """분실인 웹(분실 확인) — web/lost/ (김재민, 서버 연결 전 시안)"""
+        return _page("lost")
 
     @app.get("/staff", include_in_schema=False)
     def staff_page():
-        """직원 화면(본센터 방문 확인). 같은 주소에서 열려 API 를 바로 부른다"""
-        from fastapi.responses import HTMLResponse
-        with open(STAFF_PAGE, encoding="utf-8") as f:
-            return HTMLResponse(f.read())
+        """직원 화면 — web/staff-desk/ (11/5 결정: 직원은 일단 제외, 화면은 남겨 둠)"""
+        return _page("staff")
 
     # ---------- 실시간 화면 · 가상 시연 (11/4, docs/design/virtual_demo.md) ----------
     @app.get("/live", include_in_schema=False)
     def live_page():
-        """실시간 화면: 보관함 탑뷰 그림·로봇팔 움직임·이야기별 진행·관제 메시지"""
-        from fastapi.responses import HTMLResponse
-        with open(LIVE_PAGE, encoding="utf-8") as f:
-            return HTMLResponse(f.read())
+        """관제 모니터링 — web/live/ (화면 김재민, 데이터 /live/state 변재원): 보관함·로봇팔·이야기별 진행·관제 메시지"""
+        return _page("live")
 
     @app.get("/live/so101_shape.js", include_in_schema=False)
     def live_so101_shape():
