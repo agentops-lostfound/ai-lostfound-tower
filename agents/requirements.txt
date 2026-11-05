@@ -4,6 +4,8 @@ mcp
 # 관제탑 API(LF-14) — 화면들이 HTTP로 부르는 입구
 fastapi
 uvicorn
+# 설명 입력의 이미지 디코딩·검증 및 관련 단위 시험(비전 학습 모델은 설치하지 않음)
+Pillow>=12.1,<13
 # DB 부품·반환 기록(PostgreSQL) — TOWER_DB=1 일 때
 psycopg[binary]
 # 매칭 정책(김건태 LF-3/LF-20 matching/) — 시험에도 필요

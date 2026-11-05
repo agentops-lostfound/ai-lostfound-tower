@@ -74,10 +74,14 @@ class KoreanTranscriber:
         if self.config.device=='cuda' and ctranslate2.get_cuda_device_count()<1:
             raise RuntimeError('CUDA unavailable; choose --device cpu explicitly. No silent fallback.')
         local=self.config.cache_dir/self.config.model
-        required=('model.bin','config.json','tokenizer.json','vocabulary.json')
-        if not all((local/name).is_file() and (local/name).stat().st_size>0 for name in required):
+        required=('model.bin','config.json','tokenizer.json')
+        def complete(directory):
+            return (all((directory/name).is_file() and (directory/name).stat().st_size>0 for name in required)
+                    and any((directory/name).is_file() and (directory/name).stat().st_size>0
+                            for name in ('vocabulary.json','vocabulary.txt')))
+        if not complete(local):
             local=Path(download_model(self.config.model,output_dir=str(local),local_files_only=self.config.offline))
-        if not all((local/name).is_file() and (local/name).stat().st_size>0 for name in required):
+        if not complete(local):
             raise RuntimeError('STT model cache is incomplete; download the model before --offline')
         self.model=WhisperModel(str(local),device=self.config.device,
                    compute_type=self.config.compute_type,cpu_threads=self.config.cpu_threads,
