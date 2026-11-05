@@ -106,3 +106,61 @@ class PatchPreparationTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         for name in ("robot/command_gate.py", "robot/owner_bridge.py"):
             ast.parse((root / name).read_text(encoding="utf-8"))
+
+
+class GoalReadbackTests(unittest.TestCase):
+    def make_bridge(self, *, comm=0, mismatch=False):
+        import math
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from robot.owner_bridge import for_so101
+        class Array(list):
+            shape = (6,)
+            def astype(self, dtype):
+                return self
+        state = {"goal": None, "sends": 0, "reads": []}
+        def send(action):
+            state["sends"] += 1
+            state["goal"] = round(846 + (action[0] + 100) / 200 * 2707)
+        def read(port, motor_id, address):
+            state["reads"].append((motor_id, address))
+            return state["goal"] + int(mismatch), comm, 0
+        driver = SimpleNamespace(role="follower", unit="normalized", servo_ids={"shoulder_pan": 1},
+            _read_joint_positions=lambda: Array([2151] * 6), _write_joint_positions=lambda x: None,
+            _unit_to_ticks=lambda action: [round(846 + (action[0] + 100) / 200 * 2707)] * 6,
+            send_action=send, _require_connection=lambda: SimpleNamespace(port_handler=object(),
+                packet_handler=SimpleNamespace(read2ByteTxRx=read)))
+        numpy = SimpleNamespace(asarray=lambda x, dtype: Array(x), float32=float, int32=int,
+                                isfinite=lambda x: [math.isfinite(v) for v in x], all=all)
+        with patch.dict("sys.modules", {"numpy": numpy}):
+            bridge = for_so101(driver)
+        bridge.tick()
+        def request(op, **fields):
+            return bridge.receive(json.dumps({"version": bridge.VERSION, "session": bridge.session,
+                "op": op, **fields}).encode())
+        epoch = request("resume", epoch=0, writer="test", staff_confirmed=True)["epoch"]
+        request("action", epoch=epoch, writer="test", sequence=1,
+                target=[-3.8788325786590576, 0, 0, 0, 0, 0])
+        return bridge, state
+
+    def test_queued_ack_precedes_driver_call_and_verified_goal_readback(self):
+        bridge, state = self.make_bridge()
+        self.assertEqual(state["sends"], 0)
+        self.assertEqual(bridge.status()["delivery"]["attempts"], 0)
+        bridge.tick()
+        result = bridge.status()["delivery"]
+        self.assertEqual(result["requested_pan_raw"], 2147)
+        self.assertEqual(result["observed_goal_raw"], 2147)
+        self.assertTrue(result["goal_matches_request"])
+        self.assertEqual(result["driver_calls_returned"], 1)
+        self.assertEqual(state["reads"], [(1, 42)])
+
+    def test_read_failure_or_goal_mismatch_latches_stop_and_preserves_evidence(self):
+        for options in ({"comm": -1}, {"mismatch": True}):
+            bridge, state = self.make_bridge(**options)
+            with self.assertRaises(RuntimeError):
+                bridge.tick()
+            result = bridge.status()
+            self.assertTrue(result["stop_requested"])
+            self.assertEqual(result["delivery"]["stage"], "error")
+            self.assertEqual(state["sends"], 1)

@@ -65,7 +65,7 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
               "target": profile["positions"], "sent_targets": 0,
               "automatic_retry": False, "general_path_verified": False,
               "request_acknowledgement": "queued_only", "position_trace": [],
-              "last_requested_target": None}
+              "last_requested_target": None, "delivery_before": state.get("delivery")}
     if all(abs(start[i]-profile["positions"][i]) <= TOLERANCE for i in range(6)):
         latest = client.rpc("status")
         if (not latest.get("ok") or latest.get("session") != expected_session
@@ -126,7 +126,8 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
             result["last_requested_target"] = target
             if index == 1 or index % 10 == 0:
                 result["position_trace"].append({"sequence": index,
-                    "requested_pan": target[0], "observed_pan_before_request": observed[0]})
+                    "requested_pan": target[0], "observed_pan_before_request": observed[0],
+                    "delivery_before_request": current.get("delivery")})
             sleep(0.05)
         # 모터가 마지막 작은 목표에 도달할 시간을 제한적으로 관측한다.
         for _ in range(30):
@@ -145,6 +146,10 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
     except Exception as error:
         result.update(result="HOME_ABORTED", reason=str(error))
     finally:
+        try:
+            result["delivery_before_stop"] = client.rpc("status").get("delivery")
+        except Exception as error:
+            result["delivery_read_error"] = str(error)
         try:
             reply = client.rpc("stop", session=expected_session)
             result["stop_requested_after_home"] = bool(reply.get("ok")

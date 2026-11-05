@@ -118,7 +118,7 @@ def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_pro
               "sent_targets": 0, "max_observed_delta_normalized": 0.0,
               "automatic_return": False, "stop_requested_after_trial": False,
               "target_pan": end_pan, "position_trace": [],
-              "request_acknowledgement": "queued_only"}
+              "request_acknowledgement": "queued_only", "delivery_before": initial.get("delivery")}
     try:
         resumed = client.rpc("resume", session=session, epoch=epoch,
                              writer=writer, staff_confirmed=True)
@@ -157,7 +157,8 @@ def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_pro
             result["sent_targets"] += 1
             if sequence == 1 or sequence % 10 == 0:
                 result["position_trace"].append({"sequence": sequence,
-                    "requested_pan": target[0], "observed_pan_before_request": measured[0]})
+                    "requested_pan": target[0], "observed_pan_before_request": measured[0],
+                    "delivery_before_request": status.get("delivery")})
             sleep(PERIOD)
         else:
             if home_profile is not None:
@@ -165,6 +166,10 @@ def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_pro
     finally:
         # 정상 종료/통신 오류/Ctrl+C 모두 같은 세션에 정지를 시도한다.
         # 이전 위치로 자동 복귀하지 않는다. 이미 전송된 I/O는 취소할 수 없다.
+        try:
+            result["delivery_before_stop"] = client.rpc("status").get("delivery")
+        except Exception as error:
+            result["delivery_read_error"] = str(error)
         try:
             reply = client.rpc("stop", session=session)
             result["stop_requested_after_trial"] = bool(reply.get("ok") and reply.get("session") == session
