@@ -159,3 +159,69 @@ class PostgresIntegration(unittest.TestCase):
             query.assert_not_called()
         with self.connect() as conn:
             self.assertEqual(conn.execute('SELECT count(*) FROM collection').fetchone()[0], 0)
+
+    def test_confirmed_http_search_scene_receipts_and_collection_lifecycle_together(self):
+        from fastapi.testclient import TestClient
+        from agents.chatbot import Chatbot
+        from agents.guidance import Guidance
+        from agents.lost_api import create_app
+        from agents.lost_input import DescriptionService
+        from agents.chat_search import SEARCH_STATUSES
+        from agents.scene_bindings import bind_scene, scene_digest
+        from tools.check_chat_matching import synthetic_scene
+        ids, received, context, agent = self.receive_wallets()
+        guide = Guidance()
+        bot = Chatbot(guide, search=agent)
+        with TestClient(create_app(DescriptionService(), guide, bot), base_url='http://127.0.0.1') as client:
+            proposal = client.post('/descriptions/text', json={'text': '검정 지갑', **context}).json()
+            confirmed = client.post('/descriptions/'+proposal['proposal_id']+'/confirm', json={'confirmed': True})
+            self.assertEqual(confirmed.status_code, 200, confirmed.text)
+            self.assertFalse(confirmed.json()['identity_verified'])
+            handoff = {**context, **confirmed.json()['description']}
+            def chat_count(expected, token='synthetic-verified-session'):
+                response = client.post('/chat/questions', headers={'Authorization': 'Bearer '+token},
+                    json={'question': '찾아줘', 'search_context': handoff})
+                self.assertEqual(response.status_code, 200, response.text)
+                result = response.json()
+                if token != 'synthetic-verified-session':
+                    self.assertEqual(result['status'], 'authentication_required')
+                self.assertEqual(len(result['candidates']), expected)
+                self.assertFalse(result['reservation_created'])
+                for iid in ids: self.assertNotIn(iid, str(result))
+            def inspect_links(expected, phase):
+                # A new synthetic capture is supplied explicitly for each phase.
+                report = synthetic_scene()
+                report['objects'] = report['objects'][:2]
+                for obj in report['objects']:
+                    obj['qwen']['features'].update(category='wallet', colors=['black'])
+                manifest = {'capture_id': 'synthetic-phase-'+phase, 'captured_at': datetime.now(timezone.utc).isoformat(),
+                    'report_sha256': scene_digest(report), 'bindings': [
+                        {'vision_id': obj['id'], 'item_id': iid} for obj, iid in zip(report['objects'], ids)]}
+                def inventory_check(iid):
+                    with self.connect() as conn:
+                        conn.read_only = True
+                        row = conn.execute('SELECT status FROM item WHERE item_id=%s', (iid,)).fetchone()
+                        return bool(row and row[0] in SEARCH_STATUSES)
+                result = bot.inspect_inventory_matching('검정 지갑', bind_scene(report, manifest), inventory_check)
+                self.assertIs(result['inventory_link_checked'], expected)
+                self.assertFalse(result['robot_authorized'])
+                self.assertFalse(result['identity_verified'])
+                self.assertFalse(result['reservation_created'])
+                for iid in ids: self.assertNotIn(iid, str(result))
+            chat_count(0, 'synthetic-unverified')
+            chat_count(2); inspect_links(True, 'received')
+            first = self.store.pickup('KIOSK-A', ids, 'http-scene-collection-001')
+            retry = self.store.pickup('KIOSK-A', ids, 'http-scene-collection-001')
+            self.assertEqual(first['collection_id'], retry['collection_id'])
+            chat_count(0); inspect_links(False, 'moving')
+            cid = first['collection_id']
+            self.store.arrive(cid, [ids[0]])
+            chat_count(1); inspect_links(False, 'partial')
+            self.store.arrive(cid, [ids[0]])
+            self.store.arrive(cid, [ids[1]])
+            chat_count(2); inspect_links(True, 'arrived')
+            self.assert_search_and_count(agent, context, ids, received)
+        with self.connect() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM collection').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT count(*) FROM item_status_log WHERE item_id=ANY(%s)', (ids,)).fetchone()[0], 6)
+            self.assertEqual(conn.execute('SELECT count(*) FROM collection_alert WHERE resolved_at IS NULL').fetchone()[0], 0)

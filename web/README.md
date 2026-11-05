@@ -13,6 +13,7 @@
 | 분실인 웹(분실 확인) | `/lost` | `lost/` | 김재민 | (서버 연결 전) | 화면 흐름 시안 |
 | 관제 모니터링 | `/live` | `live/` | 김재민 | `GET /live/state`, `/sim/*`, `/robot/stop·home·state` | 됨(가상 시연·SO-101 실제 형상) |
 | AI 챗봇 위젯 | 화면에 `<script src="/chat-widget/widget.js">` · 시험 `/chat-widget/demo` | `chat-widget/` | 변재원(붙이기 김재민) | `POST /chat/questions`, `/chat/suggestions`, `/chat/health` | 됨(가상 물건 DB). 분실인 웹 완성 뒤 붙임 — `chat-widget/README.md` |
+| 회수·통계 시연(LF-9) | 독립 실행 `python -m tools.run_collection_demo` → `:8110/collection-desk` | `collection-desk/` | 정연우 작업 완료(11/5 변재원 이어받음) | 시연 전용 `/collections*` (가상 SQLite) | 관제탑·팀 DB 와 미연결. 관리자 화면으로 쓸지 김재민 결정 — `docs/reports/2026-11-05-jaewon-takeover-yeonwoo.md` |
 | 직원 화면 | `/staff` | `staff-desk/` | (보류) | `/returns/*`, `/robot/*` | 11/5 결정: **직원은 일단 제외** — 화면은 남겨 둠 |
 | 분실인 8단계 시안 | 파일 직접 열기 | `lost-finder/` | LF-4 | 가짜 자료 | 참고용 |
 | 옛 시안 | - | `archive/` | - | - | 참고용(관제탑이 열지 않음) |
@@ -49,12 +50,41 @@
 | 무엇 | 값 | 비고 |
 | --- | --- | --- |
 | Docker 설정 | `docker-compose.yml` 하나 | `tools\start_tower.bat` 이 `docker compose up -d` 를 대신 함 |
-| 팀 DB 컨테이너 | `lostfound-db` (PostgreSQL 16 + pgvector) | 접속 `127.0.0.1:5434`, DB·사용자 `lostfound`, 비밀번호는 관제탑 PC `.env`(채팅·디스코드에 쓰지 않음) |
+| 팀 DB 컨테이너 | `lostfound-db` (PostgreSQL 16 + pgvector) | 접속 `127.0.0.1:5434`(다른 PC 는 5-1, `DB_BIND`), DB·사용자 `lostfound`, 비밀번호는 관제탑 PC `.env`(채팅·디스코드에 쓰지 않음) |
 | 표(테이블) | `center/schema.sql` — machine · place · item · finder_contact · claim · reservation 등 | 설명 `docs/design/database.md` |
 | 화면 앞문 | `lostfound-web` (nginx, 8080) | 8080 으로 열면 관제탑(8100)의 화면·API 를 그대로 보여 줌 |
 | 사진 | 관제탑 PC `data/photos/<기계번호>/` | DB 에는 경로만, Git 에는 안 올림 |
 | 모드 | `.env` `TOWER_SIM=1` = 가상 시연(메모리, 관제탑 끄면 사라짐) / `TOWER_SIM=` + `TOWER_DB=1` = 팀 DB 에 저장 | 바꾸면 관제탑 재시작 |
 - 화면은 DB 에 직접 붙지 않는다. 항상 관제탑 API(`/places`, `/items`, `/claims`, `/live/state`, `/robot/state` …)를 부른다 — API 문서는 관제탑 켠 뒤 `http://127.0.0.1:8100/docs`
+
+### 5-1. 다른 PC(교육원 사람·재민 님 PC)에서 화면·팀 DB 접속하기 (11/5, 실제로 된 방법)
+한줄 설명: 관제탑 PC 앞에서 `.env` 한 줄 + 방화벽 두 종류(Windows·Hyper-V)를 연다. 11/5 기준 **화면(8080)·팀 DB(5434) 모두 교육원 대역(10.10.21.0/24)** 에 열어 두었다(챗봇 작업·DBeaver 확인용).
+
+| 무엇 | 다른 PC 에서 쓸 주소 | 누구에게 열림(11/5) |
+| --- | --- | --- |
+| 화면 앞문 | `http://10.10.21.21:8080/` (→ `/kiosk`, 그 밖에 `/lost` · `/live` · `/chat-widget/demo`) | 교육원 대역 10.10.21.0/24 |
+| 팀 DB | 호스트 `10.10.21.21`, 포트 `5434`, DB·사용자 `lostfound`, 비밀번호는 직접 전달(디스코드·채팅에 쓰지 않음) | 교육원 대역 10.10.21.0/24 |
+- `127.0.0.1` 은 "지금 이 컴퓨터"라서 다른 PC 에서는 관제탑이 아니다 → 다른 PC 는 꼭 `10.10.21.21`
+- 로그인이 없다 → 8080 으로 들어오면 직원 화면(`/staff`)·로봇 정지·원점 API 도 누구나 누를 수 있다. 가상 시연(`TOWER_SIM=1`)일 때만 넓게 열고, 실제 로봇을 붙이면 좁힌다
+
+1. 메모장으로 `.env` 를 열어 `DB_BIND=0.0.0.0` 한 줄 → 작업 탭 `docker compose up -d` → `docker ps --format "{{.Names}}  {{.Ports}}"` 에 `0.0.0.0:5434->5432/tcp` (DB 를 열 때만 필요, 화면 8080 은 원래 0.0.0.0)
+2. **관리자** PowerShell(Warp 작업 탭은 권한이 없어 "액세스가 거부되었습니다"), 한 줄씩
+   ```powershell
+   New-NetFirewallRule -DisplayName "LostFound web 8080 (classroom 10.10.21.0/24)" -Direction Inbound -Protocol TCP -LocalPort 8080 -RemoteAddress 10.10.21.0/24 -Action Allow
+   New-NetFirewallHyperVRule -Name "LostFound-web-classroom" -DisplayName "LostFound web 8080 (classroom)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 8080 -RemoteAddresses 10.10.21.0/24 -Action Allow
+   New-NetFirewallRule -DisplayName "LostFound DB 5434 (classroom 10.10.21.0/24)" -Direction Inbound -Protocol TCP -LocalPort 5434 -RemoteAddress 10.10.21.0/24 -Action Allow
+   New-NetFirewallHyperVRule -Name "LostFound-db-classroom" -DisplayName "LostFound DB 5434 (classroom)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 5434 -RemoteAddresses 10.10.21.0/24 -Action Allow
+   ```
+   - Hyper-V 규칙이 핵심: 교육원 PC 는 WSL 이 **미러 네트워크 모드**(`%USERPROFILE%\.wslconfig` `networkingMode=mirrored`)라 Docker Desktop 포트가 WSL 쪽 문(Hyper-V 방화벽, 기본 Block)에서 한 번 더 막힌다. Windows 방화벽만 열면 다른 PC 에서 `False`
+   - 확인: `Get-NetFirewallRule -DisplayName "LostFound*" | Select-Object DisplayName, Enabled` · `Get-NetFirewallHyperVRule | Where-Object Name -like "LostFound*" | Select-Object Name, LocalPorts, RemoteAddresses` (`-Name` 에는 `*` 가 안 먹는다. 두 명령을 `;` 로 이어 치면 두 번째 표가 안 보일 수 있으니 따로)
+3. 확인은 **다른 PC 에서**: `Test-NetConnection 10.10.21.21 -Port 8080` → `TcpTestSucceeded : True`, 브라우저 `http://10.10.21.21:8080/`
+   - 관제탑 PC 에서 자기 주소(10.10.21.21)로 시험하면 미러 모드에서는 `False` 가 나온다 — 관제탑 PC 는 `http://127.0.0.1:8080/` 으로 확인
+4. 사람을 더하거나 넓히기: `-RemoteAddress`/`-RemoteAddresses` 에 쉼표로 주소 추가, 다른 강의실(예: 10.10.22.x)까지면 그 대역도
+- 화면 앞문은 `/` 를 `/kiosk` 로 넘길 때 포트를 유지한다(`docker/web.conf.template` `absolute_redirect off`, 11/5 #79). 설정을 바꾸면 `docker compose up -d --force-recreate web`
+- 관제탑 API(8100)를 직접 열 때: `tools\start_tower.bat lan` + Windows 방화벽 8100(`docs/design/virtual_demo.md` 4-2-1). 8080 이 8100 의 화면·API 를 그대로 넘기므로 보통은 필요 없다
+- DBeaver: PostgreSQL → Host `10.10.21.21`(관제탑 PC 자신은 `127.0.0.1`), Port `5434`, Database·Username `lostfound` → Test Connection. 표는 `public` 스키마(`item`·`claim`·`machine`·`place` …), 설명 `docs/design/database.md`
+- DB 가 교육원 전체에 열려 있으니 비밀번호를 기본값에서 바꾸는 것을 권장: `docker exec -it lostfound-db psql -U lostfound -d lostfound` → `\password lostfound` → `.env` 의 `POSTGRES_PASSWORD`·`DATABASE_URL` 도 같은 값으로(`.env` 값만 바꾸면 이미 만든 DB 비밀번호는 안 바뀜). 저장소 기본값은 `lostfound-dev`
+- 닫기: `.env` `DB_BIND=` 비우고 `docker compose up -d` · 관리자 PowerShell `Get-NetFirewallHyperVRule | Where-Object Name -like "LostFound*" | Remove-NetFirewallHyperVRule; Get-NetFirewallRule -DisplayName "LostFound*" | Remove-NetFirewallRule`
 
 ## 6. 화면 확인하는 법
 1. 관제탑 켜기: `tools\start_tower.bat` (가상 시연은 `.env` `TOWER_SIM=1`)
