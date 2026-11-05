@@ -78,3 +78,8 @@ class Chatbot:
         return {**state['result'], 'agent': state['route'],
                 'context_used': resolved,
                 'orchestration': 'langgraph_guidance_and_item_search'}
+
+    def inspect_matching(self, question, report, inspector=None):
+        """Internal LF-20 check only. Not exposed by the chat HTTP routes."""
+        from agents.matching_inspection import MatchingInspection
+        return (inspector or MatchingInspection()).ask(question, report)

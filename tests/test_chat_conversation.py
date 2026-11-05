@@ -60,6 +60,13 @@ class ConversationTests(unittest.TestCase):
         result = self.bot.ask('그럼 주말에는?', history=['운영시간 알려줘'])
         self.assertEqual(result['status'], 'policy_pending')
 
+    def test_new_team_knowledge_topics_support_followup_without_key_error(self):
+        for prior in ['습득 신고는 어떻게 해요?', '어떤 물건을 찾을 수 있나요?', '후보의 뜻이 뭐예요?']:
+            with self.subTest(prior=prior):
+                result = self.bot.ask('그건?', history=[prior])
+                self.assertFalse(result['item_search_performed'])
+                self.assertIn(result['status'], ['answered', 'clarification_needed'])
+
     def test_new_question_does_not_inherit_old_subject(self):
         result = self.bot.ask('사진은 어떻게 올려?', history=['검정 지갑 찾아줘'])
         self.assertEqual(result['agent'], 'guidance')
