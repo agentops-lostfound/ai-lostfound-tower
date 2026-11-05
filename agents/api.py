@@ -23,6 +23,7 @@
             POST /robot/stop (반환 진행 중에도) · POST /robot/home (주변 확인 뒤, 진행 중이면 409)
 - 화면 3개: GET /kiosk?machine=KIOSK-A(습득자) · GET /lost(분실자 시안) · GET /staff(직원)
 - 실시간 화면: GET /live (보관함·로봇팔·진행) · GET /live/state · 가상 시연 POST /sim/found · /sim/lost · /sim/reset
+- AI 챗봇 위젯: POST /chat/questions · GET /chat/suggestions · /chat/health · /chat-widget/widget.js · /chat-widget/demo (agents/chat_api.py)
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
@@ -117,7 +118,7 @@ def build_service(backend_factory=None) -> TowerService:
     return svc
 
 
-def build_app(service: TowerService | None = None):
+def build_app(service: TowerService | None = None, chatbot=None):
     try:
         from fastapi import Body, FastAPI, HTTPException
     except ImportError as e:
@@ -386,6 +387,9 @@ def build_app(service: TowerService | None = None):
             raise HTTPException(status_code=404, detail="기록 없음")
         return row
 
+    # ---------- AI 챗봇 위젯 (LF-5, 11/5) — /chat/*, /chat-widget/* (agents/chat_api.py) ----------
+    from agents.chat_api import add_chat_routes
+    add_chat_routes(app, chatbot)
     return app
 
 
