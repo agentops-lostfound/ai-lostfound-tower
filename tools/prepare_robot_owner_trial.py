@@ -145,7 +145,7 @@ def capture_home(record, expected_file):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight", "diagnose", "move-test", "capture-home"))
+    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight", "diagnose", "move-test", "home-offset", "capture-home"))
     parser.add_argument("--candidate-dir")
     parser.add_argument("--trial")
     parser.add_argument("--expected-file", default=str(ROOT.parent / "soarm-setup/new-follower-calibration-complete.json"))
@@ -163,7 +163,7 @@ def main():
     if args.operation == "capture-home":
         print(json.dumps(capture_home(record, args.expected_file), ensure_ascii=True, indent=2))
         return
-    if args.operation == "move-test":
+    if args.operation in ("move-test", "home-offset"):
         if not args.confirm_ready:
             parser.error("실물 이동 시험입니다. 준비 확인 후 --confirm-ready가 필요합니다")
         if not record.get("patch_installed") or manager(record, "check").get("result") != "ALREADY_INSTALLED":
@@ -171,8 +171,19 @@ def main():
         for name in ("robot_bounded_stop_trial.py", "test_robot_owner_zenoh.py"):
             execute("docker", "cp", str(ROOT / "tools" / name),
                     CONTAINER + ":" + record["container_dir"] + "/" + name)
-        subprocess.run(["docker", "exec", CONTAINER, "python",
-                        record["container_dir"] + "/robot_bounded_stop_trial.py", "--confirm-ready"], check=True)
+        command = ["docker", "exec", CONTAINER, "python",
+                   record["container_dir"] + "/robot_bounded_stop_trial.py", "--confirm-ready"]
+        if args.operation == "home-offset":
+            sys.path.insert(0, str(ROOT))
+            from robot.home_profiles import load_home
+            profile_file = Path(record["local_backup"]) / ("offset-profile-" + uuid.uuid4().hex + ".json")
+            profile_file.write_text(json.dumps(load_home(), indent=2), encoding="utf-8")
+            target = record["container_dir"] + "/offset-profile.json"
+            execute("docker", "cp", str(profile_file), CONTAINER + ":" + target)
+            execute("docker", "cp", str(ROOT / "robot/home_profiles.py"),
+                    CONTAINER + ":" + record["container_dir"] + "/home_profiles.py")
+            command += ["--home-profile", target]
+        subprocess.run(command, check=True)
         return
     if args.operation in ("preflight", "diagnose"):
         print(json.dumps(preflight(record, args.expected_file, sync_goal=args.sync_goal, diagnose=args.operation == "diagnose"), ensure_ascii=True, indent=2))

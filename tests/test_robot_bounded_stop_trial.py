@@ -95,3 +95,43 @@ class BoundedStopTests(unittest.TestCase):
             run(client, confirmed=True)
         self.assertNotIn("resume", client.operations)
         self.assertEqual(client.targets, [])
+
+
+class HomeOffsetTests(unittest.TestCase):
+    def setUp(self):
+        from robot.home_profiles import load_home
+        self.profile = load_home(store="/nonexistent-offset-test")
+        self.client = FakeClient()
+        self.client.position = list(self.profile["positions"])
+        self.client.position[0] += 0.3
+
+    def test_offset_is_anchored_to_home_and_does_not_accumulate(self):
+        result = run(self.client, confirmed=True, home_profile=self.profile)
+        self.assertEqual(result["result"], "HOME_OFFSET_SEQUENCE_COMPLETE")
+        self.assertTrue(result["offset_reached"])
+        home = self.profile["positions"][0]
+        self.assertAlmostEqual(self.client.position[0], home + 0.8)
+        self.assertTrue(all(abs(target[0] - home) <= 0.8 + 1e-6 for target in self.client.targets))
+        count = len(self.client.targets)
+        repeated = run(self.client, confirmed=True, home_profile=self.profile)
+        self.assertEqual(repeated["result"], "HOME_OFFSET_ALREADY_REACHED")
+        self.assertEqual(len(self.client.targets), count)
+        self.assertEqual(result["request_acknowledgement"], "queued_only")
+        self.assertEqual(result["position_trace"][-1]["sequence"], 60)
+
+    def test_other_joint_or_distant_pose_is_rejected_without_resume(self):
+        for index, delta in ((0, 1.1), (1, 0.3)):
+            client = FakeClient()
+            client.position = list(self.profile["positions"])
+            client.position[index] += delta
+            with self.assertRaises(RuntimeError):
+                run(client, confirmed=True, home_profile=self.profile)
+            self.assertNotIn("resume", client.operations)
+            self.assertEqual(client.targets, [])
+
+    def test_offset_preserves_external_stop(self):
+        self.client.stop_after = 5
+        result = run(self.client, confirmed=True, home_profile=self.profile)
+        self.assertEqual(result["result"], "MANUAL_STOP_OBSERVED")
+        self.assertEqual(len(self.client.targets), 5)
+        self.assertTrue(result["hold_commanded_after_trial"])

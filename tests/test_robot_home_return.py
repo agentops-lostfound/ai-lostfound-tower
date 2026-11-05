@@ -124,3 +124,21 @@ class HomeReturnTests(unittest.TestCase):
         self.assertTrue(result["stop_requested_after_home"])
         self.assertEqual(len(self.client.targets), 2)
         self.assertEqual(self.client.operations.count("resume"), 1)
+
+
+class StationaryHomeTests(unittest.TestCase):
+    setUp = HomeReturnTests.setUp
+    run_home = HomeReturnTests.run_home
+    def test_queued_requests_without_movement_remain_failure(self):
+        start = list(self.client.position)
+        def record_only(target):
+            self.client.targets.append(target)
+        self.client.bridge._gate._send = record_only
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertEqual(result["reason"], "Home 도달 오차 확인 실패")
+        self.assertEqual(result["final_positions"], start)
+        self.assertEqual(result["last_requested_target"][0], self.profile["positions"][0])
+        self.assertEqual(result["request_acknowledgement"], "queued_only")
+        self.assertEqual(result["position_trace"][-1]["sequence"], 60)
+        self.assertTrue(result["hold_commanded_after_home"])
