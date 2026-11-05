@@ -1,5 +1,16 @@
 import json
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version as _dist_version
+
+
+def version(name):
+    """설치된 패키지 버전. opencv 는 headless 판(CI 등)도 같은 것으로 본다(11/5)."""
+    names = [name, name + "-headless"] if name.startswith("opencv-") else [name]
+    for n in names:
+        try:
+            return _dist_version(n)
+        except PackageNotFoundError:
+            continue
+    return "unknown"
 from pathlib import Path
 from uuid import uuid4
 import cv2
