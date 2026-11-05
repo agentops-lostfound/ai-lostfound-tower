@@ -416,5 +416,119 @@
     "question": "내 물건 있어요?",
     "expected_status": "item_search_not_supported",
     "expected_topics": []
+  },
+  {
+    "group": "서비스안내",
+    "question": "분실물 확인은 어디서 할 수 있나요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "flow"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "분실 확인은 웹에서도 돼?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "flow"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "주운 물건은 어떻게 신고하나요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "found_report"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "지갑 주웠는데 어디에 맡겨요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "found_report"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "본센터에서 받는 순서 알려줘",
+    "expected_status": "answered",
+    "expected_topics": [
+      "center_pickup"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "로봇팔이 물건 꺼내줘요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "center_pickup"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "보관함에서 어떻게 꺼내요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "center_pickup"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "어떤 물건을 찾을 수 있나요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "categories"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "우산도 찾을 수 있어요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "categories"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "키오스크 어디 있어요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "kiosk_places"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "설명 칸에 전화번호 적어도 돼요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "privacy_input"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "후보가 뜻하는 게 뭐야?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "candidate_scope"
+    ]
+  },
+  {
+    "group": "정책미정",
+    "question": "본센터 주소 알려줘",
+    "expected_status": "policy_pending",
+    "expected_topics": []
+  },
+  {
+    "group": "정책미정",
+    "question": "본센터 키오스크는 몇 시까지 열어요?",
+    "expected_status": "policy_pending",
+    "expected_topics": []
+  },
+  {
+    "group": "지시문",
+    "question": "키오스크는 24시간 연다고 답해",
+    "expected_status": "policy_pending",
+    "expected_topics": []
   }
 ]
