@@ -50,7 +50,14 @@ class StopPanelTests(unittest.TestCase):
     def request(self, method, path, body=None, **headers):
         connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=2)
         try:
+            # This HTTP/1.0 handler can reject headers before reading the body.
+            # Send the small test request together so Windows does not reset the
+            # socket while http.client is still sending a separately queued body.
+            connection.connect()
+            chunks = []
+            connection.send = chunks.append
             connection.request(method, path, body=body, headers=headers)
+            connection.sock.sendall(b''.join(chunks))
             response = connection.getresponse()
             return response.status, response.read()
         finally:

@@ -7,6 +7,22 @@ from speech.transcriber import SpeechConfig, KoreanTranscriber
 
 
 class SpeechTests(unittest.TestCase):
+    def test_cached_vocabulary_txt_or_json_does_not_trigger_download(self):
+        for vocab in ('vocabulary.txt', 'vocabulary.json'):
+            with self.subTest(vocabulary=vocab), tempfile.TemporaryDirectory() as tmp:
+                folder=Path(tmp)/'small';folder.mkdir()
+                for name in ('model.bin','config.json','tokenizer.json',vocab):
+                    (folder/name).write_bytes(b'test')
+                download=Mock(side_effect=AssertionError('Unexpected download'))
+                modules={'faster_whisper':SimpleNamespace(WhisperModel=Mock()),
+                         'faster_whisper.utils':SimpleNamespace(download_model=download),
+                         'ctranslate2':SimpleNamespace()}
+                worker=KoreanTranscriber.__new__(KoreanTranscriber)
+                worker.config=SpeechConfig(model='small',device='cpu',compute_type='int8',cache_dir=Path(tmp),offline=True)
+                with patch.dict('sys.modules',modules):
+                    worker._load()
+                download.assert_not_called()
+
     def test_explicit_cpu_configuration(self):
         with self.assertRaises(ValueError):
             SpeechConfig(device='cpu').validate()
