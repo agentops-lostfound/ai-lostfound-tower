@@ -101,7 +101,7 @@ def build_report(items: dict = ITEMS) -> tuple[dict, dict]:
         q = {"status": "failed", "features": None} if bin_q == "failed" else {"status": "ok", "features": copy.deepcopy(bin_q)}
         objects.append({"id": vid, "class_name": "cell phone" if it["reg"]["category"] != "usb" else "remote",
                         "confidence": 0.8, "bbox": [cx - 45, cy - 30, cx + 45, cy + 30], "center_px": [cx, cy],
-                        "center_world_mm": [round(40.0 * vid, 1), 150.0], "qwen": q})
+                        "center_world_mm": [round(40.0 * vid, 1), 150.0], "calibration_valid": True, "qwen": q})   # 11/5 건태님 어댑터: 물건별 보정 표시가 True 일 때만 mm
         truth[vid] = item_id
     # 표식 2개(대응점 8개)로 보정이 된 장면 — 11/4 결정: 보정이 없으면 로봇이 움직이지 않는다
     return {"sequence": {"status": "complete"}, "objects": objects,

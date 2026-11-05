@@ -2,6 +2,7 @@
 import argparse
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 import site
 import sys
@@ -29,7 +30,11 @@ def main():
     report = json.loads(args.report.read_text(encoding="utf-8"))
     output = args.report.parent / "qwen"
     output.mkdir(exist_ok=True)
-    settings = replace(Settings(), log_dir=output / "logs", max_edge=512, offline=True)
+    edge = int(os.environ.get("QWEN_MAX_EDGE", "512"))
+    if not 32 <= edge <= 2048:
+        raise ValueError("QWEN_MAX_EDGE must be 32..2048")
+    settings = replace(Settings(), log_dir=output / "logs", max_edge=edge, offline=True)
+    report["sequence"]["qwen_max_edge"] = edge
     if args.cache_dir:
         settings = replace(settings, cache_dir=args.cache_dir.resolve())
     report["sequence"]["qwen_model"] = settings.model_id
@@ -51,6 +56,7 @@ def main():
         if records:
             record = max(records, key=lambda p: p.stat().st_mtime_ns)
             obj["qwen"]["benchmark"] = json.loads(record.read_text(encoding="utf-8"))
+            obj["qwen"]["warnings"] = obj["qwen"]["benchmark"].get("warnings", [])
         save(args.report, report)
         print(f'object_{obj["id"]}: {obj["qwen"]["status"]}', flush=True)
     return 1 if failed else 0

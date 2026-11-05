@@ -68,8 +68,18 @@ def validate_output(data):
             "needs_clarification": data["needs_clarification"] or bool(warnings), "warnings": warnings}
 
 
+def guard_query_constraints(decision, parsed_query):
+    """Preserve unresolved source constraints independently of parser validation."""
+    blocked = parsed_query.get('match_block_reasons', [])
+    if not blocked:
+        return decision
+    return {**decision, 'status': 'needs_confirmation', 'selected_id': None,
+            'reasons': list(dict.fromkeys([*decision.get('reasons', []), *blocked]))}
+
+
 def guard_decision(decision, parsed_query):
     """An ambiguous query must not become a confident match or no-match."""
+    decision = guard_query_constraints(decision, parsed_query)
     if not parsed_query["needs_clarification"] and not parsed_query.get("requires_review", False):
         return decision
     return {**decision, "status": "needs_confirmation", "selected_id": None,

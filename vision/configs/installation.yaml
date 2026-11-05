@@ -1,0 +1,27 @@
+# Provisional installation frame, NOT the robot controller's calibrated base frame.
+# EXPECT CHANGES: origin, axes, TCP and fixed Z require physical robot validation.
+# Origin: shoulder_pan axis projected onto the robot mounting plane.
+# +X: right when standing behind the robot facing the bin; +Y: into the bin; +Z: up.
+frame_id: installation_shoulder_pan_mm
+config_version: '2026-11-05.1'
+work_frame_id: fixed_tray_marker0_mm
+# Must match the surveyed layout used to fit the source homography.
+source_markers_mm:
+  0: [[0, 14], [0, 0], [14, 0], [14, 14]]
+  1: [[338, 178], [338, 164], [352, 164], [352, 178]]
+controller_frame_verified: false
+measurements_mm:
+  axis_to_entry: 106
+  entry_to_inner_rectangle_near_edge: 37
+  inner_rectangle_width: 324
+  inner_rectangle_depth: 150
+  marker_size: 14
+  bin_floor_above_mount: 7
+# Based on the fixed tray facing the robot as in the 2026-11-05 photos.
+# Work (14,14) = ID0's shared corner -> installation (162,143).
+# Work +X goes toward the robot's left; work +Y goes into the bin.
+work_xy_to_installation_xy:
+  matrix: [[-1, 0], [0, 1]]
+  offset_mm: [176, 129]
+# Proposed absolute approach height in this provisional installation frame.
+approach_z_mm: 280
