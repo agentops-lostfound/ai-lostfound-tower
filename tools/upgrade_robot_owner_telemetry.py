@@ -1,4 +1,4 @@
-"""기존 소유자 패치의 연결부만 진단 버전으로 교체. 장비 연결 없음."""
+"""기존 소유자의 진단 연결부와 수동 모드 시작 차단을 갱신. 장비 연결 없음."""
 import argparse
 import json
 from pathlib import Path
@@ -15,7 +15,7 @@ except ImportError:
 BRIDGE = "_lf_owner_bridge.py"
 
 
-def upgrade(candidate, backup, bridge_file, output):
+def upgrade(candidate, backup, bridge_file, output, owner_file=None):
     require_idle()
     manifest, installed, status = check(candidate, Path(json.loads(
         (Path(backup) / "backup.json").read_text())["transport"]))
@@ -35,6 +35,12 @@ def upgrade(candidate, backup, bridge_file, output):
     new_candidate.mkdir()
     new_backup.mkdir()
     data = {**previous, BRIDGE: content}
+    if owner_file is not None:
+        owner = Path(owner_file).read_bytes()
+        compile(owner, FILES[0], "exec")
+        if b"guard_manual_start(config.name)" not in owner:
+            raise RuntimeError("수동 모드 시작 차단이 포함된 진입점이 아닙니다")
+        data[FILES[0]] = owner
     hashes = {name: digest(value) for name, value in data.items()}
     for name, value in data.items():
         (new_candidate / name).write_bytes(value)
@@ -48,10 +54,13 @@ def upgrade(candidate, backup, bridge_file, output):
         raise RuntimeError("교체 직전 설치 상태 변경")
     try:
         atomic_write(transport / BRIDGE, content)
+        require_idle()
+        atomic_write(transport / FILES[0], data[FILES[0]])
         clear_bytecode(transport)
         if check(new_candidate, transport)[2] != "ALREADY_INSTALLED":
             raise RuntimeError("진단 연결부 교체 후 검증 실패")
     except Exception:
+        atomic_write(transport / FILES[0], previous[FILES[0]])
         atomic_write(transport / BRIDGE, previous[BRIDGE])
         clear_bytecode(transport)
         raise
@@ -67,6 +76,7 @@ def undo(old_backup, new_candidate):
     _, _, previous = read_backup(old_backup, transport)
     if check(new_candidate, transport)[2] != "ALREADY_INSTALLED":
         raise RuntimeError("알 수 없는 변경이 있어 이전 진단 연결부를 자동 복원하지 않습니다")
+    atomic_write(transport / FILES[0], previous[FILES[0]])
     atomic_write(transport / BRIDGE, previous[BRIDGE])
     clear_bytecode(transport)
     if any(digest((transport / name).read_bytes()) != record["installed_hashes"][name] for name in FILES):
@@ -79,6 +89,7 @@ def main():
     parser.add_argument("--backup", required=True)
     parser.add_argument("--bridge-file")
     parser.add_argument("--output")
+    parser.add_argument("--owner-file")
     parser.add_argument("--undo", action="store_true")
     args = parser.parse_args()
     if args.undo:
@@ -87,7 +98,7 @@ def main():
     else:
         if not args.bridge_file or not args.output:
             parser.error("--bridge-file 및 --output 필요")
-        result = upgrade(args.candidate, args.backup, args.bridge_file, args.output)
+        result = upgrade(args.candidate, args.backup, args.bridge_file, args.output, args.owner_file)
     print(json.dumps(result, indent=2))
 
 

@@ -32,14 +32,18 @@ def worker_main():
             response = {"id": request.get("id"), "ok": False}
             try:
                 operation = request.get("op")
-                if operation not in ("status", "stop"):
-                    raise ValueError("상태·정지만 지원합니다")
+                if operation not in ("status", "stop", "manual_pose", "manual_hold"):
+                    raise ValueError("지원하지 않는 조작입니다")
                 payload = {"version": "lf-owner-safety-v1", "op": operation}
-                if operation == "stop":
+                if operation != "status":
                     value = request.get("session")
                     if not isinstance(value, str) or not value:
                         raise ValueError("화면에서 확인한 소유자 세션이 필요합니다")
                     payload["session"] = value
+                if operation in ("manual_pose", "manual_hold"):
+                    if type(request.get("epoch")) is not int or request.get("staff_confirmed") is not True:
+                        raise ValueError("현재 명령 세대와 사용자 준비 확인이 필요합니다")
+                    payload.update(epoch=request["epoch"], staff_confirmed=True)
                 for reply in session.get(prefix + "/lf-safety", payload=json.dumps(payload).encode(), timeout=1.5):
                     if reply.ok is not None:
                         response.update(json.loads(reply.ok.payload.to_bytes()))
@@ -227,12 +231,16 @@ PAGE = r'''<!doctype html><html lang="ko"><meta charset="utf-8">
 <section id="home-settings" hidden>
 <h2>Home 대기 위치 재설정</h2>
 <p id="configured-home"></p>
-<small>현재 정지 시험 구성에서는 Studio Teleoperate로 팔을 조작할 수 없습니다. 자세 배치는 조작 연결을 먼저 준비한 뒤 진행하세요.</small>
+<small>현재 구성에서는 Studio Teleoperate의 리더 조작이 연결되지 않습니다. 아래 수동 자세 변경을 사용할 수 있습니다.</small>
+<button id="manual-pose" disabled>자세 변경 시작 · 토크 OFF</button>
+<div id="manual-state" role="status">팔을 받친 뒤 자세 변경을 시작하세요.</div>
+<small>토크 OFF 동안 Studio나 컨테이너를 재시작하지 마세요. 마치면 ‘현재 자세 유지’로 종료하세요. 중간에 연결이 끊기면 자동 연결을 차단하고 복구 확인이 필요합니다.</small>
 <label>Home 이름 <input id="home-name" maxlength="100" placeholder="보관함 옆 대기"></label>
 <button id="capture-home" disabled>현재 자세 읽기</button>
 <div id="settings-state" role="status">정지·유지 상태에서 현재 자세를 기록할 수 있습니다.</div>
 <table id="pose-preview" hidden><thead><tr><th>관절</th><th>기록한 위치</th></tr></thead><tbody></tbody></table>
 <button id="save-home" disabled>이 자세를 Home으로 저장</button>
+<button id="manual-hold" disabled>현재 자세 유지 · 토크 ON</button>
 <small>현재 자세를 읽어 미리본 뒤 저장합니다. 저장은 로봇을 움직이거나 보정값을 바꾸지 않습니다. 이전 설정은 이력에 보존합니다. 새 자세까지의 복귀 경로 확인은 별도입니다.</small>
 </section>
 <pre id="detail"></pre><pre id="home-detail"></pre>
@@ -240,15 +248,31 @@ PAGE = r'''<!doctype html><html lang="ko"><meta charset="utf-8">
 const token=__TOKEN__,homeEnabled=__HOME_ENABLED__,settingsEnabled=__SETTINGS_ENABLED__;let current=null,busy=false,stopping=false,homeRunning=false,homeStarting=false,statusHealthy=false,homeAvailable=true;
 const box=document.getElementById('state'),button=document.getElementById('stop'),homeButton=document.getElementById('home');
 const captureButton=document.getElementById('capture-home'),saveButton=document.getElementById('save-home'),homeName=document.getElementById('home-name');
-let settingsBusy=false,settingsRequestBusy=false,settingsJob=null,settingsError=null;
+let settingsBusy=false,settingsRequestBusy=false,settingsJob=null,settingsError=null,manualRequestBusy=false;
+const manualButton=document.getElementById('manual-pose'),holdButton=document.getElementById('manual-hold');
+function manualReady(){const mode=current?.manual_pose;return statusHealthy&&current?.stop_requested&&mode?.state==='active'&&mode.torque_off_verified&&mode.pose_in_calibrated_range&&Number.isFinite(mode.age_seconds)&&mode.age_seconds<=1;}
 document.getElementById('home-settings').hidden=!settingsEnabled;
 async function call(path,body){const response=await fetch(path,{method:body?'POST':'GET',headers:{'X-LF-Token':token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(5000)});let value=await response.json();if(!response.ok)throw Error(value.error||'화면 통신 실패');return value}
-function buttons(){button.disabled=!current||stopping;const held=statusHealthy&&current&&current.stop_requested&&current.hold_commanded;
-homeButton.disabled=!homeEnabled||!homeAvailable||!held||homeRunning||homeStarting||stopping||settingsBusy||settingsRequestBusy;
-captureButton.disabled=!settingsEnabled||!held||homeRunning||homeStarting||stopping||settingsBusy||settingsRequestBusy;
-saveButton.disabled=captureButton.disabled||!settingsJob||settingsJob.state!=='preview'||settingsJob.session!==current?.session||settingsJob.epoch!==current?.epoch;}
+function buttons(){button.disabled=!current||stopping;const held=statusHealthy&&current&&current.stop_requested&&current.hold_commanded,mode=current?.manual_pose;
+const transition=manualRequestBusy||(mode&&!['idle','active','error'].includes(mode.state));
+const occupied=homeRunning||homeStarting||stopping||settingsBusy||settingsRequestBusy||transition;
+homeButton.disabled=!homeEnabled||!homeAvailable||!held||occupied;
+captureButton.disabled=!settingsEnabled||(!held&&!manualReady())||occupied;
+saveButton.disabled=captureButton.disabled||!settingsJob||settingsJob.state!=='preview'||settingsJob.session!==current?.session||settingsJob.epoch!==current?.epoch;
+manualButton.disabled=!settingsEnabled||!statusHealthy||!current?.stop_requested||!mode||!['idle','error'].includes(mode.state)||(mode.state==='idle'&&!held)||occupied;
+holdButton.disabled=!settingsEnabled||!manualReady()||occupied;}
+
 function show(value){if(!value.ok){statusHealthy=false;box.textContent=value.error||'소유자 상태 확인 실패';homeButton.disabled=true;button.disabled=!current;return}if(current&&value.session===current.session&&value.epoch<current.epoch)return;statusHealthy=true;current=value;buttons();box.textContent=value.stop_requested?(value.hold_commanded?'정지 요청 상태 · 유지 명령 전송 완료':'정지 요청 접수 · 유지 처리 대기'):'이동 허용 상태';document.getElementById('detail').textContent='소유자 세션: '+value.session+'\n명령 세대: '+value.epoch+(value.delivery&&Number.isFinite(value.delivery.observed_present_raw)?'\n맨 아래 회전 현재 위치(raw): '+value.delivery.observed_present_raw+' / 요청 목표(raw): '+value.delivery.requested_pan_raw+' / 토크: '+value.delivery.torque:'')}
-async function poll(){if(busy||stopping)return;busy=true;try{const value=await call('/status');if(!stopping)show(value)}catch(error){if(!stopping)show({ok:false,error:'통신 실패 · 실제 정지 상태를 확인할 수 없습니다'})}finally{busy=false}}
+function showManual(){const mode=current?.manual_pose,box=document.getElementById('manual-state');
+if(!mode){box.textContent='수동 자세 변경에는 연결부 업데이트가 필요합니다.';return;}
+box.textContent=mode.message||(mode.state==='idle'?'현재 자세 유지 상태 · 변경 전 팔을 받쳐주세요.':'자세 변경 상태 확인 중');
+if(mode.state==='active'&&!mode.pose_in_calibrated_range)box.textContent+=' · 보정 범위 밖의 관절이 있어 저장/유지를 차단합니다.';
+if(mode.state!=='idle')document.getElementById('state').textContent=box.textContent;
+if(mode.state!=='idle'&&Number.isFinite(mode.current_pan_raw))document.getElementById('detail').textContent='소유자 세션: '+current.session+'\n명령 세대: '+current.epoch+'\n수동 모드 맨 아래 회전 위치(raw): '+mode.current_pan_raw;}
+async function changeManual(path,message){if(!confirm(message))return;manualRequestBusy=true;buttons();try{show(await call(path,{session:current.session,epoch:current.epoch,staff_confirmed:true}));showManual();}catch(error){document.getElementById('manual-state').textContent=error.message;}finally{manualRequestBusy=false;buttons();poll();}}
+manualButton.onclick=()=>{if(!manualButton.disabled)changeManual('/manual-pose','집게를 비우고 팔을 받침으로 지지했나요?\n토크를 끄면 중력으로 팔이 내려갈 수 있습니다. OFF 확인 후 자세를 바꾸세요.');};
+holdButton.onclick=()=>{if(!holdButton.disabled)changeManual('/manual-hold','팔을 안정적으로 받치고 집게·관절 사이에서 손을 뺐나요?\n현재 위치를 목표로 기록하고 토크를 켭니다.');};
+async function poll(){if(busy||stopping)return;busy=true;try{const value=await call('/status');if(!stopping){show(value);showManual();}}catch(error){if(!stopping)show({ok:false,error:'통신 실패 · 실제 정지 상태를 확인할 수 없습니다'})}finally{busy=false}}
 async function homePoll(){if(!homeEnabled)return;try{const job=await call('/home-status');homeRunning=job.state==='running';homeAvailable=job.state!=='error';if(job.configured_name)homeButton.textContent=job.configured_name+' 복귀 · 근거리 시험';document.getElementById('home-state').textContent=job.message||'Home 시험 대기';document.getElementById('home-detail').textContent=job.result?JSON.stringify(job.result,null,2):'';buttons()}catch(error){document.getElementById('home-state').textContent='Home 상태 조회 실패';homeButton.disabled=true}}
 button.onclick=async()=>{if(!current||stopping)return;const session=current.session;stopping=true;buttons();box.textContent='정지 요청 전송 중…';try{show(await call('/stop',{session}))}catch(error){show({ok:false,error:'정지 요청 전달 실패 · 실제 장비 상태를 확인하세요'})}finally{stopping=false;buttons();poll()}};
 homeButton.onclick=async()=>{if(homeButton.disabled)return;if(!confirm('빈 집게·고정된 베이스·빈 이동 공간을 확인했나요?\n저장한 Home 근처에서만 복귀합니다. 정지 버튼으로 중단할 수 있습니다.'))return;const session=current.session,epoch=current.epoch;homeStarting=true;buttons();try{await call('/home',{session,epoch,staff_confirmed:true});homeRunning=true;document.getElementById('home-state').textContent='Home 요청 접수'}catch(error){document.getElementById('home-state').textContent=error.message}finally{homeStarting=false;buttons();homePoll()}};
@@ -265,7 +289,7 @@ poll();homePoll();settingsPoll();setInterval(poll,1000);setInterval(homePoll,100
 </script></html>'''
 
 
-def make_handler(status_worker, stop_worker, token, port, home_controller=None, settings_controller=None):
+def make_handler(status_worker, stop_worker, token, port, home_controller=None, settings_controller=None, manual_controller=None):
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
     class Handler(BaseHTTPRequestHandler):
@@ -316,7 +340,8 @@ def make_handler(status_worker, stop_worker, token, port, home_controller=None, 
                 self.json_reply({"ok": False, "error": "허용하지 않는 요청"}, 403)
                 return
             if (self.path != "/stop" and not (self.path == "/home" and home_controller is not None)
-                    and not (self.path in ("/home-capture", "/home-save") and settings_controller is not None)):
+                    and not (self.path in ("/home-capture", "/home-save") and settings_controller is not None)
+                    and not (self.path in ("/manual-pose", "/manual-hold") and manual_controller is not None)):
                 self.json_reply({"ok": False}, 404)
                 return
             try:
@@ -329,6 +354,17 @@ def make_handler(status_worker, stop_worker, token, port, home_controller=None, 
                     raise ValueError("소유자 세션 필요")
             except (ValueError, TypeError, AttributeError):
                 self.json_reply({"ok": False, "error": "요청 형식 오류"}, 400)
+                return
+            if self.path in ("/manual-pose", "/manual-hold"):
+                try:
+                    result = manual_controller("manual_pose" if self.path == "/manual-pose" else "manual_hold",
+                        session, body.get("epoch"), body.get("staff_confirmed"))
+                except ValueError as error:
+                    self.json_reply({"ok": False, "error": str(error)}, 400)
+                except RuntimeError as error:
+                    self.json_reply({"ok": False, "error": str(error)}, 409)
+                else:
+                    self.json_reply(result, 202)
                 return
             if self.path in ("/home-capture", "/home-save"):
                 try:
@@ -380,10 +416,11 @@ def main():
         parser.error("시험 파일이 있는 /tmp/lf-owner-... 경로를 --container-dir로 지정하세요")
     command = ["docker", "exec", "-i", "physical-ai-studio-cuda", "python",
                args.container_dir.rstrip("/") + "/robot_stop_panel.py", "--stdio-worker"]
-    status_worker = stop_worker = home_worker = home_controller = settings_controller = server = None
+    status_worker = stop_worker = manual_worker = home_worker = home_controller = settings_controller = server = None
     try:
         status_worker = Worker(command)
         stop_worker = Worker(command)  # 상태 조회 대기와 정지 전송을 분리한다.
+        manual_worker = Worker(command)
         home_worker = Worker([*command[:-1], "--stdio-home-worker"])
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
         from robot.home_profiles import load_home
@@ -404,8 +441,20 @@ def main():
                 return select_candidate(candidate["windows_file"], name=name)
             settings_controller = HomeSettingsController(capture_pose, save_pose, status_worker,
                                                          load_home, action_lock)
+        def manual_controller(operation, session, epoch, confirmed):
+            if confirmed is not True or not isinstance(session, str) or type(epoch) is not int:
+                raise ValueError("현재 소유자와 사용자 준비 확인이 필요합니다")
+            if not action_lock.acquire(blocking=False):
+                raise RuntimeError("Home 이동 또는 설정 작업이 진행 중입니다")
+            try:
+                result = manual_worker.request(operation, session, epoch=epoch, staff_confirmed=True)
+                if not result.get("ok"):
+                    raise RuntimeError(result.get("error", "자세 변경 요청 실패"))
+                return result
+            finally:
+                action_lock.release()
         token = secrets.token_urlsafe(32)
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(status_worker, stop_worker, token, args.port, home_controller, settings_controller))
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(status_worker, stop_worker, token, args.port, home_controller, settings_controller, manual_controller))
         print(f"브라우저에서 http://127.0.0.1:{args.port} 를 여세요. 새 소유자를 시작하지 않습니다.", flush=True)
         print("종료: Ctrl+C. 진행 중 Home에는 정지를 요청하지만 실제 정지 상태는 별도로 확인하세요.", flush=True)
         server.serve_forever()
@@ -418,7 +467,7 @@ def main():
             settings_controller.close()
         if home_controller is not None:
             home_controller.close()
-        for worker in (home_worker, status_worker, stop_worker):
+        for worker in (home_worker, manual_worker, status_worker, stop_worker):
             if worker is not None:
                 worker.close()
 

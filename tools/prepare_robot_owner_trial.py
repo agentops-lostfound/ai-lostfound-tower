@@ -122,12 +122,25 @@ def preflight(record, expected_file, *, sync_goal=False, diagnose=False):
 def upgrade_telemetry(record, trial_file):
     if not record.get("patch_installed") or manager(record, "check").get("result") != "ALREADY_INSTALLED":
         raise RuntimeError("기존 패치 적용 상태가 다릅니다")
+    sys.path.insert(0, str(ROOT))
+    from tools.prepare_robot_owner_patch import patched_source, check_patched_loop
+    original = (Path(record["local_backup"]) / "original_owner.py").read_bytes()
+    if hashlib.sha256(original).hexdigest() != EXPECTED_SOURCE:
+        raise RuntimeError("원본 Windows 백업 해시가 다릅니다")
+    owner_source = patched_source(original.decode("utf-8"))
+    check_patched_loop(owner_source)
+    owner_digest = hashlib.sha256(owner_source.encode()).hexdigest()
     bridge_digest = hashlib.sha256((ROOT / "robot/owner_bridge.py").read_bytes()).hexdigest()
-    if record.get("telemetry_bridge_sha256") == bridge_digest:
+    if (record.get("telemetry_bridge_sha256") == bridge_digest
+            and record.get("telemetry_owner_sha256") == owner_digest):
         return {"result": "TELEMETRY_ALREADY_INSTALLED", "hardware_connected": False}
     for name in ("upgrade_robot_owner_telemetry.py", "manage_robot_owner_patch.py"):
         execute("docker", "cp", str(ROOT / "tools" / name),
                 CONTAINER + ":" + record["container_dir"] + "/" + name)
+    staged_owner = Path(record["local_backup"]) / ("owner-manual-guard-" + uuid.uuid4().hex + ".py")
+    staged_owner.write_text(owner_source, encoding="utf-8", newline="\n")
+    owner_target = record["container_dir"] + "/telemetry-owner.py"
+    execute("docker", "cp", str(staged_owner), CONTAINER + ":" + owner_target)
     bridge = record["container_dir"] + "/telemetry-bridge.py"
     execute("docker", "cp", str(ROOT / "robot/owner_bridge.py"), CONTAINER + ":" + bridge)
     identity = uuid.uuid4().hex
@@ -136,7 +149,8 @@ def upgrade_telemetry(record, trial_file):
     previous = dict(record)
     result = json.loads(execute("docker", "exec", "--user", "0", CONTAINER, "python", helper,
         "--candidate", record.get("container_candidate", record["container_dir"] + "/candidate"),
-        "--backup", record["container_backup"], "--bridge-file", bridge, "--output", output))
+        "--backup", record["container_backup"], "--bridge-file", bridge, "--output", output,
+        "--owner-file", owner_target))
     destination = Path(record["local_backup"]) / ("telemetry-" + identity)
     try:
         execute("docker", "cp", CONTAINER + ":" + result["container_backup"], str(destination))
@@ -148,7 +162,7 @@ def upgrade_telemetry(record, trial_file):
                 raise RuntimeError("갱신된 Windows 사본 검증 실패")
         updated = {**record, "container_candidate": result["container_candidate"],
                    "container_backup": result["container_backup"], "telemetry_enabled": True,
-                   "telemetry_bridge_sha256": bridge_digest,
+                   "telemetry_bridge_sha256": bridge_digest, "telemetry_owner_sha256": owner_digest,
                    "previous_patch_records": [*record.get("previous_patch_records", []),
                        {key: record.get(key) for key in ("container_candidate", "container_backup")} ]}
         import os

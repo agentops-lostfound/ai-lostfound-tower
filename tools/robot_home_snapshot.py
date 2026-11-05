@@ -20,12 +20,26 @@ except ImportError:
 NAMES = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")
 
 
+def capture_state_ready(state):
+    if not state.get("ok") or state.get("stop_requested") is not True:
+        return False
+    if state.get("hold_commanded") is True:
+        return True
+    manual = state.get("manual_pose", {})
+    if not isinstance(manual, dict):
+        return False
+    age = manual.get("age_seconds")
+    return (manual.get("state") == "active" and manual.get("torque_off_verified") is True
+            and manual.get("pose_in_calibrated_range") is True
+            and type(age) in (int, float) and math.isfinite(age) and 0 <= age <= 1.0)
+
+
 def capture(client, output_file, reference, *, sleep=time.sleep, expected_session=None, expected_epoch=None):
     if reference.get("serial") != "5B91030622" or set(reference.get("calibration", {})) != set(NAMES):
         raise RuntimeError("최종 팔로워 보정 기준 파일 불일치")
     initial = client.rpc("status")
-    if not initial.get("ok") or not initial.get("stop_requested") or not initial.get("hold_commanded"):
-        raise RuntimeError("정지 요청 및 유지 명령 완료 상태에서만 기록합니다")
+    if not capture_state_ready(initial):
+        raise RuntimeError("위치 유지 또는 토크 OFF 확인 상태에서만 기록합니다")
     if ((expected_session is not None and initial.get("session") != expected_session)
             or (expected_epoch is not None and initial.get("epoch") != expected_epoch)):
         raise RuntimeError("화면에서 확인한 소유자 또는 명령 세대가 바뀌었습니다")
@@ -34,7 +48,7 @@ def capture(client, output_file, reference, *, sleep=time.sleep, expected_sessio
         state = client.rpc("status")
         if (not state.get("ok") or state.get("session") != initial["session"]
                 or state.get("epoch") != initial["epoch"]
-                or not state.get("stop_requested") or not state.get("hold_commanded")):
+                or not capture_state_ready(state)):
             raise RuntimeError("기록 중 소유자/정지 상태 변경: 후보를 저장하지 않습니다")
         position = client.positions()
         if (not isinstance(position, (list, tuple)) or len(position) != 6
@@ -56,6 +70,7 @@ def capture(client, output_file, reference, *, sleep=time.sleep, expected_sessio
         "joint_order": list(NAMES), "positions": samples[-1],
         "observation_span_normalized": spans, "sample_count": len(samples),
         "owner_session": initial["session"], "epoch": initial["epoch"],
+        "capture_mode": "held" if initial.get("hold_commanded") else "manual_torque_off",
         "calibration_reference_sha256": hashlib.sha256(canonical).hexdigest(),
         "board_calibration_checked_by_capture": False,
         "movement_commands_sent": 0,
@@ -64,7 +79,7 @@ def capture(client, output_file, reference, *, sleep=time.sleep, expected_sessio
     final = client.rpc("status")
     if (not final.get("ok") or final.get("session") != initial["session"]
             or final.get("epoch") != initial["epoch"]
-            or not final.get("stop_requested") or not final.get("hold_commanded")):
+            or not capture_state_ready(final)):
         raise RuntimeError("저장 직전에 상태가 변경됐습니다")
     path = Path(output_file)
     with path.open("x", encoding="utf-8") as stream:

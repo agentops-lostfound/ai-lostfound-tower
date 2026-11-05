@@ -138,3 +138,12 @@ class HomeSettingsTests(unittest.TestCase):
         self.assertIsNone(self.controller.candidate)
         self.assertFalse(self.action_lock.locked())
         self.assertEqual(load_home(self.store), self.profile)
+
+    def test_manual_off_state_is_allowed_to_save_without_enabling(self):
+        identity = self.capture()
+        self.status.request = lambda operation: {"ok": True, "session": "owner", "epoch": 3,
+            "stop_requested": True, "hold_commanded": False,
+            "manual_pose": {"state": "active", "torque_off_verified": True,
+                "pose_in_calibrated_range": True, "age_seconds": 0.1}}
+        self.assertEqual(self.save(identity)["state"], "saved")
+        self.assertEqual(self.saved, ["보관함 옆 대기"])

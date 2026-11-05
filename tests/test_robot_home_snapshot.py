@@ -91,3 +91,17 @@ class HomeSnapshotTests(unittest.TestCase):
                 capture(self.client, self.path, self.reference, sleep=lambda seconds: None,
                         expected_session=session, expected_epoch=epoch)
             self.assertFalse(self.path.exists())
+
+    def test_manual_off_pose_can_be_captured_without_any_control(self):
+        original = self.client.rpc
+        def manual(operation):
+            state = original(operation)
+            state.update(hold_commanded=False, manual_pose={"state": "active", "torque_off_verified": True,
+                "pose_in_calibrated_range": True, "age_seconds": 0.1})
+            return state
+        self.client.rpc = manual
+        result = self.capture()
+        data = json.loads(self.path.read_text())
+        self.assertEqual(data["capture_mode"], "manual_torque_off")
+        self.assertEqual(set(self.client.calls), {"status"})
+        self.assertEqual(result["movement_commands_sent"], 0)
