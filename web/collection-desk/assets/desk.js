@@ -44,6 +44,7 @@ function renderBatches(){
 function render(){
  globalThis.CollectionStats?.sync(snapshot,busy,fresh);
  globalThis.CollectionPlaces?.sync(snapshot,busy,fresh);
+ globalThis.CollectionAudit?.sync(snapshot,busy,fresh);
  if(!snapshot){$('refresh').disabled=busy;$('reset').disabled=true;$('resetYes').disabled=true;return;}
  for(const [id,status] of [['waiting','등록기계 보관'],['moving','회수 중'],['arrived','본센터 보관']])$(id).textContent=snapshot.items.filter(i=>i.status===status).length;
  $('missing').textContent=snapshot.alerts.length;renderPickup();renderBatches();

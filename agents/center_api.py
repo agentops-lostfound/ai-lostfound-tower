@@ -51,6 +51,11 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         def dashboard():
             return collections.dashboard()
 
+        @app.get('/collection-audit')
+        def collection_audit():
+            from center.demo_audit import audit_demo
+            return audit_demo(collections)
+
         @app.post('/demo/reset')
         def reset_demo(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
             if body.get('confirm') != 'RESET_DEMO':

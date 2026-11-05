@@ -6,7 +6,7 @@ from datetime import datetime, date, time, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
 CATEGORIES = {"지갑": "지갑", "usb": "USB", "립밤": "립밤", "휴대폰": "모형폰",
-              "휴대전화": "모형폰", "모형폰": "모형폰", "핸드크림": "핸드크림", "보조배터리": "보조배터리"}
+              "휴대전화": "모형폰", "핸드폰": "모형폰", "유에스비": "USB", "모형폰": "모형폰", "핸드크림": "핸드크림", "보조배터리": "보조배터리"}
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ def plan_count(question, now=None):
     machine = "KIOSK-" + next(iter(machines)).upper() if machines else None
     if re.search(r"등록기계|kiosk", q) and not machine and "전체" not in q:
         raise ValueError("등록기계 A처럼 기계 번호를 지정하세요")
-    cats = {v for k, v in CATEGORIES.items() if k in q}
+    cats = {v for k, v in CATEGORIES.items() if k in re.sub(r'\s+', '', q)}
     if len(cats) > 1:
         raise ValueError("품목 하나씩 질문하세요")
     category = next(iter(cats), None)

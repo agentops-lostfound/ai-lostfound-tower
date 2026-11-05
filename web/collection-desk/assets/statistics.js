@@ -3,6 +3,7 @@ let statsRevision=null;
 const statsButtons=['statsSend','statsExampleA','statsExampleAll','statsExampleYesterday'];
 globalThis.CollectionStats={sync(data,working,valid){
  for(const id of statsButtons)$(id).disabled=working||!valid;
+ $('statsQuestion').disabled=working||!valid;
  if(statsRevision&&data&&statsRevision!==data.revision){$('statsResult').hidden=true;statsRevision=null;$('statsStatus').textContent='시연 데이터가 초기화되어 이전 통계를 지웠습니다. 다시 조회해주세요.';}
 }};
 for(const [id,question] of [['statsExampleA','오늘 등록기계 A에 들어온 USB 몇 개?'],['statsExampleAll','오늘 전체 물건 접수 건수 알려줘'],['statsExampleYesterday','어제 전체 물건 접수 건수 알려줘']]){
@@ -14,6 +15,7 @@ $('statsForm').onsubmit=async event=>{
  busy=true;render();$('statsResult').hidden=true;statsRevision=null;$('statsStatus').textContent='통계 뷰에서 접수 건수를 확인하고 있습니다…';
  try{
   const result=await api('/statistics/questions',{question});
+  if($('statsQuestion').value.trim()!==question){$('statsStatus').textContent='질문이 변경되어 이전 응답을 표시하지 않았습니다. 다시 조회해주세요.';return;}
   if(result.database_mode!=='demo_sqlite'||!Number.isSafeInteger(result.count)||result.count<0||result.revision!==snapshot.revision)throw Error('통계 결과의 시연 상태를 확인하지 못했습니다.');
   statsRevision=result.revision;$('statsCount').textContent=result.count+'건';$('statsAnswer').textContent=result.answer;
   $('statsDay').textContent=result.filters.day;$('statsMachine').textContent=result.filters.machine_id||'전체 등록기계';$('statsCategory').textContent=result.filters.category||'전체 품목';$('statsTime').textContent=timeLabel(new Date());

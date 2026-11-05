@@ -56,6 +56,8 @@ class DemoCollections:
                 db.execute('ALTER TABLE demo_metadata ADD COLUMN revision TEXT')
             if 'received_at' not in {r[1] for r in db.execute('PRAGMA table_info(demo_item)')}:
                 db.execute('ALTER TABLE demo_item ADD COLUMN received_at INTEGER')
+            if 'arrival_reviewed_at' not in {r[1] for r in db.execute('PRAGMA table_info(demo_collection)')}:
+                db.execute('ALTER TABLE demo_collection ADD COLUMN arrival_reviewed_at TEXT')
             db.execute('UPDATE demo_item SET received_at=? WHERE received_at IS NULL',
                        (int(datetime.now(timezone.utc).timestamp() * 1_000_000),))
             db.execute('CREATE VIEW IF NOT EXISTS demo_stats_item AS SELECT received_at,machine_id,category FROM demo_item')
@@ -174,6 +176,7 @@ class DemoCollections:
                 db.execute('INSERT INTO demo_event(collection_id,item_id,status,at) VALUES(?,?,?,?)', (cid, iid, '본센터 보관', timestamp))
                 db.execute('UPDATE demo_alert SET resolved_at=? WHERE collection_id=? AND item_id=?', (timestamp, cid, iid))
                 members[iid] = True
+            db.execute('UPDATE demo_collection SET arrival_reviewed_at=? WHERE collection_id=?', (timestamp, cid))
             for iid, arrived in members.items():
                 if not arrived:
                     db.execute('INSERT OR IGNORE INTO demo_alert(collection_id,item_id,created_at) VALUES(?,?,?)', (cid, iid, timestamp))
