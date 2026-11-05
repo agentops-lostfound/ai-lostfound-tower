@@ -20,8 +20,8 @@ import urllib.request
 from collections import Counter
 from typing import Callable, TypedDict
 
-FOCUSES = ("overall", "failures", "robot", "speed")
-FOCUS_LABEL = {"overall": "전체 현황", "failures": "실패·보류 원인", "robot": "로봇팔 동작", "speed": "처리 시간"}
+FOCUSES = ("overall", "failures", "robot", "speed", "chatbot")
+FOCUS_LABEL = {"overall": "전체 현황", "failures": "실패·보류 원인", "robot": "로봇팔 동작", "speed": "처리 시간", "chatbot": "AI 챗봇 운영(LLMOps)"}
 DECISION_LABEL = {"returned": "반환 완료", "rejected": "반환 거절(안전 규칙)", "staff_check": "확인 필요로 넘김",
                   "stopped": "로봇 정지"}
 STAGE_LABEL = {"claim": "찾기 요청·확인 질문", "approve": "메인 AI 승인", "visit": "방문·신분 확인", "topview": "탑뷰 촬영",
@@ -30,7 +30,7 @@ STAGE_LABEL = {"claim": "찾기 요청·확인 질문", "approve": "메인 AI �
 ROBOT_STAGES = {"approach", "grasp", "deliver", "handover"}
 MAX_STEPS = 8          # 감독자 무한 반복 방지
 
-OPS_RE = re.compile(r"반환|실패|보류|원인|현황|통계|요약|보고|로봇|집기|정지|경보|알림|처리\s*시간|속도|느려|"
+OPS_RE = re.compile(r"반환|실패|보류|원인|현황|통계|요약|보고|로봇|챗봇|집기|정지|경보|알림|처리\s*시간|속도|느려|"
                     r"몇\s*건|분석|관제|이야기|사례")
 
 
@@ -57,7 +57,12 @@ class TowerReader:
         return json.loads(raw)
 
     def collect(self) -> dict:
-        return {"returns": self._get("/returns?limit=100"), "live": self._get("/live/state")}
+        data = {"returns": self._get("/returns?limit=100"), "live": self._get("/live/state")}
+        try:      # 11/5 챗봇 운영 지표(LLMOps) — 챗봇 주소가 없는 예전 관제탑이면 건너뜀
+            data["chat"] = self._get("/chat/metrics")
+        except Exception:
+            data["chat"] = None
+        return data
 
 
 # ---------------------------------------------------------------- 분석자(analyst): 고정 계산
@@ -92,16 +97,48 @@ def analyze(data: dict, focus: str = "overall") -> dict:
         "robot_stopped": decisions.get("stopped", 0),
         "alerts_total": sum(alerts.values()),
         "top_alerts": [{"alert": k, "count": v} for k, v in alerts.most_common(3)],
+        "chat": chat_facts(data.get("chat")),
     }
     facts["findings"] = findings(facts)
     return facts
 
 
+def chat_facts(m) -> dict | None:
+    """/chat/metrics → 보고서용 숫자(질문 원문은 원래 없다)."""
+    if not isinstance(m, dict) or not isinstance(m.get("requests"), dict):
+        return None
+    q = m["requests"].get("question") or {}
+    ls = m["requests"].get("lost_search") or {}
+    rates = m.get("rates_pct") or {}
+    return {"questions": q.get("total", 0), "question_errors": q.get("error", 0), "p50_ms": q.get("p50_ms"),
+            "p95_ms": q.get("p95_ms"), "searches": ls.get("total", 0), "answered_pct": rates.get("answered"),
+            "pending_policy_pct": rates.get("pending_policy"), "not_understood_pct": rates.get("not_understood"),
+            "generated": (m.get("generation") or {}).get("generated", 0)}
+
+
+def chat_findings(c) -> list[str]:
+    if not c or not c["questions"]:
+        return []
+    out = [f"챗봇 질문 {c['questions']}건, 응답 시간 p95 {c['p95_ms']}ms"]
+    if c["pending_policy_pct"] is not None and c["pending_policy_pct"] >= 30:
+        out.append(f"확정되지 않은 운영값이 섞인 답 {c['pending_policy_pct']}% — 운영값(운영시간·보관기간 등) 확정 필요")
+    if c["not_understood_pct"] is not None and c["not_understood_pct"] >= 20:
+        out.append(f"챗봇이 질문을 못 알아들은 비율 {c['not_understood_pct']}% — 지식 주제 보강 필요")
+    if c["question_errors"]:
+        out.append(f"챗봇 오류 {c['question_errors']}건 — 관제탑 PC 설치·모델 상태 확인")
+    if c["p95_ms"] is not None and c["p95_ms"] > 5000:
+        out.append("챗봇 응답이 느림(p95 5초 초과) — 모델 크기·동시 사용 확인")
+    return out
+
+
 def findings(f: dict) -> list[str]:
     """규칙으로 뽑은 핵심 발견(보고서 뼈대)."""
     out = []
+    chat = chat_findings(f.get("chat"))
     if not f["returns_total"] and not f["stories_total"]:
-        return ["아직 관제 기록이 없습니다(관제탑을 막 켰거나 시연 전)."]
+        if not chat:
+            return ["아직 관제 기록이 없습니다(관제탑을 막 켰거나 시연 전)."]
+        return chat + ["반환·이야기 기록은 아직 없습니다."]
     if f["returned_rate_pct"] is not None:
         out.append(f"반환 {f['returns_total']}건 중 반환 완료 비율 {f['returned_rate_pct']}%")
     if f["top_reasons"]:
@@ -116,6 +153,7 @@ def findings(f: dict) -> list[str]:
         out.append(f"처리 시간 편차 큼: 평균 {f['seconds_avg']}초, 최대 {f['seconds_max']}초")
     if f["stories_running"]:
         out.append(f"아직 끝나지 않은 이야기 {f['stories_running']}건")
+    out += chat
     return out or ["눈에 띄는 문제가 없습니다."]
 
 
@@ -134,6 +172,13 @@ def template_report(f: dict, question: str) -> str:
         lines += ["", "## 막힌 단계"] + [f"- {s['stage']}: {s['count']}건" for s in f["fail_stages"]]
     if f["focus"] in ("failures", "robot") and f["top_alerts"]:
         lines += ["", "## 자주 난 경보"] + [f"- {a['alert']}: {a['count']}건" for a in f["top_alerts"]]
+    c = f.get("chat")
+    if c and (c["questions"] or c["searches"]) and f["focus"] in ("chatbot", "overall"):
+        lines += ["", "## AI 챗봇 운영(LLMOps)",
+                  f"- 질문 {c['questions']}건(오류 {c['question_errors']}) · 후보 찾기 {c['searches']}건",
+                  f"- 응답 시간 p50 {c['p50_ms']}ms · p95 {c['p95_ms']}ms",
+                  f"- 확정 답 {c['answered_pct']}% · 운영값 미정 섞임 {c['pending_policy_pct']}% · 못 알아들음 {c['not_understood_pct']}%",
+                  f"- 모델이 다듬은 답 {c['generated']}건(0 이면 문서 원문 안내)"]
     lines += ["", "_관제탑 기록에서 계산한 숫자만 썼습니다(사례 번호·물건 번호 외 개인정보 없음)._"]
     return "\n".join(lines)
 
@@ -180,7 +225,7 @@ class OpsAnalyst:
 
     def planner(self, s: OpsState) -> OpsState:
         q = s["question"]
-        focus = ("robot" if re.search(r"로봇|집기|정지|팔", q) else "failures" if re.search(r"실패|보류|원인|거절|막", q)
+        focus = ("chatbot" if re.search(r"챗봇|답변|LLMOps|질문\s*처리", q) else "robot" if re.search(r"로봇|집기|정지|팔", q) else "failures" if re.search(r"실패|보류|원인|거절|막", q)
                  else "speed" if re.search(r"시간|속도|느려|오래", q) else "overall")
         used = list(s.get("used_llm", []))
         if self.llm and self.model:

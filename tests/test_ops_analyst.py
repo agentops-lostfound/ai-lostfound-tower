@@ -119,6 +119,51 @@ class AnalyzeTests(unittest.TestCase):
         self.assertFalse(numbers_ok("반환 완료 비율 87%", f))          # 계산에 없는 숫자
 
 
+def _chat_snapshot():
+    """진짜 ChatMetrics 로 만든 /chat/metrics 응답(질문 4건 + 후보 찾기 1건)."""
+    from agents.chat_metrics import ChatMetrics
+    m = ChatMetrics(clock=lambda: 1000.0)
+    for ms, st in ((120, "answered"), (300, "policy_pending"), (90, "not_found"), (6200, "answered")):
+        m.record("question", ms, result={"status": st, "agent": "guidance", "generation_status": "model_not_configured"})
+    m.record("question", 15, outcome="error")
+    m.record("lost_search", 40, result={"status": "items_found"})
+    return m.snapshot()
+
+
+class ChatbotMetricsTests(unittest.TestCase):
+    def test_chat_numbers_in_facts_and_report(self):
+        data = dict(DATA, chat=_chat_snapshot())
+        f = analyze(data, "chatbot")
+        c = f["chat"]
+        self.assertEqual((c["questions"], c["question_errors"], c["searches"]), (5, 1, 1))
+        self.assertEqual((c["answered_pct"], c["pending_policy_pct"], c["not_understood_pct"]), (50, 25, 25))
+        self.assertTrue(any("챗봇 오류 1건" in x for x in f["findings"]))
+        self.assertTrue(any("못 알아들은 비율 25%" in x for x in f["findings"]))
+        self.assertTrue(any("p95 5초 초과" in x for x in f["findings"]))
+        report = template_report(f, "챗봇 운영 요약")
+        self.assertIn("## AI 챗봇 운영(LLMOps)", report)
+        self.assertIn("후보 찾기 1건", report)
+        self.assertTrue(numbers_ok(report, f))                       # 보고서 숫자는 모두 계산 결과
+
+    def test_old_tower_without_chat_metrics(self):
+        for chat in (None, {"ok": True}, "고장"):
+            f = analyze(dict(DATA, chat=chat), "overall")
+            self.assertIsNone(f["chat"])
+            self.assertNotIn("LLMOps", template_report(f, "현황"))
+        self.assertIsNone(analyze(DATA)["chat"])                    # 예전 기록(chat 키 없음)
+
+    def test_chat_only_records(self):
+        f = analyze({"returns": [], "live": {}, "chat": _chat_snapshot()}, "chatbot")
+        self.assertEqual(f["findings"][-1], "반환·이야기 기록은 아직 없습니다.")
+        self.assertTrue(f["findings"][0].startswith("챗봇 질문 5건"))
+
+    def test_chatbot_focus_route(self):
+        out = OpsAnalyst(reader=Reader(dict(DATA, chat=_chat_snapshot()))).run("챗봇 답변 상태 요약해줘")
+        self.assertTrue(out["accepted"])
+        self.assertEqual(out["focus"], "chatbot")
+        self.assertIn("# 관제 분석 보고 — AI 챗봇 운영(LLMOps)", out["report"])
+
+
 class GraphTests(unittest.TestCase):
     def test_off_topic_is_refused_without_reading(self):
         r = Reader(DATA)

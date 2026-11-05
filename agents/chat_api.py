@@ -7,6 +7,8 @@
     POST /chat/questions      {"question": "...", "history": ["이전 질문", ...최대 4개]} → 답변·근거·후보 카드
     GET  /chat/suggestions    추천 질문 목록
     GET  /chat/health         챗봇 준비 상태(문서 RAG 모델·검색 모드)
+    GET  /chat/metrics        챗봇 운영 지표(LLMOps): 건수·응답 시간 p50/p95·결과 비율 — 질문 원문은 저장 안 함(agents/chat_metrics.py)
+    POST /api/lost/search     분실물 후보 찾기(키오스크·분실인 웹·챗봇 공용 엔진, 11/5) — docs/contracts/lost_search_api.md
     GET  /chat-widget/widget.js   채팅 위젯 스크립트(web/chat-widget/widget.js)
     GET  /chat-widget/demo        위젯 시험 페이지(web/chat-widget/index.html)
 
@@ -22,6 +24,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIDGET_DIR = os.path.join(ROOT, "web", "chat-widget")
@@ -72,7 +75,14 @@ def add_chat_routes(app, chatbot=None) -> None:
     from fastapi import Body, Header, HTTPException
     from fastapi.responses import FileResponse, HTMLResponse
 
+    from agents.chat_metrics import ChatMetrics
+
     holder = chatbot if isinstance(chatbot, LazyChatbot) else LazyChatbot(lambda: chatbot) if chatbot else LazyChatbot()
+    metrics = ChatMetrics()
+    try:
+        app.state.chat_metrics = metrics      # 시험에서 꺼내 볼 수 있게(가짜 앱에는 state 가 없음)
+    except AttributeError:
+        pass
 
     def bot():
         try:
@@ -83,16 +93,74 @@ def add_chat_routes(app, chatbot=None) -> None:
     @app.post("/chat/questions")
     def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None)) -> dict:
         """AI 챗봇 질문. 본문 {question, history?(이전 질문 최대 4개), suggestion_id?, search_context?}"""
-        b = bot()
+        t0 = time.perf_counter()
+        try:
+            b = bot()
+        except HTTPException:
+            metrics.record("question", (time.perf_counter() - t0) * 1000, "error")
+            raise
         token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
         try:
             result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"))
         except ValueError as e:
+            metrics.record("question", (time.perf_counter() - t0) * 1000, "rejected")
             raise HTTPException(status_code=422, detail=str(e)) from None
         except RuntimeError:
+            metrics.record("question", (time.perf_counter() - t0) * 1000, "error")
             raise HTTPException(status_code=503, detail="챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요") from None
+        metrics.record("question", (time.perf_counter() - t0) * 1000, "ok", result)
         b.guidance.record_suggestion(body.get("suggestion_id"), body.get("question"))
         return result
+
+    @app.post("/api/lost/search")
+    def lost_search(body: dict = Body(...), authorization: str | None = Header(default=None)) -> dict:
+        """분실물 후보 찾기(공용 엔진). 본문 {category, color?, lost_date?(YYYY-MM-DD), lost_line?(1호선), lost_station?, description?}
+        → {status, message, candidates[{candidate_no, category, color}], search_result_id, database_mode}
+        - 가상 DB 모드는 누구나, 실제 팀 DB 모드는 서버가 확인한 본인인증 세션(Authorization: Bearer)이 있어야 401 이 아님
+        - 후보에는 접수 번호·역·사진·점수가 없다. 고른 후보의 실제 접수 번호는 서버 안에서만 resolve_candidate 로 얻는다"""
+        t0 = time.perf_counter()
+        try:
+            b = bot()
+        except HTTPException:
+            metrics.record("lost_search", (time.perf_counter() - t0) * 1000, "error")
+            raise
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=422, detail="본문은 객체여야 합니다")
+        fields = {k: body.get(k) for k in ("category", "color", "lost_date", "lost_line", "lost_station") if body.get(k) is not None}
+        extra = set(body) - {"category", "color", "lost_date", "lost_line", "lost_station", "description"}
+        description = body.get("description")
+        if extra or not fields.get("category") or (description is not None and not isinstance(description, str)):
+            metrics.record("lost_search", (time.perf_counter() - t0) * 1000, "rejected")
+            raise HTTPException(status_code=422, detail="본문: category(필수)·color·lost_date·lost_line·lost_station·description 만 사용할 수 있습니다")
+        question = (description or "").strip() or " ".join(x for x in (fields.get("color"), fields["category"]) if x)
+        token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
+        try:
+            res = b.search.ask(question[:500], token, fields)
+        except ValueError as e:
+            metrics.record("lost_search", (time.perf_counter() - t0) * 1000, "rejected")
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        metrics.record("lost_search", (time.perf_counter() - t0) * 1000, "ok", res)
+        status = res.get("status")
+        if status == "authentication_required":
+            raise HTTPException(status_code=401, detail=res.get("answer"))
+        if status == "search_unavailable":
+            raise HTTPException(status_code=503, detail=res.get("answer"))
+        return {"status": status, "message": res.get("answer"), "candidates": res.get("candidates", []),
+                "search_result_id": res.get("search_result_id"), "database_mode": res.get("database_mode"),
+                "search_filter": res.get("search_filter"), "item_search_performed": res.get("item_search_performed", False),
+                "reservation_created": False}
+
+    @app.get("/chat/metrics")
+    def chat_metrics() -> dict:
+        """챗봇 운영 지표(LLMOps) — 질문 원문 없이 건수·응답 시간·결과 비율만"""
+        snap = metrics.snapshot()
+        try:
+            b = holder._bot
+            snap["config"] = {"rag_model": getattr(getattr(b, "rag", None), "model", None) if b else None,
+                              "search_mode": b.search.mode if b else None}
+        except Exception:
+            snap["config"] = {}
+        return snap
 
     @app.get("/chat/suggestions")
     def chat_suggestions() -> dict:

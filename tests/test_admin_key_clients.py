@@ -71,7 +71,7 @@ class AdminKeyClientsTest(unittest.TestCase):
         data = TowerReader(self.base, admin_key=KEY).collect()
         self.assertIn("returns", data)
         self.assertEqual([(m, p.split("?")[0], k) for m, p, k in Handler.seen],
-                         [("GET", "/returns", KEY), ("GET", "/live/state", KEY)])
+                         [("GET", "/returns", KEY), ("GET", "/live/state", KEY), ("GET", "/chat/metrics", KEY)])
 
     def test_key_from_env(self):
         from tools.lostfound_bot import TowerClient
