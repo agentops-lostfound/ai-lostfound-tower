@@ -76,3 +76,6 @@ Thumbs.db
 *.[fF][lL][aA][cC]
 *.[oO][gG][gG]
 *.[wW][eE][bB][mM]
+
+# Claude Code 플러그인 oh-my-claudecode(OMC)의 개인 작업 기록(세션·상태·메모리) — 커밋하지 않음
+.omc/

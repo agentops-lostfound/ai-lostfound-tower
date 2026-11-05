@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from center.collections import CollectionError, item_ids
+from agents.contracts import MACHINE_LETTERS
 
 
 def now():
@@ -67,6 +68,15 @@ class DemoCollections:
             db.execute('UPDATE demo_metadata SET revision=? WHERE revision IS NULL', (secrets.token_hex(16),))
             if not db.execute('SELECT 1 FROM demo_place').fetchone():
                 self._seed_places(db)
+            # KIOSK-C uses S (Seomyeon), keeping C reserved for claim IDs.
+            canonical = MACHINE_LETTERS['KIOSK-C'] + '-W01'
+            legacy = db.execute("SELECT 1 FROM demo_item WHERE item_id='C-W01' AND machine_id='KIOSK-C'").fetchone()
+            if legacy and canonical != 'C-W01':
+                if db.execute('SELECT 1 FROM demo_item WHERE item_id=?', (canonical,)).fetchone():
+                    raise CollectionError('서면 시연 물건 번호가 중복되었습니다. 기록 확인이 필요합니다')
+                for table in ('demo_item', 'demo_member', 'demo_alert', 'demo_event'):
+                    db.execute('UPDATE '+table+' SET item_id=? WHERE item_id=?', (canonical, 'C-W01'))
+                db.execute('UPDATE demo_metadata SET revision=? WHERE version=1', (secrets.token_hex(16),))
 
     @contextmanager
     def connection(self, write=False):
@@ -97,7 +107,7 @@ class DemoCollections:
             ('A-W03', 'KIOSK-A', '립밤', '흰색', '등록기계 보관'),
             ('B-W01', 'KIOSK-B', '모형폰', '검정', '등록기계 보관'),
             ('B-W02', 'KIOSK-B', '보조배터리', '흰색', '등록기계 보관'),
-            ('C-W01', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')]
+            (MACHINE_LETTERS['KIOSK-C']+'-W01', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')]
         timestamp = int(datetime.now(timezone.utc).timestamp() * 1_000_000)
         db.executemany('INSERT INTO demo_item(item_id,machine_id,category,color,status,received_at) VALUES(?,?,?,?,?,?)',
                        [(*row, timestamp) for row in rows])

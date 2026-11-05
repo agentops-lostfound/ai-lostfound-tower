@@ -21,6 +21,7 @@
 - 직원 화면: POST /returns/{case_id}/handover — 바구니의 물건을 분실인에게 건넨 뒤 인계 완료로(11/4)
             POST /returns/{case_id}/hold — 건네지 않기로 함(이유 4개 중 하나) → 반환 보류
             POST /robot/stop (반환 진행 중에도) · POST /robot/home (주변 확인 뒤, 진행 중이면 409)
+- 화면 3개: GET /kiosk?machine=KIOSK-A(습득자) · GET /lost(분실자 시안) · GET /staff(직원)
 - 실시간 화면: GET /live (보관함·로봇팔·진행) · GET /live/state · 가상 시연 POST /sim/found · /sim/lost · /sim/reset
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
@@ -40,6 +41,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAFF_PAGE = os.path.join(ROOT, "web", "staff-desk", "index.html")
 LIVE_PAGE = os.path.join(ROOT, "web", "live", "index.html")     # 11/4 실시간 화면(보관함·로봇팔·진행)
 # 등록기계 화면(11/4): intake_machine/index.html 이 생기면 그것을, 아니면 지금 화면 시안(web/found-item-intake.html)을 연다
+KIOSK_PAGE = os.path.join(ROOT, "web", "found-item-kiosk.html")           # 11/4 습득자 키오스크(재민 님 시안을 관제탑 API 에 연결)
+LOST_PAGE = os.path.join(ROOT, "web", "remote-lost-item-claim.html")      # 11/4 분실자 비대면 반환 화면(시안)
 INTAKE_PAGES = [os.path.join(ROOT, "intake_machine", "index.html"), os.path.join(ROOT, "web", "found-item-intake.html")]
 
 
@@ -262,6 +265,20 @@ def build_app(service: TowerService | None = None):
                 with open(path, encoding="utf-8") as f:
                     return HTMLResponse(f.read())
         raise HTTPException(status_code=404, detail="등록기계 화면 파일 없음")
+
+    @app.get("/kiosk", include_in_schema=False)
+    def kiosk_page():
+        """습득자 키오스크 화면(재민 님 시안). 같은 주소에서 열려 /places·/items 를 바로 부른다. 기계는 ?machine=KIOSK-A"""
+        from fastapi.responses import HTMLResponse
+        with open(KIOSK_PAGE, encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+
+    @app.get("/lost", include_in_schema=False)
+    def lost_page():
+        """분실자 비대면 반환 화면(시안, 서버 연결 전)"""
+        from fastapi.responses import HTMLResponse
+        with open(LOST_PAGE, encoding="utf-8") as f:
+            return HTMLResponse(f.read())
 
     @app.get("/staff", include_in_schema=False)
     def staff_page():

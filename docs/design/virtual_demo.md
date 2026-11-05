@@ -91,6 +91,25 @@ python -m unittest discover -s tests          # 통과 확인
 - 디스코드 없이 연습: `/live` 왼쪽 **시험 입력** 또는 `python tools/lostfound_bot.py --try "서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"`
 - 끝나면 `.env` 의 `TOWER_SIM=` 을 비우고 관제탑을 다시 켜면 원래(진짜 부품·DB) 모드
 
+### 4-2-1. 다른 PC 에서 화면 열기 (교육원 네트워크, 시험할 때만, 11/5)
+관제탑은 기본으로 이 PC 안(127.0.0.1)에서만 열린다. 팀원 PC 에서 화면을 보려면 두 가지를 같이 한다.
+1. 관제탑을 `tools\start_tower.bat lan` 으로 켠다(0.0.0.0 — 같은 네트워크 누구나 접속)
+2. 관리자 PowerShell 에서 방화벽 허용 규칙을 교육원 대역으로만 연다
+   ```powershell
+   New-NetFirewallRule -DisplayName "LostFound 8100 (2jo, 10.10.21.0/24)" -Direction Inbound -Protocol TCP -LocalPort 8100 -RemoteAddress 10.10.21.0/24 -Action Allow
+   ```
+
+| 누가 보나 | 주소(관제탑 PC 주소:8100) |
+| --- | --- |
+| 습득자(등록기계) | `/intake?machine=KIOSK-A` · `/kiosk?machine=KIOSK-A` |
+| 분실인 | `/lost` |
+| 본센터 직원 | `/staff` |
+| 관제 | `/live` |
+
+- 로그인이 없다 → 직원 화면의 정지·인계 버튼도 누구나 누를 수 있다. 가상 시연(`TOWER_SIM=1`)일 때만, 시험하는 동안만 연다
+- 끝나면: 관제탑 Ctrl+C → `tools\start_tower.bat`(기본) · 관리자 PowerShell `Get-NetFirewallRule -DisplayName "LostFound*" | Remove-NetFirewallRule`
+- Windows 방화벽 자체는 끄지 않는다(11/4 꺼져 있던 것을 다시 켬)
+
 ## 4-3. 로봇팔 구성 — SO-101 리더·팔로워 (11/4 실물 사진 확인)
 
 | | 리더(검정) | 팔로워(흰색) |

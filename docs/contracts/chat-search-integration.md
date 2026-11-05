@@ -69,4 +69,11 @@ item_id = agent.resolve_candidate(search_result_id, candidate_no, verified_sessi
 
 ## DB 구분
 
-이 조회 연결부는 `center/schema.sql`의 `item`, `machine` 표를 대상으로 한다. 새 Docker 샘플의 `backend/init.sql`은 `items` 등 별도 표를 사용하는 다른 스캐폴드다. 같은 DB라고 가정해 접속하거나 자동 변환하지 않는다. 실제 팀 DB를 변경하거나 마이그레이션하는 작업은 이번 준비에 포함하지 않았다.
+이 조회 연결부는 `center/schema.sql`의 `item`, `machine` 표를 대상으로 한다. 11/5 main `61143d5` 기준 Docker의 기본 `app-web`은 `/api/`를 관제탑 API(기본 8100)로 전달하며 별도 app-api/app-db를 기본으로 켜지 않는다. `backend/init.sql`의 `items` 표를 쓰는 예전 샘플은 `standalone` 프로필에만 남아 있다. 따라서 기본 Docker 화면을 별도 DB로 오해하지 않되, standalone DB를 팀 DB로 가정해 자동 변환하지 않는다. 실제 팀 DB를 변경하거나 마이그레이션하는 작업은 이번 준비에 포함하지 않았다.
+
+## 11/5 팀 화면 최신화에 따른 경계
+
+- 관제탑 `/kiosk`·`/intake`는 팀 접수 API에 연결됐으며 KIOSK-C도 지원한다. Docker 기본 화면은 같은 관제탑에 접수한다. LF-9의 가상 회수·장소·통계 DB에는 자동 복제되지 않는다.
+- 관제탑 `/lost`는 현재 서버 연결 전 화면 시안이다. 화면이나 `POST /claims`가 있다는 사실을 검증된 본인인증 세션이 준비됐다는 뜻으로 해석하지 않는다. `claim_id`와 클라이언트의 `id_verified`/`consent`/퀴즈 결과를 Bearer 인증 세션으로 사용하지 않는다.
+- LF-5 도우미는 로컬 8111, LF-9 독립 관리 시연은 로컬 8110이다. 관제탑의 `/places`는 배열, 관리 시연의 `/places`는 페이지 메타데이터가 있는 객체다. 같은 이름의 경로를 주소만 바꿔 연결하지 않는다.
+- 이번 main의 LAN 옵션은 관제탑 시연용이다. LF-5/LF-9의 로컬 Host/Origin 검사와 127.0.0.1 바인딩을 해제하지 않는다. 실제 공동 접속에는 직원 인증·권한·프록시 경로 계약을 별도로 연결해야 한다.

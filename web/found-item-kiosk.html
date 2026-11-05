@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>분실물 접수 키오스크 (미리보기)</title>
+<style>
+:root{--bg:#f4f2ea;--surface:#fff;--ink:#102235;--muted:#566677;--line:#cfcabb;--accent:#17803a;--accent-ink:#fff;--soft:#e2f1e7;--warn:#9c1c14;--warn-bg:#fdeceb}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:500 28px/1.45 "Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+input{-webkit-user-select:text;user-select:text}
+#app{height:100%;display:flex;flex-direction:column;padding:24px 40px 32px;max-width:1100px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;font-size:24px;font-weight:700;color:var(--muted)}
+.prog{display:flex;gap:8px}
+.prog i{width:56px;height:10px;border-radius:5px;background:var(--line)}
+.prog i.on{background:var(--accent)}
+section{flex:1;display:none;flex-direction:column;justify-content:center;gap:24px;min-height:0}
+section.on{display:flex}
+h1{font-size:46px;line-height:1.25;margin:0;font-weight:900;letter-spacing:-.02em}
+p{margin:0}
+.sub{color:var(--muted);font-size:26px}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:16px;padding:16px 22px;font-weight:700}
+.legal{background:var(--soft);border-radius:16px;padding:16px 22px;font-size:25px}
+.err{background:var(--warn-bg);color:var(--warn);border:2px solid var(--warn);border-radius:16px;padding:16px 22px;font-weight:700;display:none}
+.err.on{display:block}
+video{width:100%;max-height:34vh;object-fit:cover;border-radius:20px;background:#000}
+video[hidden]{display:none}
+button{font:inherit;font-weight:900;border:0;border-radius:20px;min-height:92px;padding:0 36px;cursor:pointer;background:var(--accent);color:var(--accent-ink);font-size:34px}
+button:disabled{opacity:.4;cursor:default}
+button.ghost{background:var(--surface);color:var(--ink);border:3px solid var(--line)}
+button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-offset:3px}
+.row{display:flex;gap:16px}
+.row button{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:14px}
+.chips button{min-height:76px;font-size:30px;font-weight:700;padding:0 28px;background:var(--surface);color:var(--ink);border:3px solid var(--line)}
+.chips button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+input[type=text],input[type=tel]{width:100%;font:inherit;font-size:32px;min-height:84px;padding:0 22px;border-radius:18px;border:3px solid var(--line);background:var(--surface);color:var(--ink)}
+.thumb{display:flex;align-items:center;gap:20px;font-size:24px;color:var(--muted)}
+.thumb img{height:100px;border-radius:12px}
+.thumb button{min-height:64px;font-size:24px;padding:0 22px}
+.receipt{font-size:clamp(48px,9vw,96px);font-weight:900;letter-spacing:.02em;text-align:center;background:var(--surface);border:4px solid var(--accent);border-radius:28px;padding:28px 12px;font-variant-numeric:tabular-nums}
+.center{text-align:center}
+@media (prefers-reduced-motion:no-preference){button:active{transform:scale(.98)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><span id="stn"></span><div class="prog" id="prog"><i></i><i></i><i></i><i></i></div></header>
+  <section id="s1" class="on">
+    <h1>물건을 상자에 넣고<br>문을 닫아 주세요</h1>
+    <video id="cam" playsinline muted hidden></video>
+    <p class="note">현금·위험물은 역무실로</p>
+    <button id="shoot">찍기</button>
+  </section>
+  <section id="s2">
+    <h1>어디에서 발견하셨나요?</h1>
+    <div class="chips" id="chips"></div>
+    <input type="text" id="place" maxlength="40" placeholder="다른 곳이면 직접 입력" autocomplete="off">
+    <div class="thumb"><img id="thumb" alt="찍은 사진"><button class="ghost" id="retake">다시 찍기</button></div>
+    <button id="next2" disabled>다음</button>
+  </section>
+  <section id="s3">
+    <h1>연락처를 남기시겠어요?</h1>
+    <p class="sub">이름과 전화번호 모두 선택 사항이에요.</p>
+    <input type="text" id="cname" maxlength="20" placeholder="이름" autocomplete="off">
+    <input type="tel" id="cphone" inputmode="numeric" maxlength="13" placeholder="전화번호" autocomplete="off">
+    <p class="legal">주인이 찾아가면 감사 연락에만 씁니다. 인계 30일 뒤 자동 삭제됩니다.</p>
+    <p class="err" id="err" role="alert"></p>
+    <div class="row"><button class="ghost" id="skip">건너뛰기</button><button id="send">보내기</button></div>
+  </section>
+  <section id="s4">
+    <h1 class="center">접수되었습니다</h1>
+    <p class="sub center">접수 번호</p>
+    <div class="receipt" id="rno"></div>
+    <p class="sub center"><span id="count">10</span>초 뒤 처음 화면으로 돌아갑니다</p>
+    <button class="ghost" id="home">처음으로</button>
+  </section>
+</div>
+<canvas id="cv" hidden></canvas>
+<input type="file" id="file" accept="image/*" capture="environment" hidden>
+<script>
+const API = '';
+const KIOSKS = {'KIOSK-A':'해운대','KIOSK-B':'중앙'};
+const RESET_SEC = 10;
+const BUSY_MSG = '잠시 후 다시 시도하거나 역무실로 가 주세요.';
+const $ = s => document.querySelector(s);
+const sections = [...document.querySelectorAll('section')];
+const dots = [...document.querySelectorAll('#prog i')];
+let kiosk = (new URLSearchParams(location.search).get('machine') || new URLSearchParams(location.search).get('kiosk'));
+try { if (kiosk) localStorage.setItem('kiosk', kiosk); else kiosk = localStorage.getItem('kiosk'); } catch (e) {}
+if(!kiosk)kiosk='KIOSK-A';
+const station = KIOSKS[kiosk];
+if (!station) {
+  $('#app').innerHTML = '<section class="on center"><h1>기계 번호를 확인할 수 없어요</h1><p class="sub">관리자에게 알려 주세요. (주소 끝에 ?kiosk=KIOSK-A 형식)</p></section>';
+  throw new Error('unknown kiosk');
+}
+$('#stn').textContent = station + '역 분실물 접수';
+let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
+function go(n) {
+  sections.forEach((s, i) => s.classList.toggle('on', i === n - 1));
+  dots.forEach((d, i) => d.classList.toggle('on', i < n));
+}
+async function startCam() {
+  stopCam();
+  try {
+    if (!navigator.mediaDevices) throw 0;
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}}});
+    $('#cam').srcObject = stream; $('#cam').hidden = false; await $('#cam').play();
+  } catch (e) { stream = null; $('#cam').hidden = true; }
+}
+function stopCam() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; $('#cam').srcObject = null;
+}
+function gotPhoto(blob) {
+  if (photoUrl) URL.revokeObjectURL(photoUrl);
+  photo = blob; photoUrl = URL.createObjectURL(blob); $('#thumb').src = photoUrl;
+  stopCam(); loadPlaces(); go(2);
+}
+$('#shoot').onclick = () => {
+  const v = $('#cam');
+  if (stream && v.videoWidth) {
+    const c = $('#cv'); c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0);
+    c.toBlob(b => b && gotPhoto(b), 'image/jpeg', .9);
+  } else $('#file').click();
+};
+$('#file').onchange = e => { if (e.target.files[0]) gotPhoto(e.target.files[0]); e.target.value = ''; };
+$('#retake').onclick = () => { go(1); startCam(); };
+async function loadPlaces() {
+  const box = $('#chips'); box.textContent = '';
+  try {
+    const r = await fetch(`${API}/places?machine_id=${encodeURIComponent(kiosk)}`);
+    if (!r.ok) throw 0;
+    const d = await r.json();
+    (Array.isArray(d) ? d : d.places || []).forEach(p => {
+      const name = typeof p === 'string' ? p : (p.name || p.label); if (!name) return;
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = name;
+      b.onclick = () => { $('#place').value = ''; setPlace(name); };
+      box.appendChild(b);
+    });
+  } catch (e) {}
+}
+function setPlace(v) {
+  place = v.trim();
+  document.querySelectorAll('#chips button').forEach(b => b.classList.toggle('on', b.textContent === place));
+  $('#next2').disabled = !place;
+}
+$('#place').oninput = e => setPlace(e.target.value);
+$('#next2').onclick = () => { $('#err').classList.remove('on'); go(3); };
+$('#cphone').oninput = e => {
+  const d = e.target.value.replace(/\D/g, '').slice(0, 11);
+  e.target.value = d.length > 7 ? `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}` : d.length > 3 ? `${d.slice(0,3)}-${d.slice(3)}` : d;
+};
+async function reason(r) {
+  try {
+    const d = await r.json(); let x = d.detail ?? d.reason ?? d.message;
+    if (Array.isArray(x)) x = x.map(i => i.msg || i.message || i).join(' / ');
+    if (x && typeof x === 'object') x = x.message || x.msg;
+    if (x) return '접수할 수 없어요: ' + x;
+  } catch (e) {}
+  return '접수할 수 없어요. 사진을 다시 찍어 주세요.';
+}
+function blobToDataUrl(b){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(b)})}
+async function submit(withContact) {
+  if (sending) return; sending = true;
+  const buttons = [$('#skip'), $('#send')]; buttons.forEach(b => b.disabled = true);
+  $('#err').classList.remove('on');
+  const body = {machine_id: kiosk, place_text: place, photo: await blobToDataUrl(photo)};
+  if (withContact) {
+    const n = $('#cname').value.trim(), p = $('#cphone').value.trim();
+    if (n || p) body.finder = {name: n || null, phone: p || null};
+  }
+  try {
+    const r = await fetch(API + '/items', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    if (r.status === 422) throw new Error(await reason(r));
+    if (r.status === 503 || !r.ok) throw new Error(BUSY_MSG);
+    const d = await r.json();
+    done(d.item_id || d.receipt_no || d.receipt_number || d.receipt_id || d.id || '접수 완료');
+  } catch (e) {
+    $('#err').textContent = e instanceof TypeError ? BUSY_MSG : e.message;
+    $('#err').classList.add('on');
+  } finally { sending = false; buttons.forEach(b => b.disabled = false); }
+}
+$('#skip').onclick = () => submit(false);
+$('#send').onclick = () => submit(true);
+function done(no) {
+  $('#rno').textContent = no;
+  $('#cname').value = ''; $('#cphone').value = '';
+  go(4); let n = RESET_SEC; $('#count').textContent = n;
+  clearInterval(timer);
+  timer = setInterval(() => { $('#count').textContent = --n; if (n <= 0) reset(); }, 1000);
+}
+function reset() {
+  clearInterval(timer);
+  if (photoUrl) URL.revokeObjectURL(photoUrl);
+  photo = null; photoUrl = ''; place = ''; $('#place').value = ''; $('#next2').disabled = true;
+  $('#err').classList.remove('on'); go(1); startCam();
+}
+$('#home').onclick = reset;
+startCam();
+</script>
+<p style="position:fixed;right:12px;bottom:8px;font-size:14px;color:#566677;margin:0">미리보기: 서버 없이 가짜 응답으로 동작해요</p>
+</body>
+</html>
