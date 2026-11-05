@@ -1,0 +1,31 @@
+{
+  "schema": "lf-home-profile-v1",
+  "name": "접힌 대기 자세",
+  "revision": 1,
+  "robot_id": "0f876b83-64cd-4bb9-9630-963eaeb3c0b7",
+  "serial": "5B91030622",
+  "unit": "normalized",
+  "joint_order": [
+    "shoulder_pan",
+    "shoulder_lift",
+    "elbow_flex",
+    "wrist_flex",
+    "wrist_roll",
+    "gripper"
+  ],
+  "positions": [
+    -3.8788325786590576,
+    -99.66130065917969,
+    99.72552490234375,
+    99.89959716796875,
+    0.6849315166473389,
+    0.41237112879753113
+  ],
+  "calibration_reference_sha256": "b499cf4d43d903d3b0df393f03056d4006b0d3620226bd13642ff883bf96c858",
+  "pose_selected": true,
+  "selected_by": "user",
+  "selected_date": "2026-11-04",
+  "source_candidate": "home-candidate-cdcea465ae8943daa36edd2d76a46a81.json",
+  "path_verified": false,
+  "motion_enabled": false
+}

@@ -91,6 +91,8 @@ def run_sequence(image, qwen_root, qwen_python, config=None, device="cpu", site_
     print("[1/3] YOLO detection and crop saving...", flush=True)
     report, detection_path = run_image(image, config, device)
     report["captured_at"] = captured_at_of(image, captured_at)
+    if 'coordinate_chain' in report:
+        report['coordinate_chain']['captured_at']=report['captured_at']
     print(f"[1/3] {len(report['objects'])} crops saved: {detection_path.parent}", flush=True)
     report["detection_result_path"] = str(detection_path)
     report["sequence"] = {"status": "running", "visual_accuracy_verified": False,

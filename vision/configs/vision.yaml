@@ -1,4 +1,4 @@
-model: models/yolo26n.pt
+model: models/yolo26m.pt
 device: auto
 confidence: 0.25
 imgsz: 640
@@ -7,8 +7,14 @@ output_dir: outputs/vision
 aruco:
   dictionary: DICT_4X4_50
   # Physical corners in mm, in ArUco decoded order: TL, TR, BR, BL.
-  # Enter surveyed coordinates only. Empty means calibration unavailable.
-  markers_mm: {}
+  # Desk layout: ID0 upper-left, ID1 lower-right; black squares 14x14 mm.
+  # Facing-corner gap: dx=324, dy=150 mm (user measured).
+  # Origin: ID0 physical top-left; +x right, +y down. NOT robot base.
+  # WIN_20261104_17_37_42_Pro.jpg decoded order: physical BL,TL,TR,BR.
+  # Independent physical error checks remain pending.
+  markers_mm:
+    0: [[0, 14], [0, 0], [14, 0], [14, 14]]
+    1: [[338, 178], [338, 164], [352, 164], [352, 178]]
   ransac_threshold_mm: 3.0
   max_reprojection_error_mm: 3.0
   min_inlier_ratio: 0.75

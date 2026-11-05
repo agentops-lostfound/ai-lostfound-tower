@@ -1,0 +1,237 @@
+"""근거리 Home/중단/오류/동시 제어 상태의 무장비 시험."""
+import json
+import unittest
+
+from robot.home_profiles import load_home
+from robot.owner_bridge import OwnerBridge
+from tools.robot_home_return import run_home
+
+
+class Clock:
+    def __init__(self):
+        self.now = 0.
+
+    def sleep(self, duration):
+        self.now += duration
+
+
+class HomeClient:
+    def __init__(self, position):
+        self.position = list(position)
+        self.targets = []
+        self.operations = []
+        self.stop_after = None
+        self.stop_on_status = None
+        self.status_count = 0
+        self.fail_after = None
+        self.bridge = OwnerBridge(send=self.send, hold=lambda: None)
+        self.bridge.tick()
+
+    def send(self, target):
+        self.targets.append(target)
+        self.position = list(target)
+
+    def rpc(self, operation, **fields):
+        self.operations.append(operation)
+        if operation == "status":
+            self.status_count += 1
+            if ((self.stop_after is not None and len(self.targets) >= self.stop_after)
+                    or self.stop_on_status == self.status_count):
+                self.stop_after = None
+                self.bridge.receive(json.dumps({"version": self.bridge.VERSION,
+                    "session": self.bridge.session, "op": "stop"}).encode())
+        if operation == "action" and self.fail_after is not None and len(self.targets) >= self.fail_after:
+            raise TimeoutError("전송 실패")
+        reply = self.bridge.receive(json.dumps({"version": self.bridge.VERSION,
+            "session": self.bridge.session, "op": operation, **fields}).encode())
+        self.bridge.tick()
+        return reply
+
+    def positions(self):
+        return list(self.position)
+
+
+class HomeReturnTests(unittest.TestCase):
+    def setUp(self):
+        self.profile = load_home(store="/nonexistent-test-home-store")
+        start = list(self.profile["positions"])
+        start[0] += .8
+        self.client = HomeClient(start)
+        self.clock = Clock()
+
+    def run_home(self, **options):
+        parameters = dict(expected_session=self.client.bridge.session, expected_epoch=0,
+                          confirmed=True, local_trial=True, sleep=self.clock.sleep,
+                          clock=lambda: self.clock.now)
+        parameters.update(options)
+        return run_home(self.client, self.profile, **parameters)
+
+    def test_return_is_bounded_and_stops_at_home(self):
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_REACHED")
+        self.assertTrue(result["hold_commanded_after_home"])
+        self.assertTrue(result["stop_requested_after_home"])
+        self.assertEqual(self.client.operations.count("resume"), 1)
+        self.assertLessEqual(len(self.client.targets), 60)
+        for target in self.client.targets:
+            self.assertLessEqual(abs(target[0]-result["start"][0]), .8 + 1e-6)
+            self.assertEqual(list(target[1:]), result["start"][1:])
+        self.assertEqual(result["final_positions"], self.profile["positions"])
+
+    def test_stop_during_home_does_not_retry_or_complete_route(self):
+        self.client.stop_after = 8
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_STOPPED")
+        self.assertEqual(len(self.client.targets), 8)
+        self.assertEqual(self.client.operations.count("resume"), 1)
+        self.assertNotEqual(self.client.position, self.profile["positions"])
+        self.assertTrue(result["hold_commanded_after_home"])
+        self.assertEqual(result["post_stop_span_normalized"], [0.] * 6)
+        self.assertEqual(result["post_stop_pan_span_ticks"], 0.)
+
+    def test_already_home_does_not_resume_or_send(self):
+        self.client.position = list(self.profile["positions"])
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ALREADY_REACHED")
+        self.assertNotIn("resume", self.client.operations)
+        self.assertEqual(self.client.targets, [])
+
+    def test_distant_or_other_joint_pose_is_rejected_before_resume(self):
+        for joint, delta in ((0, 1.1), (1, .3), (5, .3)):
+            self.client = HomeClient(self.profile["positions"])
+            self.client.position[joint] += delta
+            with self.assertRaises(RuntimeError):
+                self.run_home()
+            self.assertNotIn("resume", self.client.operations)
+            self.assertEqual(self.client.targets, [])
+
+    def test_no_staff_confirmation_or_wrong_epoch_never_resumes(self):
+        with self.assertRaises(PermissionError):
+            self.run_home(confirmed=False)
+        with self.assertRaises(RuntimeError):
+            self.run_home(expected_epoch=99)
+        self.assertNotIn("resume", self.client.operations)
+
+    def test_stop_during_countdown_cancels_without_motion(self):
+        self.client.stop_on_status = 3
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_STOPPED")
+        self.assertNotIn("resume", self.client.operations)
+        self.assertEqual(self.client.targets, [])
+
+    def test_transmission_error_latches_stop(self):
+        self.client.fail_after = 2
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertTrue(result["stop_requested_after_home"])
+        self.assertEqual(len(self.client.targets), 2)
+        self.assertEqual(self.client.operations.count("resume"), 1)
+
+
+class StationaryHomeTests(unittest.TestCase):
+    setUp = HomeReturnTests.setUp
+    run_home = HomeReturnTests.run_home
+    def test_queued_requests_without_movement_remain_failure(self):
+        start = list(self.client.position)
+        def record_only(target):
+            self.client.targets.append(target)
+        self.client.bridge._gate._send = record_only
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertEqual(result["reason"], "Home 도달 오차 확인 실패")
+        self.assertEqual(result["final_positions"], start)
+        self.assertEqual(result["last_requested_target"][0], self.profile["positions"][0])
+        self.assertEqual(result["request_acknowledgement"], "queued_only")
+        self.assertEqual(result["position_trace"][-1]["sequence"], 60)
+        self.assertTrue(result["hold_commanded_after_home"])
+
+
+class PanToleranceTests(unittest.TestCase):
+    setUp = HomeReturnTests.setUp
+    run_home = HomeReturnTests.run_home
+
+    def set_response(self, start_ticks, residual_ticks):
+        from tools.robot_home_return import PAN_NORMALIZED_PER_TICK
+        target = self.profile["positions"][0]
+        self.client.position[0] = target + start_ticks * PAN_NORMALIZED_PER_TICK
+        def partial(targets):
+            self.client.targets.append(targets)
+            self.client.position[0] = target + residual_ticks * PAN_NORMALIZED_PER_TICK
+        self.client.bridge._gate._send = partial
+
+    def test_six_tick_residual_with_two_tick_progress_is_accepted(self):
+        self.set_response(8, 6)
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_REACHED")
+        self.assertAlmostEqual(result["pan_error_ticks"], 6)
+        self.assertAlmostEqual(result["pan_progress_ticks"], 2)
+        self.assertTrue(result["actual_return_observed"])
+        self.assertTrue(result["movement_required"])
+
+    def test_six_tick_tolerance_never_turns_stationary_pose_into_success(self):
+        self.set_response(4, 4)
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertFalse(result["actual_return_observed"])
+        self.assertEqual(result["sent_targets"], 60)
+
+    def test_one_tick_change_or_seven_tick_error_is_not_success(self):
+        for start, residual in ((6, 5), (9, 7)):
+            self.setUp()
+            self.set_response(start, residual)
+            result = self.run_home()
+            self.assertEqual(result["result"], "HOME_ABORTED")
+
+    def test_rebound_after_stop_is_rechecked(self):
+        from tools.robot_home_return import PAN_NORMALIZED_PER_TICK
+        self.set_response(8, 6)
+        def rebound():
+            self.client.position[0] = self.profile["positions"][0] + 7 * PAN_NORMALIZED_PER_TICK
+        self.client.bridge._gate._hold = rebound
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertIn("유지 후", result["reason"])
+
+    def test_already_home_still_sends_no_commands(self):
+        self.client.position = list(self.profile["positions"])
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ALREADY_REACHED")
+        self.assertFalse(result["movement_required"])
+        self.assertFalse(result["actual_return_observed"])
+        self.assertEqual(result["sent_targets"], 0)
+
+    def test_changed_calibration_hash_blocks_motion(self):
+        self.profile["calibration_reference_sha256"] = "0" * 64
+        with self.assertRaisesRegex(RuntimeError, "보정 해시"):
+            self.run_home()
+        self.assertNotIn("resume", self.client.operations)
+
+
+    def test_other_joint_tolerance_is_not_relaxed_after_hold(self):
+        self.set_response(8, 6)
+        def drift():
+            self.client.position[1] += 0.3
+        self.client.bridge._gate._hold = drift
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertIn("다른 관절", result["reason"])
+
+
+class PostHomeObservationTests(unittest.TestCase):
+    setUp = HomeReturnTests.setUp
+    run_home = HomeReturnTests.run_home
+
+    def test_resume_during_post_stop_observation_aborts_result(self):
+        self.client.stop_after = 8
+        original_positions = self.client.positions
+        def changing():
+            if self.client.bridge.status()["stop_requested"] and len(self.client.targets):
+                status = self.client.bridge.status()
+                self.client.bridge.receive(json.dumps({"version": self.client.bridge.VERSION,
+                    "session": self.client.bridge.session, "op": "resume", "epoch": status["epoch"],
+                    "writer": "other", "staff_confirmed": True}).encode())
+            return original_positions()
+        self.client.positions = changing
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertIn("관측 중 상태 변경", result["reason"])
