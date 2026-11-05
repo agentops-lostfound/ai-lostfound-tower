@@ -61,9 +61,9 @@ class LazyChatbot:
                     try:
                         self._bot = self._factory()
                         self.error = None
-                    except Exception as e:     # langgraph 미설치·문서 파일 없음 등
-                        self.error = f"{type(e).__name__}: {e}"
-                        raise RuntimeError("챗봇을 준비하지 못했습니다. 관제탑 PC 의 설치 상태를 확인하세요") from e
+                    except Exception:     # Never retain/return model or DB error text.
+                        self.error = "챗봇을 준비하지 못했습니다. 관제탑 PC의 설치·설정을 확인하세요"
+                        raise RuntimeError(self.error) from None
         return self._bot
 
 
@@ -77,8 +77,8 @@ def add_chat_routes(app, chatbot=None) -> None:
     def bot():
         try:
             return holder.get()
-        except RuntimeError as e:
-            raise HTTPException(status_code=503, detail=str(e)) from None
+        except RuntimeError:
+            raise HTTPException(status_code=503, detail="챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요") from None
 
     @app.post("/chat/questions")
     def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None)) -> dict:
@@ -89,8 +89,8 @@ def add_chat_routes(app, chatbot=None) -> None:
             result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
-        except RuntimeError as e:
-            raise HTTPException(status_code=503, detail=str(e)) from None
+        except RuntimeError:
+            raise HTTPException(status_code=503, detail="챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요") from None
         b.guidance.record_suggestion(body.get("suggestion_id"), body.get("question"))
         return result
 

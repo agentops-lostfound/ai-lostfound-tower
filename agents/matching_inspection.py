@@ -63,9 +63,14 @@ class MatchingInspection:
             return result('clarification_needed', 'description_requires_review')
         try:
             if (not isinstance(report, dict) or not isinstance(report.get('objects'), list)
-                    or not 1 <= len(report['objects']) <= 50
-                    or len(json.dumps(report, allow_nan=False).encode()) > 2_000_000):
+                    or not 1 <= len(report['objects']) <= 50):
                 return result('inspection_unavailable', 'invalid_scene')
+            encoded = json.dumps(report, allow_nan=False)
+            if len(encoded.encode()) > 2_000_000:
+                return result('inspection_unavailable', 'invalid_scene')
+            # The producer may refresh its buffers while translation is running.
+            # Keep exactly the validated scene for this inspection only.
+            report = json.loads(encoded)
         except (TypeError, ValueError, RecursionError):
             return result('inspection_unavailable', 'invalid_scene')
         try:
