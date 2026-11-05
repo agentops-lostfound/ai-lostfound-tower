@@ -1,22 +1,50 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 class Element{
- constructor(){this.children=[];this.hidden=false;this.disabled=false;this.value='';this.textContent='';this.classList={toggle(){}};}
+ constructor(){this.children=[];this.attributes={};this.hidden=false;this.disabled=false;this.value='';this.textContent='';this.classList={toggle(){}};}
  append(...children){this.children.push(...children);}
  replaceChildren(...children){this.children=[...children];}
- setAttribute(){}
+ setAttribute(key,value){this.attributes[key]=value;}
+ getAttribute(key){return this.attributes[key]??null;}
+ contains(node){return this===node||this.children.some(child=>child.contains(node));}
+ querySelectorAll(){return this.children.flatMap(child=>[...(child.getAttribute('data-focus-key')?[child]:[]),...child.querySelectorAll()]);}
+ focus(){this.owner.activeElement=this;}
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function setup(){
  const nodes=new Map(),requests=[],board={mode:'demo_sqlite',revision:'a'.repeat(32),event_count:0,items:[
   {item_id:'A-W01',machine_id:'KIOSK-A',category:'지갑',color:'검정',status:'등록기계 보관'},
   {item_id:'A-W02',machine_id:'KIOSK-A',category:'USB',color:'회색',status:'등록기계 보관'}],collections:[],alerts:[]};
- const get=id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);};get('machine').value='KIOSK-A';
+ const document={activeElement:null};
+ const make=()=>{const node=new Element();node.owner=document;return node;};
+ const get=id=>{if(!nodes.has(id))nodes.set(id,make());return nodes.get(id);};get('machine').value='KIOSK-A';
  let fail=false,failRead=false,failAfterWrite=false;
- const context=vm.createContext({document:{getElementById:get,createElement:()=>new Element()},crypto:require('node:crypto').webcrypto,AbortSignal,Intl,console,
+ Object.assign(document,{getElementById:get,createElement:make});
+ const context=vm.createContext({document,crypto:require('node:crypto').webcrypto,AbortSignal,Intl,console,
   fetch:async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body,headers:options.headers});if(fail&&url==='/collections'||failRead&&url==='/collection-dashboard')throw Error('connection interrupted');if(failAfterWrite&&url==='/collections')failRead=true;return {ok:true,json:async()=>url==='/collection-dashboard'?structuredClone(board):{collection_id:1,missing_item_ids:['A-W02']}};}});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../web/collection-desk/assets/desk.js'),'utf8'),context);await tick();
- return {nodes,get,requests,board,context,setFail:value=>{fail=value;},setFailRead:value=>{failRead=value;},setFailAfterWrite:value=>{failAfterWrite=value;}};
+ return {document,nodes,get,requests,board,context,setFail:value=>{fail=value;},setFailRead:value=>{failRead=value;},setFailAfterWrite:value=>{failAfterWrite=value;}};
 }
+
+test('keyboard selection keeps focus on the same pickup item without stealing external focus',async()=>{
+ const s=await setup(),old=s.get('pickupList').children[0].children[0];old.focus();old.checked=true;old.onchange();
+ const next=s.get('pickupList').children[0].children[0];assert.notEqual(next,old);assert.equal(s.document.activeElement,next);assert.equal(next.checked,true);
+ s.get('selectAll').focus();s.get('selectAll').onclick();assert.equal(s.document.activeElement,s.get('selectAll'));
+});
+
+test('arrival checkbox and zero-arrival confirmation retain keyboard focus',async()=>{
+ const s=await setup();s.board.collections=[{collection_id:1,machine_id:'KIOSK-A',picked_at:'2026-11-05T00:00:00Z',arrived_at:null,items:[{item_id:'A-W01',category:'지갑',color:'검정',arrived:false}]}];await s.get('refresh').onclick();
+ const checkbox=()=>s.get('batchList').children[0].children[2].children[0].children[0];
+ checkbox().focus();checkbox().checked=true;checkbox().onchange();assert.equal(s.document.activeElement,checkbox());
+ checkbox().checked=false;checkbox().onchange();
+ const button=()=>s.get('batchList').children[0].children.at(-1).children.at(-1);
+ button().focus();button().onclick();assert.equal(s.document.activeElement,button());assert.match(button().textContent,/0개 도착/);
+ assert.equal(s.requests.filter(r=>r.url.includes('/arrivals')).length,0);
+});
+
+test('a focused item that disappears does not focus an unrelated row',async()=>{
+ const s=await setup();s.get('pickupList').children[0].children[0].focus();s.board.items.shift();
+ await s.get('refresh').onclick();assert.notEqual(s.document.activeElement,s.get('pickupList').children[0].children[0]);
+});
 test('failed pickup retries with identical request key and frozen selection',async()=>{
  const s=await setup();s.get('selectAll').onclick();s.setFail(true);await s.get('pickup').onclick();
  assert.equal(s.get('retryPickup').hidden,false);assert.equal(s.get('machine').disabled,true);

@@ -128,6 +128,24 @@ class ConversationTests(unittest.TestCase):
         self.assertIn('추측하지 않습니다', result['answer'])
         self.assertNotIn('녹음 파일 입력', result['answer'])
 
+    def test_photo_and_text_paraphrases_are_guidance_without_item_search(self):
+        for question in ['사진 어디서 넣어요?', '사진을 어디에 넣나요?', '사진 등록은 어떻게 해?',
+                         '글로만 적어도 되나요?', '글로 작성하고 싶어요']:
+            with self.subTest(question=question):
+                result = self.bot.ask(question, history=['검정 지갑 찾아줘'])
+                self.assertEqual(result['status'], 'answered')
+                self.assertEqual(result['agent'], 'guidance')
+                self.assertFalse(result['item_search_performed'])
+                self.assertIn('site_help', [s['topic'] for s in result['sources']])
+
+    def test_photo_policy_questions_still_report_unconfirmed_rules(self):
+        for question in ['사진 등록하면 택배로 받을 수 있어?', '사진 어디서 넣어요? 센터 주말에도 해요?']:
+            with self.subTest(question=question):
+                result = self.bot.ask(question)
+                self.assertEqual(result['status'], 'partial')
+                self.assertIn('확정 운영값', result['answer'])
+                self.assertFalse(result['item_search_performed'])
+
 
 if __name__ == '__main__':
     unittest.main()

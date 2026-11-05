@@ -13,11 +13,21 @@ function clearDrafts(){pickupSelection.clear();pendingPickup=null;arrivalDrafts.
 function failed(error,saved){fresh=false;if(error.code==='stale_demo')clearDrafts();message(saved?saved+' 저장은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침 후 계속해주세요.':error.message+' 새로고침으로 최신 기록을 확인해주세요.',true);}
 const timeLabel=value=>new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}).format(new Date(value));
 function title(item){return [item.color,item.category==='모형폰'?'휴대폰(모형폰)':item.category].filter(Boolean).join(' ');}
+// Replacing a checked row must not send keyboard users back to the document body.
+function keepListFocus(list,draw){
+ const key=document.activeElement?.getAttribute('data-focus-key');
+ const owned=key&&list.contains(document.activeElement);
+ draw();
+ if(owned){const next=[...list.querySelectorAll('[data-focus-key]')].find(n=>n.getAttribute('data-focus-key')===key);if(next&&!next.disabled)next.focus({preventScroll:true});}
+}
 function row(item,checked,disabled,onchange){
- const label=el('label',undefined,'item-row'),input=document.createElement('input');input.type='checkbox';input.checked=checked;input.disabled=disabled;input.setAttribute('aria-label',`${item.item_id} ${title(item)}${item.arrived?' · 도착 완료':''}`);input.onchange=()=>onchange(input.checked);
+ const label=el('label',undefined,'item-row'),input=document.createElement('input');input.type='checkbox';input.checked=checked;input.disabled=disabled;input.setAttribute('data-focus-key',`item-${item.item_id}`);input.setAttribute('aria-label',`${item.item_id} ${title(item)}${item.arrived?' · 도착 완료':''}`);input.onchange=()=>onchange(input.checked);
  const text=el('span');text.append(el('strong',title(item)),el('small',item.item_id+(item.arrived?' · 도착 완료':'')));label.append(input,text);return label;
 }
 function renderPickup(){
+ keepListFocus($('pickupList'),()=>drawPickup());
+}
+function drawPickup(){
  const items=snapshot.items.filter(i=>i.machine_id===$('machine').value&&i.status==='등록기계 보관');
  const allowed=new Set(items.map(i=>i.item_id));pickupSelection=new Set([...pickupSelection].filter(id=>allowed.has(id)));
  const list=$('pickupList');list.replaceChildren();
@@ -28,6 +38,9 @@ function renderPickup(){
  $('retryPickup').hidden=!pendingPickup;$('discardPickup').hidden=!pendingPickup;$('retryPickup').disabled=busy||!fresh;$('discardPickup').disabled=busy||!fresh;
 }
 function renderBatches(){
+ keepListFocus($('batchList'),()=>drawBatches());
+}
+function drawBatches(){
  const list=$('batchList');list.replaceChildren();$('batchCount').textContent=snapshot.collections.length+'건';
  if(!snapshot.collections.length){list.append(el('div','아직 회수 기록이 없습니다. 왼쪽에서 물건을 선택해 회수를 기록하세요.','empty'));return;}
  for(const batch of snapshot.collections){
@@ -38,6 +51,7 @@ function renderBatches(){
   arrivalDrafts.set(batch.collection_id,draft);card.append(items);
   const totalArrived=batch.items.filter(i=>i.arrived).length,actions=el('div',undefined,'batch-actions');actions.append(el('span',`${totalArrived}/${batch.items.length}개 도착 완료`));
   if(!batch.arrived_at){const button=el('button',zeroConfirm.has(batch.collection_id)?'0개 도착 · 미도착 기록 확인':draft.size?`도착 ${draft.size}개 추가 기록`:'도착 체크 결과 저장');button.type='button';button.disabled=busy||!fresh;button.onclick=()=>{if(busy||!fresh)return;if(!draft.size&&!zeroConfirm.has(batch.collection_id)){zeroConfirm.add(batch.collection_id);renderBatches();message('새로 도착한 물건이 0개입니다. 나머지를 미도착으로 기록하려면 같은 버튼을 한 번 더 눌러주세요.');return;}saveArrival(batch.collection_id,[...draft]);};actions.append(button);}
+  const action=actions.children[1];if(action)action.setAttribute('data-focus-key',`arrival-${batch.collection_id}`);
   card.append(actions);list.append(card);
  }
 }
