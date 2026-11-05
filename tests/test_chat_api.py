@@ -21,28 +21,11 @@ class FakeGuidance:
         self.recorded.append((sid, q))
 
 
-class FakeSearch:
-    mode = "demo_sqlite"
-
-    def __init__(self):
-        self.calls = []
-
-    def ask(self, question, token=None, context=None):
-        self.calls.append((question, token, context))
-        if context.get("category") == "인증":
-            return {"status": "authentication_required", "answer": "본인인증 필요"}
-        if context.get("category") == "고장":
-            return {"status": "search_unavailable", "answer": "DB 조회 실패"}
-        return {"status": "items_found", "answer": "후보 1개", "database_mode": "demo_sqlite", "item_search_performed": True,
-                "candidates": [{"candidate_no": 1, "category": context["category"], "color": context.get("color")}],
-                "search_result_id": "ref-1", "search_filter": context}
-
-
 class FakeBot:
     def __init__(self):
         self.guidance = FakeGuidance()
         self.rag = types.SimpleNamespace(model=None)
-        self.search = FakeSearch()
+        self.search = types.SimpleNamespace(mode="demo_sqlite")
         self.calls = []
 
     def ask(self, question, token=None, context=None, history=None):
@@ -175,25 +158,8 @@ class ChatRoutesTest(unittest.TestCase):
         self.assertIn('src="/chat-widget/widget.js"', demo)
 
 
-class LostSearchAndMetricsTest(unittest.TestCase):
+class ChatMetricsRouteTest(unittest.TestCase):
     setUp, tearDown, code = ChatRoutesTest.setUp, ChatRoutesTest.tearDown, ChatRoutesTest.code   # 같은 가짜 fastapi(부모 시험은 다시 안 돌림)
-
-    def test_lost_search_route(self):
-        from agents.chat_api import add_chat_routes
-        bot = FakeBot()
-        add_chat_routes(self.app, bot)
-        search = self.routes[("POST", "/api/lost/search")]
-        out = search({"category": "지갑", "color": "검정", "lost_line": "2호선", "lost_station": "해운대"}, "Bearer t1")
-        self.assertEqual((out["status"], out["search_result_id"], out["reservation_created"]), ("items_found", "ref-1", False))
-        self.assertEqual(out["candidates"], [{"candidate_no": 1, "category": "지갑", "color": "검정"}])
-        q, token, ctx = bot.search.calls[-1]
-        self.assertEqual((q, token, ctx["lost_station"]), ("검정 지갑", "t1", "해운대"))   # 설명이 없으면 색+품목으로 질문
-        search({"category": "지갑", "description": "카드 두 장 든 검정 반지갑"}, None)
-        self.assertEqual(bot.search.calls[-1][0], "카드 두 장 든 검정 반지갑")
-        for bad in ({}, {"color": "검정"}, {"category": "지갑", "item_id": "A-W01"}, {"category": "지갑", "description": 3}):
-            self.assertEqual(self.code(search, bad, None), 422)          # 품목 없음·허용 밖 칸(접수 번호 등)·잘못된 설명
-        self.assertEqual(self.code(search, {"category": "인증"}, None), 401)
-        self.assertEqual(self.code(search, {"category": "고장"}, None), 503)
 
     def test_metrics_count_without_text(self):
         from agents.chat_api import add_chat_routes
@@ -203,13 +169,10 @@ class LostSearchAndMetricsTest(unittest.TestCase):
         ask({"question": "다른 질문"}, None)
         self.code(ask, {"question": " "}, None)
         self.code(ask, {"question": "고장"}, None)
-        self.routes[("POST", "/api/lost/search")]({"category": "지갑"}, None)
         m = self.routes[("GET", "/chat/metrics")]()
         self.assertEqual(m["requests"]["question"]["total"], 4)
         self.assertEqual((m["requests"]["question"]["ok"], m["requests"]["question"]["rejected"], m["requests"]["question"]["error"]), (2, 1, 1))
-        self.assertEqual(m["requests"]["lost_search"]["ok"], 1)
-        self.assertEqual(m["status"], {"answered": 2})                     # 비율·status 는 챗봇 질문만
-        self.assertEqual(m["status_by_kind"]["lost_search"], {"items_found": 1})
+        self.assertEqual(m["status"], {"answered": 2})
         self.assertEqual(m["rates_pct"]["answered"], 100)
         self.assertEqual(m["agent"]["guidance"], 2)
         self.assertIsNotNone(m["requests"]["question"]["p95_ms"])
@@ -281,15 +244,8 @@ class ChatbotFromEnvTest(unittest.TestCase):
                     self.assertLessEqual(set(cand), {"candidate_no", "category", "color"})
                 self.assertEqual(c.post("/chat/questions", json={"question": ""}).status_code, 422)
                 self.assertEqual(c.get("/chat-widget/widget.js").status_code, 200)
-                found2 = c.post("/api/lost/search", json={"category": "지갑", "color": "검정"})
-                self.assertEqual(found2.status_code, 200)
-                self.assertEqual(found2.json()["database_mode"], "demo_sqlite")
-                for cand in found2.json()["candidates"]:
-                    self.assertLessEqual(set(cand), {"candidate_no", "category", "color"})
-                self.assertEqual(c.post("/api/lost/search", json={"color": "검정"}).status_code, 422)
                 met = c.get("/chat/metrics").json()
                 self.assertGreaterEqual(met["requests"]["question"]["ok"], 2)
-                self.assertEqual(met["requests"]["lost_search"]["ok"], 1)
             finally:
                 for k, v in old.items():
                     if v is None:

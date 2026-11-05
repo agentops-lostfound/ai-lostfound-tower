@@ -27,7 +27,7 @@ def _pct(values: list[float], p: float) -> float | None:
 
 
 class ChatMetrics:
-    """주소별(질문·후보 찾기) 건수·결과·응답 시간을 센다. 여러 요청이 동시에 와도 안전(lock)."""
+    """주소별 건수·결과·응답 시간을 센다. 여러 요청이 동시에 와도 안전(lock)."""
 
     def __init__(self, clock=time.time):
         self._clock = clock

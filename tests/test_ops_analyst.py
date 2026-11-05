@@ -120,13 +120,12 @@ class AnalyzeTests(unittest.TestCase):
 
 
 def _chat_snapshot():
-    """진짜 ChatMetrics 로 만든 /chat/metrics 응답(질문 4건 + 후보 찾기 1건)."""
+    """진짜 ChatMetrics 로 만든 /chat/metrics 응답(질문 5건, 그중 오류 1건)."""
     from agents.chat_metrics import ChatMetrics
     m = ChatMetrics(clock=lambda: 1000.0)
     for ms, st in ((120, "answered"), (300, "policy_pending"), (90, "not_found"), (6200, "answered")):
         m.record("question", ms, result={"status": st, "agent": "guidance", "generation_status": "model_not_configured"})
     m.record("question", 15, outcome="error")
-    m.record("lost_search", 40, result={"status": "items_found"})
     return m.snapshot()
 
 
@@ -135,14 +134,14 @@ class ChatbotMetricsTests(unittest.TestCase):
         data = dict(DATA, chat=_chat_snapshot())
         f = analyze(data, "chatbot")
         c = f["chat"]
-        self.assertEqual((c["questions"], c["question_errors"], c["searches"]), (5, 1, 1))
+        self.assertEqual((c["questions"], c["question_errors"]), (5, 1))
         self.assertEqual((c["answered_pct"], c["pending_policy_pct"], c["not_understood_pct"]), (50, 25, 25))
         self.assertTrue(any("챗봇 오류 1건" in x for x in f["findings"]))
         self.assertTrue(any("못 알아들은 비율 25%" in x for x in f["findings"]))
         self.assertTrue(any("p95 5초 초과" in x for x in f["findings"]))
         report = template_report(f, "챗봇 운영 요약")
         self.assertIn("## AI 챗봇 운영(LLMOps)", report)
-        self.assertIn("후보 찾기 1건", report)
+        self.assertIn("질문 5건(오류 1)", report)
         self.assertTrue(numbers_ok(report, f))                       # 보고서 숫자는 모두 계산 결과
 
     def test_old_tower_without_chat_metrics(self):

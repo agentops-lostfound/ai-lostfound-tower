@@ -62,7 +62,7 @@
 | 구역 | 주소 | 로그인 |
 | --- | --- | --- |
 | 키오스크 | `/api/kiosk/places` · `/api/kiosk/items` · `/api/kiosk/items/{id}/features` · `/api/kiosk/claims` | 없음 |
-| 분실인 웹 | `/api/lost/claims` · `/api/lost/search`(후보 찾기, 챗봇 쪽 엔진 — `docs/contracts/lost_search_api.md`) | 없음(실제 DB 후보 찾기는 본인인증 세션 필요) |
+| 분실인 웹 | `/api/lost/claims` | 없음 |
 | 챗봇 | `/chat/questions` · `/chat/suggestions` · `/chat/health` · `/chat/metrics`(운영 지표) | 없음 |
 | 관리자 | `/api/admin/{login,logout,me,live/state,returns,returns/{id},returns/{id}/handover·hold,robot/state,robot/home,claims/{id}}` | `LF_ADMIN_PASSWORD` 를 정하면 필요 |
 | 정지 | `/api/robot/stop` | **항상 없음**(안전 원칙) |
