@@ -47,13 +47,13 @@
 <main class="wrap">
   <div class="eyebrow"><span class="step">1</span> 습득물 등록기계 · 무인</div>
   <h1>장소만 고르고, 넣으면 끝</h1>
-  <p class="intro">주운 물건의 사진과 발견 장소, 습득자 연락처를 입력해 접수해 주세요.</p>
+  <p class="intro">주운 물건 사진과 발견 장소를 등록해 주세요. 연락처는 선택 사항입니다.</p>
 
   <div class="layout">
     <form id="intake-form">
       <div class="section-head">
         <div><small>습득물 등록 · 신규 접수</small><h2>어디에서 주우셨나요?</h2></div>
-        <span class="required">필수 입력</span>
+        <span class="required">사진·장소 필수</span>
       </div>
 
       <div class="field-group">
@@ -67,37 +67,18 @@
       </div>
 
       <div class="field-group">
-        <label for="category">② 물건 종류 <span class="required">필수</span></label>
-        <select id="category" name="category" required>
-          <option value="">물건 종류 선택</option>
-          <option>휴대전화</option><option>지갑</option><option>가방</option><option>의류 및 소지품</option>
-          <option>전자기기</option><option>열쇠</option><option>카드 및 신분증</option><option>우산</option><option>기타</option>
-        </select>
-      </div>
-
-      <div class="field-group">
         <label for="location">③ 발견 장소 <span class="required">필수</span></label>
         <input id="location" name="location" maxlength="200" placeholder="예: 2호선 해운대역 남자 화장실 안" required>
-        <div class="quick" aria-label="장소 빠른 입력">
-          <button type="button" data-place="역사 내부">역사 내부</button>
-          <button type="button" data-place="승강장">승강장</button>
-          <button type="button" data-place="화장실">화장실</button>
-          <button type="button" data-place="출입구">출입구</button>
-        </div>
+        <div class="quick" aria-label="관제탑 추천 장소"></div>
       </div>
 
       <div class="field-group">
-        <label for="description">④ 물건 상세 설명</label>
-        <textarea id="description" name="description" maxlength="1000" placeholder="예: 검정색 카드지갑, 은색 장식이 있습니다."></textarea>
-      </div>
-
-      <div class="field-group">
-        <label>⑤ 습득자 연락처 <span class="required">필수</span></label>
+        <label>⑤ 습득자 연락처 <span>선택</span></label>
         <div class="two">
-          <div><label for="finder-name">이름</label><input id="finder-name" name="finder_name" maxlength="40" autocomplete="name" placeholder="이름 입력" required></div>
-          <div><label for="finder-phone">전화번호</label><input id="finder-phone" name="finder_phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="010-0000-0000" required></div>
+          <div><label for="finder-name">이름</label><input id="finder-name" name="finder_name" maxlength="40" autocomplete="name" placeholder="이름 입력"></div>
+          <div><label for="finder-phone">전화번호</label><input id="finder-phone" name="finder_phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="010-0000-0000"></div>
         </div>
-        <p class="hint">연락처는 분실물 확인 및 반환 관련 안내 목적으로만 사용하도록 운영 환경에서 보호해 주세요.</p>
+        <p class="hint">연락처 입력은 선택 사항입니다. 입력하지 않고도 접수할 수 있습니다.</p>
       </div>
 
       <label class="consent"><input id="consent" type="checkbox" required><span>접수 및 분실물 반환 안내를 위한 개인정보 수집·이용 안내를 확인했습니다. 실제 서비스 운영 시에는 수집 항목·보유 기간·처리 주체를 명시한 정식 동의문으로 교체해야 합니다.</span></label>
@@ -109,19 +90,15 @@
         <div id="device-placeholder"><div class="placeholder">📦</div><strong>습득물 등록 안내</strong><br><small>사진을 등록하면 여기에 표시됩니다.</small></div>
       </div>
       <span class="status" id="status">접수 대기 중</span>
-      <p>필수 정보를 입력하고 접수하면<br>접수 번호가 자동으로 발급됩니다.</p>
+      <p>사진과 장소를 등록하면<br>관제탑이 접수 번호를 발급합니다.</p>
     </aside>
   </div>
 
   <section class="success" id="success" aria-live="polite" hidden>
-    <h2>✅ 습득물 접수가 준비되었습니다.</h2>
+    <h2>✅ 습득물 접수가 완료되었습니다.</h2>
     <div class="ticket"><span class="hint">습득물 접수 번호</span><strong id="receipt-number">#A-0000</strong></div>
     <div id="receipt-summary"></div>
-    <div class="actions">
-      <button class="secondary" type="button" id="copy-number">접수 번호 복사</button>
-      <button class="submit" type="button" id="download-json">접수 정보 JSON 저장</button>
-    </div>
-    <p class="notice">이 페이지는 프런트엔드 시제품입니다. 접수 번호는 이 브라우저에서 생성되며, 아직 서버·데이터베이스에 저장되거나 담당자에게 전송되지 않습니다. 실제 운영 전에는 인증된 백엔드 API, 사진 저장소, 접근 권한 및 개인정보 보관 정책을 연결해야 합니다. JSON 파일에는 연락처와 사진 데이터가 포함되므로 안전하게 보관해 주세요.</p>
+    <p class="notice">접수가 완료되었습니다. 접수 번호를 확인해 주세요. 10초 뒤 처음 화면으로 자동 이동합니다.</p>
   </section>
   <p class="hint" style="text-align:center;margin:20px 0 0">AI LOST &amp; FOUND · 습득물 등록 서비스</p>
 </main>
@@ -130,122 +107,75 @@
 (() => {
   const $ = id => document.getElementById(id);
   const form = $('intake-form');
-  let selectedPhotoData = null;
-  let receiptData = null;
-
-  $('photo').addEventListener('change', () => {
-    const file = $('photo').files && $('photo').files[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('이미지 파일을 선택해 주세요.');
-      $('photo').value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      selectedPhotoData = reader.result;
-      $('photo-preview').src = selectedPhotoData;
-      $('photo-preview').hidden = false;
-      $('upload-prompt').hidden = true;
-      $('device-placeholder').hidden = true;
-      const img = document.createElement('img');
-      img.src = selectedPhotoData;
-      img.alt = '등록할 습득물';
-      const old = $('device-preview').querySelector('img');
-      if (old) old.remove();
-      $('device-preview').appendChild(img);
-      $('photo-name').textContent = file.name + ' · ' + Math.round(file.size / 1024) + ' KB';
-    };
-    reader.readAsDataURL(file);
-  });
-
-  document.querySelectorAll('[data-place]').forEach(button => {
-    button.addEventListener('click', () => {
-      const field = $('location');
-      field.value = field.value ? field.value + ' ' + button.dataset.place : button.dataset.place;
-      field.focus();
-    });
-  });
-
-  $('finder-phone').addEventListener('input', event => {
-    let digits = event.target.value.replace(/\D/g, '').slice(0, 11);
-    if (digits.length > 7) digits = digits.slice(0, 3) + '-' + digits.slice(3, 7) + '-' + digits.slice(7);
-    else if (digits.length > 3) digits = digits.slice(0, 3) + '-' + digits.slice(3);
-    event.target.value = digits;
-  });
-
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    if (!form.reportValidity()) return;
-    if (!selectedPhotoData) {
-      alert('습득물 사진을 먼저 등록해 주세요.');
-      $('photo').focus();
-      return;
-    }
-    const now = new Date();
-    const datePart = now.toISOString().slice(2, 10).replace(/-/g, '');
-    const randomPart = Math.floor(1000 + Math.random() * 9000);
-    const receiptNumber = 'A-' + datePart + '-' + randomPart;
-    receiptData = {
-      receipt_number: receiptNumber,
-      received_at: now.toISOString(),
-      item: {
-        category: $('category').value,
-        description: $('description').value.trim() || null,
-        photo_file_name: $('photo').files[0].name,
-        photo_data_url: selectedPhotoData
-      },
-      found_location: $('location').value.trim(),
-      finder: {
-        name: $('finder-name').value.trim(),
-        phone: $('finder-phone').value.trim()
-      }
-    };
-    $('receipt-number').textContent = '#' + receiptNumber;
-    const summary = $('receipt-summary');
-    summary.replaceChildren();
-    [
-      ['물건 종류', receiptData.item.category],
-      ['발견 장소', receiptData.found_location],
-      ['습득자', receiptData.finder.name],
-      ['연락처', receiptData.finder.phone]
-    ].forEach(([label, value]) => {
-      const row = document.createElement('p');
-      row.style.cssText = 'display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #edf1ee;padding:7px 0;font-size:14px';
-      const left = document.createElement('span');
-      left.textContent = label;
-      left.style.color = '#718078';
-      const right = document.createElement('strong');
-      right.textContent = value;
-      right.style.textAlign = 'right';
-      row.append(left, right);
-      summary.appendChild(row);
-    });
-    $('status').textContent = '접수 완료 ' + '#' + receiptNumber;
-    $('success').hidden = false;
-    $('success').scrollIntoView({behavior: 'smooth', block: 'nearest'});
-  });
-
-  $('copy-number').addEventListener('click', async () => {
-    if (!receiptData) return;
+  const machine = new URLSearchParams(location.search).get('machine') || 'KIOSK-A';
+  let selectedPhotoData = null, chosenPlaceId = null, resetTimer = null;
+  async function loadPlaces() {
+    const chips = document.querySelector('.quick'); chips.replaceChildren();
     try {
-      await navigator.clipboard.writeText(receiptData.receipt_number);
-      $('copy-number').textContent = '복사 완료 ✓';
-    } catch {
-      $('copy-number').textContent = receiptData.receipt_number;
+      const res = await fetch('/places?machine_id=' + encodeURIComponent(machine));
+      if (!res.ok) throw new Error();
+      const places = await res.json();
+      places.forEach(place => {
+        const button = document.createElement('button'); button.type='button'; button.textContent=place.label;
+        button.addEventListener('click', () => {
+          chosenPlaceId=place.place_id; $('location').value=place.label;
+          chips.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+        });
+        chips.appendChild(button);
+      });
+      if (!places.length) chips.textContent='추천 장소가 없습니다. 장소를 직접 입력해 주세요.';
+    } catch { chips.textContent='추천 장소를 불러오지 못했습니다. 장소를 직접 입력해 주세요.'; }
+  }
+  $('photo').addEventListener('change', () => {
+    const file=$('photo').files && $('photo').files[0]; if(!file)return;
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){
+      alert('JPG, PNG 또는 WEBP 사진을 5MB 이하로 선택해 주세요.'); $('photo').value=''; selectedPhotoData=null; return;
     }
+    const reader=new FileReader();
+    reader.onload=()=>{
+      selectedPhotoData=reader.result; $('photo-preview').src=selectedPhotoData; $('photo-preview').hidden=false;
+      $('upload-prompt').hidden=true; $('device-placeholder').hidden=true;
+      const img=document.createElement('img'); img.src=selectedPhotoData; img.alt='등록할 습득물';
+      const old=$('device-preview').querySelector('img'); if(old)old.remove(); $('device-preview').appendChild(img);
+      $('photo-name').textContent=file.name+' · '+Math.round(file.size/1024)+' KB';
+    }; reader.readAsDataURL(file);
   });
-
-  $('download-json').addEventListener('click', () => {
-    if (!receiptData) return;
-    const blob = new Blob([JSON.stringify(receiptData, null, 2)], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = receiptData.receipt_number + '.json';
-    anchor.click();
-    URL.revokeObjectURL(url);
+  $('finder-phone').addEventListener('input',event=>{
+    let d=event.target.value.replace(/\D/g,'').slice(0,11);
+    if(d.length>7)d=d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7); else if(d.length>3)d=d.slice(0,3)+'-'+d.slice(3);
+    event.target.value=d;
   });
+  function resetScreen(){
+    clearTimeout(resetTimer); form.reset(); selectedPhotoData=null; chosenPlaceId=null;
+    $('photo-preview').hidden=true; $('photo-preview').removeAttribute('src'); $('upload-prompt').hidden=false;
+    $('photo-name').textContent='사진 파일 1장을 선택해 주세요.';
+    $('device-preview').querySelectorAll('img').forEach(img=>img.remove()); $('device-placeholder').hidden=false;
+    $('success').hidden=true; $('status').textContent='접수 대기 중'; $('receipt-summary').replaceChildren();
+    $('receipt-number').textContent=''; window.scrollTo({top:0,behavior:'smooth'}); loadPlaces();
+  }
+  form.addEventListener('submit',async event=>{
+    event.preventDefault(); if(!form.reportValidity())return;
+    if(!selectedPhotoData){alert('습득물 사진을 먼저 등록해 주세요.');$('photo').focus();return;}
+    const placeText=$('location').value.trim();
+    if(!placeText){alert('발견 장소를 입력하거나 추천 장소를 선택해 주세요.');$('location').focus();return;}
+    const body={machine_id:machine,place_text:placeText,photo:selectedPhotoData};
+    if(chosenPlaceId!==null&&chosenPlaceId!==undefined)body.place_id=chosenPlaceId;
+    const name=$('finder-name').value.trim(),phone=$('finder-phone').value.trim();
+    if(name||phone)body.finder={name:name||null,phone:phone||null};
+    const submit=form.querySelector('.submit'); submit.disabled=true; submit.textContent='접수 중…';
+    try{
+      const res=await fetch('/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const data=await res.json();
+      if(!res.ok){const detail=typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||data);
+        throw new Error(res.status===422?detail:'접수 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');}
+      $('receipt-number').textContent='#'+data.item_id;
+      $('receipt-summary').textContent='발견 장소: '+(data.place_text||placeText);
+      $('status').textContent='접수 완료 · '+data.item_id; $('success').hidden=false;
+      $('success').scrollIntoView({behavior:'smooth',block:'nearest'}); resetTimer=setTimeout(resetScreen,10000);
+    }catch(error){alert(error.message||'접수 중 오류가 발생했습니다.');}
+    finally{submit.disabled=false;submit.textContent='습득물 접수하기 →';}
+  });
+  loadPlaces();
 })();
 </script>
 </body>
