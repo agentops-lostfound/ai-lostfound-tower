@@ -22,12 +22,15 @@ rem DB 바뀐 점 적용(center/migrations) + 인계 완료 30일 지난 습득�
 python tools\db_migrate.py --apply --wait 60
 python tools\purge_contacts.py --apply
 :start_api
-rem LAN option (11/5): "start_tower.bat lan" = 0.0.0.0, default = 127.0.0.1. See docs/design/virtual_demo.md 4-2-1
+rem Options (11/5, any order): "lan" = 0.0.0.0 (see docs/design/virtual_demo.md 4-2-1), "dev" = auto restart when agents/robot/discord_ops .py change
 rem ASCII only on these lines: Korean here shifts cmd's UTF-8 line positions and breaks the next echo (11/5)
 set TOWER_HOST=127.0.0.1
-if /i "%~1"=="lan" set TOWER_HOST=0.0.0.0
+set TOWER_RELOAD=
+for %%a in (%*) do if /i "%%a"=="lan" set TOWER_HOST=0.0.0.0
+for %%a in (%*) do if /i "%%a"=="dev" set TOWER_RELOAD=--reload --reload-dir agents --reload-dir robot --reload-dir discord_ops
 if "%TOWER_HOST%"=="0.0.0.0" echo [WARN] LAN mode: anyone on this network can open all pages incl. staff (no login). Test only, then restart without lan.
+if defined TOWER_RELOAD echo [DEV] Auto restart on code change (virtual demo memory resets each restart). Use plain start_tower.bat for the final demo.
 echo [2/2] 관제탑 API 켜기: http://127.0.0.1:8100/docs  (끄기: Ctrl+C 또는 창 닫기)
 rem --no-access-log: 요청마다 쓰는 로그를 끈다. 이 창 안을 클릭하면 Windows 가 '선택' 모드로 바꿔, 로그를 쓰는 순간 API 가 멈춘다(11/3 겪음). 멈췄으면 Esc
-python -m uvicorn agents.api:app --host %TOWER_HOST% --port 8100 --no-access-log
+python -m uvicorn agents.api:app --host %TOWER_HOST% --port 8100 --no-access-log %TOWER_RELOAD%
 pause

@@ -91,6 +91,8 @@ python -m unittest discover -s tests          # 통과 확인
 - 디스코드 없이 연습: `/live` 왼쪽 **시험 입력** 또는 `python tools/lostfound_bot.py --try "서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"`
 - 끝나면 `.env` 의 `TOWER_SIM=` 을 비우고 관제탑을 다시 켜면 원래(진짜 부품·DB) 모드
 
+- 개발 모드(11/5): `tools\start_tower.bat dev` — `agents/`·`robot/`·`discord_ops/` 의 .py 가 바뀌면 관제탑이 스스로 다시 켜진다(가상 시연 기록은 초기화). `lan` 과 같이 써도 됨(`start_tower.bat dev lan`). 발표 때는 기본 모드
+
 ### 4-2-1. 다른 PC 에서 화면 열기 (교육원 네트워크, 시험할 때만, 11/5)
 관제탑은 기본으로 이 PC 안(127.0.0.1)에서만 열린다. 팀원 PC 에서 화면을 보려면 두 가지를 같이 한다.
 1. 관제탑을 `tools\start_tower.bat lan` 으로 켠다(0.0.0.0 — 같은 네트워크 누구나 접속)
