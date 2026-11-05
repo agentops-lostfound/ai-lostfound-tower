@@ -1,5 +1,6 @@
 /* Public guidance only. Chat text lives in this page's DOM, never localStorage. */
-let chatBusy=false,faqItems=[],visibleSuggestions=[],activeSuggestion=-1,selectedFaq=null;
+let chatBusy=false,faqItems=[],visibleSuggestions=[],activeSuggestion=-1,selectedFaq=null,chatHistory=[];
+document.addEventListener('searchcontextchange',()=>{chatHistory=[];});
 const scrollChat=()=>{const area=$('chatScroll');area.scrollTo({top:area.scrollHeight,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
 function chatLine(role,text){
  const li=document.createElement('li');li.className='chat-'+role;
@@ -45,7 +46,7 @@ $('chatForm').onsubmit=async e=>{
  $('chatRecord').disabled=true;$('chatAudio').disabled=true;$('chatAudioPick').disabled=true;
  const pending=chatLine('assistant','질문을 확인하고 있어요…');pending.classList.add('pending');$('chatStatus').textContent='답변 준비 중';
  try{
-  const response=await post('/chat/questions',{question,suggestion_id:faq?.id,search_context:confirmedSearchContext||undefined});pending.remove();const li=chatLine('assistant',response.answer);const badge=document.createElement('span');badge.className='answer-badge';badge.textContent=response.agent==='search'||response.agent==='both'?(response.database_mode==='demo_sqlite'?'가상 DB 시연':'물건 검색 안내'):response.generation_used?'문서 검색 + AI 답변':response.status==='answered'?'문서 근거 안내':response.status==='partial'||response.status==='policy_pending'?'확정 안내가 필요한 내용':'질문을 조금 더 구체적으로';li.append(badge);addSources(li,response.sources);addCandidates(li,response.candidates||[]);$('chatStatus').textContent=response.agent==='search'||response.agent==='both'?'검색 안내 완료 · 후보는 본인 물건 확정이 아닙니다':'안내 완료 · 출처를 확인할 수 있어요';$('chatQuestion').value='';selectedFaq=null;updateCount();await loadFaq();scrollChat();
+  const response=await post('/chat/questions',{question,history:chatHistory,suggestion_id:faq?.id,search_context:confirmedSearchContext||undefined});chatHistory=[...chatHistory,question].slice(-4);pending.remove();const li=chatLine('assistant',response.answer);const badge=document.createElement('span');badge.className='answer-badge';badge.textContent=response.agent==='search'||response.agent==='both'?(response.database_mode==='demo_sqlite'?'가상 DB 시연':'물건 검색 안내'):response.generation_used?'문서 검색 + AI 답변':response.status==='answered'?(response.sources.length?'문서 근거 안내':'대화 안내'):response.status==='partial'||response.status==='policy_pending'?'확정 안내가 필요한 내용':'질문을 조금 더 구체적으로';li.append(badge);if(response.context_used){const note=document.createElement('span');note.className='answer-badge';note.textContent='앞선 질문을 이어서 이해했어요';li.append(note);}addSources(li,response.sources);addCandidates(li,response.candidates||[]);$('chatStatus').textContent=response.agent==='search'||response.agent==='both'?'검색 안내 완료 · 후보는 본인 물건 확정이 아닙니다':'안내 완료 · 출처를 확인할 수 있어요';$('chatQuestion').value='';selectedFaq=null;updateCount();await loadFaq();scrollChat();
  }catch(error){pending.remove();const li=chatLine('assistant',error.message);const retry=document.createElement('button');retry.type='button';retry.className='retry-button';retry.textContent='질문 다시 보내기';retry.onclick=()=>{if(chatBusy)return;$('chatQuestion').value=question;$('chatForm').requestSubmit();};li.append(retry);$('chatStatus').textContent='전송하지 못했어요. 내용을 확인하고 다시 시도해주세요.';}
  finally{chatBusy=false;$('chatSend').disabled=false;$('clearChat').disabled=false;$('chatRecord').disabled=false;$('chatAudio').disabled=false;$('chatAudioPick').disabled=false;}
 };
@@ -57,7 +58,7 @@ $('chatQuestion').addEventListener('keydown',event=>{
  if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();if(activeSuggestion>=0){selectSuggestion(visibleSuggestions[activeSuggestion]);}else $('chatForm').requestSubmit();}
 });
 document.addEventListener('click',event=>{if(!event.target.closest('.composer'))hideSuggestions();});
-$('clearChat').onclick=()=>{if(chatBusy)return;$('chatLog').replaceChildren();$('chatWelcome').hidden=false;$('faqArea').hidden=false;$('chatStatus').textContent='이 화면의 대화를 지웠어요';hideSuggestions();$('chatScroll').scrollTop=0;};
+$('clearChat').onclick=()=>{if(chatBusy)return;chatHistory=[];$('chatLog').replaceChildren();$('chatWelcome').hidden=false;$('faqArea').hidden=false;$('chatStatus').textContent='이 화면의 대화를 지웠어요';hideSuggestions();$('chatScroll').scrollTop=0;};
 loadFaq();
 function addCandidates(li,candidates){
  if(!candidates.length)return;const cards=document.createElement('div');cards.className='candidate-cards';

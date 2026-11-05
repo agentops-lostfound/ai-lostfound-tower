@@ -41,6 +41,7 @@ $('record').onclick=async()=>{
 window.addEventListener('pagehide',()=>{if(recorder){clearTimeout(recorder.timer);recorder.stream.getTracks().forEach(t=>t.stop());recorder.context.close();}});
 
 function setConfirmedSearch(handoff){
+ document.dispatchEvent(new Event('searchcontextchange'));
  const values=handoff?{category:handoff.description.category,color:handoff.description.color,lost_date:handoff.lost_date,lost_line:handoff.lost_line,lost_station:handoff.lost_station}:null;
  confirmedSearchContext=values?Object.fromEntries(Object.entries(values).filter(([,v])=>v)):null;
  $('searchContextNote').hidden=!confirmedSearchContext;$('searchReviewed').hidden=!confirmedSearchContext;

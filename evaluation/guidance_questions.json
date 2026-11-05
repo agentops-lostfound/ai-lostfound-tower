@@ -301,7 +301,7 @@
   {
     "group": "범위밖",
     "question": "안녕하세요",
-    "expected_status": "not_found",
+    "expected_status": "answered",
     "expected_topics": []
   },
   {

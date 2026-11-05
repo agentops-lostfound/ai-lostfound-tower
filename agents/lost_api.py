@@ -79,7 +79,7 @@ def create_app(service=None, guidance=None, chatbot=None, request_policy=None):
     @app.post("/chat/questions")
     def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None)):
         token = authorization[7:] if authorization and authorization.startswith('Bearer ') else None
-        result = run(lambda: chatbot.ask(body.get('question'), token, body.get('search_context')))
+        result = run(lambda: chatbot.ask(body.get('question'), token, body.get('search_context'), body.get('history')))
         guidance.record_suggestion(body.get('suggestion_id'), body.get('question'))
         return result
 

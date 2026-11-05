@@ -10,6 +10,7 @@ import threading
 import hashlib
 from pathlib import Path
 from agents.support_security import normalized_text, has_private_pattern
+from agents.chat_conversation import natural_question
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
@@ -70,7 +71,12 @@ class Guidance:
         q = re.sub(r"[\u200b-\u200d\ufeff]", "", q)
         if has_private_pattern(q):
             raise ValueError("이름·연락처·신분번호를 제외하고 안내 사항만 질문해주세요")
+        q = natural_question(q)
         q = re.sub(r"\s+", "", q)
+        if re.fullmatch(r'(?:안녕(?:하세요|하세용)?|ㅎㅇ|하이|hello|hi|고마워(?:요)?|감사(?:해요|합니다)?)[!?.~ㅋㅎ]*', q):
+            return self._response('answered', '안녕하세요! 물건 설명 입력, 후보 검색, 수령 절차를 도와드려요. 예를 들어 “검정 지갑 찾아줘”, “사진은 어떻게 올려요?”라고 물어보세요.', [])
+        if re.search(r'뭐할수|무엇을할수|무슨일|기능.*(?:알려|있)|도와줘', q):
+            return self._response('answered', '물건 설명 정리·후보 검색·사이트 이용 안내를 도와드려요. 찾는 물건을 적거나, 사진 입력·본인인증·수령 절차 중 궁금한 것을 물어보세요. 현재 가상 DB 시연 결과는 실제 습득물이 아니며 실제 검색에는 인증 연결이 필요해요.', [])
         if (re.search(r"찾아\s*줘|찾아주세요|검색해|후보.*보여|내\s*물건.*있|접수번호.*조회", q)
                 and not re.search(r"방법|절차|안내|운영|보관|수령|어떻게|사용법|이용법|설명확인|버튼", q)):
             return self._response("item_search_not_supported", "이 안내 챗봇에서는 물건을 검색하지 않습니다. 위의 분실물 설명 입력과 기존 찾기 절차를 이용해주세요.", [])
@@ -101,7 +107,7 @@ class Guidance:
             topics.add("pickup")
         if re.search(r"동의|인증", q):
             topics.add("consent")
-        if re.search(r"사용법|이용법|설명입력|설명정리|설명확인|후보검색버튼|조건지우|사진.*(?:올|입력)|음성|녹음|마이크|사이트.*(?:사용|이용)|검색.*방법|찾는방법", q):
+        if re.search(r"사용법|이용법|설명입력|설명정리|설명확인|후보검색버튼|조건지우|사진.*(?:올|입력|첨부)|음성|녹음|마이크|사이트.*(?:사용|이용)|검색.*방법|찾는방법", q):
             topics.add("site_help")
         if re.search(r"개인정보|신분정보|신분증.*저장|신분증.*보관", q) and (not finder or claimant):
             topics.add("masked_identity")
@@ -114,7 +120,7 @@ class Guidance:
         docs = [d for d in self.documents if d["topic"] in topics]
         # Closed-topic lexical retrieval; unknown questions never get a nearest but unrelated answer.
         if not docs and not gaps:
-            return self._response("not_found", "현재 안내 문서에서 답을 찾지 못했습니다. 수령 절차·동의·신분정보 저장 방식 중 궁금한 내용을 구체적으로 질문해주세요.", [])
+            return self._response("not_found", "질문의 뜻을 정확히 잡지 못했어요. 물건을 찾으시나요, 사이트 사용이 궁금하신가요? ‘검정 지갑 찾아줘’, ‘사진 올리는 법’, ‘수령 준비물’처럼 적어주시면 이어서 도와드릴게요. 운영 문서에 없는 내용은 확인이 필요해요.", [])
         chunks = [d["answer"] for d in docs]
         if gaps:
             chunks.append("현재 확인된 자료에는 " + ", ".join(dict.fromkeys(gaps)) + "의 확정 운영값이 없어 안내할 수 없습니다. 운영 담당자의 확정 안내 문서가 필요합니다.")

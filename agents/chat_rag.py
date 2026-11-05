@@ -5,6 +5,7 @@ values bypass the model; invalid generation falls back to the grounded excerpts.
 """
 import json
 import threading
+import re
 from agents.local_model import ask_local_model
 
 
@@ -21,6 +22,20 @@ class GroundedRag:
     def ask(self, question):
         result = self.guidance.ask(question)
         result = {**result, 'generation_used': False, 'generation_status': 'not_needed'}
+        allowed = None
+        if [s['topic'] for s in result['sources']] == ['site_help'] and result['status'] == 'answered':
+            paragraphs = result['answer'].split('\n\n')
+            q = re.sub(r'\s+', '', question)
+            chosen = set()
+            if re.search(r'사진|이미지', q):
+                chosen.add(1)
+            if re.search(r'음성|녹음|마이크|말안하고', q):
+                chosen.add(2)
+            if re.search(r'후보|검색|조건지우|설명확인', q):
+                chosen.add(4)
+            if chosen:
+                allowed = chosen
+                result['answer'] = '\n\n'.join(paragraphs[i] for i in sorted(chosen))
         # Do not feed policy gaps to a generative model or let it resolve them.
         if not result['sources'] or result['status'] != 'answered':
             return result
@@ -56,6 +71,7 @@ class GroundedRag:
             # Atomic paragraphs preserve qualifiers. Require every retrieved topic and valid, unique IDs.
             if (not isinstance(ids, list) or not ids or any(type(i) is not int or not 0 <= i < len(passages) for i in ids)
                     or len(set(ids)) != len(ids)
+                    or (allowed is not None and set(ids) != allowed)
                     or {passages[i]['topic'] for i in ids} != {d['topic'] for d in docs}):
                 raise ValueError('Unsupported generation')
             answer = '\n\n'.join(passages[i]['text'] for i in ids)

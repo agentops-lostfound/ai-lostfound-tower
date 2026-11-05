@@ -7,6 +7,7 @@ from agents.lost_input import checked_text
 from agents.chat_rag import GroundedRag
 from agents.chat_search import SearchAgent
 from agents.search_context import checked_context
+from agents.chat_conversation import checked_history, natural_question, resolve_turn, search_intent
 from langsmith import tracing_context
 
 _search_access = ContextVar('lf_chat_search_access', default=None)
@@ -40,15 +41,15 @@ class Chatbot:
 
     @staticmethod
     def _route(state):
-        q = unicodedata.normalize('NFKC', state['question']).lower()
+        q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
         # Process/help questions stay in guidance, even when they mention searching.
-        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약', q)
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관', q)
         search = re.search(r'찾아|검색|후보|접수번호|(?:지갑|휴대폰|핸드폰|usb|립밤|보조배터리|핸드크림).*(?:있나요|있어|있나|있니|있습니까)', q)
-        direct_search = re.search(r'찾아줘|찾아주세요|검색해줘|검색해주세요|후보.*보여', q)
+        direct_search = search_intent(q)
         if help_question and direct_search:
             return {'route': 'both'}
-        return {'route': 'search' if search and not help_question else 'guidance'}
+        return {'route': 'search' if (search or direct_search) and not help_question else 'guidance'}
 
     def _both(self, state):
         guide = self.rag.ask(state['question'])
@@ -58,9 +59,15 @@ class Chatbot:
                            'status': 'answered' if guide['status'] == 'answered' and search['item_search_performed'] else 'partial',
                            'method': 'document_guidance_and_read_only_item_search'}}
 
-    def ask(self, question, access_token=None, context=None):
+    def ask(self, question, access_token=None, context=None, history=None):
         question = checked_text(question, '질문', 500)
         context = checked_context(context)
+        history = checked_history(history)
+        question, context, resolved = resolve_turn(question, history, context, self.guidance)
+        if resolved is None:
+            return {**self.guidance._response('clarification_needed',
+                '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 지갑 찾아줘 / 본인인증에 실패하면?', []),
+                'agent': 'guidance', 'context_used': False}
         # Bearer credentials must never enter graph state, checkpoints or tracing.
         context_token = _search_access.set(access_token)
         try:
@@ -69,4 +76,5 @@ class Chatbot:
         finally:
             _search_access.reset(context_token)
         return {**state['result'], 'agent': state['route'],
+                'context_used': resolved,
                 'orchestration': 'langgraph_guidance_and_item_search'}
