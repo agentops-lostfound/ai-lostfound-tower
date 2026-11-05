@@ -5,6 +5,9 @@ server {
   listen 80;
   server_name _;
   client_max_body_size 8m;   # 사진 data URL(최대 5MB) 여유
+  # 11/5: 주소 넘기기(302)를 "/kiosk" 처럼 상대 주소로 보낸다. 기본(absolute_redirect on)은 컨테이너 안 포트(80)로 바꿔
+  #       http://127.0.0.1:8080/ → http://127.0.0.1/kiosk 로 튕겨 열리지 않았다(다른 PC 도 같음)
+  absolute_redirect off;
 
   location = / {
     return 302 /kiosk$is_args$args;   # 첫 화면 = 키오스크
@@ -12,7 +15,7 @@ server {
 
   location / {
     proxy_pass ${TOWER_URL};
-    proxy_set_header Host $host;
+    proxy_set_header Host $http_host;   # 포트(:8080)까지 넘겨 관제탑이 만드는 주소도 포트를 잃지 않게(11/5)
     proxy_set_header X-Real-IP $remote_addr;
     proxy_connect_timeout 5s;
   }
