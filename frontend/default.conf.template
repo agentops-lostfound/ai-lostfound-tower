@@ -1,0 +1,27 @@
+# 11/5: 재민 님 화면(React)을 관제탑 API·팀 DB 에 연결 — /api/ 를 관제탑으로 전달한다
+# ${TOWER_URL} 은 컨테이너가 켜질 때 nginx 공식 이미지가 환경값으로 바꿔 넣는다(기본: 이 PC 의 관제탑 8100)
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+  client_max_body_size 8m;   # 사진 data URL(최대 5MB) 여유
+
+  # 화면이 부르는 /api/places · /api/items → 관제탑 /places · /items
+  location /api/ {
+    proxy_pass ${TOWER_URL}/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_connect_timeout 5s;
+  }
+
+  # 분실물 반환 신청은 본인 확인 절차가 있는 관제탑 분실인 화면으로
+  location = /lost {
+    proxy_pass ${TOWER_URL}/lost;
+    proxy_set_header Host $host;
+  }
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
