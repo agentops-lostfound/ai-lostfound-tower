@@ -6,6 +6,7 @@ JSON 요청은 별도 safety queryable로 전달한다. 기존 /action은 우회
 import json
 import math
 import threading
+import time
 import uuid
 
 try:
@@ -17,7 +18,8 @@ except ImportError:
 class OwnerBridge:
     VERSION = "lf-owner-safety-v1"
 
-    def __init__(self, *, send, hold, dimensions=6):
+    def __init__(self, *, send, hold, dimensions=6, delivery_status=None):
+        self._delivery_status = delivery_status
         self.session = uuid.uuid4().hex
         self._gate = CommandGate(send=send, hold=hold)
         self._lock = threading.Lock()
@@ -26,8 +28,11 @@ class OwnerBridge:
         self._dimensions = dimensions
 
     def status(self):
-        return {"version": self.VERSION, "session": self.session,
-                **self._gate.snapshot()}
+        result = {"version": self.VERSION, "session": self.session,
+                  **self._gate.snapshot()}
+        if self._delivery_status is not None:
+            result["delivery"] = self._delivery_status()
+        return result
 
     def tick(self):
         return self._gate.service()
@@ -92,8 +97,8 @@ class OwnerBridge:
 def for_so101(driver):
     """연결된 SO101 소유자에 사용. 함수 호출 자체는 연결/토크 조작 없음.
 
-    hold는 raw 읽기/쓰기로 관절 범위 클리핑을 피한다. 토크 상태는 변경하지
-    않으며 이미 구동 중인 토크 ON 팔로워의 위치 유지 용도다.
+    hold는 raw 읽기/쓰기로 관절 범위 클리핑을 피한다. 토크 ON 쓰기를 명시적으로
+    추가하지 않지만 목표 기록이 모터 토크를 켤 수 있어 이미 토크 ON인 팔로워에만 쓴다.
     """
     import numpy as np
 
@@ -106,10 +111,45 @@ def for_so101(driver):
             raise RuntimeError("현재 위치 읽기 검증 실패")
         driver._write_joint_positions(raw.astype(np.int32))
 
+    delivery_lock = threading.Lock()
+    delivery = {"schema": "lf-pan-goal-readback-v1", "attempts": 0,
+                "driver_calls_returned": 0, "readbacks": 0}
+
+    def delivery_status():
+        with delivery_lock:
+            return dict(delivery)
+
     def send(target):
         # 실제 프로젝트 안전 범위는 별도 정책으로 검증해야 한다.
         if any(not -100 <= x <= 100 for x in target[:5]) or not 0 <= target[5] <= 100:
             raise ValueError("정규화 관절 범위 밖의 목표")
-        driver.send_action(np.asarray(target, dtype=np.float32))
+        action = np.asarray(target, dtype=np.float32)
+        expected_raw = int(driver._unit_to_ticks(action)[0])
+        with delivery_lock:
+            delivery.update(attempts=delivery["attempts"] + 1, requested_pan=float(target[0]),
+                            requested_pan_raw=expected_raw, stage="driver_call",
+                            error=None, observed_goal_raw=None, goal_matches_request=None,
+                            read_at_monotonic=None)
+        try:
+            driver.send_action(action)
+            with delivery_lock:
+                delivery["driver_calls_returned"] += 1
+                delivery["stage"] = "read_goal"
+            # 소유자 스레드에서만 읽는다. 정지 콜백은 이 I/O 잠금을 기다리지 않는다.
+            conn = driver._require_connection()
+            goal, comm, error = conn.packet_handler.read2ByteTxRx(
+                conn.port_handler, driver.servo_ids["shoulder_pan"], 42)
+            if comm != 0 or error != 0:
+                raise RuntimeError(f"pan 목표 읽기 실패: comm={comm}, error={error}")
+            with delivery_lock:
+                delivery.update(readbacks=delivery["readbacks"] + 1,
+                                observed_goal_raw=int(goal), goal_matches_request=int(goal) == expected_raw,
+                                stage="goal_readback", read_at_monotonic=time.monotonic())
+            if int(goal) != expected_raw:
+                raise RuntimeError("pan 목표 레지스터와 요청값 불일치")
+        except Exception as error:
+            with delivery_lock:
+                delivery.update(stage="error", error=str(error))
+            raise
 
-    return OwnerBridge(send=send, hold=hold)
+    return OwnerBridge(send=send, hold=hold, delivery_status=delivery_status)

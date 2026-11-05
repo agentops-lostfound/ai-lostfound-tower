@@ -165,3 +165,16 @@ py -3.11 .\tools\prepare_robot_owner_trial.py home-offset --trial "$trialFile" -
 ```
 
 정상 동작이면 HOME_OFFSET_SEQUENCE_COMPLETE와 종료 정지·유지 완료를 확인한다. 이는 요청 시퀀스 완료이며 실제 위치 확인은 final_positions, offset_reached를 함께 본다. 이어 패널 Home을 한 번 실행한다. Home 및 offset 결과의 position_trace는 표본 요청 목표와 관측 pan 위치이며, queued_only는 모터 Goal 레지스터 기록 성공을 보장하지 않는다. 미이동을 성공으로 처리하거나 허용 오차를 완화하지 않는다. Home의 정지 허용 경로·기존 소유자 패치는 변경하지 않았다. 갱신된 Home 결과를 받으려면 패널을 재시작한다.
+
+
+## 미이동 관측 후 실제 목표 읽기 추가 · 11월 5일
+
+Home 기준 +0.8 준비 시험에서 시작 pan=-3.4355376, 목표=-3.0788326, 요청 60회 접수, 관측 변화 0, offset_reached=false, 종료 정지·유지 완료가 확인됐다. 시작이 이미 Home보다 약 0.4433 높아서 실제 추가 목표 차이는 약 5틱이다. 미세 거리 영향은 여전히 가능하지만 현재 자료로 원인을 확정할 수 없다. 미이동을 성공으로 취급하지 않고 거리·허용 오차·PID를 추가 변경하지 않는다.
+
+진단 연결부는 기존 소유자 스레드에서 드라이버 send_action 반환 뒤 pan 모터의 Goal_Position(주소 42, 2바이트)을 읽는다. 기존 전송 이외에 모터 레지스터 쓰기는 추가하지 않는다. attempts/driver_calls_returned/readbacks, requested_pan_raw/observed_goal_raw, 오류를 status.delivery에 보존하고 Home/offset 결과에도 정지 전 사본을 남긴다. 요청 접수와 드라이버 호출 및 모터 목표 읽기를 구분한다. 목표값 일치는 실제 이동·토크·집기 성공을 의미하지 않는다. 읽기 오류/불일치는 기존 gate의 정지 래치를 세운다. 실제 정지 시간 보장은 아니며, 요청 처리당 읽기 I/O 1회가 추가된다.
+
+```powershell
+py -3.11 .\tools\prepare_robot_owner_trial.py telemetry-upgrade --trial "$trialFile"
+```
+
+Studio Connect OFF, runtime 종료, 패널 종료 후 활성 USB 소유자가 없어야 한다. 활성 프로세스·알 수 없는 설치 변경이면 거부한다. 기존 진입점·명령 gate는 그대로 두고 연결부만 교체한다. 원본 백업과 이전 후보는 보존하고 새 백업을 컨테이너 및 Windows에서 검증한 뒤 같은 trial.json을 갱신한다. Windows 사본/기록 저장 실패 시 이전 연결부 복원을 시도한다. 새 후보를 처음부터 만들거나 보정할 필요는 없다. 결과 TELEMETRY_UPGRADED_NO_HARDWARE_CONNECTION 또는 TELEMETRY_ALREADY_INSTALLED는 설치 확인이며 하드웨어 연결·토크 ON·시험을 수행하지 않는다. 적용 후 최신 패널을 재시작해야 한다. 원래 Home 실패는 그대로 미해결이며 복귀 중 정지 시험도 아직 미실시다.
