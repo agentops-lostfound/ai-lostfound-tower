@@ -54,6 +54,7 @@ python -m unittest discover -s tests
 ## 자주 쓰는 명령 (저장소 폴더, .venv 켠 상태)
 - 관제탑 시연 요약: `python tools/tower_demo.py`
 - 시험 사례 10개: `python evaluation/run_cases.py`
+- 관제 분석·보고 에이전트(LangManus 구조): `python tools/ops_report.py "오늘 반환 실패 원인 알려줘"` (로컬 모델 `--model`, 관제탑 없이 `--from-json`) — 안내 docs/design/ops_analyst.md
 - 가짜 보관함 시나리오 9개(부품 교체 확인용, 디스코드 요약 `--discord`, 매칭 두 방식 비교 `--compare`): `python tools/mock_scene.py` — 안내 docs/design/swap_guide.md
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 환경 점검: `python tools/check_ai_env.py` (팀 DB 는 실제 접속까지 확인)

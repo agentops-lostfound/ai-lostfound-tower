@@ -15,6 +15,7 @@
 | 환경 | [ai-environment.md](ai-environment.md) | AI 환경 세팅 순서·점검 | ②, ③ |
 | 연결 | [integration.md](integration.md) | 팀원 부품(모델·DB·로봇·웹) 연결 방법 | ③ |
 | 교체 | [swap_guide.md](swap_guide.md) | 가짜 부품 → 팀원 결과물 교체 순서·확인·가짜 시나리오로 찾은 한계 | integration.md |
+| 관제 분석 | [ops_analyst.md](ops_analyst.md) | 관제 기록 분석·보고 멀티에이전트(LangManus 구조, LangGraph) | /returns, /live/state |
 | 인수인계 | [tower_handover.md](tower_handover.md) | 11/5 역할 조정 — 관제탑을 이어받는 사람용 파일 지도·API·다음 할 일 | 전체 |
 | GPU | [gpu_lease.md](gpu_lease.md) | GPU 사용권(STT·Qwen·VLA 순서 지키기) — 모듈에 넣는 법·관제탑 동작 | architecture.md 3-4 |
 
