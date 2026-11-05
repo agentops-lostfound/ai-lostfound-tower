@@ -10,13 +10,16 @@ from uuid import uuid4
 ROOT = Path(__file__).resolve().parent
 
 
-def match_report(report, text, parser, matcher):
+def match_report(report, text, parser, matcher, installation_config=None):
     from agents.vision_adapter import adapt_report
     from matching.inspect_sequence import inspect
     parsed = parser.parse(text)
     comparison = inspect(report, parsed, matcher)
     detections = {d['vision_id']: d for d in adapt_report(report)}
     originals = {o['id']: o for o in report.get('objects', [])}
+    from vision.installation_coordinates import coordinate_chain, load_installation
+    chain=coordinate_chain(report,installation_config or load_installation())
+    coordinate_by_id={r['object_id']:r for r in chain['objects']}
     candidates = []
     for row in comparison['top3']:
         det = detections[row['object_id']]
@@ -26,7 +29,9 @@ def match_report(report, text, parser, matcher):
                            'features': obj.get('qwen', {}).get('features'),
                            'warnings': obj.get('qwen', {}).get('warnings', []),
                            'crop_path': obj.get('crop_path')})
+        candidates[-1]['coordinates']=coordinate_by_id[row['object_id']]
     return {'parsed_query': parsed, 'matching': comparison, 'candidates': candidates,
+            'coordinate_chain':chain,
             'requires_staff_confirmation': True, 'robot_authorized': False}
 
 
@@ -46,9 +51,9 @@ def save(output, result):
                   f"내부 점수 판정: {m['engine_decision']}",
                   f"질의 검증 후: {m['query_policy_decision']}",
                   f"최종 판정: {m['final_decision'] or m['contract_result']}", '',
-                  '| 후보 ID | 점수(확률 아님) | 중심 px | 종이 기준 mm |', '|---|---|---|---|']
+                  '| 후보 ID | 점수(확률 아님) | 중심 px | 작업대 mm | 설치 XY / 고정 접근Z mm |', '|---|---|---|---|---|']
         for c in result['candidates']:
-            lines.append(f"| {c['object_id']} | {c['score']} | {c['center_px']} | {c['center_mm']} |")
+            lines.append(f"| {c['object_id']} | {c['score']} | {c['center_px']} | {c['center_mm']} | {c['coordinates'].get('approach_xyz_mm',c['coordinates']['status'])} |")
         if not result['candidates']:
             lines += ['', '적격 후보 없음. 전체 제외 이유는 result.json의 matching.ranking 참고.']
     (output/'REPORT.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
@@ -65,6 +70,7 @@ def main():
     query.add_argument('--audio', type=Path)
     cli.add_argument('--output-dir', type=Path)
     cli.add_argument('--config', type=Path, help='Vision config')
+    cli.add_argument('--installation-config',type=Path,help='XY transform and fixed approach Z settings')
     cli.add_argument('--device', default='cpu', help='YOLO device')
     cli.add_argument('--qwen-python', type=Path, default=ROOT.parent/'qwen/.python/cpython-3.11.18-windows-x86_64-none/python.exe')
     cli.add_argument('--qwen-site-packages', type=Path, default=ROOT.parent/'qwen/.venv/Lib/site-packages')
@@ -117,8 +123,10 @@ def main():
         from matching.korean_query import KoreanFirstParser
         from matching.hybrid import HybridMatcher
         from matching.policy import load_config
+        from vision.installation_coordinates import load_installation
         result.update(match_report(report, result['text'], KoreanFirstParser(offline=True),
-                                   HybridMatcher(load_config(), offline=True)))
+                                   HybridMatcher(load_config(), offline=True),
+                                   load_installation(args.installation_config) if args.installation_config else None))
         result['status'] = 'inspection_complete' if result['vision_status']=='complete' else 'vision_incomplete'
         exit_code = 0 if result['status']=='inspection_complete' else 2
     except (ValueError, TypeError, KeyError, OSError, RuntimeError, ImportError, subprocess.CalledProcessError) as exc:
