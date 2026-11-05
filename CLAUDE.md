@@ -27,4 +27,5 @@ Codex 는 같은 내용의 `AGENTS.md` 를 읽는다. 규칙을 바꾸면 두 �
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 정답지 검사: `python evaluation/answer_key.py 정답지.csv`
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
+- 관제탑 켜기: `tools\start_tower.bat`(팀 DB·화면 앞문 Docker 도 함께, 교육원 네트워크 공개는 `lan`). Docker 는 `docker-compose.yml` 하나뿐(db 5434 · web 8080) · 화면 지도 `web/README.md` · 로봇 계약 `docs/contracts/robot_api.md`
 - 전체 가상 시연(디스코드 분실물 채널 → 습득·찾기·반환): `.env` TOWER_SIM=1 로 관제탑 → `python tools/lostfound_bot.py` (디스코드 없이 `--try "메시지"`), 화면 `/live` — 안내 docs/design/virtual_demo.md

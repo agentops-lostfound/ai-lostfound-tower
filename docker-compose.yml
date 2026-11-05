@@ -1,5 +1,6 @@
+# 팀 Docker 하나로 (11/5 단일화): 팀 DB(db) + 화면 앞문(web). 관제탑 API 는 PC 에서 직접(tools\start_tower.bat)
+# 켜기: docker compose up -d   (start_tower.bat 이 자동으로 함, 재부팅 뒤에도 Docker Desktop이 켜지면 다시 켜짐)
 # 팀 DB (PostgreSQL 16 + pgvector) — docs/design/database.md
-# 켜기: docker compose up -d   (재부팅 뒤에도 Docker Desktop이 켜지면 자동으로 다시 켜짐)
 # 처음 켤 때만 center/schema.sql → center/seed_demo.sql 을 자동 실행한다(데이터는 lostfound-db 볼륨에 남음)
 # 비밀번호: .env 의 POSTGRES_PASSWORD (없으면 시연용 기본값 — 교육원 PC 안에서만 열림)
 services:
@@ -21,6 +22,20 @@ services:
       test: ["CMD-SHELL", "pg_isready -U lostfound -d lostfound"]
       interval: 10s
       retries: 5
+
+  # 화면 앞문: http://localhost:8080 → 관제탑(8100)의 화면·API 를 그대로 보여 줌(키오스크·분실인·관제). 화면 지도: web/README.md
+  web:
+    image: nginx:1.27-alpine
+    container_name: lostfound-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      TOWER_URL: ${TOWER_URL:-http://host.docker.internal:8100}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # 컨테이너 안에서 이 PC(관제탑)를 부르는 이름
+    volumes:
+      - ./docker/web.conf.template:/etc/nginx/templates/default.conf.template:ro
 
 volumes:
   lostfound-db:
