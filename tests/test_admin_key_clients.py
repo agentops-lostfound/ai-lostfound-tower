@@ -43,11 +43,14 @@ class AdminKeyClientsTest(unittest.TestCase):
     def setUpClass(cls):
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         cls.base = f"http://127.0.0.1:{cls.srv.server_address[1]}"
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.worker = threading.Thread(target=cls.srv.serve_forever, daemon=True)
+        cls.worker.start()
 
     @classmethod
     def tearDownClass(cls):
         cls.srv.shutdown()
+        cls.srv.server_close()
+        cls.worker.join(2)
 
     def setUp(self):
         Handler.seen.clear()

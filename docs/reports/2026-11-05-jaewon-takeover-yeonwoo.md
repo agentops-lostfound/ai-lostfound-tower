@@ -6,8 +6,10 @@
 | PR | 내용 | main 반영 |
 | --- | --- | --- |
 | #61 | 웹 안내 챗봇(문서 근거 RAG · LangGraph 안내/물건 검색 분기 · 음성 입력 · `web/lost-input/`) | #71 (11/5) |
-| #76 | 설명 → 특징 매칭 내부 검사(`agents/matching_inspection.py`, `tools/check_chat_matching.py`), #73 안내 주제와 맞추기, 챗봇 오류 문구에서 내부 오류 내용 숨기기 | 이 PR |
-| #64 | LF-9 회수·도착·장소·접수 통계 독립 시연(`web/collection-desk/`, `agents/center_demo.py`, `center/demo_*`), 기록 일관성 점검 | 이 PR |
+| #76 | 설명 → 특징 매칭 내부 검사(`agents/matching_inspection.py`, `tools/check_chat_matching.py`), #73 안내 주제와 맞추기, 챗봇 오류 문구에서 내부 오류 내용 숨기기 | #82 |
+| #64 | LF-9 회수·도착·장소·접수 통계 독립 시연(`web/collection-desk/`, `agents/center_demo.py`, `center/demo_*`), 기록 일관성 점검 | #82 |
+| #84 | 마지막 최신화(LF-5): 챗봇 위젯 안정화(응답 30초 제한·500자 초과 보존·대화 지우기 중 요청 취소·포커스 보호), 촬영 객체 ↔ 접수 번호 연결 검사(`agents/scene_bindings.py`, `tools/check_scene_links.py`), 위젯 독립 미리보기(`python -m tools.run_chat_widget_demo` → :8112) | 11/5 15:4x 통합 PR |
+| #85 | 마지막 최신화(LF-9): 설명·미디어·HTTP 검색·촬영 연결·회수 가상 통합 검증(`tests/test_virtual_workflow.py`), 관리자 인증(#83) 포함 호환 | 같은 통합 PR |
 - 커밋은 작성자 이름(정연우) 그대로 합쳤다. 원본 PR 은 GitHub 가 병합됨으로 표시한다
 
 ## 2. 그대로 지키는 정연우 원칙
