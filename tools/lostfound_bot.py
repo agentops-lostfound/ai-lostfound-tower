@@ -13,6 +13,7 @@
     LOSTFOUND_CHANNEL_ID=    봇이 읽을 채널 번호(여러 개면 쉼표). 다른 채널 메시지는 무시
     TOWER_URL=               관제탑 주소(기본 http://127.0.0.1:8100)
     LIVE_URL=                진행판 끝에 붙일 실시간 화면 주소(선택, 예: http://교육원PC주소:8100/live)
+    LF_ADMIN_API_KEY=        관제탑 관리자 로그인(LF_ADMIN_PASSWORD)을 켠 경우 봇이 X-Admin-Key 헤더로 보낼 키(11/5, 재민 님 admin_auth)
 
 - 봇 규칙: 메시지 원문을 저장·전달하지 않고 관제탑에는 글만 보낸다. 관제탑이 장소 글·물건 특징만 남긴다
 - 봇은 교육원 PC 에서 켜 둔 동안만 동작한다(2조봇과 같은 규칙). 디스코드 연결부 외의 판단은 BotCore(시험 가능)에 있다
@@ -50,14 +51,18 @@ class TowerError(RuntimeError):
 class TowerClient:
     """관제탑 HTTP 입구(표준 라이브러리)."""
 
-    def __init__(self, base: str | None = None, timeout: float = 10.0):
+    def __init__(self, base: str | None = None, timeout: float = 10.0, admin_key: str | None = None):
         self.base = (base or os.environ.get("TOWER_URL") or "http://127.0.0.1:8100").rstrip("/")
         self.timeout = timeout
+        # 관리자 로그인이 켜지면 /live/state·/robot/home 이 잠긴다 → 키가 있으면 헤더로 보낸다(키 값은 출력하지 않음)
+        self.admin_key = os.environ.get("LF_ADMIN_API_KEY", "") if admin_key is None else admin_key
 
     def _call(self, method: str, path: str, body: dict | None = None) -> dict:
         data = json.dumps(body).encode("utf-8") if body is not None else None
-        req = urllib.request.Request(self.base + path, data=data, method=method,
-                                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        if self.admin_key:
+            headers["X-Admin-Key"] = self.admin_key
+        req = urllib.request.Request(self.base + path, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 return json.loads(r.read().decode("utf-8") or "{}")
@@ -67,6 +72,8 @@ class TowerClient:
             except Exception:
                 d = None
             msg = d.get("message") if isinstance(d, dict) else d
+            if e.code in (401, 403) and not msg:
+                msg = "관제탑 관리자 로그인이 켜져 있어요 — .env 에 LF_ADMIN_API_KEY 를 넣고 봇을 다시 켜 주세요"
             raise TowerError(str(msg or f"관제탑 오류 {e.code}")) from e
         except (urllib.error.URLError, OSError) as e:
             raise TowerError("관제탑에 연결할 수 없어요 — 관제탑(TOWER_SIM=1)이 켜져 있는지 확인") from e

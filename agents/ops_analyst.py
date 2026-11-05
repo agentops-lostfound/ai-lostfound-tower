@@ -38,15 +38,19 @@ OPS_RE = re.compile(r"반환|실패|보류|원인|현황|통계|요약|보고|�
 class TowerReader:
     """관제탑 HTTP 를 GET 으로만 읽는다. 프록시·다른 주소 이동은 쓰지 않는다."""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8100", timeout: float = 10.0):
+    def __init__(self, base_url: str = "http://127.0.0.1:8100", timeout: float = 10.0, admin_key: str | None = None):
         u = urllib.parse.urlparse(base_url)
         if u.scheme not in ("http", "https") or not u.netloc:
             raise ValueError("관제탑 주소는 http://주소:포트 형식")
         self.base, self.timeout = base_url.rstrip("/"), timeout
+        # 11/5: 관리자 로그인(LF_ADMIN_PASSWORD)이 켜지면 /returns·/live/state 가 잠긴다 → X-Admin-Key 로 읽는다
+        import os
+        self.admin_key = os.environ.get("LF_ADMIN_API_KEY", "") if admin_key is None else admin_key
 
     def _get(self, path: str):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(self.base + path, timeout=self.timeout) as r:
+        req = urllib.request.Request(self.base + path, headers={"X-Admin-Key": self.admin_key} if self.admin_key else {})
+        with opener.open(req, timeout=self.timeout) as r:
             raw = r.read(2_000_001)
         if len(raw) > 2_000_000:
             raise ValueError("관제탑 응답이 너무 큽니다")

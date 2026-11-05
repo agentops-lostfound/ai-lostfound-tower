@@ -83,3 +83,8 @@ class Chatbot:
         """Internal LF-20 check only. Not exposed by the chat HTTP routes."""
         from agents.matching_inspection import MatchingInspection
         return (inspector or MatchingInspection()).ask(question, report)
+
+    def inspect_inventory_matching(self, question, scene, inventory_check, inspector=None):
+        """Internal scene/receipt-link inspection. No HTTP or real DB wiring."""
+        from agents.matching_inspection import MatchingInspection
+        return (inspector or MatchingInspection()).ask_bound(question, scene, inventory_check)
