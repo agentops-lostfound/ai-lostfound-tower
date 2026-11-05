@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관리자 관제 | AI 분실물 관제탑</title>
+<style>
+:root{--bg:#f4f6f8;--ink:#14212e;--muted:#5d6b78;--line:#d3dbe3;--accent:#0b6b3a;--warn:#9c1c14;--warn-bg:#fdeceb}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:500 16px/1.5 "Noto Sans KR","Malgun Gothic",system-ui,sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;flex:1}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;background:var(--accent);color:#fff}
+button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+#login{margin:auto;width:min(360px,calc(100% - 32px));background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px;display:none}
+#login h2{margin:0 0 4px}
+#login p{margin:0 0 16px;color:var(--muted)}
+input[type=password]{width:100%;font:inherit;min-height:46px;padding:0 12px;border:1.5px solid var(--line);border-radius:10px;margin-bottom:12px}
+#err{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-weight:700;display:none}
+#err.on{display:block}
+#app{flex:1;display:none;flex-direction:column;min-height:0}
+#app.on{display:flex}
+iframe{flex:1;width:100%;border:0;background:#fff}
+</style>
+</head>
+<body>
+<header>
+  <h1>관리자 관제</h1>
+  <span id="who" hidden>
+    <button class="tab ghost on" data-tab="live">관제 모니터링</button>
+    <button class="tab ghost" data-tab="staff">반환·직원</button>
+    <button class="ghost" id="logout">로그아웃</button>
+  </span>
+</header>
+
+<form id="login" autocomplete="off">
+  <h2>관리자 로그인</h2>
+  <p>관리자 비밀번호를 입력하세요.</p>
+  <p id="err" role="alert"></p>
+  <input type="password" id="pw" placeholder="비밀번호" autocomplete="current-password" required>
+  <button type="submit" style="width:100%">로그인</button>
+</form>
+
+<div id="app"><iframe id="frame" title="관리자 화면"></iframe></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const SRC = {live: '/live', staff: '/staff'};
+function showApp(tab) {
+  $('#login').style.display = 'none';
+  $('#who').hidden = false; $('#app').classList.add('on');
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  const f = $('#frame'); if (f.getAttribute('src') !== SRC[tab]) f.src = SRC[tab];
+}
+function showLogin(msg) {
+  $('#who').hidden = true; $('#app').classList.remove('on'); $('#frame').removeAttribute('src');
+  $('#login').style.display = 'block';
+  $('#err').textContent = msg || ''; $('#err').classList.toggle('on', !!msg);
+  $('#pw').focus();
+}
+async function check() {
+  try {
+    const d = await (await fetch('/api/admin/me', {cache: 'no-store'})).json();
+    if (d.logged_in) showApp('live'); else showLogin();
+  } catch (e) { showLogin('관제탑에 연결할 수 없어요'); }
+}
+$('#login').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    const r = await fetch('/api/admin/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: $('#pw').value})});
+    $('#pw').value = '';
+    if (r.ok) return check();
+    showLogin(r.status === 429 ? '잠시 뒤에 다시 시도하세요 (1분 잠금)' : '비밀번호가 맞지 않아요');
+  } catch (e) { showLogin('관제탑에 연결할 수 없어요'); }
+};
+$('#logout').onclick = async () => { try { await fetch('/api/admin/logout', {method: 'POST'}); } catch (e) {} showLogin(); };
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => showApp(b.dataset.tab));
+check();
+</script>
+</body>
+</html>

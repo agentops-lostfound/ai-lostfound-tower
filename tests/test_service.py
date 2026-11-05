@@ -252,6 +252,8 @@ class ApiRoutesTest(unittest.TestCase):
         fake = types.ModuleType("fastapi")
         fake.FastAPI, fake.HTTPException, fake.Body = FakeFastAPI, HTTPException, (lambda *a, **k: None)
         fake.Header = lambda *a, **k: None     # 11/5 챗봇 위젯 주소(agents/chat_api.py)
+        fake.Depends = lambda *a, **k: None    # 11/5 관리자 로그인 문지기(agents/admin_auth.py)
+        fake.Request = fake.Response = object
         self.HTTPException = HTTPException
         sys.modules["fastapi"] = fake
         responses = types.ModuleType("fastapi.responses")
@@ -271,13 +273,19 @@ class ApiRoutesTest(unittest.TestCase):
         from agents import api
         api.build_app(service())
         r = self.routes
-        self.assertEqual(sorted(r), [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
+        new_api = [("GET", "/admin")] + [("GET", p) for p in ("/api/admin/claims/{claim_id}", "/api/admin/live/state", "/api/admin/me", "/api/admin/returns",
+                                        "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places")] + \
+                  [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
+                                         "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
+                                         "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",
+                                         "/api/kiosk/items/{item_id}/features", "/api/lost/claims", "/api/robot/stop")]   # 11/5 /api/ 주소 체계
+        self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
                                      ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold"),
                                      ("POST", "/robot/home"), ("POST", "/robot/stop"), ("POST", "/sim/found"),
-                                 ("POST", "/sim/lost"), ("POST", "/sim/lost/{pending_id}/answer"), ("POST", "/sim/reset")])
+                                 ("POST", "/sim/lost"), ("POST", "/sim/lost/{pending_id}/answer"), ("POST", "/sim/reset")]))
         self.assertEqual(r[("POST", "/returns")](ok_payload())["decision"], DECISION_RETURNED)
         for payload, code in ((ok_payload(), 409), (ok_payload(case="R2", phone="010"), 422)):
             with self.assertRaises(self.HTTPException) as cm:
