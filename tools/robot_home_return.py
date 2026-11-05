@@ -153,7 +153,7 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
                 result["position_trace"].append({"sequence": index,
                     "requested_pan": target[0], "observed_pan_before_request": observed[0],
                     "delivery_before_request": current.get("delivery")})
-            sleep(0.05)
+            sleep(0.1)  # 근거리 시험은 약 6초간 목표를 보내 수동 정지 시간을 확보한다.
         # 모터가 마지막 작은 목표에 도달할 시간을 제한적으로 관측한다.
         for _ in range(30):
             current = status()
@@ -197,9 +197,25 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
                 raise RuntimeError("Home 종료 상태 변경")
             if current.get("hold_commanded"):
                 result["hold_commanded_after_home"] = True
-                final = client.positions()
-                check_values(final)
+                hold_epoch = current["epoch"]
+                samples = []
+                for _ in range(10):
+                    latest = client.rpc("status")
+                    if (not latest.get("ok") or latest.get("session") != expected_session
+                            or latest.get("epoch") != hold_epoch or not latest.get("stop_requested")
+                            or not latest.get("hold_commanded")):
+                        raise RuntimeError("정지 후 위치 관측 중 상태 변경")
+                    sample = client.positions()
+                    check_values(sample)
+                    samples.append(sample)
+                    sleep(0.05)
+                final = samples[-1]
+                result["post_stop_observation_complete"] = True
                 result["final_positions"] = final
+                result["post_stop_span_normalized"] = [
+                    max(row[i] for row in samples) - min(row[i] for row in samples)
+                    for i in range(6)]
+                result["post_stop_pan_span_ticks"] = result["post_stop_span_normalized"][0] / PAN_NORMALIZED_PER_TICK
                 metrics = pan_metrics(start, final, profile["positions"])
                 result.update(metrics)
                 if result["result"] == "HOME_REACHED":
@@ -209,7 +225,8 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
                         result.update(result="HOME_ABORTED", reason="유지 후 Home 오차 또는 복귀 진척 기준 미달")
                 return result
         except Exception as error:
-            result.update(result="HOME_ABORTED", reason=str(error))
+            result.update(result="HOME_ABORTED", reason=str(error),
+                          hold_commanded_after_home=False, post_stop_observation_complete=False)
             return result
         sleep(0.05)
     result.update(result="HOME_ABORTED", reason="유지 명령 완료 확인 실패")

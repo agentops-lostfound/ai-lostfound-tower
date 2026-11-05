@@ -86,6 +86,8 @@ class HomeReturnTests(unittest.TestCase):
         self.assertEqual(self.client.operations.count("resume"), 1)
         self.assertNotEqual(self.client.position, self.profile["positions"])
         self.assertTrue(result["hold_commanded_after_home"])
+        self.assertEqual(result["post_stop_span_normalized"], [0.] * 6)
+        self.assertEqual(result["post_stop_pan_span_ticks"], 0.)
 
     def test_already_home_does_not_resume_or_send(self):
         self.client.position = list(self.profile["positions"])
@@ -213,3 +215,23 @@ class PanToleranceTests(unittest.TestCase):
         result = self.run_home()
         self.assertEqual(result["result"], "HOME_ABORTED")
         self.assertIn("다른 관절", result["reason"])
+
+
+class PostHomeObservationTests(unittest.TestCase):
+    setUp = HomeReturnTests.setUp
+    run_home = HomeReturnTests.run_home
+
+    def test_resume_during_post_stop_observation_aborts_result(self):
+        self.client.stop_after = 8
+        original_positions = self.client.positions
+        def changing():
+            if self.client.bridge.status()["stop_requested"] and len(self.client.targets):
+                status = self.client.bridge.status()
+                self.client.bridge.receive(json.dumps({"version": self.client.bridge.VERSION,
+                    "session": self.client.bridge.session, "op": "resume", "epoch": status["epoch"],
+                    "writer": "other", "staff_confirmed": True}).encode())
+            return original_positions()
+        self.client.positions = changing
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertIn("관측 중 상태 변경", result["reason"])
