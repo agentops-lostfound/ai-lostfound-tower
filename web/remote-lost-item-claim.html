@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#00ad5c">
+  <title>해운대역 비대면 분실물 반환</title>
+  <style>
+    :root{--green:#00ad5c;--navy:#172b4d;--ink:#172b4d;--muted:#64748b;--line:#dbe3ec;--bg:#f3f7f8}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;color:var(--ink)}
+    .wrap{max-width:980px;margin:32px auto;padding:0 16px}.shell{background:#fff;border:5px solid var(--navy);border-radius:22px;overflow:hidden;box-shadow:0 12px 34px #172b4d12}
+    header{padding:30px 34px;background:linear-gradient(110deg,#fff 65%,#effbf4);border-bottom:1px solid var(--line)}
+    .tag{font-size:12px;letter-spacing:.12em;font-weight:900;color:var(--green)}h1{font-size:clamp(25px,4vw,36px);margin:8px 0}.lead{color:var(--muted);line-height:1.65;margin:0}
+    nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}.tab{border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:13px;font-weight:750;color:var(--muted)}.tab.active{background:var(--green);color:#fff;border-color:var(--green)}
+    main{padding:28px 34px}.section-title{font-size:20px;margin:0 0 6px}.section-desc{color:var(--muted);font-size:14px;margin:0 0 22px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:19px}.field{min-width:0}.full{grid-column:1/-1}label,.legend{display:block;font-weight:750;margin:0 0 8px}
+    input,select,textarea{width:100%;font:inherit;border:1.5px solid #cbd5e1;border-radius:11px;padding:13px 14px;background:#fff;color:var(--ink);outline:none;min-height:48px}
+    textarea{min-height:96px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px #00ad5c1b}
+    .locations{display:grid;grid-template-columns:1fr 1fr;gap:10px}.loc{display:flex;gap:10px;align-items:center;border:1.5px solid var(--line);padding:13px;border-radius:11px;cursor:pointer;font-size:14px}.loc:has(input:checked){border-color:var(--green);background:#effbf4}.loc input{width:18px;height:18px;min-height:18px;margin:0;accent-color:var(--green)}
+    .hint{font-size:12px;color:var(--muted);margin:7px 0 0}.actions{display:flex;gap:12px;margin-top:24px}.btn{border:0;border-radius:12px;padding:15px 20px;font:inherit;font-weight:850;cursor:pointer}.primary{background:var(--green);color:#fff;flex:1}.secondary{background:#eef2f6;color:var(--navy)}.primary:hover{background:#009b51}
+    .result{display:none;margin-top:22px;border:1.5px solid #a7e4c2;background:#f0fbf5;border-radius:14px;padding:18px}.result h3{margin:0 0 8px}.code{font-size:22px;font-weight:900;color:#008b4a}
+    .return-info{margin-top:26px;padding:18px;background:#f7f9fb;border-radius:13px}.return-info h3{margin:0 0 8px;font-size:16px}.return-info p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+    footer{text-align:center;color:var(--muted);font-size:12px;padding:0 18px 24px}
+    @media(max-width:650px){.wrap{margin:12px auto;padding:0 9px}.shell{border-width:4px;border-radius:17px}header{padding:24px 19px}main{padding:23px 18px}.grid{grid-template-columns:1fr}.full{grid-column:auto}.locations{grid-template-columns:1fr}.actions{flex-direction:column}.secondary{order:2}}
+  </style>
+</head>
+<body>
+<div class="wrap"><div class="shell">
+<header>
+  <div class="tag">HAEUNDAE STATION · LOST & FOUND</div>
+  <h1>비대면 분실물 반환 서비스</h1>
+  <p class="lead">분실물을 온라인으로 등록하고, 소유자 확인 후 안전하게 반환 절차를 진행할 수 있습니다.<br>먼저 습득한 물건의 정보를 등록해 주세요.</p>
+  <nav><span class="tab active">1. 습득물 등록</span><span class="tab">2. 소유자 확인</span><span class="tab">3. 반환 안내</span></nav>
+</header>
+<main>
+  <h2 class="section-title">습득물 등록하기</h2>
+  <p class="section-desc">별표(*) 항목은 필수 입력 사항입니다.</p>
+  <form id="foundForm">
+    <div class="grid">
+      <div class="field"><label for="item">발견한 물건은 무엇인가요? *</label><input id="item" required placeholder="예: 검정색 카드지갑"></div>
+      <div class="field"><label for="category">물건 종류 *</label><select id="category" required><option value="">종류 선택</option><option>전자기기</option><option>지갑·카드·현금</option><option>가방·의류</option><option>신분증·서류</option><option>열쇠·안경·액세서리</option><option>유아용품</option><option>기타</option></select></div>
+      <div class="field full"><label for="details">물건의 특징</label><textarea id="details" placeholder="색상, 브랜드, 모양, 눈에 띄는 특징 등을 입력해 주세요."></textarea></div>
+      <div class="field full"><span class="legend">발견 장소 *</span><div class="locations">
+        <label class="loc"><input type="radio" name="place" value="해운대역 개찰구 주변" required>해운대역 개찰구 주변</label>
+        <label class="loc"><input type="radio" name="place" value="해운대역 승강장">해운대역 승강장</label>
+        <label class="loc"><input type="radio" name="place" value="해운대역 대합실 및 의자">해운대역 대합실 및 의자</label>
+        <label class="loc"><input type="radio" name="place" value="해운대역 화장실">해운대역 화장실</label>
+        <label class="loc"><input type="radio" name="place" value="해운대역 출입구 및 계단">해운대역 출입구 및 계단</label>
+      </div></div>
+      <div class="field"><label for="date">발견 날짜 *</label><input id="date" type="date" required></div>
+      <div class="field"><label for="time">발견 시간 *</label><input id="time" type="time" required></div>
+      <div class="field"><label for="finder">습득자 이름</label><input id="finder" placeholder="이름"></div>
+      <div class="field"><label for="contact">연락처</label><input id="contact" type="tel" placeholder="010-0000-0000"></div>
+    </div>
+    <div class="return-info"><h3>개인정보 및 반환 안내</h3><p>연락처는 분실물 확인과 반환 안내 목적으로만 사용하도록 설계되어 있습니다. 실제 운영 시에는 개인정보 처리방침, 본인 확인, 보관·파기 정책 및 서버 보안 설정이 필요합니다.</p></div>
+    <div style="margin-top:17px"><label style="display:flex;gap:10px;align-items:flex-start;font-size:14px"><input id="agree" type="checkbox" required style="width:18px;min-height:18px;height:18px;margin:2px 0 0;accent-color:var(--green)">개인정보 수집·이용 안내를 확인했으며 등록에 동의합니다. *</label></div>
+    <div class="actions"><button class="btn primary" type="submit">습득물 등록하기</button><button class="btn secondary" type="reset">초기화</button></div>
+    <div class="result" id="result" aria-live="polite"><h3>등록 내용 확인</h3><p>임시 접수번호</p><div class="code" id="code"></div><p id="summary"></p><p class="hint">데모 화면입니다. 입력 내용은 서버에 저장되거나 역무실로 전송되지 않습니다.</p></div>
+  </form>
+</main>
+<footer>해운대역 비대면 분실물 반환 · 이용자의 안전한 분실물 반환을 위한 서비스 시안</footer>
+</div></div>
+<script>
+document.getElementById('foundForm').addEventListener('submit',function(e){
+  e.preventDefault();if(!this.reportValidity())return;
+  const val=id=>document.getElementById(id).value;
+  const place=this.querySelector('input[name="place"]:checked').value;
+  const ticket='HD-'+Date.now().toString().slice(-8);
+  document.getElementById('code').textContent=ticket;
+  document.getElementById('summary').textContent=val('item')+' · '+val('category')+' · '+place+' · '+val('date')+' '+val('time');
+  document.getElementById('result').style.display='block';
+  document.getElementById('result').scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+document.getElementById('foundForm').addEventListener('reset',()=>{document.getElementById('result').style.display='none'});
+</script>
+</body></html>
