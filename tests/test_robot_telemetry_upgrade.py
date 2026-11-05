@@ -60,3 +60,13 @@ class TelemetryUpgradeTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 telemetry.upgrade(self.candidate, self.backup, self.new_bridge, self.output)
         self.assertEqual((self.transport / telemetry.BRIDGE).read_bytes(), self.original_bridge)
+
+    def test_guarded_owner_update_and_undo_preserve_original(self):
+        self.prepare()
+        owner = Path(self.temp.name) / "owner.py"
+        owner.write_text("# guard_manual_start(config.name)\nvalue = 200\n")
+        before = (self.transport / manager.FILES[0]).read_bytes()
+        result = telemetry.upgrade(self.candidate, self.backup, self.new_bridge, self.output, owner)
+        self.assertEqual((self.transport / manager.FILES[0]).read_bytes(), owner.read_bytes())
+        telemetry.undo(self.backup, result["container_candidate"])
+        self.assertEqual((self.transport / manager.FILES[0]).read_bytes(), before)

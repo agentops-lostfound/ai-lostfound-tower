@@ -1,6 +1,10 @@
 """Home 후보 읽기·미리보기·저장. 모터 제어는 제공하지 않는다."""
 import threading
 import uuid
+try:
+    from .robot_home_snapshot import capture_state_ready
+except ImportError:
+    from robot_home_snapshot import capture_state_ready
 
 
 class HomeSettingsController:
@@ -70,7 +74,7 @@ class HomeSettingsController:
                     raise RuntimeError("현재 자세를 다시 읽어주세요. 기록 상태가 바뀌었습니다")
                 current = self.status_worker.request("status")
                 if (not current.get("ok") or current.get("session") != session or current.get("epoch") != epoch
-                        or not current.get("stop_requested") or not current.get("hold_commanded")):
+                        or not capture_state_ready(current)):
                     raise RuntimeError("정지 상태가 바뀌었습니다. 자세를 다시 읽어주세요")
                 result = self.save_pose(candidate, name.strip())
                 if result.get("movement_commands_sent") != 0:

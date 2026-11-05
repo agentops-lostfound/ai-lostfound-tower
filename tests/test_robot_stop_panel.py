@@ -209,3 +209,25 @@ class StopPanelTests(unittest.TestCase):
         self.assertEqual(saved, [])
         release.set()
         controller.thread.join(2)
+
+    def test_manual_controls_require_token_and_pass_only_confirmed_state(self):
+        calls = []
+        def manual(operation, session, epoch, confirmed):
+            if confirmed is not True or type(epoch) is not int:
+                raise ValueError("준비 확인 필요")
+            calls.append((operation, session, epoch))
+            return {"ok": True, "manual_pose": {"state": "entering"}}
+        self.server.RequestHandlerClass = make_handler(self.status, self.stop, "test-token", self.port,
+                                                       manual_controller=manual)
+        body = json.dumps({"session": "fake-session", "epoch": 2, "staff_confirmed": True})
+        status, _ = self.request("POST", "/manual-pose", body)
+        self.assertEqual(status, 403)
+        self.assertEqual(calls, [])
+        headers = {"X-LF-Token": "test-token"}
+        status, _ = self.request("POST", "/manual-hold", '{"session":"fake-session","epoch":2}', **headers)
+        self.assertEqual(status, 400)
+        for path, operation in (("/manual-pose", "manual_pose"), ("/manual-hold", "manual_hold")):
+            status, _ = self.request("POST", path, body, **headers)
+            self.assertEqual(status, 202)
+            self.assertEqual(calls[-1], (operation, "fake-session", 2))
+        self.assertEqual(self.stop.calls, [])

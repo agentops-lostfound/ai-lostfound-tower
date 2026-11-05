@@ -30,7 +30,7 @@ def once(source, old, new):
 
 
 def patched_source(source):
-    source = once(source, "from loguru import logger\n", "from loguru import logger\nfrom physicalai.robot.transport._lf_owner_bridge import for_so101\n")
+    source = once(source, "from loguru import logger\n", "from loguru import logger\nfrom physicalai.robot.transport._lf_owner_bridge import for_so101, guard_manual_start\n")
     source = once(source,
         "    heartbeat_interval_s: float = _HEARTBEAT_INTERVAL_S,\n",
         "    heartbeat_interval_s: float = _HEARTBEAT_INTERVAL_S,\n    safety_bridge: Any = None,\n")
@@ -58,6 +58,7 @@ def patched_source(source):
     source = once(source,
         "        shutdown_event.set()\n        try:\n            endpoints.driver.disconnect()",
         "        shutdown_event.set()\n        if safety_queryable is not None:\n            with contextlib.suppress(Exception):\n                safety_queryable.undeclare()\n        try:\n            endpoints.driver.disconnect()")
+    source = once(source, "        driver.connect()\n", "        guard_manual_start(config.name)\n        driver.connect()\n")
     ast.parse(source)
     return source
 
