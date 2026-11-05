@@ -7,7 +7,8 @@ Claude Code 는 `CLAUDE.md` 를 읽고, Codex 는 이 파일을 읽는다. 두 �
 - AI 분실물 관제탑: 습득물 등록기계 → 본센터(공용 보관함 + 탑뷰 카메라 + SO-101 로봇팔) → 분실인 웹, 이를 관제하는 AI 관제탑
 - MVP: 지갑 1종 → 성공하면 USB·립밤·모형폰·핸드크림·보조배터리(품목 6종, agents/contracts.py CATEGORIES). 업무는 Jira 스페이스 LF — 에픽 LF-1(접수·찾기)·LF-7(센터·데이터)·LF-13(관제탑) 아래 작업(11/4 기준 LF-34까지, 번호는 에픽별 1.x·2.x·3.x 를 이어서)
 - 설계 문서: `docs/design/` (구조도 `architecture.md`, DB `database.md`)
-- 기준 입·출력 약속: `agents/contracts.py`, `docs/contracts/mcp_tools.md` — 바꾸면 PR 본문에 이유를 적고 "변재원 확인 필요"라고 쓴다
+- 기준 입·출력 약속: `agents/contracts.py`, `docs/contracts/mcp_tools.md` — 바꾸면 PR 본문에 이유를 적는다(관제탑 담당 김재민, 11/5 역할 조정)
+- 11/5 역할: 화면·관제탑(API·DB·로봇 연결) 김재민 · 챗봇 변재원(보조 정연우) · 비전·매칭·집기 김건태 · 로봇팔 이순필. 관제탑 인수인계 `docs/design/tower_handover.md`
 
 ## 폴더와 담당
 | 폴더 | 내용 |
@@ -53,9 +54,10 @@ python -m unittest discover -s tests
 ## 자주 쓰는 명령 (저장소 폴더, .venv 켠 상태)
 - 관제탑 시연 요약: `python tools/tower_demo.py`
 - 시험 사례 10개: `python evaluation/run_cases.py`
+- 관제 분석·보고 에이전트(LangManus 구조): `python tools/ops_report.py "오늘 반환 실패 원인 알려줘"` (로컬 모델 `--model`, 관제탑 없이 `--from-json`) — 안내 docs/design/ops_analyst.md
 - 가짜 보관함 시나리오 9개(부품 교체 확인용, 디스코드 요약 `--discord`, 매칭 두 방식 비교 `--compare`): `python tools/mock_scene.py` — 안내 docs/design/swap_guide.md
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 환경 점검: `python tools/check_ai_env.py` (팀 DB 는 실제 접속까지 확인)
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
-- 관제탑 켜기: `tools\start_tower.bat`(팀 DB·화면 앞문 Docker 도 함께, 교육원 네트워크 공개는 `lan`). Docker 는 `docker-compose.yml` 하나뿐(db 5434 · web 8080) · 화면 지도 `web/README.md` · 로봇 계약 `docs/contracts/robot_api.md`
+- 관제탑 켜기: `tools\start_tower.bat`(팀 DB·화면 앞문 Docker 도 함께, 교육원 네트워크 공개는 `lan`, 코드가 바뀌면 스스로 다시 켜지는 개발 모드는 `dev`). Docker 는 `docker-compose.yml` 하나뿐(db 5434 · web 8080) · 화면 지도 `web/README.md` · 로봇 계약 `docs/contracts/robot_api.md`
 - 전체 가상 시연(디스코드 분실물 채널 → 습득·찾기·반환): `.env` TOWER_SIM=1 로 관제탑 → `python tools/lostfound_bot.py` (디스코드 없이 `--try "메시지"`), 화면 `/live` — 안내 docs/design/virtual_demo.md

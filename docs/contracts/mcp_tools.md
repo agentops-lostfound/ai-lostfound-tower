@@ -19,16 +19,16 @@
 | --- | --- | --- | --- | --- | --- |
 | `vision_topview` | 김건태 LF-3 | 탑뷰로 공용 보관함 촬영 → 물건마다 박스·중심·특징 | 없음 | 검출 목록 | 빈 목록 → 직원 확인 |
 | `match_item` | 김건태 LF-20 | 접수 특징 ↔ 탑뷰 물건 비교 | query(특징), detections | 매칭 결과 | uncertain·none → 자동 반환 안 함 |
-| `db_get_item` | 변재원 LF-8 | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
-| `db_set_status` | 변재원 LF-8 | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
-| `db_list_active` | 변재원 LF-8 | 보관함에 있을 수 있는 물건 목록(닮은 물건 검사, 11/3) | 없음 | `[{item_id, status, features}]` | `None` → 자동 반환 안 함 |
+| `db_get_item` | 김재민(11/5 이관, 원래 LF-8) | 접수 번호로 기록 읽기 | item_id | `{item_id, status, features}` | None → 직원 확인 |
+| `db_set_status` | 김재민(11/5 이관, 원래 LF-8) | 상태 변경·기록 | item_id, status | `{ok, reason}` | 로봇을 움직이지 않음 |
+| `db_list_active` | 김재민(11/5 이관, 원래 LF-8) | 보관함에 있을 수 있는 물건 목록(닮은 물건 검사, 11/3) | 없음 | `[{item_id, status, features}]` | `None` → 자동 반환 안 함 |
 | `robot_approach` | 김건태 LF-21 | 작업대 mm → 로봇 좌표, 접근 자세로 이동 | center_mm `[x, y]`(이동 기준) + center_px `[cx, cy]`(참고) (11/4) | `{ok, reason}` | 정지 + 알림. mm 좌표가 없으면 관제탑이 부르지 않음(직원 확인) |
 | `robot_grasp` | 김건태 LF-19 | SmolVLA 근거리 집기·들기 | 없음 | `{ok, reason}` | 1번만 재시도, 그래도 실패면 정지 |
 | `robot_verify_grasp` | 김건태 LF-19 | 그리퍼 닫힘 + 탑뷰 재확인 | 없음 | `{ok, reason}` | 실패로 처리 |
 | `robot_deliver` | 이순필 LF-11 | 바구니까지 이동·그리퍼 열기 | 없음 | `{ok, reason}` | 정지 + 알림 |
 | `robot_stop` | 이순필 LF-11 | **그 자리에서 즉시 정지만**(원점 복귀 안 함, 11/4). 반환 중에도 직원 화면 🛑 버튼(`POST /robot/stop`) | 없음 | `{ok, reason}` | 직원 호출 |
 | `robot_home` | 이순필 LF-11 | 저장된 경로로 원점 복귀. 직원이 주변 확인 뒤 버튼(`POST /robot/home`)으로만, 반환 중이면 거부 (11/4) | 없음 | `{ok, reason}` | 직원 호출 |
-| `notify` | 변재원 LF-17 | 관제 채널 알림 | channel(progress·alert·score), text | `{ok}` | 흐름은 멈추지 않음 |
+| `notify` | 김재민(11/5 이관, 원래 LF-17) | 관제 채널 알림 | channel(progress·alert·score), text | `{ok}` | 흐름은 멈추지 않음 |
 
 ## 3. AI에게 여는 범위
 - MCP 서버(`agents/mcp_server.py`)로 여는 도구는 **읽기·비교·알림만**: `list_tools · vision_topview · match_item · db_get_item · notify`

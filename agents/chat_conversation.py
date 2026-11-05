@@ -4,7 +4,11 @@ from agents.lost_input import checked_text, text_features
 from agents.search_context import search_context
 
 TOPIC_LABELS = {'consent': '본인인증', 'pickup': '수령 절차', 'masked_identity': '분실인 개인정보',
-                'finder_contact': '습득자 연락처', 'site_help': '사이트 사용법'}
+                'finder_contact': '습득자 연락처', 'site_help': '사이트 사용법',
+                'flow': '분실물 확인', 'center_pickup': '본센터 받는 순서',
+                'found_report': '습득 신고', 'categories': '물건 종류',
+                'kiosk_places': '키오스크 위치', 'privacy_input': '개인정보 입력',
+                'candidate_scope': '후보의 뜻'}
 
 
 def is_referential(q):
@@ -59,7 +63,7 @@ def resolve_turn(question, history, context, guidance):
         current = natural_question(turn)
         if previous and is_referential(current) and guidance.ask(current)['status'] == 'not_found':
             topics = [s['topic'] for s in guidance.ask(previous)['sources']]
-            if len(topics) == 1:
+            if len(topics) == 1 and topics[0] in TOPIC_LABELS:
                 current = TOPIC_LABELS[topics[0]] + ' ' + current
         previous = current
         previous_features, _ = text_features(previous)
@@ -88,7 +92,7 @@ def resolve_turn(question, history, context, guidance):
         if current['status'] == 'not_found':
             prior = guidance.ask(previous)
             topics = [s['topic'] for s in prior['sources']]
-            if len(topics) == 1:
+            if len(topics) == 1 and topics[0] in TOPIC_LABELS:
                 resolved = TOPIC_LABELS[topics[0]] + ' ' + question
                 return resolved, context, True
     if elliptical and not search_intent(question) and guidance.ask(question)['status'] == 'not_found':

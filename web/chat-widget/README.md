@@ -1,0 +1,49 @@
+# chat-widget — AI 챗봇 위젯 (LF-5, 11/5)
+
+한줄 설명: 어떤 화면이든 **스크립트 한 줄**을 넣으면 "AI챗봇 사용하기" 버튼으로 작은 채팅 창이 열리는 부품이다.
+챗봇 두뇌는 관제탑의 `/chat/questions`(정연우 LF-5 챗봇: 이용 안내 RAG + 물건 검색 에이전트, LangGraph)이고, 위젯은 화면만 맡는다.
+
+- 담당: 챗봇·위젯 변재원(보조 정연우) / 붙일 화면 김재민
+- 1차 적용 화면: 분실인 웹(`web/lost/`) — **재민 님 웹이 완성됐다고 하면 그때 붙인다**
+- 시험 페이지: 관제탑 켠 뒤 `http://127.0.0.1:8100/chat-widget/demo`
+
+## 1. 화면에 붙이는 법 (재민 님, 2줄)
+```html
+<!-- ① 원하는 버튼에 data-chatbot-open 속성 -->
+<button type="button" data-chatbot-open>AI챗봇 사용하기</button>
+
+<!-- ② </body> 바로 위에 한 줄 -->
+<script src="/chat-widget/widget.js" defer></script>
+```
+- 버튼이 없는 화면에는 오른쪽 아래에 동그란 "AI 챗봇" 버튼이 자동으로 생긴다
+- 2조봇에게 부탁해도 된다: "web/lost/index.html 의 'AI챗봇 사용하기' 버튼에 web/chat-widget/README.md 1절대로 챗봇 붙여 줘"
+
+## 2. 옵션 (스크립트 태그에 적음, 모두 선택)
+| 옵션 | 값 | 뜻 |
+| --- | --- | --- |
+| `data-launcher` | `auto`(기본) · `always` · `off` | 동그란 버튼: 여는 버튼이 없을 때만 / 항상 / 안 보임 |
+| `data-title` | 글자 | 창 제목(기본 "AI 안내 도우미") |
+| `data-api` | 주소 | 챗봇 API 서버(기본: 위젯을 내려준 서버 = 관제탑) |
+- 코드에서 열고 닫기: `LostFoundChat.open()` · `LostFoundChat.close()` · `LostFoundChat.toggle()`
+
+## 3. 동작 규칙
+- 채팅 창은 화면 디자인을 건드리지 않는다(Shadow DOM 안에 스타일을 가둠). 밝은·어두운 화면 모드를 따라간다
+- 넓은 화면: 오른쪽 아래 380px 창 / 휴대폰 폭(480px 이하): 아래에서 올라오는 전체 폭 창(✕ 로 닫음)
+- Enter = 보내기, Shift+Enter = 줄바꿈, 한글 조합 중 Enter 는 글자 확정만, Esc = 닫기
+- 이전 질문 4개까지 함께 보내 "그건요?" 같은 이어 묻기를 이해한다. 대화는 화면에만 있고 저장하지 않는다(새로 고침하면 사라짐)
+- 물건 후보는 품목·색·후보 번호만 보인다(접수 번호·역·사진 없음). "후보는 본인 물건 확정이 아니에요"를 항상 표시
+- 지금 물건 검색은 **가상 물건 DB**(배지 "가상 DB 시연"). 실제 팀 DB 검색은 본인인증 세션 검증기(LF-6)가 연결돼야 열린다 — `docs/contracts/chat-search-integration.md`
+
+## 4. 관제탑 쪽 (agents/chat_api.py)
+| 주소 | 하는 일 |
+| --- | --- |
+| `POST /chat/questions` | `{question, history?, suggestion_id?}` → `{answer, agent, status, sources, candidates?, …}` |
+| `GET /chat/suggestions` | 추천 질문 |
+| `GET /chat/health` | 준비 상태(`ready`, `search_mode`) — 준비 안 되면 창 위쪽에 "준비 중" |
+| `GET /chat-widget/widget.js` · `/chat-widget/demo` | 위젯 파일 · 시험 페이지 |
+- `.env`(이름만): `LF_CHAT_RAG_MODEL`(Ollama 모델, 비우면 문서 문단 그대로) · `LF_CHAT_DATABASE_URL`(실제 DB, 인증 연결 전엔 닫힘) · `TOWER_CHAT_DEMO_DB`(가상 DB 파일, `0` 이면 물건 검색 끔)
+- 챗봇 부품(langgraph)은 첫 질문 때 만든다. 설치가 안 돼 있어도 관제탑은 켜지고 챗봇 주소만 503
+
+## 5. 재민 님 서버를 따로 세운다면
+- 화면을 관제탑(8100)·Docker 앞문(8080)이 열어 주면 그대로 동작한다(같은 주소)
+- 다른 서버에서 화면을 연다면 그 서버가 `/chat/` 과 `/chat-widget/` 을 관제탑으로 넘겨야 한다(nginx `location /chat` → 관제탑). 이때는 변재원과 맞춘다
