@@ -122,14 +122,19 @@ class GoalReadbackTests(unittest.TestCase):
         def send(action):
             state["sends"] += 1
             state["goal"] = round(846 + (action[0] + 100) / 200 * 2707)
-        def read(port, motor_id, address):
-            state["reads"].append((motor_id, address))
-            return state["goal"] + int(mismatch), comm, 0
+        def read(port, motor_id, address, length):
+            state["reads"].append((motor_id, address, length))
+            goal = state["goal"] + int(mismatch)
+            block = [0] * 18
+            block[0] = 1
+            block[2:4] = [goal & 255, goal >> 8]
+            block[16:18] = [2151 & 255, 2151 >> 8]
+            return block, comm, 0
         driver = SimpleNamespace(role="follower", unit="normalized", servo_ids={"shoulder_pan": 1},
             _read_joint_positions=lambda: Array([2151] * 6), _write_joint_positions=lambda x: None,
             _unit_to_ticks=lambda action: [round(846 + (action[0] + 100) / 200 * 2707)] * 6,
             send_action=send, _require_connection=lambda: SimpleNamespace(port_handler=object(),
-                packet_handler=SimpleNamespace(read2ByteTxRx=read)))
+                packet_handler=SimpleNamespace(readTxRx=read)))
         numpy = SimpleNamespace(asarray=lambda x, dtype: Array(x), float32=float, int32=int,
                                 isfinite=lambda x: [math.isfinite(v) for v in x], all=all)
         with patch.dict("sys.modules", {"numpy": numpy}):
@@ -153,7 +158,9 @@ class GoalReadbackTests(unittest.TestCase):
         self.assertEqual(result["observed_goal_raw"], 2147)
         self.assertTrue(result["goal_matches_request"])
         self.assertEqual(result["driver_calls_returned"], 1)
-        self.assertEqual(state["reads"], [(1, 42)])
+        self.assertEqual(state["reads"], [(1, 40, 18)])
+        self.assertEqual(result["observed_present_raw"], 2151)
+        self.assertEqual(result["torque"], 1)
 
     def test_read_failure_or_goal_mismatch_latches_stop_and_preserves_evidence(self):
         for options in ({"comm": -1}, {"mismatch": True}):
