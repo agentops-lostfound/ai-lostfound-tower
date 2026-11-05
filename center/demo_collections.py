@@ -44,6 +44,9 @@ class DemoCollections:
                     PRIMARY KEY(collection_id,item_id));
                 CREATE TABLE IF NOT EXISTS demo_event (
                     id INTEGER PRIMARY KEY, collection_id INTEGER, item_id TEXT, status TEXT, at TEXT);
+                CREATE TABLE IF NOT EXISTS demo_place (
+                    place_id INTEGER PRIMARY KEY AUTOINCREMENT,line TEXT,station TEXT,label TEXT,
+                    UNIQUE(line,station,label));
             '''
             # executescript implicitly commits; keep bootstrap and seeding in one write transaction.
             for statement in schema.split(';'):
@@ -51,10 +54,17 @@ class DemoCollections:
                     db.execute(statement)
             if 'revision' not in {r[1] for r in db.execute('PRAGMA table_info(demo_metadata)')}:
                 db.execute('ALTER TABLE demo_metadata ADD COLUMN revision TEXT')
+            if 'received_at' not in {r[1] for r in db.execute('PRAGMA table_info(demo_item)')}:
+                db.execute('ALTER TABLE demo_item ADD COLUMN received_at INTEGER')
+            db.execute('UPDATE demo_item SET received_at=? WHERE received_at IS NULL',
+                       (int(datetime.now(timezone.utc).timestamp() * 1_000_000),))
+            db.execute('CREATE VIEW IF NOT EXISTS demo_stats_item AS SELECT received_at,machine_id,category FROM demo_item')
             if not db.execute('SELECT 1 FROM demo_metadata').fetchone():
                 self._seed(db)
                 db.execute('INSERT INTO demo_metadata(version,revision) VALUES(1,?)', (secrets.token_hex(16),))
             db.execute('UPDATE demo_metadata SET revision=? WHERE revision IS NULL', (secrets.token_hex(16),))
+            if not db.execute('SELECT 1 FROM demo_place').fetchone():
+                self._seed_places(db)
 
     @contextmanager
     def connection(self, write=False):
@@ -72,14 +82,23 @@ class DemoCollections:
             db.close()
 
     @staticmethod
+    def _seed_places(db):
+        db.executemany('INSERT INTO demo_place(line,station,label) VALUES(?,?,?)',
+                       [(line, station, f'가상 장소 {i:02d}') for line, station in
+                        [('2호선', '해운대'), ('1호선', '중앙'), ('1호선', '서면')] for i in range(1, 7)])
+
+    @staticmethod
     def _seed(db):
-        db.executemany('INSERT INTO demo_item VALUES(?,?,?,?,?)', [
+        rows = [
             ('A-W01', 'KIOSK-A', '지갑', '검정', '등록기계 보관'),
             ('A-W02', 'KIOSK-A', 'USB', '회색', '등록기계 보관'),
             ('A-W03', 'KIOSK-A', '립밤', '흰색', '등록기계 보관'),
             ('B-W01', 'KIOSK-B', '모형폰', '검정', '등록기계 보관'),
             ('B-W02', 'KIOSK-B', '보조배터리', '흰색', '등록기계 보관'),
-            ('C-W01', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')])
+            ('C-W01', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')]
+        timestamp = int(datetime.now(timezone.utc).timestamp() * 1_000_000)
+        db.executemany('INSERT INTO demo_item(item_id,machine_id,category,color,status,received_at) VALUES(?,?,?,?,?,?)',
+                       [(*row, timestamp) for row in rows])
 
     @staticmethod
     def _check_revision(db, revision):
@@ -173,8 +192,9 @@ class DemoCollections:
     def reset(self, *, revision=None):
         with self.connection(write=True) as db:
             self._check_revision(db, revision)
-            for table in ('demo_alert', 'demo_event', 'demo_member', 'demo_collection', 'demo_item'):
+            for table in ('demo_alert', 'demo_event', 'demo_member', 'demo_collection', 'demo_item', 'demo_place'):
                 db.execute('DELETE FROM ' + table)
             self._seed(db)
+            self._seed_places(db)
             db.execute('UPDATE demo_metadata SET revision=? WHERE version=1', (secrets.token_hex(16),))
         return {'reset': True, 'mode': self.mode}

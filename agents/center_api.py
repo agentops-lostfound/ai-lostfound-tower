@@ -17,8 +17,14 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         return HTTPException(status, detail)
     if demo:
         from center.demo_collections import DemoCollections
-        if type(collections) is not DemoCollections or statistics is not None or places is not None:
+        from center.demo_statistics import DemoStatistics
+        from center.demo_places import DemoPlaces
+        if (type(collections) is not DemoCollections
+                or places is not None and (type(places) is not DemoPlaces or places.store is not collections)
+                or statistics is not None and (type(statistics) is not DemoStatistics or statistics.store is not collections)):
             raise ValueError('시연 모드에는 분리된 가상 회수 저장소만 사용할 수 있습니다')
+        statistics = statistics or DemoStatistics(collections)
+        places = places or DemoPlaces(collections)
         from agents.support_security import LocalRequestGuard
         from fastapi.responses import FileResponse, JSONResponse
         from fastapi.staticfiles import StaticFiles
@@ -109,9 +115,15 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
             raise HTTPException(422, "시간대를 포함한 기준시각이 필요합니다") from e
 
     @app.post("/statistics/questions", dependencies=[Depends(authorize)])
-    def ask(body: dict = Body(...)):
+    def ask(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
+            if set(body) - {'question'}:
+                raise ValueError('통계 질문만 전달해주세요. 임의 SQL과 추가 조건은 받지 않습니다')
+            if demo:
+                return statistics.ask(body.get('question'), revision=x_demo_revision or '')
             return backend(statistics).ask(body.get("question"))
+        except CollectionError as e:
+            raise collection_failure(e) from None
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
 
@@ -123,9 +135,15 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
             raise HTTPException(422, str(e)) from None
 
     @app.post("/places", dependencies=[Depends(authorize)])
-    def put_place(body: dict = Body(...)):
+    def put_place(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
+            if demo:
+                if set(body) - {'line', 'station', 'label'}:
+                    raise ValueError('호선·역·장소만 전달해주세요')
+                return places.put(body.get('line'), body.get('station'), body.get('label'), revision=x_demo_revision or '')
             return backend(places).put(body.get("line"), body.get("station"), body.get("label"))
+        except CollectionError as e:
+            raise collection_failure(e) from None
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
 

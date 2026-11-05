@@ -7,7 +7,7 @@ function message(text,error=false){$('message').textContent=text;$('message').cl
 async function api(path,body){
  const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json','x-demo-revision':snapshot?.revision||''},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
  let data;try{data=await response.json();}catch{throw Error('서버 응답을 확인하지 못했습니다. 새로고침으로 기록을 확인해주세요.');}
- if(!response.ok){const error=Error(typeof data.detail==='string'?data.detail:data.detail?.message||'요청을 처리하지 못했습니다. 다시 확인해주세요.');error.code=data.detail?.code;throw error;}return data;
+ if(!response.ok){const error=Error(typeof data.detail==='string'?data.detail:data.detail?.message||'요청을 처리하지 못했습니다. 다시 확인해주세요.');error.code=data.detail?.code;error.status=response.status;throw error;}return data;
 }
 function clearDrafts(){pickupSelection.clear();pendingPickup=null;arrivalDrafts.clear();zeroConfirm.clear();$('resetConfirm').hidden=true;}
 function failed(error,saved){fresh=false;if(error.code==='stale_demo')clearDrafts();message(saved?saved+' 저장은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침 후 계속해주세요.':error.message+' 새로고침으로 최신 기록을 확인해주세요.',true);}
@@ -42,6 +42,8 @@ function renderBatches(){
  }
 }
 function render(){
+ globalThis.CollectionStats?.sync(snapshot,busy,fresh);
+ globalThis.CollectionPlaces?.sync(snapshot,busy,fresh);
  if(!snapshot){$('refresh').disabled=busy;$('reset').disabled=true;$('resetYes').disabled=true;return;}
  for(const [id,status] of [['waiting','등록기계 보관'],['moving','회수 중'],['arrived','본센터 보관']])$(id).textContent=snapshot.items.filter(i=>i.status===status).length;
  $('missing').textContent=snapshot.alerts.length;renderPickup();renderBatches();
