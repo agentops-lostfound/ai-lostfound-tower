@@ -3,7 +3,7 @@
 # Origin: shoulder_pan axis projected onto the robot mounting plane.
 # +X: right when standing behind the robot facing the bin; +Y: into the bin; +Z: up.
 frame_id: installation_shoulder_pan_mm
-config_version: '2026-11-05.1'
+config_version: '2026-11-05.2'
 work_frame_id: fixed_tray_marker0_mm
 # Must match the surveyed layout used to fit the source homography.
 source_markers_mm:
@@ -17,6 +17,14 @@ measurements_mm:
   inner_rectangle_depth: 150
   marker_size: 14
   bin_floor_above_mount: 7
+  # User measurement: from inside floor to rim top; not mounting plane.
+  rim_height_above_bin_floor: 114
+  rim_thickness: 14
+# Survey record only: not yet a collision model or an enforced motion guard.
+obstacle_survey:
+  collision_geometry_verified: false
+  rim_xy_bounds_mm: null
+  thickness_axis_verified: false
 # Based on the fixed tray facing the robot as in the 2026-11-05 photos.
 # Work (14,14) = ID0's shared corner -> installation (162,143).
 # Work +X goes toward the robot's left; work +Y goes into the bin.
