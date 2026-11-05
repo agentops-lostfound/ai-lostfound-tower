@@ -1,0 +1,149 @@
+"""Synthetic, local SQLite collection desk. Never reads team DB environment variables."""
+import re
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+from center.collections import CollectionError, item_ids
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+class DemoCollections:
+    mode = 'demo_sqlite'
+
+    def __init__(self, path):
+        self.path = Path(path).resolve()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.connection(write=True) as db:
+            db.executescript('''
+                CREATE TABLE IF NOT EXISTS demo_metadata (version INTEGER PRIMARY KEY);
+                CREATE TABLE IF NOT EXISTS demo_item (
+                    item_id TEXT PRIMARY KEY, machine_id TEXT, category TEXT, color TEXT, status TEXT);
+                CREATE TABLE IF NOT EXISTS demo_collection (
+                    collection_id INTEGER PRIMARY KEY AUTOINCREMENT, machine_id TEXT,
+                    request_id TEXT UNIQUE, picked_at TEXT, arrived_at TEXT);
+                CREATE TABLE IF NOT EXISTS demo_member (
+                    collection_id INTEGER, item_id TEXT, arrived INTEGER DEFAULT 0,
+                    PRIMARY KEY(collection_id,item_id));
+                CREATE TABLE IF NOT EXISTS demo_alert (
+                    collection_id INTEGER, item_id TEXT, created_at TEXT, resolved_at TEXT,
+                    PRIMARY KEY(collection_id,item_id));
+                CREATE TABLE IF NOT EXISTS demo_event (
+                    id INTEGER PRIMARY KEY, collection_id INTEGER, item_id TEXT, status TEXT, at TEXT);
+            ''')
+            if not db.execute('SELECT 1 FROM demo_metadata').fetchone():
+                self._seed(db)
+                db.execute('INSERT INTO demo_metadata VALUES(1)')
+
+    @contextmanager
+    def connection(self, write=False):
+        db = sqlite3.connect(self.path, timeout=10)
+        db.row_factory = sqlite3.Row
+        try:
+            if write:
+                db.execute('BEGIN IMMEDIATE')
+            else:
+                db.execute('PRAGMA query_only=ON')
+                db.execute('BEGIN')
+            with db:
+                yield db
+        finally:
+            db.close()
+
+    @staticmethod
+    def _seed(db):
+        db.executemany('INSERT INTO demo_item VALUES(?,?,?,?,?)', [
+            ('A-W01', 'KIOSK-A', '지갑', '검정', '등록기계 보관'),
+            ('A-W02', 'KIOSK-A', 'USB', '회색', '등록기계 보관'),
+            ('A-W03', 'KIOSK-A', '립밤', '흰색', '등록기계 보관'),
+            ('B-W01', 'KIOSK-B', '모형폰', '검정', '등록기계 보관'),
+            ('B-W02', 'KIOSK-B', '보조배터리', '흰색', '등록기계 보관'),
+            ('C-W01', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')])
+
+    @staticmethod
+    def _view(db, cid):
+        row = db.execute('SELECT * FROM demo_collection WHERE collection_id=?', (cid,)).fetchone()
+        if row is None:
+            raise CollectionError('회수 기록이 없습니다')
+        members = [dict(r) for r in db.execute('SELECT m.item_id,m.arrived,i.category,i.color '
+            'FROM demo_member m JOIN demo_item i USING(item_id) WHERE collection_id=? ORDER BY item_id', (cid,))]
+        for member in members:
+            member['arrived'] = bool(member['arrived'])
+        missing = [m['item_id'] for m in members if not m['arrived']]
+        return {'collection_id': row['collection_id'], 'machine_id': row['machine_id'],
+                'picked_at': row['picked_at'], 'arrived_at': row['arrived_at'], 'items': members,
+                'missing_item_ids': missing, 'alert_status': 'preview' if db.execute(
+                    'SELECT 1 FROM demo_alert WHERE collection_id=? AND resolved_at IS NULL', (cid,)).fetchone() else 'none'}
+
+    def get(self, cid):
+        with self.connection() as db:
+            return self._view(db, cid)
+
+    def pickup(self, machine_id, ids, request_id):
+        ids = item_ids(ids)
+        if not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', request_id):
+            raise CollectionError('같은 회수 요청의 재시도에는 동일한 request_id가 필요합니다')
+        if machine_id not in ('KIOSK-A', 'KIOSK-B', 'KIOSK-C'):
+            raise CollectionError('등록기계를 확인해주세요')
+        with self.connection(write=True) as db:
+            old = db.execute('SELECT collection_id FROM demo_collection WHERE request_id=?', (request_id,)).fetchone()
+            if old:
+                view = self._view(db, old[0])
+                if view['machine_id'] != machine_id or sorted(m['item_id'] for m in view['items']) != ids:
+                    raise CollectionError('같은 요청 번호에 다른 회수 내용을 사용할 수 없습니다')
+                return view
+            rows = db.execute('SELECT item_id,machine_id,status FROM demo_item WHERE item_id IN (' + ','.join('?' for _ in ids) + ')', ids).fetchall()
+            if len(rows) != len(ids) or any(r['machine_id'] != machine_id or r['status'] != '등록기계 보관' for r in rows):
+                raise CollectionError('선택한 모든 물건이 해당 등록기계 보관 상태여야 합니다')
+            timestamp = now()
+            cid = db.execute('INSERT INTO demo_collection(machine_id,request_id,picked_at) VALUES(?,?,?)',
+                             (machine_id, request_id, timestamp)).lastrowid
+            for iid in ids:
+                db.execute('INSERT INTO demo_member(collection_id,item_id) VALUES(?,?)', (cid, iid))
+                db.execute("UPDATE demo_item SET status='회수 중' WHERE item_id=?", (iid,))
+                db.execute('INSERT INTO demo_event(collection_id,item_id,status,at) VALUES(?,?,?,?)', (cid, iid, '회수 중', timestamp))
+            return self._view(db, cid)
+
+    def arrive(self, cid, ids):
+        ids = item_ids(ids, allow_empty=True)
+        with self.connection(write=True) as db:
+            view = self._view(db, cid)
+            members = {m['item_id']: m['arrived'] for m in view['items']}
+            if not set(ids) <= members.keys():
+                raise CollectionError('해당 회수에 포함되지 않은 물건입니다')
+            timestamp = now()
+            for iid in ids:
+                if members[iid]:
+                    continue
+                row = db.execute('SELECT status FROM demo_item WHERE item_id=?', (iid,)).fetchone()
+                if row is None or row[0] != '회수 중':
+                    raise CollectionError('물건 상태가 변경되었습니다. 다시 확인해주세요')
+                db.execute('UPDATE demo_member SET arrived=1 WHERE collection_id=? AND item_id=?', (cid, iid))
+                db.execute("UPDATE demo_item SET status='본센터 보관' WHERE item_id=?", (iid,))
+                db.execute('INSERT INTO demo_event(collection_id,item_id,status,at) VALUES(?,?,?,?)', (cid, iid, '본센터 보관', timestamp))
+                db.execute('UPDATE demo_alert SET resolved_at=? WHERE collection_id=? AND item_id=?', (timestamp, cid, iid))
+                members[iid] = True
+            for iid, arrived in members.items():
+                if not arrived:
+                    db.execute('INSERT OR IGNORE INTO demo_alert(collection_id,item_id,created_at) VALUES(?,?,?)', (cid, iid, timestamp))
+            if all(members.values()):
+                db.execute('UPDATE demo_collection SET arrived_at=COALESCE(arrived_at,?) WHERE collection_id=?', (timestamp, cid))
+            return self._view(db, cid)
+
+    def dashboard(self):
+        with self.connection() as db:
+            items = [dict(r) for r in db.execute('SELECT * FROM demo_item ORDER BY machine_id,item_id')]
+            collections = [self._view(db, r[0]) for r in db.execute('SELECT collection_id FROM demo_collection ORDER BY collection_id DESC LIMIT 100')]
+            alerts = [dict(r) for r in db.execute('SELECT collection_id,item_id,created_at FROM demo_alert WHERE resolved_at IS NULL ORDER BY created_at')]
+            return {'mode': self.mode, 'items': items, 'collections': collections, 'alerts': alerts,
+                    'event_count': db.execute('SELECT count(*) FROM demo_event').fetchone()[0]}
+
+    def reset(self):
+        with self.connection(write=True) as db:
+            for table in ('demo_alert', 'demo_event', 'demo_member', 'demo_collection', 'demo_item'):
+                db.execute('DELETE FROM ' + table)
+            self._seed(db)
+        return {'reset': True, 'mode': self.mode}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>본센터 · 회수 관리 시연</title><link rel="stylesheet" href="/collection-assets/style.css"></head>
+<body><main>
+<header><div><p class="eyebrow">LOST & FOUND · CENTER</p><h1>회수부터 도착까지, 한눈에</h1><p class="muted">등록기계에서 꺼낸 물건이 본센터에 모두 도착했는지 확인하세요.</p></div><span class="demo-tag">가상 데이터 시연</span></header>
+<div class="demo-banner"><strong>실제 물건이나 팀 DB에 영향을 주지 않습니다.</strong><span>도착하지 않은 물건은 알림 미리보기로만 표시합니다. 디스코드 전송과 자동 지연 판정은 실행하지 않습니다.</span></div>
+<div class="toolbar"><span id="updated">데이터를 불러오는 중…</span><button id="refresh" class="quiet" type="button">새로고침</button><button id="reset" class="quiet" type="button">시연 처음부터</button></div>
+<div id="resetConfirm" class="reset-confirm" hidden><strong>가상 회수·도착 기록을 지우고 물건 6개를 처음 상태로 돌릴까요?</strong><div><button id="resetYes" type="button">가상 데이터 초기화</button><button id="resetNo" type="button" class="quiet">취소</button></div></div>
+<p id="message" class="message" role="status" aria-live="polite"></p>
+<div class="metrics" aria-label="물건 상태 요약"><div><span>등록기계 보관</span><strong id="waiting">—</strong></div><div><span>회수 중 · 도착 전</span><strong id="moving">—</strong></div><div><span>본센터 도착</span><strong id="arrived">—</strong></div><div class="warning-metric"><span>미도착 알림 미리보기</span><strong id="missing">—</strong></div></div>
+<div class="workspace"><section class="panel pickup"><div class="section-heading"><div><p class="step">STEP 01</p><h2>등록기계에서 회수</h2></div></div>
+<label for="machine">등록기계 선택</label><select id="machine"><option value="KIOSK-A">등록기계 A · 가상</option><option value="KIOSK-B">등록기계 B · 가상</option><option value="KIOSK-C">등록기계 C · 가상</option></select>
+<div class="list-heading"><span>회수할 물건</span><button id="selectAll" type="button" class="text-button">전체 선택</button></div><div id="pickupList" class="item-list"></div>
+<p class="hint">실제로 꺼낸 물건만 선택하세요. 한 번의 회수는 같은 등록기계의 물건으로 묶입니다.</p><button id="pickup" type="button" class="primary full" disabled>선택한 물건 회수 기록</button><p id="pickupHint" class="hint">물건을 선택해주세요.</p><button id="retryPickup" type="button" class="quiet full" hidden>같은 요청으로 다시 확인</button><button id="discardPickup" type="button" class="text-button" hidden>요청 결과를 확인했어요 · 선택 다시 하기</button></section>
+<section class="panel arrivals"><div class="section-heading"><div><p class="step">STEP 02</p><h2>본센터 도착 확인</h2></div><span id="batchCount" class="pill">0건</span></div><p class="hint">도착한 물건만 체크하고 저장하세요. 체크하지 않은 물건은 회수 중으로 남습니다.</p><div id="batchList"></div></section></div>
+<section class="panel alerts"><div class="section-heading"><div><p class="step">CHECK</p><h2>미도착 확인 · 알림 미리보기</h2></div><span class="pill warm">외부 전송 안 함</span></div><p class="hint">도착 확인을 저장한 회수 중 빠진 물건입니다. 도착 체크 전인 물건은 위의 ‘회수 중’ 숫자로 확인하세요.</p><div id="alertList"></div></section>
+<footer>도착 확인은 실물 확인 후 기록하는 단계입니다. 이 화면은 예약·반환 승인·로봇 동작을 실행하지 않습니다.</footer>
+</main><script src="/collection-assets/desk.js" defer></script></body></html>

@@ -7,11 +7,48 @@ from center.collections import CollectionStore, CollectionError
 from center.statistics import Statistics
 
 
-def create_app(collections=None, statistics=None, staff_key=None, places=None):
+def create_app(collections=None, statistics=None, staff_key=None, places=None, demo=False):
     app = FastAPI(title="본센터 회수·통계", version="0.1")
     key = staff_key if staff_key is not None else os.environ.get("LF_STAFF_API_KEY", "")
+    if demo:
+        from center.demo_collections import DemoCollections
+        if type(collections) is not DemoCollections or statistics is not None or places is not None:
+            raise ValueError('시연 모드에는 분리된 가상 회수 저장소만 사용할 수 있습니다')
+        from agents.support_security import LocalRequestGuard
+        from fastapi.responses import FileResponse, JSONResponse
+        from fastapi.staticfiles import StaticFiles
+        from fastapi.exceptions import RequestValidationError
+        from pathlib import Path
+        app.add_middleware(LocalRequestGuard)
+        root = Path(__file__).resolve().parents[1] / 'web/collection-desk'
+        app.mount('/collection-assets', StaticFiles(directory=root / 'assets'), name='collection-assets')
+
+        @app.exception_handler(RequestValidationError)
+        async def invalid_request(request, error):
+            return JSONResponse({'detail': '입력 형식을 확인해주세요'}, status_code=422)
+
+        @app.get('/collection-desk')
+        def collection_desk():
+            return FileResponse(root / 'index.html')
+
+        @app.get('/collection-dashboard')
+        def dashboard():
+            return collections.dashboard()
+
+        @app.post('/demo/reset')
+        def reset_demo(body: dict = Body(...)):
+            if body.get('confirm') != 'RESET_DEMO':
+                raise HTTPException(422, '가상 데이터 초기화 확인이 필요합니다')
+            return collections.reset()
+
+        @app.get('/health')
+        def demo_health():
+            return {'status': 'ok', 'mode': 'demo_sqlite', 'team_database_connected': False,
+                    'external_notifications_enabled': False}
 
     def authorize(x_staff_key: str = Header(default="")):
+        if demo:
+            return  # Fixed synthetic store only; loopback/origin guard protects this local demo.
         if not key:
             raise HTTPException(503, "직원 접근 키가 설정되지 않았습니다")
         if not hmac.compare_digest(x_staff_key, key):
@@ -45,6 +82,8 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None):
 
     @app.post("/collections/overdue/check", dependencies=[Depends(authorize)])
     def overdue(body: dict = Body(...)):
+        if demo:
+            raise HTTPException(409, '자동 지연 판정은 시연에 연결하지 않았습니다. 도착 체크 후 미도착 내역을 확인하세요')
         try:
             before = datetime.fromisoformat(body.get("before", ""))
             return {"queued": backend(collections).overdue(before)}
