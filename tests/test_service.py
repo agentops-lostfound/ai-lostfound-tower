@@ -251,6 +251,7 @@ class ApiRoutesTest(unittest.TestCase):
 
         fake = types.ModuleType("fastapi")
         fake.FastAPI, fake.HTTPException, fake.Body = FakeFastAPI, HTTPException, (lambda *a, **k: None)
+        fake.Header = lambda *a, **k: None     # 11/5 챗봇 위젯 주소(agents/chat_api.py)
         self.HTTPException = HTTPException
         sys.modules["fastapi"] = fake
         responses = types.ModuleType("fastapi.responses")
@@ -259,6 +260,7 @@ class ApiRoutesTest(unittest.TestCase):
             def __init__(self, content):
                 self.body = content.encode("utf-8")
         responses.HTMLResponse = HTMLResponse
+        responses.FileResponse = lambda path, **k: types.SimpleNamespace(path=path, **k)
         sys.modules["fastapi.responses"] = responses
 
     def tearDown(self):
@@ -269,9 +271,9 @@ class ApiRoutesTest(unittest.TestCase):
         from agents import api
         api.build_app(service())
         r = self.routes
-        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
+        self.assertEqual(sorted(r), [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
-                                     ("GET", "/tools"), ("POST", "/claims"), ("POST", "/items"),
+                                     ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
                                      ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold"),
                                      ("POST", "/robot/home"), ("POST", "/robot/stop"), ("POST", "/sim/found"),

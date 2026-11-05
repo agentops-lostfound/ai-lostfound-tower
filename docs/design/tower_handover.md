@@ -55,6 +55,7 @@
 | 반환 | `POST /returns`, `GET /returns`, `GET /returns/{id}`, `POST /returns/{id}/handover·hold` | (직원 화면 → 앞으로 본센터 키오스크) |
 | 로봇 | `GET /robot/state`, `POST /robot/stop`, `POST /robot/home` | `/live` |
 | 관제 | `GET /live/state` | `/live` |
+| AI 챗봇(변재원) | `POST /chat/questions`, `GET /chat/suggestions`, `GET /chat/health`, `/chat-widget/*` (`agents/chat_api.py`) | 위젯 `web/chat-widget/` |
 | 가상 시연 | `POST /sim/found`, `POST /sim/lost`, `POST /sim/lost/{id}/answer`, `GET /sim/stories/{id}`, `POST /sim/reset` | 챗봇·`/live` (TOWER_SIM=1 일 때만) |
 
 ## 4. 다음에 만들 것 — 키오스크용 API (설계 메모, 결정은 김재민)
@@ -98,6 +99,7 @@
 | 약속 | 쓰는 사람 |
 | --- | --- |
 | `/sim/*` 입력·출력 | 변재원(챗봇 `tools/lostfound_bot.py`) |
+| `/chat/*`·`/chat-widget/*` (챗봇 위젯) | 변재원 — 관제탑 앱을 고칠 때 `add_chat_routes(app)` 줄을 지우지 않기 |
 | `docs/contracts/robot_api.md` 1층 함수 | 김건태·이순필 |
 | 비전 결과 JSON(`contracts.py`, `vision_adapter.py`) | 김건태 |
 | `CATEGORIES` 6종 | 모두 |

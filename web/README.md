@@ -12,6 +12,7 @@
 | 등록기계(습득 신고) | `/intake?machine=KIOSK-A` | `intake/` | 김재민 | `GET /places`, `POST /items` | 됨(#48). 키오스크와 하나로 합칠지 결정 필요 |
 | 분실인 웹(분실 확인) | `/lost` | `lost/` | 김재민 | (서버 연결 전) | 화면 흐름 시안 |
 | 관제 모니터링 | `/live` | `live/` | 김재민 | `GET /live/state`, `/sim/*`, `/robot/stop·home·state` | 됨(가상 시연·SO-101 실제 형상) |
+| AI 챗봇 위젯 | 화면에 `<script src="/chat-widget/widget.js">` · 시험 `/chat-widget/demo` | `chat-widget/` | 변재원(붙이기 김재민) | `POST /chat/questions`, `/chat/suggestions`, `/chat/health` | 됨(가상 물건 DB). 분실인 웹 완성 뒤 붙임 — `chat-widget/README.md` |
 | 직원 화면 | `/staff` | `staff-desk/` | (보류) | `/returns/*`, `/robot/*` | 11/5 결정: **직원은 일단 제외** — 화면은 남겨 둠 |
 | 분실인 8단계 시안 | 파일 직접 열기 | `lost-finder/` | LF-4 | 가짜 자료 | 참고용 |
 | 옛 시안 | - | `archive/` | - | - | 참고용(관제탑이 열지 않음) |
