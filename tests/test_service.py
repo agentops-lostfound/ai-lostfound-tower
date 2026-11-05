@@ -269,7 +269,7 @@ class ApiRoutesTest(unittest.TestCase):
         from agents import api
         api.build_app(service())
         r = self.routes
-        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/places"),
+        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
@@ -287,6 +287,10 @@ class ApiRoutesTest(unittest.TestCase):
         self.assertEqual(r[("GET", "/returns/{case_id}")]("R1")["case_id"], "R1")
         self.assertEqual(len(r[("GET", "/tools")]()), 12)
         self.assertIn("습득물", r[("GET", "/intake")]().body.decode("utf-8"))     # 11/4 등록기계 화면을 같은 주소에서
+        kiosk = r[("GET", "/kiosk")]().body.decode("utf-8")                       # 11/4 습득자 키오스크: 관제탑 API 모양(machine_id·JSON)으로 부름
+        self.assertIn("machine_id", kiosk)
+        self.assertNotIn("FormData", kiosk)
+        self.assertIn("분실물", r[("GET", "/lost")]().body.decode("utf-8"))
         # 11/4 인계: 바구니 전달(인계 대기) → 직원 확인 → 인계 완료, 두 번째는 409
         self.assertEqual(r[("POST", "/returns/{case_id}/handover")]("R1", {"staff_confirmed": True})["status"], "인계 완료")
         for args, code in ((("R1", {"staff_confirmed": True}), 409), (("NONE", {"staff_confirmed": True}), 404),
