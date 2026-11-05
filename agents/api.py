@@ -38,10 +38,15 @@ if __package__ in (None, ""):
 from agents.service import (Conflict, NotFound, RequestError, TowerService, Unavailable,  # noqa: E402
                             demo_backend_factory)
 
+try:      # `from __future__ import annotations` 때문에 FastAPI 가 함수 안 import 를 못 찾는다 → Request·Response 는 모듈 맨 위에서
+    from fastapi import Request, Response  # noqa: E402
+except ImportError:           # fastapi 없이 import 만 할 때
+    Request = Response = None
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 화면 = web/<이름>/index.html (11/5 정리, 화면 지도: web/README.md). 관제탑과 같은 주소에서 열려 API 를 바로 부른다
 WEB_DIR = os.path.join(ROOT, "web")
-PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live"}   # 주소 → 폴더
+PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live", "admin": "admin"}   # 주소 → 폴더
 LIVE_PAGE = os.path.join(WEB_DIR, "live", "index.html")     # 실시간 화면(보관함·로봇팔·진행)
 
 
@@ -118,20 +123,56 @@ def build_service(backend_factory=None) -> TowerService:
     return svc
 
 
-def build_app(service: TowerService | None = None, chatbot=None):
+def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None):
     try:
-        from fastapi import Body, FastAPI, HTTPException
+        from fastapi import Body, Depends, FastAPI, HTTPException
     except ImportError as e:
         raise SystemExit("fastapi 가 없습니다. .venv 에서 `pip install -r agents/requirements.txt` 후 다시 실행하세요") from e
+    from agents.admin_auth import COOKIE, AdminAuth
     from agents.tools import TOOLS
 
     svc = service or build_service()
+    auth = admin_auth or AdminAuth.from_env()
     app = FastAPI(title="AI 분실물 관제탑 API", version="0.1")
+
+    def require_admin(request: Request) -> None:
+        """관리자 API 문지기: LF_ADMIN_PASSWORD 가 없으면 열림, 있으면 로그인 쿠키 또는 X-Admin-Key 필요"""
+        if not auth.allowed(request.cookies.get(COOKIE, ""), request.headers.get("x-admin-key", "")):
+            raise HTTPException(status_code=401, detail="관리자 로그인이 필요합니다")
+
+    admin = [Depends(require_admin)]
+    # 주소 체계(11/5): /api/kiosk/* · /api/lost/*(로그인 없음) · /api/admin/*(로그인) · /api/robot/stop(항상 열림).
+    # 예전 주소(/places, /items, /returns …)도 같은 함수로 계속 동작한다(챗봇·분실물봇 호환). 관리자 쪽 예전 주소도 같은 문지기를 쓴다
 
     @app.get("/health")
     def health() -> dict:
-        """살아 있는지, 부품이 진짜인지 가짜인지, 실행 중인지"""
-        return svc.health()
+        """살아 있는지, 부품이 진짜인지 가짜인지, 실행 중인지 (+ admin_auth: 관리자 로그인 켜짐 여부)"""
+        return {**svc.health(), "admin_auth": auth.enabled}
+
+    @app.post("/api/admin/login")
+    def admin_login(request: Request, response: Response, payload: dict = Body(...)) -> dict:
+        """관리자 로그인. 본문 {"password": "..."} → 쿠키 발급. 연속 5번 틀리면 1분 잠금"""
+        if not auth.enabled:
+            return {"ok": True, "auth": False}
+        who = request.client.host if request.client else ""
+        if auth.locked(who):
+            raise HTTPException(status_code=429, detail="잠시 뒤에 다시 시도하세요")
+        token = auth.login(str(payload.get("password", "")), who)
+        if token is None:
+            raise HTTPException(status_code=401, detail="비밀번호가 맞지 않습니다")
+        response.set_cookie(COOKIE, token, max_age=auth.ttl, httponly=True, samesite="strict")
+        return {"ok": True, "auth": True}
+
+    @app.post("/api/admin/logout")
+    def admin_logout(response: Response) -> dict:
+        response.delete_cookie(COOKIE)
+        return {"ok": True}
+
+    @app.get("/api/admin/me")
+    def admin_me(request: Request) -> dict:
+        """화면이 로그인 상태를 확인: auth=로그인 기능 켜짐, logged_in=지금 접근 가능"""
+        ok = auth.allowed(request.cookies.get(COOKIE, ""), request.headers.get("x-admin-key", ""))
+        return {"auth": auth.enabled, "logged_in": ok}
 
     @app.get("/tools")
     def tools() -> list[dict]:
@@ -139,6 +180,7 @@ def build_app(service: TowerService | None = None, chatbot=None):
         return [{"name": t.name, "owner": t.owner, "summary": t.summary, "on_fail": t.on_fail} for t in TOOLS]
 
     @app.get("/places")
+    @app.get("/api/kiosk/places")
     def places(machine_id: str, limit: int = 10) -> list[dict]:
         """등록기계 화면 2번: 이 기계 역의 추천 습득 장소(많이 고른 순). 목록에 없으면 화면에서 직접 입력"""
         try:
@@ -149,6 +191,7 @@ def build_app(service: TowerService | None = None, chatbot=None):
             raise HTTPException(status_code=503, detail=str(e))
 
     @app.post("/items")
+    @app.post("/api/kiosk/items")
     def create_item(payload: dict = Body(...)) -> dict:
         """등록기계 화면: 습득물 접수 → 접수 번호. 본문: machine_id, place_text(필수), place_id(추천 고른 경우),
         finder {name, phone}(둘 다 선택 — 비우면 저장 안 함), photo(선택, data:image/jpeg;base64,… 5MB 이하) 또는 photo_path.
@@ -161,6 +204,7 @@ def build_app(service: TowerService | None = None, chatbot=None):
             raise HTTPException(status_code=503, detail=str(e))
 
     @app.post("/items/{item_id}/features")
+    @app.post("/api/kiosk/items/{item_id}/features")
     def set_item_features(item_id: str, payload: dict = Body(...)) -> dict:
         """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
         try:
@@ -173,6 +217,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
             raise HTTPException(status_code=503, detail=str(e))
 
     @app.post("/claims")
+    @app.post("/api/kiosk/claims")
+    @app.post("/api/lost/claims")
     def create_claim(payload: dict = Body(...)) -> dict:
         """웹(1단계): 찾기 요청 저장. 본문: consent, name_masked, id_no_masked(가린 값), id_verified, description,
         item_id(고른 후보), quiz[{field, passed}], visit_date (+ lost_line·lost_station·lost_date). 결과: claim_id·웹 관문"""
@@ -183,7 +229,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
-    @app.get("/claims/{claim_id}")
+    @app.get("/claims/{claim_id}", dependencies=admin)
+    @app.get("/api/admin/claims/{claim_id}", dependencies=admin)
     def get_claim(claim_id: str) -> dict:
         """직원 화면: 찾기 요청 하나(가린 이름·물건 번호·예약·웹 관문 결과)"""
         try:
@@ -196,7 +243,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
             raise HTTPException(status_code=404, detail="없는 찾기 번호")
         return row
 
-    @app.post("/returns")
+    @app.post("/returns", dependencies=admin)
+    @app.post("/api/admin/returns", dependencies=admin)
     def start_return(payload: dict = Body(...)) -> dict:
         """반환 흐름 실행. 본문 둘 중 하나
         - 2단계(권장): claim_id + visitor_id_match·inner_feature_ok·staff_confirmed (웹 결과는 저장된 값 사용)
@@ -212,7 +260,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
-    @app.post("/returns/{case_id}/handover")
+    @app.post("/returns/{case_id}/handover", dependencies=admin)
+    @app.post("/api/admin/returns/{case_id}/handover", dependencies=admin)
     def handover(case_id: str, payload: dict = Body(...)) -> dict:
         """직원 화면: 바구니의 물건을 분실인에게 건넴 → 인계 대기 → 인계 완료. 본문 {"staff_confirmed": true}"""
         try:
@@ -226,7 +275,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
-    @app.post("/returns/{case_id}/hold")
+    @app.post("/returns/{case_id}/hold", dependencies=admin)
+    @app.post("/api/admin/returns/{case_id}/hold", dependencies=admin)
     def hold_handover(case_id: str, payload: dict = Body(...)) -> dict:
         """직원 화면: 인계 대기 중 건네지 않음(본인 아님·물건 다름·분실인 거부·기타) → 반환 보류 + 경보. 본문 {"reason": "본인 아님"}"""
         try:
@@ -240,17 +290,20 @@ def build_app(service: TowerService | None = None, chatbot=None):
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
-    @app.get("/robot/state")
+    @app.get("/robot/state", dependencies=admin)
+    @app.get("/api/admin/robot/state", dependencies=admin)
     def robot_state() -> dict:
         """로봇 상태(단계·정지·들고 있는 물건·관절 6개). 계약 docs/contracts/robot_api.md (11/5)"""
         return svc.robot_state()
 
     @app.post("/robot/stop")
+    @app.post("/api/robot/stop")
     def robot_stop() -> dict:
-        """직원 화면 🛑 정지: 반환 진행 중에도 동작. 다음 로봇 동작을 막고 즉시 정지(원점 복귀 안 함)"""
+        """직원 화면 🛑 정지: 반환 진행 중에도 동작. 다음 로봇 동작을 막고 즉시 정지(원점 복귀 안 함). 안전 원칙상 로그인 없이 항상 열림"""
         return svc.stop_robot()
 
-    @app.post("/robot/home")
+    @app.post("/robot/home", dependencies=admin)
+    @app.post("/api/admin/robot/home", dependencies=admin)
     def robot_home(payload: dict = Body(...)) -> dict:
         """직원 화면 원점 복귀: 주변 확인 뒤에만. 본문 {"staff_confirmed": true}. 반환 진행 중이면 409"""
         try:
@@ -283,6 +336,11 @@ def build_app(service: TowerService | None = None, chatbot=None):
         """분실인 웹(분실 확인) — web/lost/ (김재민, 서버 연결 전 시안)"""
         return _page("lost")
 
+    @app.get("/admin", include_in_schema=False)
+    def admin_page():
+        """관리자 관제 — web/admin/ (로그인 화면 + 관제 모니터링·직원 화면을 탭으로). 화면 자체는 열려 있고 데이터 API 가 잠긴다"""
+        return _page("admin")
+
     @app.get("/staff", include_in_schema=False)
     def staff_page():
         """직원 화면 — web/staff-desk/ (11/5 결정: 직원은 일단 제외, 화면은 남겨 둠)"""
@@ -301,7 +359,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
         with open(os.path.join(os.path.dirname(LIVE_PAGE), "so101_shape.js"), encoding="utf-8") as f:
             return Response(f.read(), media_type="application/javascript")
 
-    @app.get("/live/state")
+    @app.get("/live/state", dependencies=admin)
+    @app.get("/api/admin/live/state", dependencies=admin)
     def live_state(after: int = 0, story: str | None = None) -> dict:
         """after 번 이후의 새 사건 + 가상 세계(가상 시연일 때) + 최근 이야기. 화면이 0.4초마다 부른다"""
         board = getattr(svc, "board", None)
@@ -366,7 +425,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
             raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
         return d.reset()
 
-    @app.get("/returns")
+    @app.get("/returns", dependencies=admin)
+    @app.get("/api/admin/returns", dependencies=admin)
     def recent(limit: int = 20) -> list[dict]:
         """최근 반환 기록(단계 제외)"""
         try:
@@ -374,7 +434,8 @@ def build_app(service: TowerService | None = None, chatbot=None):
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
-    @app.get("/returns/{case_id}")
+    @app.get("/returns/{case_id}", dependencies=admin)
+    @app.get("/api/admin/returns/{case_id}", dependencies=admin)
     def get_case(case_id: str) -> dict:
         """반환 기록 하나(단계 포함)"""
         try:

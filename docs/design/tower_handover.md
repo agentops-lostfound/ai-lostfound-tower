@@ -58,6 +58,18 @@
 | AI 챗봇(변재원) | `POST /chat/questions`, `GET /chat/suggestions`, `GET /chat/health`, `/chat-widget/*` (`agents/chat_api.py`) | 위젯 `web/chat-widget/` |
 | 가상 시연 | `POST /sim/found`, `POST /sim/lost`, `POST /sim/lost/{id}/answer`, `GET /sim/stories/{id}`, `POST /sim/reset` | 챗봇·`/live` (TOWER_SIM=1 일 때만) |
 
+### 3-1. 주소 체계와 관리자 로그인 (11/5, LF-2 1차)
+| 구역 | 주소 | 로그인 |
+| --- | --- | --- |
+| 키오스크 | `/api/kiosk/places` · `/api/kiosk/items` · `/api/kiosk/items/{id}/features` · `/api/kiosk/claims` | 없음 |
+| 분실인 웹 | `/api/lost/claims` | 없음 |
+| 관리자 | `/api/admin/{login,logout,me,live/state,returns,returns/{id},returns/{id}/handover·hold,robot/state,robot/home,claims/{id}}` | `LF_ADMIN_PASSWORD` 를 정하면 필요 |
+| 정지 | `/api/robot/stop` | **항상 없음**(안전 원칙) |
+- 예전 주소(`/places`, `/items`, `/returns`, `/live/state` …)도 같은 함수로 계속 동작한다. 챗봇·분실물봇(`/chat/*`, `/sim/*`, `/robot/stop`)은 그대로
+- `LF_ADMIN_PASSWORD` 를 정하면 **관리자 쪽 예전 주소도 같은 로그인을 요구**한다. 분실물봇(`tools/lostfound_bot.py`)이 `/live/state`·`/robot/home` 을 로그인 없이 부르므로, 비밀번호를 켜기 전에 `.env` 에 `LF_ADMIN_API_KEY` 를 정하고 봇이 헤더 `X-Admin-Key` 로 보내게 해야 한다(변재원 확인)
+- 로그인 = 비밀번호 하나 → 세션 쿠키(8시간, 관제탑을 껐다 켜면 로그아웃), 연속 5번 틀리면 1분 잠금. 비밀번호가 비어 있으면 로그인 꺼짐(`/health` 의 `admin_auth`)
+- 화면(HTML) 합치기·관리자 로그인 화면·화면의 API 주소 교체는 2차 PR
+
 ## 4. 다음에 만들 것 — 키오스크용 API (설계 메모, 결정은 김재민)
 11/5 흐름(`web/README.md` 2절): 모든 키오스크 = 습득 신고 + 분실 확인, 회수는 본센터 키오스크만, 신분 확인은 키오스크 셀프, 직원 단계는 뺀다.
 
