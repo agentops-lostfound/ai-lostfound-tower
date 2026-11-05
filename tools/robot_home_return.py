@@ -1,7 +1,8 @@
 """LF-12 실험용 근거리 Home. 맨 아래 회전만 최대 정규화 1단위 복귀.
 
 일반 작업 자세에서 접힌 자세로 가는 경로를 보장하지 않는다. 현재 다른
-관절이 저장 자세의 0.2단위 이내일 때만 허용한다. 자동 장비 연결/토크 ON 없음.
+관절이 저장 자세의 0.2단위 이내일 때만 허용한다. pan 도달은 6틱 이내와
+Home 방향 실제 진척 2틱 이상을 함께 확인한다. 자동 연결/토크 ON 없음.
 """
 import argparse
 import json
@@ -21,6 +22,24 @@ except ImportError:
 
 MAX_PAN_DISTANCE = 1.0
 TOLERANCE = 0.2
+# 현재 팔로워 pan의 최종 보정 범위 846~3553 및 동일 보정 해시에만 적용한다.
+PAN_NORMALIZED_PER_TICK = 200.0 / (3553 - 846)
+PAN_ARRIVAL_TICKS = 6.0
+MIN_PAN_PROGRESS_TICKS = 2.0
+PAN_CALIBRATION_SHA256 = "b499cf4d43d903d3b0df393f03056d4006b0d3620226bd13642ff883bf96c858"
+TICK_EPSILON = 0.001
+
+
+def pan_metrics(start, position, target):
+    error = abs(position[0] - target[0]) / PAN_NORMALIZED_PER_TICK
+    progress = (abs(start[0] - target[0]) - abs(position[0] - target[0])) / PAN_NORMALIZED_PER_TICK
+    return {"pan_error_ticks": error, "pan_progress_ticks": progress,
+            "actual_return_observed": progress + TICK_EPSILON >= MIN_PAN_PROGRESS_TICKS}
+
+
+def arrival_verified(metrics):
+    return (metrics["pan_error_ticks"] <= PAN_ARRIVAL_TICKS + TICK_EPSILON
+            and metrics["actual_return_observed"])
 
 
 class Interrupted(Exception):
@@ -36,6 +55,8 @@ def check_values(values):
 
 def plan_local_return(start, profile):
     validate_profile(profile)
+    if profile["calibration_reference_sha256"] != PAN_CALIBRATION_SHA256:
+        raise RuntimeError("6틱 도달 기준과 현재 보정 해시가 다릅니다")
     check_values(start)
     target = profile["positions"]
     if abs(target[0]-start[0]) > MAX_PAN_DISTANCE:
@@ -65,7 +86,10 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
               "target": profile["positions"], "sent_targets": 0,
               "automatic_retry": False, "general_path_verified": False,
               "request_acknowledgement": "queued_only", "position_trace": [],
-              "last_requested_target": None, "delivery_before": state.get("delivery")}
+              "last_requested_target": None, "delivery_before": state.get("delivery"),
+              "pan_arrival_tolerance_ticks": PAN_ARRIVAL_TICKS,
+              "min_pan_progress_ticks": MIN_PAN_PROGRESS_TICKS,
+              "movement_required": True, **pan_metrics(start, start, profile["positions"])}
     if all(abs(start[i]-profile["positions"][i]) <= TOLERANCE for i in range(6)):
         latest = client.rpc("status")
         if (not latest.get("ok") or latest.get("session") != expected_session
@@ -73,7 +97,8 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
                 or not latest.get("hold_commanded")):
             raise RuntimeError("Home 위치 확인 중 상태 변경")
         return {**result, "result": "HOME_ALREADY_REACHED", "final_positions": start,
-                "stop_requested_after_home": True, "hold_commanded_after_home": True}
+                "stop_requested_after_home": True, "hold_commanded_after_home": True,
+                "movement_required": False}
     deadline = clock() + 12.0
     writer = "local-home-" + uuid.uuid4().hex
     token = None
@@ -135,11 +160,15 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
             if current.get("stop_requested") or current.get("epoch") != token:
                 raise Interrupted("Home 도달 확인 중 정지 요청")
             final = measured()
-            if abs(final[0]-end[0]) <= TOLERANCE:
+            metrics = pan_metrics(start, final, profile["positions"])
+            result.update(metrics)
+            if arrival_verified(metrics):
                 result["result"] = "HOME_REACHED"
                 break
             sleep(0.05)
         else:
+            if result["pan_error_ticks"] <= PAN_ARRIVAL_TICKS + TICK_EPSILON:
+                raise TimeoutError("Home 방향 실제 복귀 진척 2틱 확인 실패")
             raise TimeoutError("Home 도달 오차 확인 실패")
     except Interrupted as error:
         result.update(result="HOME_STOPPED", reason=str(error))
@@ -171,9 +200,13 @@ def run_home(client, profile, *, expected_session, expected_epoch, confirmed=Fal
                 final = client.positions()
                 check_values(final)
                 result["final_positions"] = final
-                if result["result"] == "HOME_REACHED" and any(
-                        abs(final[i]-profile["positions"][i]) > TOLERANCE for i in range(6)):
-                    result.update(result="HOME_ABORTED", reason="유지 후 Home 오차 초과")
+                metrics = pan_metrics(start, final, profile["positions"])
+                result.update(metrics)
+                if result["result"] == "HOME_REACHED":
+                    if any(abs(final[i]-profile["positions"][i]) > TOLERANCE for i in range(1, 6)):
+                        result.update(result="HOME_ABORTED", reason="유지 후 다른 관절 Home 오차 초과")
+                    elif not arrival_verified(metrics):
+                        result.update(result="HOME_ABORTED", reason="유지 후 Home 오차 또는 복귀 진척 기준 미달")
                 return result
         except Exception as error:
             result.update(result="HOME_ABORTED", reason=str(error))

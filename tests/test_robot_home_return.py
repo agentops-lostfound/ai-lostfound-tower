@@ -142,3 +142,74 @@ class StationaryHomeTests(unittest.TestCase):
         self.assertEqual(result["request_acknowledgement"], "queued_only")
         self.assertEqual(result["position_trace"][-1]["sequence"], 60)
         self.assertTrue(result["hold_commanded_after_home"])
+
+
+class PanToleranceTests(unittest.TestCase):
+    setUp = HomeReturnTests.setUp
+    run_home = HomeReturnTests.run_home
+
+    def set_response(self, start_ticks, residual_ticks):
+        from tools.robot_home_return import PAN_NORMALIZED_PER_TICK
+        target = self.profile["positions"][0]
+        self.client.position[0] = target + start_ticks * PAN_NORMALIZED_PER_TICK
+        def partial(targets):
+            self.client.targets.append(targets)
+            self.client.position[0] = target + residual_ticks * PAN_NORMALIZED_PER_TICK
+        self.client.bridge._gate._send = partial
+
+    def test_six_tick_residual_with_two_tick_progress_is_accepted(self):
+        self.set_response(8, 6)
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_REACHED")
+        self.assertAlmostEqual(result["pan_error_ticks"], 6)
+        self.assertAlmostEqual(result["pan_progress_ticks"], 2)
+        self.assertTrue(result["actual_return_observed"])
+        self.assertTrue(result["movement_required"])
+
+    def test_six_tick_tolerance_never_turns_stationary_pose_into_success(self):
+        self.set_response(4, 4)
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertFalse(result["actual_return_observed"])
+        self.assertEqual(result["sent_targets"], 60)
+
+    def test_one_tick_change_or_seven_tick_error_is_not_success(self):
+        for start, residual in ((6, 5), (9, 7)):
+            self.setUp()
+            self.set_response(start, residual)
+            result = self.run_home()
+            self.assertEqual(result["result"], "HOME_ABORTED")
+
+    def test_rebound_after_stop_is_rechecked(self):
+        from tools.robot_home_return import PAN_NORMALIZED_PER_TICK
+        self.set_response(8, 6)
+        def rebound():
+            self.client.position[0] = self.profile["positions"][0] + 7 * PAN_NORMALIZED_PER_TICK
+        self.client.bridge._gate._hold = rebound
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertIn("유지 후", result["reason"])
+
+    def test_already_home_still_sends_no_commands(self):
+        self.client.position = list(self.profile["positions"])
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ALREADY_REACHED")
+        self.assertFalse(result["movement_required"])
+        self.assertFalse(result["actual_return_observed"])
+        self.assertEqual(result["sent_targets"], 0)
+
+    def test_changed_calibration_hash_blocks_motion(self):
+        self.profile["calibration_reference_sha256"] = "0" * 64
+        with self.assertRaisesRegex(RuntimeError, "보정 해시"):
+            self.run_home()
+        self.assertNotIn("resume", self.client.operations)
+
+
+    def test_other_joint_tolerance_is_not_relaxed_after_hold(self):
+        self.set_response(8, 6)
+        def drift():
+            self.client.position[1] += 0.3
+        self.client.bridge._gate._hold = drift
+        result = self.run_home()
+        self.assertEqual(result["result"], "HOME_ABORTED")
+        self.assertIn("다른 관절", result["reason"])
