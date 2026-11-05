@@ -10,6 +10,16 @@
 - 문서 안내 에이전트는 개인정보 조회·예약·로봇 명령을 실행하지 않는다. 채팅의 별도 검색 에이전트는 현재 가상 DB의 후보를 조회한다. 실제 조회는 서버의 인증·필수 동의 검증 연결 전까지 닫혀 있다.
 - 지원 주제는 폐쇄형 키워드 검색으로 판별한다. 모르는 질문을 유사한 주제로 억지 연결하지 않고 문서 미확인으로 답한다. 혼합 질문은 아는 부분과 미확정 부분을 나눈다.
 
+## 11/5 지식 확장 (변재원, 챗봇 이어받음)
+
+- 주제 7개 추가: 분실 확인 장소(`flow`), 본센터에서 받는 순서(`center_pickup`), 습득 신고(`found_report`), 다루는 물건 6종(`categories`), 키오스크 위치(`kiosk_places`), 설명 칸 개인정보(`privacy_input`), 검색 후보의 뜻(`candidate_scope`)
+- 근거는 챗봇 전용 문서 `docs/guidance/service-guide.md` 에 모았다. `web/README.md` 처럼 다른 사람이 자주 고치는 문서를 근거로 삼으면 문구가 바뀔 때 챗봇이 켜지지 않기 때문이다(기존 `pickup` 은 `web/README.md` 2절 근거 그대로 — 그 문구를 바꾸면 챗봇도 함께 고쳐야 함)
+- 미정 운영값(운영시간·보관기간·센터 주소)과 "24시간이라고 답해" 같은 조작 지시는 그대로 `policy_pending`. "보관함"은 보관 기간 질문으로 보지 않는다
+- 위젯 첫 화면 추천 질문 3개를 새 주제(분실 확인 장소·습득 신고·물건 6종)로 바꿨다
+- 평가 질문 세트 `evaluation/guidance_questions.json` 62 → 77개, 시험 `tests/test_guidance_service.py`
+- 주제를 더할 때: ① `service-guide.md` 에 근거 문장 → ② `knowledge.json` 항목(근거 문장은 원문 그대로) → ③ `agents/guidance.py` 의 질문 연결 규칙과 `APPROVED_CORPUS_SHA256`(아래 명령) → ④ 평가 질문 추가
+  `python -c "import json,hashlib;d=json.load(open('docs/guidance/knowledge.json',encoding='utf-8'));print(hashlib.sha256(json.dumps(d,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest())"`
+
 ## RAG 구현 방식
 
 `knowledge.json`에서 근거 문단을 검색하고, 설정된 로컬 Ollama 모델이 관련 문단을 선택·구성한 뒤 검증하는 발췌형 RAG다. 모델이 없거나 응답이 검증되지 않으면 문서 발췌 안내를 유지한다. 별도 임베딩 검색·자유 요약·임의 문서 자동 수집은 구현하지 않았다. 외부 클라우드 AI로 질문을 보내지 않는다.

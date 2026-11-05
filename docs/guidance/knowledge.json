@@ -38,5 +38,61 @@
     "url": "/guidance/documents/site-help",
     "evidence": "왼쪽 물건 설명에 품목·색·특징을 적고 분실 날짜·호선·역을 입력한 뒤 설명 정리하기를 누릅니다. 아래에 나타나는 내용을 확인하거나 수정할 수 있습니다.\n\n설명 방법을 물건 사진으로 바꾸면 물건 하나가 보이는 사진을 올릴 수 있습니다. 사진에서 분실 날짜와 장소를 추측하지 않습니다.\n\n녹음 파일 입력이나 채팅의 음성 질문 버튼으로 말한 내용을 글자로 바꿀 수 있습니다. 인식된 글을 확인한 뒤 직접 전송합니다. 마이크가 없으면 글로 입력하면 됩니다.\n\n안내 채팅은 문서에 있는 절차를 근거와 함께 안내합니다. 물건 검색은 연결된 DB의 후보 조회이며 본인 물건 확정·접수·예약·반환 승인을 뜻하지 않습니다. 시연용 가상 DB 결과는 실제 습득물이 아닙니다.\n\n설명을 확인한 뒤 이 설명으로 후보 검색 버튼을 누르면 확인한 품목·색상·분실 날짜·호선·역이 검색에 사용됩니다. 날짜를 넣으면 그 날짜 이후 접수부터 확인하고, 입력한 역을 먼저 찾아 결과가 없을 때만 같은 호선으로 넓힙니다. 채팅의 조건 지우기로 확인한 조건을 해제할 수 있습니다. 후보에는 후보 번호·품목·색상을 표시하며 실제 접수 번호·접수 역·일치 점수는 표시하지 않습니다. 실제 DB 검색은 서버가 본인인증·필수 동의를 확인할 연결이 준비되어야 사용할 수 있습니다.",
     "answer": "왼쪽 물건 설명에 품목·색·특징을 적고 분실 날짜·호선·역을 입력한 뒤 설명 정리하기를 누릅니다. 아래에 나타나는 내용을 확인하거나 수정할 수 있습니다.\n\n설명 방법을 물건 사진으로 바꾸면 물건 하나가 보이는 사진을 올릴 수 있습니다. 사진에서 분실 날짜와 장소를 추측하지 않습니다.\n\n녹음 파일 입력이나 채팅의 음성 질문 버튼으로 말한 내용을 글자로 바꿀 수 있습니다. 인식된 글을 확인한 뒤 직접 전송합니다. 마이크가 없으면 글로 입력하면 됩니다.\n\n안내 채팅은 문서에 있는 절차를 근거와 함께 안내합니다. 물건 검색은 연결된 DB의 후보 조회이며 본인 물건 확정·접수·예약·반환 승인을 뜻하지 않습니다. 시연용 가상 DB 결과는 실제 습득물이 아닙니다.\n\n설명을 확인한 뒤 이 설명으로 후보 검색 버튼을 누르면 확인한 품목·색상·분실 날짜·호선·역이 검색에 사용됩니다. 날짜를 넣으면 그 날짜 이후 접수부터 확인하고, 입력한 역을 먼저 찾아 결과가 없을 때만 같은 호선으로 넓힙니다. 채팅의 조건 지우기로 확인한 조건을 해제할 수 있습니다. 후보에는 후보 번호·품목·색상을 표시하며 실제 접수 번호·접수 역·일치 점수는 표시하지 않습니다. 실제 DB 검색은 서버가 본인인증·필수 동의를 확인할 연결이 준비되어야 사용할 수 있습니다."
+  },
+  {
+    "topic": "flow",
+    "title": "분실 확인과 물건 받는 곳 — 11/5 팀 결정",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#분실-확인과-물건-받기",
+    "evidence": "분실 확인은 모든 역 키오스크, 분실인 웹, 챗봇에서 할 수 있다.",
+    "answer": "분실물 확인은 모든 역 키오스크, 분실인 웹, 이 챗봇에서 할 수 있어요. 물건을 실제로 받는 곳(회수)은 본센터 키오스크 한 곳이에요. 일반 역 키오스크나 웹에서 물건이 확인되면 본센터 방문을 안내해 드려요."
+  },
+  {
+    "topic": "center_pickup",
+    "title": "본센터에서 받는 순서 — 11/5 팀 결정",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#본센터에서-받는-순서",
+    "evidence": "확인이 끝나면 로봇팔이 보관함에서 물건을 꺼내 수령대에 놓는다.",
+    "answer": "본센터 키오스크에서 ① 셀프 신분 확인을 하고 ② 물건 특징을 묻는 확인 질문에 답하면, ③ 로봇팔이 보관함에서 물건을 꺼내 수령대에 놓아 드려요. 이는 프로젝트 설계 순서이며, 실제 방문 시간·준비물은 확정 안내가 필요해요."
+  },
+  {
+    "topic": "found_report",
+    "title": "습득 신고 방법 — 습득물 등록기계 화면",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
+    "evidence": "물건을 상자에 넣고 사진을 찍은 뒤 주운 장소를 고르면 접수 번호가 나온다.",
+    "answer": "주운 물건은 가까운 역 키오스크(습득물 등록기계)에서 신고해 주세요. 물건을 상자에 넣고 사진을 찍은 뒤 주운 장소를 고르면 접수 번호가 나와요. 연락처는 남기지 않아도 되고, 물건 종류·색은 사진을 보고 시스템이 채워요. 현금이나 위험물은 역무실로 가져가 주세요."
+  },
+  {
+    "topic": "categories",
+    "title": "다루는 물건 6종 — 팀 공통 품목",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#다루는-물건",
+    "evidence": "지금 다루는 물건은 지갑·USB·립밤·모형폰·핸드크림·보조배터리 6종이다.",
+    "answer": "지금 이 서비스가 다루는 물건은 지갑, USB, 립밤, 모형폰(휴대폰), 핸드크림, 보조배터리 6종이에요. 다른 물건은 아직 다루지 않아요."
+  },
+  {
+    "topic": "kiosk_places",
+    "title": "키오스크 위치 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#키오스크-위치-시연-기준",
+    "evidence": "시연 기준 키오스크는 KIOSK-A 해운대역, KIOSK-B 중앙역, KIOSK-C 서면역이다.",
+    "answer": "시연 기준 키오스크는 해운대역(KIOSK-A), 중앙역(KIOSK-B), 서면역(KIOSK-C)에 있어요. 본센터 키오스크의 번호와 위치는 아직 정해지지 않았어요."
+  },
+  {
+    "topic": "privacy_input",
+    "title": "설명·장소 칸의 개인정보 — 입력 규칙",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#개인정보-입력",
+    "evidence": "장소·설명 칸에 전화번호·주민번호·이메일을 쓰면 접수하지 않는다.",
+    "answer": "물건 설명이나 장소 칸에는 전화번호·주민번호·이메일을 적지 말아 주세요. 적으면 접수되지 않아요. 연락처는 연락처 칸에만 적으면 돼요."
+  },
+  {
+    "topic": "candidate_scope",
+    "title": "검색 후보의 뜻 — 공개 범위",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오며 본인 물건이라는 확정이 아니다.",
+    "answer": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오고, 본인 물건이라는 확정이 아니에요. 실제로 받으려면 본센터 키오스크에서 신분 확인과 물건 확인 질문을 통과해야 해요."
   }
 ]
