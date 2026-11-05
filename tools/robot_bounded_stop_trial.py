@@ -72,7 +72,7 @@ def validate_positions(values):
     require(-95 <= values[0] <= 95, "맨 아래 회전 관절이 시험 허용 시작 범위 밖입니다")
 
 
-def plan_offset(baseline, profile):
+def plan_offset(baseline, profile, *, side="positive"):
     try:
         from robot.home_profiles import validate_profile
     except ImportError:
@@ -83,13 +83,14 @@ def plan_offset(baseline, profile):
     require(abs(baseline[0] - home[0]) <= 1.0, "Home 근거리 범위 밖입니다")
     require(all(abs(baseline[i] - home[i]) <= 0.2 for i in range(1, 6)),
             "다른 관절이 Home 자세와 다릅니다")
-    end = home[0] + 0.8
+    require(side in ("positive", "negative"), "지원하지 않는 시험 방향입니다")
+    end = home[0] + (0.8 if side == "positive" else -0.5)
     require(-95 <= end <= 95 and abs(end - baseline[0]) <= MAX_DELTA,
             "Home 기준 목표 또는 이동량이 기존 시험 한계를 넘습니다")
     return end
 
 
-def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_profile=None):
+def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_profile=None, home_side="positive"):
     require(confirmed is True, "사용자 준비 확인 없이 이동하지 않습니다")
     initial = client.rpc("status")
     require(initial.get("ok") and initial.get("stop_requested") and initial.get("hold_commanded"),
@@ -98,7 +99,8 @@ def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_pro
     epoch = initial["epoch"]
     # 카운트다운 중 누른 정지 버튼도 취소로 인정하며 재개로 덮어쓰지 않는다.
     for second in (3, 2, 1):
-        label = "Home 기준 +0.8 위치로 제한 이동" if home_profile is not None else "맨 아래 좌우 회전 관절만 최대 정규화 1단위 이동"
+        label = ("Home 기준 +0.8 위치로 제한 이동" if home_side == "positive"
+                 else "Home 기준 -0.5 위치로 제한 이동") if home_profile is not None else "맨 아래 좌우 회전 관절만 최대 정규화 1단위 이동"
         emit(f"{second}초 후 {label}", flush=True)
         for _ in range(10):
             sleep(0.1)
@@ -108,7 +110,7 @@ def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_pro
                     and status.get("hold_commanded"), "카운트다운 중 상태 변경: 이동 취소")
     baseline = client.positions()
     validate_positions(baseline)
-    end_pan = baseline[0] + MAX_DELTA if home_profile is None else plan_offset(baseline, home_profile)
+    end_pan = baseline[0] + MAX_DELTA if home_profile is None else plan_offset(baseline, home_profile, side=home_side)
     if home_profile is not None and abs(end_pan - baseline[0]) <= 0.2:
         return {"result": "HOME_OFFSET_ALREADY_REACHED", "baseline": baseline,
                 "target_pan": end_pan, "sent_targets": 0, "automatic_return": False}
@@ -163,6 +165,26 @@ def run_trial(client, *, confirmed=False, sleep=time.sleep, emit=print, home_pro
         else:
             if home_profile is not None:
                 result["result"] = "HOME_OFFSET_SEQUENCE_COMPLETE"
+                emit("최종 목표를 유지하며 최대 2초간 위치를 관측합니다.", flush=True)
+                for settle in range(40):
+                    current = client.rpc("status")
+                    require(current.get("ok") and current.get("session") == session,
+                            "도달 관측 중 소유자/응답 변경")
+                    if current.get("stop_requested"):
+                        result["result"] = "MANUAL_STOP_OBSERVED"
+                        break
+                    require(current.get("epoch") == token, "도달 관측 중 제어 세대 변경")
+                    observed = client.positions()
+                    validate_positions(observed)
+                    require(abs(observed[0] - home_profile["positions"][0]) <= 1.0,
+                            "도달 관측 중 Home 범위 이탈")
+                    require(all(abs(observed[i] - home_profile["positions"][i]) <= 0.2
+                                for i in range(1, 6)), "도달 관측 중 다른 관절 변화")
+                    if settle in (0, 19, 39):
+                        result["position_trace"].append({"phase": "settle", "sample": settle + 1,
+                            "requested_pan": end_pan, "observed_pan": observed[0],
+                            "delivery": current.get("delivery")})
+                    sleep(0.05)
     finally:
         # 정상 종료/통신 오류/Ctrl+C 모두 같은 세션에 정지를 시도한다.
         # 이전 위치로 자동 복귀하지 않는다. 이미 전송된 I/O는 취소할 수 없다.
@@ -216,6 +238,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--confirm-ready", action="store_true")
     parser.add_argument("--home-profile")
+    parser.add_argument("--home-side", choices=("positive", "negative"), default="positive")
     args = parser.parse_args()
     if not args.confirm_ready:
         parser.error("실물 이동 시험입니다. 준비 확인 후 --confirm-ready가 필요합니다")
@@ -226,7 +249,7 @@ def main():
     print("실물 제한 이동 시험: 정지 화면을 보면서 진행하세요.", flush=True)
     client = Client()
     try:
-        print(json.dumps(run_trial(client, confirmed=True, home_profile=profile), ensure_ascii=True, indent=2))
+        print(json.dumps(run_trial(client, confirmed=True, home_profile=profile, home_side=args.home_side), ensure_ascii=True, indent=2))
     finally:
         client.close()
 

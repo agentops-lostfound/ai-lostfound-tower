@@ -203,6 +203,7 @@ def main():
     parser.add_argument("--expected-file", default=str(ROOT.parent / "soarm-setup/new-follower-calibration-complete.json"))
     parser.add_argument("--sync-goal", action="store_true")
     parser.add_argument("--confirm-ready", action="store_true")
+    parser.add_argument("--home-side", choices=("positive", "negative"), default="positive")
     args = parser.parse_args()
     if args.operation == "prepare":
         if not args.candidate_dir:
@@ -237,7 +238,7 @@ def main():
             execute("docker", "cp", str(profile_file), CONTAINER + ":" + target)
             execute("docker", "cp", str(ROOT / "robot/home_profiles.py"),
                     CONTAINER + ":" + record["container_dir"] + "/home_profiles.py")
-            command += ["--home-profile", target]
+            command += ["--home-profile", target, "--home-side", args.home_side]
         subprocess.run(command, check=True)
         return
     if args.operation in ("preflight", "diagnose"):

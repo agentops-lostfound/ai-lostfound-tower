@@ -129,7 +129,7 @@ def for_so101(driver):
             delivery.update(attempts=delivery["attempts"] + 1, requested_pan=float(target[0]),
                             requested_pan_raw=expected_raw, stage="driver_call",
                             error=None, observed_goal_raw=None, goal_matches_request=None,
-                            read_at_monotonic=None)
+                            read_at_monotonic=None, observed_present_raw=None, torque=None)
         try:
             driver.send_action(action)
             with delivery_lock:
@@ -137,12 +137,16 @@ def for_so101(driver):
                 delivery["stage"] = "read_goal"
             # 소유자 스레드에서만 읽는다. 정지 콜백은 이 I/O 잠금을 기다리지 않는다.
             conn = driver._require_connection()
-            goal, comm, error = conn.packet_handler.read2ByteTxRx(
-                conn.port_handler, driver.servo_ids["shoulder_pan"], 42)
+            block, comm, error = conn.packet_handler.readTxRx(
+                conn.port_handler, driver.servo_ids["shoulder_pan"], 40, 18)
             if comm != 0 or error != 0:
                 raise RuntimeError(f"pan 목표 읽기 실패: comm={comm}, error={error}")
+            if len(block) != 18:
+                raise RuntimeError("pan 상태 읽기 길이 오류")
+            goal = int(block[2]) | (int(block[3]) << 8)
+            present = int(block[16]) | (int(block[17]) << 8)
             with delivery_lock:
-                delivery.update(readbacks=delivery["readbacks"] + 1,
+                delivery.update(observed_present_raw=present, torque=int(block[0]), readbacks=delivery["readbacks"] + 1,
                                 observed_goal_raw=int(goal), goal_matches_request=int(goal) == expected_raw,
                                 stage="goal_readback", read_at_monotonic=time.monotonic())
             if int(goal) != expected_raw:

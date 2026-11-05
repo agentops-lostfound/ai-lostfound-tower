@@ -178,3 +178,12 @@ py -3.11 .\tools\prepare_robot_owner_trial.py telemetry-upgrade --trial "$trialF
 ```
 
 Studio Connect OFF, runtime 종료, 패널 종료 후 활성 USB 소유자가 없어야 한다. 활성 프로세스·알 수 없는 설치 변경이면 거부한다. 기존 진입점·명령 gate는 그대로 두고 연결부만 교체한다. 원본 백업과 이전 후보는 보존하고 새 백업을 컨테이너 및 Windows에서 검증한 뒤 같은 trial.json을 갱신한다. Windows 사본/기록 저장 실패 시 이전 연결부 복원을 시도한다. 새 후보를 처음부터 만들거나 보정할 필요는 없다. 결과 TELEMETRY_UPGRADED_NO_HARDWARE_CONNECTION 또는 TELEMETRY_ALREADY_INSTALLED는 설치 확인이며 하드웨어 연결·토크 ON·시험을 수행하지 않는다. 적용 후 최신 패널을 재시작해야 한다. 원래 Home 실패는 그대로 미해결이며 복귀 중 정지 시험도 아직 미실시다.
+
+### 실제 목표 읽기 확인 후 재시험
+
+
+사용자 결과: attempts=60, driver_calls_returned=60, readbacks=60, 마지막 요청/모터 Goal_Position=2158 일치, 관측 위치는 pan 약 2153에서 변화 0. 요청 전달과 목표 기록은 확인됐으나 미이동 원인은 미확정이다. 마지막 목표 직후 정지를 요청하던 offset 시험을 보완해 최대 2초간 목표를 유지하며 관측한다. 정지 요청은 대기 중에도 처리한다.
+
+`home-offset --home-side negative`는 Home-0.5를 목표로 사용한다. 현재 Home+0.443 부근에서는 약 13틱 거리이고, 회당 1단위 및 Home 기준 1단위 범위와 다른 관절 0.2 허용 조건은 그대로 유지한다. 한도를 넘는 시작 자세면 이동을 거부하며 반복 실행으로 거리를 누적하지 않는다. PID·Home 성공 허용 오차는 변경하지 않았다.
+
+소유자 진단은 주소 40부터 18바이트를 한 패킷으로 읽어 토크·목표·현재 위치를 함께 기록한다. 읽기 요청 수는 기존 목표 읽기와 동일하게 1회이며 응답 길이는 증가한다. `delivery`의 원시 위치와 토크는 해당 목표 전송 직후의 표본이고, 2초 관측 구간 위치는 `position_trace`의 settle 표본을 함께 본다. 최신 연결부 적용은 기존 `telemetry-upgrade`로 수행하며 기존 trial과 원본 백업을 유지한다. 이 추가 시험은 아직 실물 미실행이다.
