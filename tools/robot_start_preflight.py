@@ -1,8 +1,4 @@
-"""LF-12 팔로워 시작 전 점검. 토크 ON이나 보정값 쓰기는 하지 않는다.
-
---sync-goal은 토크 OFF 상태에서 현재 raw 위치를 Goal_Position에 기록한다.
-실제 연결 시의 토크 ON 안전성이나 충돌 회피를 보장하는 기능은 아니다.
-"""
+"""LF-12 팔로워 읽기 전용 점검. 목표값 쓰기는 토크를 켤 수 있어 금지한다."""
 import argparse
 import dataclasses
 import json
@@ -50,6 +46,8 @@ def diagnose_bus(bus, expected, *, backup_dir):
 
 def inspect_bus(bus, expected, *, sync_goal=False, backup_dir=None):
     """호출자가 통신 소유권을 확보하고 연결한 버스를 사용한다."""
+    if sync_goal:
+        raise RuntimeError("--sync-goal 사용 중단: 목표값 기록이 토크를 켤 수 있습니다")
     actual = {name: dataclasses.asdict(cal) for name, cal in bus.read_calibration().items()}
     if actual != expected:
         raise RuntimeError("보드 보정값 불일치: 목표값을 쓰지 않습니다")
@@ -69,22 +67,6 @@ def inspect_bus(bus, expected, *, sync_goal=False, backup_dir=None):
             raise RuntimeError(f"현재 raw 위치가 단일 회전 범위 밖입니다: {name}")
         before[name] = {"torque": torque, "mode": mode, "present_raw": present,
                         "goal_raw": goal, "goal_delta_ticks": goal - present}
-    backup_path = None
-    if sync_goal:
-        if backup_dir is None:
-            raise ValueError("목표값 변경 전 백업 폴더가 필요합니다")
-        folder = Path(backup_dir)
-        folder.mkdir(parents=True, exist_ok=True)
-        backup_path = folder / f"follower-before-goal-sync-{time.time_ns()}.json"
-        with backup_path.open("x") as stream:
-            json.dump({"serial": SERIAL, "calibration": actual, "joints": before}, stream, indent=2)
-            stream.flush()
-            os.fsync(stream.fileno())
-        # 기록 직전 전 관절의 토크 OFF를 다시 확인한다.
-        if any(bus.read("Torque_Enable", name, normalize=False) != 0 for name in NAMES):
-            raise RuntimeError("점검 중 토크 상태 변경: 목표값 기록 중단")
-        for name in NAMES:
-            bus.write("Goal_Position", name, before[name]["present_raw"], normalize=False)
     after = {}
     for name in NAMES:
         torque = bus.read("Torque_Enable", name, normalize=False)
@@ -94,10 +76,8 @@ def inspect_bus(bus, expected, *, sync_goal=False, backup_dir=None):
                        "goal_delta_ticks": goal - present}
         if torque != 0:
             raise RuntimeError(f"점검 후 토크 OFF 검증 실패: {name}")
-        if sync_goal and (goal != before[name]["present_raw"] or abs(present - goal) > 5):
-            raise RuntimeError(f"목표값 불일치 또는 점검 중 자세 변화: {name}. 토크를 켜지 마세요")
-    return {"result": "GOAL_SYNCED_TORQUE_OFF" if sync_goal else "PREFLIGHT_READ_ONLY_OK",
-            "serial": SERIAL, "calibration_matches": True, "backup": str(backup_path) if backup_path else None,
+    return {"result": "PREFLIGHT_READ_ONLY_OK",
+            "serial": SERIAL, "calibration_matches": True, "backup": None,
             "joints": after, "torque_enabled_by_tool": False}
 
 
@@ -109,6 +89,8 @@ def main():
     group.add_argument("--diagnose", action="store_true")
     parser.add_argument("--backup-dir", default="/app/storage/soarm-safety-backups")
     args = parser.parse_args()
+    if args.sync_goal:
+        parser.error("--sync-goal 사용 중단: 목표값 기록이 토크를 켤 수 있습니다")
     saved = json.loads(Path(args.expected_file).read_text(encoding="utf-8-sig"))
     if saved.get("serial") != SERIAL or set(saved.get("calibration", {})) != set(NAMES):
         raise RuntimeError("장비 시리얼/관절 목록 불일치")
