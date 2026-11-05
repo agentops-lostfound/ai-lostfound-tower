@@ -1,6 +1,7 @@
 """Synthetic, local SQLite collection desk. Never reads team DB environment variables."""
 import re
 import sqlite3
+import secrets
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,16 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+class StaleDemo(CollectionError):
+    code = 'stale_demo'
+
+
+def collection_number(cid):
+    if type(cid) is not int or not 1 <= cid <= 2_147_483_647:
+        raise CollectionError('회수 번호를 확인해주세요')
+    return cid
+
+
 class DemoCollections:
     mode = 'demo_sqlite'
 
@@ -18,7 +29,7 @@ class DemoCollections:
         self.path = Path(path).resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connection(write=True) as db:
-            db.executescript('''
+            schema = '''
                 CREATE TABLE IF NOT EXISTS demo_metadata (version INTEGER PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS demo_item (
                     item_id TEXT PRIMARY KEY, machine_id TEXT, category TEXT, color TEXT, status TEXT);
@@ -33,10 +44,17 @@ class DemoCollections:
                     PRIMARY KEY(collection_id,item_id));
                 CREATE TABLE IF NOT EXISTS demo_event (
                     id INTEGER PRIMARY KEY, collection_id INTEGER, item_id TEXT, status TEXT, at TEXT);
-            ''')
+            '''
+            # executescript implicitly commits; keep bootstrap and seeding in one write transaction.
+            for statement in schema.split(';'):
+                if statement.strip():
+                    db.execute(statement)
+            if 'revision' not in {r[1] for r in db.execute('PRAGMA table_info(demo_metadata)')}:
+                db.execute('ALTER TABLE demo_metadata ADD COLUMN revision TEXT')
             if not db.execute('SELECT 1 FROM demo_metadata').fetchone():
                 self._seed(db)
-                db.execute('INSERT INTO demo_metadata VALUES(1)')
+                db.execute('INSERT INTO demo_metadata(version,revision) VALUES(1,?)', (secrets.token_hex(16),))
+            db.execute('UPDATE demo_metadata SET revision=? WHERE revision IS NULL', (secrets.token_hex(16),))
 
     @contextmanager
     def connection(self, write=False):
@@ -64,7 +82,16 @@ class DemoCollections:
             ('C-W01', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')])
 
     @staticmethod
+    def _check_revision(db, revision):
+        current = db.execute('SELECT revision FROM demo_metadata WHERE version=1').fetchone()[0]
+        if revision is not None and (not isinstance(revision, str) or not re.fullmatch(r'[0-9a-f]{32}', revision)
+                                     or not secrets.compare_digest(revision, current)):
+            raise StaleDemo('시연 데이터가 초기화되었습니다. 새로고침 후 다시 선택해주세요')
+        return current
+
+    @staticmethod
     def _view(db, cid):
+        collection_number(cid)
         row = db.execute('SELECT * FROM demo_collection WHERE collection_id=?', (cid,)).fetchone()
         if row is None:
             raise CollectionError('회수 기록이 없습니다')
@@ -82,13 +109,14 @@ class DemoCollections:
         with self.connection() as db:
             return self._view(db, cid)
 
-    def pickup(self, machine_id, ids, request_id):
+    def pickup(self, machine_id, ids, request_id, *, revision=None):
         ids = item_ids(ids)
         if not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', request_id):
             raise CollectionError('같은 회수 요청의 재시도에는 동일한 request_id가 필요합니다')
         if machine_id not in ('KIOSK-A', 'KIOSK-B', 'KIOSK-C'):
             raise CollectionError('등록기계를 확인해주세요')
         with self.connection(write=True) as db:
+            self._check_revision(db, revision)
             old = db.execute('SELECT collection_id FROM demo_collection WHERE request_id=?', (request_id,)).fetchone()
             if old:
                 view = self._view(db, old[0])
@@ -107,9 +135,10 @@ class DemoCollections:
                 db.execute('INSERT INTO demo_event(collection_id,item_id,status,at) VALUES(?,?,?,?)', (cid, iid, '회수 중', timestamp))
             return self._view(db, cid)
 
-    def arrive(self, cid, ids):
+    def arrive(self, cid, ids, *, revision=None):
         ids = item_ids(ids, allow_empty=True)
         with self.connection(write=True) as db:
+            self._check_revision(db, revision)
             view = self._view(db, cid)
             members = {m['item_id']: m['arrived'] for m in view['items']}
             if not set(ids) <= members.keys():
@@ -138,12 +167,14 @@ class DemoCollections:
             items = [dict(r) for r in db.execute('SELECT * FROM demo_item ORDER BY machine_id,item_id')]
             collections = [self._view(db, r[0]) for r in db.execute('SELECT collection_id FROM demo_collection ORDER BY collection_id DESC LIMIT 100')]
             alerts = [dict(r) for r in db.execute('SELECT collection_id,item_id,created_at FROM demo_alert WHERE resolved_at IS NULL ORDER BY created_at')]
-            return {'mode': self.mode, 'items': items, 'collections': collections, 'alerts': alerts,
+            return {'mode': self.mode, 'revision': self._check_revision(db, None), 'items': items, 'collections': collections, 'alerts': alerts,
                     'event_count': db.execute('SELECT count(*) FROM demo_event').fetchone()[0]}
 
-    def reset(self):
+    def reset(self, *, revision=None):
         with self.connection(write=True) as db:
+            self._check_revision(db, revision)
             for table in ('demo_alert', 'demo_event', 'demo_member', 'demo_collection', 'demo_item'):
                 db.execute('DELETE FROM ' + table)
             self._seed(db)
+            db.execute('UPDATE demo_metadata SET revision=? WHERE version=1', (secrets.token_hex(16),))
         return {'reset': True, 'mode': self.mode}

@@ -16,6 +16,7 @@ class CollectionDeskTests(unittest.TestCase):
         self.path = Path(tmp.name) / 'demo.sqlite3'
         self.store = DemoCollections(self.path)
         self.client = TestClient(create_app(collections=self.store, demo=True), base_url='http://127.0.0.1:8110')
+        self.client.headers['x-demo-revision'] = self.store.dashboard()['revision']
 
     def pickup(self):
         return self.store.pickup('KIOSK-A', ['A-W01', 'A-W02'], 'demo-request-001')

@@ -2,7 +2,7 @@
 import hmac
 import os
 from datetime import datetime
-from fastapi import FastAPI, Body, Header, HTTPException, Depends
+from fastapi import FastAPI, Body, Header, HTTPException, Depends, Path as PathParam
 from center.collections import CollectionStore, CollectionError
 from center.statistics import Statistics
 
@@ -10,6 +10,11 @@ from center.statistics import Statistics
 def create_app(collections=None, statistics=None, staff_key=None, places=None, demo=False):
     app = FastAPI(title="본센터 회수·통계", version="0.1")
     key = staff_key if staff_key is not None else os.environ.get("LF_STAFF_API_KEY", "")
+    from fastapi.responses import JSONResponse
+
+    def collection_failure(error, status=409):
+        detail = {'code': 'stale_demo', 'message': str(error)} if getattr(error, 'code', None) == 'stale_demo' else str(error)
+        return HTTPException(status, detail)
     if demo:
         from center.demo_collections import DemoCollections
         if type(collections) is not DemoCollections or statistics is not None or places is not None:
@@ -20,6 +25,11 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         from fastapi.exceptions import RequestValidationError
         from pathlib import Path
         app.add_middleware(LocalRequestGuard)
+        import sqlite3
+
+        @app.exception_handler(sqlite3.Error)
+        async def storage_unavailable(request, error):
+            return JSONResponse({'detail': '시연 저장소를 사용할 수 없습니다. 잠시 후 새로고침해주세요'}, status_code=503)
         root = Path(__file__).resolve().parents[1] / 'web/collection-desk'
         app.mount('/collection-assets', StaticFiles(directory=root / 'assets'), name='collection-assets')
 
@@ -36,22 +46,26 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
             return collections.dashboard()
 
         @app.post('/demo/reset')
-        def reset_demo(body: dict = Body(...)):
+        def reset_demo(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
             if body.get('confirm') != 'RESET_DEMO':
                 raise HTTPException(422, '가상 데이터 초기화 확인이 필요합니다')
-            return collections.reset()
+            try:
+                return collections.reset(revision=x_demo_revision or '')
+            except CollectionError as e:
+                raise collection_failure(e) from None
 
         @app.get('/health')
         def demo_health():
             return {'status': 'ok', 'mode': 'demo_sqlite', 'team_database_connected': False,
                     'external_notifications_enabled': False}
 
-    def authorize(x_staff_key: str = Header(default="")):
+    def authorize(x_staff_key: list[str] | None = Header(default=None)):
         if demo:
             return  # Fixed synthetic store only; loopback/origin guard protects this local demo.
-        if not key:
+        if not isinstance(key, str) or not key or not key.isascii() or len(key) > 256:
             raise HTTPException(503, "직원 접근 키가 설정되지 않았습니다")
-        if not hmac.compare_digest(x_staff_key, key):
+        if (not x_staff_key or len(x_staff_key) != 1 or not x_staff_key[0].isascii()
+                or len(x_staff_key[0]) > 256 or not hmac.compare_digest(x_staff_key[0], key)):
             raise HTTPException(403, "직원 인증이 필요합니다")
 
     def backend(store):
@@ -60,25 +74,29 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         return store
 
     @app.post("/collections", dependencies=[Depends(authorize)])
-    def pickup(body: dict = Body(...)):
+    def pickup(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
+            if demo:
+                return collections.pickup(body.get('machine_id'), body.get('item_ids'), body.get('request_id'), revision=x_demo_revision or '')
             return backend(collections).pickup(body.get("machine_id"), body.get("item_ids"), body.get("request_id"))
         except CollectionError as e:
-            raise HTTPException(409, str(e)) from None
+            raise collection_failure(e) from None
 
     @app.get("/collections/{collection_id}", dependencies=[Depends(authorize)])
-    def get_collection(collection_id: int):
+    def get_collection(collection_id: int = PathParam(ge=1, le=2_147_483_647)):
         try:
             return backend(collections).get(collection_id)
         except CollectionError as e:
             raise HTTPException(404, str(e)) from None
 
     @app.post("/collections/{collection_id}/arrivals", dependencies=[Depends(authorize)])
-    def arrival(collection_id: int, body: dict = Body(...)):
+    def arrival(collection_id: int = PathParam(ge=1, le=2_147_483_647), body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
+            if demo:
+                return collections.arrive(collection_id, body.get('item_ids'), revision=x_demo_revision or '')
             return backend(collections).arrive(collection_id, body.get("item_ids"))
         except CollectionError as e:
-            raise HTTPException(409, str(e)) from None
+            raise collection_failure(e) from None
 
     @app.post("/collections/overdue/check", dependencies=[Depends(authorize)])
     def overdue(body: dict = Body(...)):
