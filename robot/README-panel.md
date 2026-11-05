@@ -1,5 +1,21 @@
 # SO-101 티칭 패널
 
+## 현재 운영 방식: 저장 자세 약 5개 (11/5 최종 결정)
+
+사용자 결정으로 XYZ/YOLO 중심에서 모터값을 자동 계산하는 방식은 중단하고, 직접 티칭·저장한 고정 관절 자세를 선택해 이동한다. 기존 GUI·모터 통신·정지·속도 선택·CSV·저장 기능을 사용한다. [전환 결정](../docs/reports/2026-11-05-fixed-pose-decision.md).
+
+현재 `outputs/robot_panel_live/poses.json`에는 기존 `home`, `raised`, `entry`, `observe`와 텔레옵으로 티칭한 `pose_1`~`pose_5`가 있다. 새 **커스텀 1~5** 버튼은 해당 `pose_1`~`pose_5`를 미리 불러온다. 버튼 선택만으로는 움직이지 않는다. 이름 입력/목록과 `Load preview`도 사용할 수 있다. 해당 자세가 없는 PC에서는 그 커스텀 버튼을 비활성화한다. 저장 자세 파일은 로컬 outputs에 있으므로 Git에 버튼 코드만 공유해도 실측 자세가 함께 전달되는 것은 아니다.
+
+티칭 원본은 `outputs/robot_poses/teleop_teaching_20261105/poses.json`과 각 자세별 `pose.json`/`observations.csv`, 전체 표는 `poses_summary.csv`다. 각 자세에서 HOLD 관측 10개를 기록했다. GUI 목록으로 병합하기 전 기존 파일을 `poses.backup-before-custom-buttons-*.json`으로 백업했고 기존 네 자세의 값을 보존했다. 커스텀 1~5는 개별 선택용이며 기존 forward/reverse 순서에 자동 추가하지 않는다.
+
+현재 GUI는 자세 파일을 시작할 때 읽으므로 실행 중 외부에서 파일을 수정해도 자동 반영되지 않는다. 이번 코드·자세 병합을 반영하려면 GUI를 다시 실행한다. 이후 GUI의 `Save measured / overwrite`로 저장하면 실행 중 목록과 커스텀 버튼 상태도 갱신된다. 실물 GUI 재실행 전 Studio 텔레옵/런타임과 시리얼 소유권을 정리해야 하며, 이번 UI 갱신은 실행 중 Studio를 종료하거나 팔을 움직이지 않았다.
+
+관절 표는 헤더와 여섯 행이 하나의 grid를 공유한다. `Measured`, `Target input`, `Error` 및 조작 버튼을 같은 열에 배치하고 숫자 표시/입력을 오른쪽 정렬했다.
+
+선택 → `Load preview` → `Review target` → `Approve ONE stage`로 한 자세씩 이동한다. 새 자세는 실제로 맞춘 상태에서 새 이름을 입력하고 `Save measured / overwrite`로 저장한다. 고정 자세 사이의 경로와 순서는 실물에서 확인한다. 약 5개의 자세를 저장하는 것과 전체 순서를 자동 실행하는 것은 별도이며, 현재 전체 자동 재생 기능은 없다.
+
+이전 좌표 계산 시험의 목표 숫자가 GUI에 남아 있다면 저장 자세를 `Load preview`로 다시 불러온 뒤 검토한다. 이번 운영 전환 작업은 실행 중 GUI 목표·로봇 상태를 자동 변경하지 않았다. 오프라인 IK·좌표 출력 코드와 계산 결과는 과거 실험 자료로 보존하며 현재 운영 목표로 사용하지 않는다. 190mm 실측은 참고 기록이고, 저장 자세 이동이 일정 Z를 자동 유지한다는 의미는 아니다.
+
 ## 최신: 버튼 GUI + 외부 so101-control (11/5)
 
 `robot.teaching_gui --live`의 기본 백엔드를 외부 `so101-control.move_to_joints()` + LeRobot으로 교체했다. 기존 Studio 패치/Panel.next_step 경로는 기본 LIVE GUI에서 사용하지 않는다. 아래 OpenCV·Studio 관련 절은 이전 구현의 기록이다.

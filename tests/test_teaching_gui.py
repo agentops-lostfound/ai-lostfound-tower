@@ -72,6 +72,40 @@ class TeachingGUITests(unittest.TestCase):
                 self.gui._preview_route(direction)
                 self.assertFalse(self.panel.moving)
 
+    def test_custom_buttons_load_matching_pose_without_moving_or_changing_gripper(self):
+        self.assertTrue(self.gui.custom_pose_buttons['pose_5'].instate(['disabled']))
+        before=self.backend.snapshot()
+        for number in range(1,6):
+            values={key:float(number*2+i) for i,key in enumerate(KEYS)}
+            self.panel.poses[f'pose_{number}']=values
+        self.gui._refresh_pose_names()
+        for number in range(1,6):
+            name=f'pose_{number}'
+            button=self.gui.custom_pose_buttons[name]
+            self.assertFalse(button.instate(['disabled']))
+            button.invoke()
+            self.assertEqual(self.gui.pose_name.get(),name)
+            for key in KEYS[:5]:
+                self.assertEqual(self.panel.target[key],self.panel.poses[name][key])
+            self.assertEqual(self.panel.target[KEYS[5]],before[KEYS[5]])
+            self.assertEqual(self.backend.snapshot(),before)
+            self.assertFalse(self.panel.moving)
+            self.assertFalse(self.panel.confirm_pending)
+
+    def test_joint_headers_and_numeric_rows_share_visible_column_alignment(self):
+        self.root.geometry('1190x800')
+        self.root.deiconify()
+        self.root.update()
+        for column,heading in enumerate(self.gui.joint_headers):
+            expected=(heading.winfo_rootx(),heading.winfo_width())
+            self.assertGreater(expected[1],1)
+            for row in self.gui.joint_cells:
+                widget=row[column]
+                self.assertEqual((widget.winfo_rootx(),widget.winfo_width()),expected)
+        for row in self.gui.joint_cells:
+            self.assertLess(row[1].winfo_rootx(),row[2].winfo_rootx())
+            self.assertLess(row[2].winfo_rootx(),row[3].winfo_rootx())
+
 
 class MotionTraceTests(unittest.TestCase):
     def test_acknowledged_but_stalled_step_times_out_and_is_logged(self):

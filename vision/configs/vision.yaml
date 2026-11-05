@@ -1,4 +1,4 @@
-model: models/yolo26m.pt
+model: models/yolo26l.pt
 device: auto
 confidence: 0.25
 imgsz: 640

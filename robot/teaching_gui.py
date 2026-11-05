@@ -25,6 +25,7 @@ from robot.vendor_backend import VendorBackend, STAGE_SECONDS
 
 DEFAULT_PROJECT = '7840975d-960f-4ede-bcca-bd24e4caf24e'
 DEFAULT_FOLLOWER = 'bc50f050-d0a5-4430-af97-0486cdaec3a2'
+CUSTOM_POSES = tuple(f'pose_{i}' for i in range(1, 6))
 
 
 class TeachingGUI:
@@ -80,26 +81,43 @@ class TeachingGUI:
         mid.add(left, weight=3)
         mid.add(right, weight=2)
 
-        cols = [('Joint', 155), ('Measured', 85), ('Target input', 100), ('Error', 70), ('Jog', 100)]
-        hdr = ttk.Frame(left)
-        hdr.pack(fill='x', pady=(0,8))
-        for i, (label, width) in enumerate(cols):
-            ttk.Label(hdr, text=label, width=max(7, width//10), font=('Segoe UI', 9, 'bold')).grid(row=0, column=i, padx=3)
+        # Headers and all joint rows share one grid, so their columns stay aligned.
+        self.joint_table = ttk.Frame(left)
+        self.joint_table.pack(fill='x')
+        self.joint_table.columnconfigure(2, weight=1)
+        self.joint_headers = []
+        for column, (label, width, anchor) in enumerate((
+                ('Joint', 19, 'w'), ('Measured', 11, 'e'),
+                ('Target input', 13, 'center'), ('Error', 9, 'e'))):
+            heading = ttk.Label(self.joint_table, text=label, width=width,
+                                anchor=anchor, font=('Segoe UI', 9, 'bold'))
+            heading.grid(row=0, column=column, padx=3, pady=(0,8), sticky='ew')
+            self.joint_headers.append(heading)
+        ttk.Label(self.joint_table, text='Jog', anchor='center',
+                  font=('Segoe UI', 9, 'bold')).grid(
+                      row=0, column=4, columnspan=2, padx=1, pady=(0,8), sticky='ew')
+        ttk.Label(self.joint_table, text='Apply', anchor='center',
+                  font=('Segoe UI', 9, 'bold')).grid(
+                      row=0, column=6, padx=1, pady=(0,8), sticky='ew')
+        self.joint_cells = []
         for i, name in enumerate(JOINTS):
-            r = ttk.Frame(left)
-            r.pack(fill='x', pady=4)
-            ttk.Label(r, text=f'{i+1} {name}', width=19).grid(row=0, column=0, padx=3)
-            ttk.Label(r, textvariable=self.measured[i], width=11).grid(row=0, column=1, padx=3)
-            entry = ttk.Entry(r, textvariable=self.targets[i], width=13)
-            entry.grid(row=0, column=2, padx=3)
+            row = i + 1
+            label = ttk.Label(self.joint_table, text=f'{i+1} {name}', width=19, anchor='w')
+            label.grid(row=row, column=0, padx=3, pady=4, sticky='ew')
+            measured = ttk.Label(self.joint_table, textvariable=self.measured[i], width=11, anchor='e')
+            measured.grid(row=row, column=1, padx=3, pady=4, sticky='ew')
+            entry = ttk.Entry(self.joint_table, textvariable=self.targets[i], width=13, justify='right')
+            entry.grid(row=row, column=2, padx=3, pady=4, sticky='ew')
             self._target_entries.append(entry)
-            ttk.Label(r, textvariable=self.errors[i], width=9).grid(row=0, column=3, padx=3)
-            minus = ttk.Button(r, text='−', width=4, command=lambda n=i: self._jog(n, -1))
-            plus = ttk.Button(r, text='+', width=4, command=lambda n=i: self._jog(n, 1))
-            apply_btn = ttk.Button(r, text='Apply', width=7, command=lambda n=i: self._edit(n))
-            minus.grid(row=0, column=4, padx=1)
-            plus.grid(row=0, column=5, padx=1)
-            apply_btn.grid(row=0, column=6, padx=1)
+            error = ttk.Label(self.joint_table, textvariable=self.errors[i], width=9, anchor='e')
+            error.grid(row=row, column=3, padx=3, pady=4, sticky='ew')
+            minus = ttk.Button(self.joint_table, text='−', width=4, command=lambda n=i: self._jog(n, -1))
+            plus = ttk.Button(self.joint_table, text='+', width=4, command=lambda n=i: self._jog(n, 1))
+            apply_btn = ttk.Button(self.joint_table, text='Apply', width=7, command=lambda n=i: self._edit(n))
+            minus.grid(row=row, column=4, padx=1, pady=4)
+            plus.grid(row=row, column=5, padx=1, pady=4)
+            apply_btn.grid(row=row, column=6, padx=1, pady=4)
+            self.joint_cells.append((label, measured, entry, error, minus, plus, apply_btn))
             if i == 5:
                 entry.configure(state='disabled');minus.configure(state='disabled')
                 plus.configure(state='disabled');apply_btn.configure(state='disabled')
@@ -122,8 +140,16 @@ class TeachingGUI:
         shortcut.grid(row=1, column=0, columnspan=3, sticky='w')
         for nm in ('home','raised','entry','observe'):
             ttk.Button(shortcut, text=nm, command=lambda name=nm: self._load(name)).pack(side='left', padx=3)
+        custom = ttk.Frame(route)
+        custom.grid(row=2, column=0, columnspan=3, sticky='w', pady=(4,0))
+        self.custom_pose_buttons = {}
+        for number, name in enumerate(CUSTOM_POSES, 1):
+            button = ttk.Button(custom, text=f'커스텀 {number}', width=10,
+                                command=lambda pose=name: self._load(pose))
+            button.pack(side='left', padx=3)
+            self.custom_pose_buttons[name] = button
         navigation = ttk.Frame(route)
-        navigation.grid(row=2, column=0, columnspan=3, sticky='w')
+        navigation.grid(row=3, column=0, columnspan=3, sticky='w')
         ttk.Button(navigation, text='Next forward preview', command=lambda: self._preview_route('forward')).pack(side='left', padx=3)
         ttk.Button(navigation, text='Next reverse preview', command=lambda: self._preview_route('reverse')).pack(side='left', padx=3)
         controls = ttk.LabelFrame(left, text='Stage movement / operator authority', padding=8)
@@ -204,6 +230,8 @@ class TeachingGUI:
 
     def _refresh_pose_names(self):
         self.pose_list.configure(values=sorted(self.panel.poses))
+        for name, button in self.custom_pose_buttons.items():
+            button.configure(state='normal' if name in self.panel.poses else 'disabled')
 
     def _load(self, name=None):
         def act():
