@@ -13,6 +13,7 @@
 | 분실인 웹(분실 확인) | `/lost` | `lost/` | 김재민 | (서버 연결 전) | 화면 흐름 시안 |
 | 관제 모니터링 | `/live` | `live/` | 김재민 | `GET /live/state`, `/sim/*`, `/robot/stop·home·state` | 됨(가상 시연·SO-101 실제 형상) |
 | AI 챗봇 위젯 | 화면에 `<script src="/chat-widget/widget.js">` · 시험 `/chat-widget/demo` | `chat-widget/` | 변재원(붙이기 김재민) | `POST /chat/questions`, `/chat/suggestions`, `/chat/health` | 됨(가상 물건 DB). 분실인 웹 완성 뒤 붙임 — `chat-widget/README.md` |
+| 회수·통계 시연(LF-9) | 독립 실행 `python -m tools.run_collection_demo` → `:8110/collection-desk` | `collection-desk/` | 정연우 작업 완료(11/5 변재원 이어받음) | 시연 전용 `/collections*` (가상 SQLite) | 관제탑·팀 DB 와 미연결. 관리자 화면으로 쓸지 김재민 결정 — `docs/reports/2026-11-05-jaewon-takeover-yeonwoo.md` |
 | 직원 화면 | `/staff` | `staff-desk/` | (보류) | `/returns/*`, `/robot/*` | 11/5 결정: **직원은 일단 제외** — 화면은 남겨 둠 |
 | 분실인 8단계 시안 | 파일 직접 열기 | `lost-finder/` | LF-4 | 가짜 자료 | 참고용 |
 | 옛 시안 | - | `archive/` | - | - | 참고용(관제탑이 열지 않음) |
