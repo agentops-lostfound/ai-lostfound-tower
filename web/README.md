@@ -56,30 +56,33 @@
 | 모드 | `.env` `TOWER_SIM=1` = 가상 시연(메모리, 관제탑 끄면 사라짐) / `TOWER_SIM=` + `TOWER_DB=1` = 팀 DB 에 저장 | 바꾸면 관제탑 재시작 |
 - 화면은 DB 에 직접 붙지 않는다. 항상 관제탑 API(`/places`, `/items`, `/claims`, `/live/state`, `/robot/state` …)를 부른다 — API 문서는 관제탑 켠 뒤 `http://127.0.0.1:8100/docs`
 
-### 5-1. 다른 PC(재민 님 PC 등)에서 팀 DB·화면 접속하기 (11/5, 실제로 된 방법)
-한줄 설명: 기본은 관제탑 PC 안에서만 열린다. 팀원 PC 에서 붙으려면 **관제탑 PC 앞에서** `.env` 한 줄 + 방화벽 두 종류(Windows·Hyper-V)를 연다. 11/5 재민 님 PC(10.10.21.15)에서 `10.10.21.21:5434`·`:8080` 접속 성공.
+### 5-1. 다른 PC(교육원 사람·재민 님 PC)에서 화면·팀 DB 접속하기 (11/5, 실제로 된 방법)
+한줄 설명: 관제탑 PC 앞에서 `.env` 한 줄 + 방화벽 두 종류(Windows·Hyper-V)를 연다. 11/5 기준 **화면(8080)은 교육원 전체, 팀 DB(5434)는 재민 님 PC 만** 열어 두었다.
 
-| 무엇 | 다른 PC 에서 쓸 주소 |
-| --- | --- |
-| 팀 DB | 호스트 `10.10.21.21`(관제탑 PC), 포트 `5434`, DB·사용자 `lostfound`, 비밀번호는 직접 전달(디스코드·채팅에 쓰지 않음) |
-| 화면 앞문 | `http://10.10.21.21:8080/` |
+| 무엇 | 다른 PC 에서 쓸 주소 | 누구에게 열림(11/5) |
+| --- | --- | --- |
+| 화면 앞문 | `http://10.10.21.21:8080/` (→ `/kiosk`, 그 밖에 `/lost` · `/live` · `/chat-widget/demo`) | 교육원 대역 10.10.21.0/24 |
+| 팀 DB | 호스트 `10.10.21.21`, 포트 `5434`, DB·사용자 `lostfound`, 비밀번호는 직접 전달(디스코드·채팅에 쓰지 않음) | 재민 님 PC 10.10.21.15 |
+- `127.0.0.1` 은 "지금 이 컴퓨터"라서 다른 PC 에서는 관제탑이 아니다 → 다른 PC 는 꼭 `10.10.21.21`
+- 로그인이 없다 → 8080 으로 들어오면 직원 화면(`/staff`)·로봇 정지·원점 API 도 누구나 누를 수 있다. 가상 시연(`TOWER_SIM=1`)일 때만 넓게 열고, 실제 로봇을 붙이면 좁힌다
 
-1. 메모장으로 `.env` 를 열어 `DB_BIND=0.0.0.0` 한 줄 → 작업 탭 `docker compose up -d` → `docker ps --format "{{.Names}}  {{.Ports}}"` 에 `0.0.0.0:5434->5432/tcp`
-2. **관리자** PowerShell(Warp 작업 탭은 권한이 없어 "액세스가 거부되었습니다") — 접속할 PC 주소만 허용(예: 재민 님 10.10.21.15)
+1. 메모장으로 `.env` 를 열어 `DB_BIND=0.0.0.0` 한 줄 → 작업 탭 `docker compose up -d` → `docker ps --format "{{.Names}}  {{.Ports}}"` 에 `0.0.0.0:5434->5432/tcp` (DB 를 열 때만 필요, 화면 8080 은 원래 0.0.0.0)
+2. **관리자** PowerShell(Warp 작업 탭은 권한이 없어 "액세스가 거부되었습니다"), 한 줄씩
    ```powershell
+   New-NetFirewallRule -DisplayName "LostFound web 8080 (classroom 10.10.21.0/24)" -Direction Inbound -Protocol TCP -LocalPort 8080 -RemoteAddress 10.10.21.0/24 -Action Allow
+   New-NetFirewallHyperVRule -Name "LostFound-web-classroom" -DisplayName "LostFound web 8080 (classroom)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 8080 -RemoteAddresses 10.10.21.0/24 -Action Allow
    New-NetFirewallRule -DisplayName "LostFound DB 5434 (jaemin)" -Direction Inbound -Protocol TCP -LocalPort 5434 -RemoteAddress 10.10.21.15 -Action Allow
-   New-NetFirewallRule -DisplayName "LostFound web 8080 (jaemin)" -Direction Inbound -Protocol TCP -LocalPort 8080 -RemoteAddress 10.10.21.15 -Action Allow
-   New-NetFirewallHyperVRule -Name "LostFound-jaemin" -DisplayName "LostFound 5434·8080 (jaemin)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 5434,8080 -RemoteAddresses 10.10.21.15 -Action Allow
+   New-NetFirewallHyperVRule -Name "LostFound-db-jaemin" -DisplayName "LostFound DB 5434 (jaemin)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 5434 -RemoteAddresses 10.10.21.15 -Action Allow
    ```
-   - 세 번째(Hyper-V)가 핵심: 교육원 PC 는 WSL 이 **미러 네트워크 모드**(`%USERPROFILE%\.wslconfig` `networkingMode=mirrored`)라 Docker Desktop 포트가 WSL 쪽 문(Hyper-V 방화벽, 기본 Block)에서 한 번 더 막힌다. Windows 방화벽만 열면 다른 PC 에서 `False`
-   - 확인 명령: `Get-NetFirewallHyperVVMSetting -PolicyStore ActiveStore -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'` → `DefaultInboundAction : Block` 이면 위 규칙 필요(기본값 자체는 바꾸지 않는다)
-3. 확인은 **접속할 PC 에서**: `Test-NetConnection 10.10.21.21 -Port 5434; Test-NetConnection 10.10.21.21 -Port 8080` → 둘 다 `TcpTestSucceeded : True`
-   - 관제탑 PC 에서 자기 주소(10.10.21.21)로 시험하면 미러 모드에서는 성공해도 `False` 가 나온다 — 판단에 쓰지 않는다
-4. 사람이 늘면 `-RemoteAddress`/`-RemoteAddresses` 에 쉼표로 주소를 더하거나 교육원 대역 `10.10.21.0/24` 로
-- 관제탑 API(8100)를 다른 PC 에 열 때도 같은 원리: `tools\start_tower.bat lan` + Windows 방화벽 8100(`docs/design/virtual_demo.md` 4-2-1). 관제탑은 Docker 가 아니라 Windows 에서 직접 돌므로 Hyper-V 규칙은 필요 없다(추정)
-- 예전 우회(portproxy 18080·18100)는 필요 없다. 지우기(관리자): `netsh interface portproxy delete v4tov4 listenaddress=10.10.21.21 listenport=18080` · `... listenport=18100`
-- DB 비밀번호가 저장소 기본값(`lostfound-dev`)이면 시간 날 때 바꾼다: `docker exec -it lostfound-db psql -U lostfound -d lostfound` → `\password lostfound` → `.env` 의 `POSTGRES_PASSWORD`·`DATABASE_URL` 도 같은 값으로(`.env` 값만 바꾸면 이미 만든 DB 비밀번호는 안 바뀜)
-- 닫기: `.env` `DB_BIND=` 비우고 `docker compose up -d` · 관리자 PowerShell `Remove-NetFirewallHyperVRule -Name "LostFound-jaemin"; Get-NetFirewallRule -DisplayName "LostFound*" | Remove-NetFirewallRule`
+   - Hyper-V 규칙이 핵심: 교육원 PC 는 WSL 이 **미러 네트워크 모드**(`%USERPROFILE%\.wslconfig` `networkingMode=mirrored`)라 Docker Desktop 포트가 WSL 쪽 문(Hyper-V 방화벽, 기본 Block)에서 한 번 더 막힌다. Windows 방화벽만 열면 다른 PC 에서 `False`
+   - 확인: `Get-NetFirewallRule -DisplayName "LostFound*" | Select-Object DisplayName, Enabled` · `Get-NetFirewallHyperVRule | Where-Object Name -like "LostFound*" | Select-Object Name, LocalPorts, RemoteAddresses` (`-Name` 에는 `*` 가 안 먹는다)
+3. 확인은 **다른 PC 에서**: `Test-NetConnection 10.10.21.21 -Port 8080` → `TcpTestSucceeded : True`, 브라우저 `http://10.10.21.21:8080/`
+   - 관제탑 PC 에서 자기 주소(10.10.21.21)로 시험하면 미러 모드에서는 `False` 가 나온다 — 관제탑 PC 는 `http://127.0.0.1:8080/` 으로 확인
+4. 사람을 더하거나 넓히기: `-RemoteAddress`/`-RemoteAddresses` 에 쉼표로 주소 추가, 다른 강의실(예: 10.10.22.x)까지면 그 대역도
+- 화면 앞문은 `/` 를 `/kiosk` 로 넘길 때 포트를 유지한다(`docker/web.conf.template` `absolute_redirect off`, 11/5 #79). 설정을 바꾸면 `docker compose up -d --force-recreate web`
+- 관제탑 API(8100)를 직접 열 때: `tools\start_tower.bat lan` + Windows 방화벽 8100(`docs/design/virtual_demo.md` 4-2-1). 8080 이 8100 의 화면·API 를 그대로 넘기므로 보통은 필요 없다
+- DB 를 넓게 열기 전에 비밀번호부터: `docker exec -it lostfound-db psql -U lostfound -d lostfound` → `\password lostfound` → `.env` 의 `POSTGRES_PASSWORD`·`DATABASE_URL` 도 같은 값으로(`.env` 값만 바꾸면 이미 만든 DB 비밀번호는 안 바뀜). 저장소 기본값은 `lostfound-dev`
+- 닫기: `.env` `DB_BIND=` 비우고 `docker compose up -d` · 관리자 PowerShell `Get-NetFirewallHyperVRule | Where-Object Name -like "LostFound*" | Remove-NetFirewallHyperVRule; Get-NetFirewallRule -DisplayName "LostFound*" | Remove-NetFirewallRule`
 
 ## 6. 화면 확인하는 법
 1. 관제탑 켜기: `tools\start_tower.bat` (가상 시연은 `.env` `TOWER_SIM=1`)
