@@ -626,6 +626,12 @@ class SimRobot:
         self._pose(phase="대기")
         return robot_result(True)
 
+    def robot_state(self) -> dict:
+        """지금 상태(docs/contracts/robot_api.md 의 robot_state 모양). 화면 /robot/state 가 읽는다"""
+        arm = self.world.arm
+        return {"phase": arm["phase"], "stopped": bool(arm["stopped"]), "holding": arm.get("holding"),
+                "joints": {k: float(v) for k, v in (arm.get("joints") or {}).items()}, "source": "sim"}
+
 
 __all__ = ["SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
            "lost_station", "mm_to_px", "STATIONS", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]

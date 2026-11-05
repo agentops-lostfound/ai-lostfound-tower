@@ -380,6 +380,20 @@ class TowerService:
             pass
         return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_HOLD, "reason": payload["reason"]}
 
+    # ---------- 로봇 상태(11/5, docs/contracts/robot_api.md) ----------
+    def robot_state(self) -> dict:
+        """로봇 부품의 robot_state() — 화면(/live 진짜 부품 모드)이 관절 값을 보여 줄 때 읽는다. 없으면 available=false"""
+        from agents.robot_api import validate_robot_state
+        try:
+            fn = getattr(self.backend_factory(), "robot_state", None)
+            if not callable(fn):
+                return {"available": False, "reason": "로봇 부품에 robot_state 가 없음(가짜 부품이거나 아직 연결 전)"}
+            s = fn()
+        except Exception as e:
+            return {"available": False, "reason": f"상태 읽기 오류({type(e).__name__})"}
+        errs = validate_robot_state(s)
+        return {"available": True, **s} if not errs else {"available": False, "reason": "; ".join(errs)}
+
     # ---------- 로봇 정지 · 원점 복귀(직원 화면 버튼, 11/4) ----------
     def stop_robot(self) -> dict:
         """정지 버튼: 반환 진행 중에도 누를 수 있다. 다음 로봇 동작을 막고 robot_stop(즉시 정지만)을 부른다."""

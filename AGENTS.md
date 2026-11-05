@@ -15,8 +15,7 @@ Claude Code 는 `CLAUDE.md` 를 읽고, Codex 는 이 파일을 읽는다. 두 �
 | `agents/` | AI 관제탑(흐름·API·DB 부품·MCP) |
 | `center/` | 팀 DB 표 설계(`schema.sql`)와 시연 데이터 |
 | `vision/` | 비전(탑뷰 카메라·품목 인식) |
-| `intake_machine/` | 습득물 등록기계 화면 |
-| `web/` | 분실인 웹 |
+| `web/` | 모든 화면(키오스크·등록기계·분실인 웹·관제 `/live`), 화면 지도 `web/README.md` |
 | `robot/` | SO-101 로봇팔 |
 | `evaluation/` | 시험 사례·채점 |
 | `discord_ops/` | 디스코드 관제 알림 |
@@ -58,4 +57,5 @@ python -m unittest discover -s tests
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 환경 점검: `python tools/check_ai_env.py` (팀 DB 는 실제 접속까지 확인)
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
+- 관제탑 켜기: `tools\start_tower.bat`(팀 DB·화면 앞문 Docker 도 함께, 교육원 네트워크 공개는 `lan`). Docker 는 `docker-compose.yml` 하나뿐(db 5434 · web 8080) · 화면 지도 `web/README.md` · 로봇 계약 `docs/contracts/robot_api.md`
 - 전체 가상 시연(디스코드 분실물 채널 → 습득·찾기·반환): `.env` TOWER_SIM=1 로 관제탑 → `python tools/lostfound_bot.py` (디스코드 없이 `--try "메시지"`), 화면 `/live` — 안내 docs/design/virtual_demo.md

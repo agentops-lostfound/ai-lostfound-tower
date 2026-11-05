@@ -69,9 +69,11 @@ item_id = agent.resolve_candidate(search_result_id, candidate_no, verified_sessi
 
 ## DB 구분
 
-이 조회 연결부는 `center/schema.sql`의 `item`, `machine` 표를 대상으로 한다. 11/5 main `61143d5` 기준 Docker의 기본 `app-web`은 `/api/`를 관제탑 API(기본 8100)로 전달하며 별도 app-api/app-db를 기본으로 켜지 않는다. `backend/init.sql`의 `items` 표를 쓰는 예전 샘플은 `standalone` 프로필에만 남아 있다. 따라서 기본 Docker 화면을 별도 DB로 오해하지 않되, standalone DB를 팀 DB로 가정해 자동 변환하지 않는다. 실제 팀 DB를 변경하거나 마이그레이션하는 작업은 이번 준비에 포함하지 않았다.
+이 조회 연결부는 `center/schema.sql`의 `item`, `machine` 표를 대상으로 한다. 11/5 main `fe9e935`에서 Docker는 `docker-compose.yml` 하나로 통합됐고 DB는 5434, 웹 앞문은 8080이다. 별도 frontend/backend 및 standalone 샘플 구성은 제거됐다. 화면은 `web/<화면>/index.html`을 관제탑이 제공한다. 실제 팀 DB를 변경하거나 마이그레이션하는 작업은 이번 준비에 포함하지 않았다.
 
 ## 11/5 팀 화면 최신화에 따른 경계
+
+- 최신 화면 지도는 `web/README.md`다. 분실인 웹·챗봇은 본센터 방문을 안내하며, 본센터 신분 확인은 키오스크 셀프 확인 방향이다. 직원 화면은 보류됐지만 기존 코드 필드 이름은 남아 있다. 셀프 인증 API가 구현됐다는 뜻은 아니므로 기존 인증 잠금을 해제하지 않는다. 수령 안내 RAG의 근거도 이 최신 화면 지도에 맞춘다.
 
 - 관제탑 `/kiosk`·`/intake`는 팀 접수 API에 연결됐으며 KIOSK-C도 지원한다. Docker 기본 화면은 같은 관제탑에 접수한다. LF-9의 가상 회수·장소·통계 DB에는 자동 복제되지 않는다.
 - 관제탑 `/lost`는 현재 서버 연결 전 화면 시안이다. 화면이나 `POST /claims`가 있다는 사실을 검증된 본인인증 세션이 준비됐다는 뜻으로 해석하지 않는다. `claim_id`와 클라이언트의 `id_verified`/`consent`/퀴즈 결과를 Bearer 인증 세션으로 사용하지 않는다.
