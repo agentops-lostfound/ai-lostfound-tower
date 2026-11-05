@@ -44,7 +44,7 @@ python tools/ops_report.py "전체 현황" --from-json 기록.json      # 관제
 ## 4. 챗봇 운영 지표(LLMOps, 11/5 추가)
 - 한줄 설명 — **LLMOps**: AI 챗봇을 만든 뒤 "잘 답하고 있나, 느리지 않나"를 숫자로 지켜보고 고치는 운영 일
 - 관제탑의 `GET /chat/metrics`(`agents/chat_metrics.py`)가 켜져 있는 동안 질문 수·응답 시간(p50/p95)·결과 비율을 센다. 질문 원문은 저장하지 않는다
-- 보고서 "## AI 챗봇 운영(LLMOps)" 절: 질문·오류·후보 찾기 건수, p50/p95, 확정 답·운영값 미정·못 알아들음 비율
+- 보고서 "## AI 챗봇 운영(LLMOps)" 절: 질문·오류 건수, p50/p95, 확정 답·운영값 미정·못 알아들음 비율
 - 발견 규칙: 운영값 미정 30% 이상 → 운영값 확정 필요 / 못 알아들음 20% 이상 → 지식 주제 보강 / 오류 1건 이상 / p95 5초 초과
 - 모델 바꾸기 전 비교는 `python tools/chat_model_bench.py`(안내 `docs/design/chat_model_bench.md`)
 

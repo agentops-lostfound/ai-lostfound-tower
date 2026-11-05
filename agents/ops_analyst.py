@@ -108,10 +108,9 @@ def chat_facts(m) -> dict | None:
     if not isinstance(m, dict) or not isinstance(m.get("requests"), dict):
         return None
     q = m["requests"].get("question") or {}
-    ls = m["requests"].get("lost_search") or {}
     rates = m.get("rates_pct") or {}
     return {"questions": q.get("total", 0), "question_errors": q.get("error", 0), "p50_ms": q.get("p50_ms"),
-            "p95_ms": q.get("p95_ms"), "searches": ls.get("total", 0), "answered_pct": rates.get("answered"),
+            "p95_ms": q.get("p95_ms"), "answered_pct": rates.get("answered"),
             "pending_policy_pct": rates.get("pending_policy"), "not_understood_pct": rates.get("not_understood"),
             "generated": (m.get("generation") or {}).get("generated", 0)}
 
@@ -173,9 +172,9 @@ def template_report(f: dict, question: str) -> str:
     if f["focus"] in ("failures", "robot") and f["top_alerts"]:
         lines += ["", "## 자주 난 경보"] + [f"- {a['alert']}: {a['count']}건" for a in f["top_alerts"]]
     c = f.get("chat")
-    if c and (c["questions"] or c["searches"]) and f["focus"] in ("chatbot", "overall"):
+    if c and c["questions"] and f["focus"] in ("chatbot", "overall"):
         lines += ["", "## AI 챗봇 운영(LLMOps)",
-                  f"- 질문 {c['questions']}건(오류 {c['question_errors']}) · 후보 찾기 {c['searches']}건",
+                  f"- 질문 {c['questions']}건(오류 {c['question_errors']})",
                   f"- 응답 시간 p50 {c['p50_ms']}ms · p95 {c['p95_ms']}ms",
                   f"- 확정 답 {c['answered_pct']}% · 운영값 미정 섞임 {c['pending_policy_pct']}% · 못 알아들음 {c['not_understood_pct']}%",
                   f"- 모델이 다듬은 답 {c['generated']}건(0 이면 문서 원문 안내)"]
