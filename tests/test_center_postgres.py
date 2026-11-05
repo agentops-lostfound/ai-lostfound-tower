@@ -26,6 +26,11 @@ class PostgresIntegration(unittest.TestCase):
             conn.execute((root / "center/schema.sql").read_text(encoding="utf-8"))
             for path in sorted((root / "center/migrations").glob("*.sql")):
                 conn.execute(path.read_text(encoding="utf-8"))
+            # Team main keeps LF-9's unapproved schema in pending/. Opt in only
+            # here, after the disposable database-name guard; never promote it.
+            pending = root / 'center/migrations/pending/006_collection_alerts_1104.sql'
+            if pending.is_file():
+                conn.execute(pending.read_text(encoding='utf-8'))
 
     def setUp(self):
         with self.connect() as conn:

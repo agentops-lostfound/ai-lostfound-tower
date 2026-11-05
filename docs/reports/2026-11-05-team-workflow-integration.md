@@ -1,5 +1,13 @@
 # 정연우 · 팀 최신 구조와 회수·검색·통계 통합 검증
 
+## 후속 팀 통합 반영
+
+팀 main `e68a0b2`(PR #71~#74)의 챗봇 통합·위젯·안내 지식·분석 에이전트를 추가 반영했다. 이전 #61은 팀에서 통합했으며, 정연우 추가 매칭 검사는 별도 초안 [PR #76](https://github.com/agentops-lostfound/ai-lostfound-tower/pull/76)이다. 챗봇 담당은 변재원, 정연우는 보조로 조정됐다.
+
+회수 DB 확장은 팀에서 `center/migrations/pending/006_collection_alerts_1104.sql`로 옮겼다. 실제 적용 대기 상태를 유지하고, 이름을 제한한 임시 DB 통합 시험에서만 이 파일을 명시적으로 적용한다. 역할 조정에 따라 실제 DB·관제탑 기능을 추가 변경하지 않는다.
+
+이 기준의 최종 회귀는 Python 761개 실행, 실패 0·환경 조건 1개 생략이다. 아래 내용과 숫자는 이전 통합 시점의 기록이다. 단일 장면 매칭 검사·모델 준비 대기는 [검사 보고서](2026-11-05-chat-matching-inspection.md)를 참고한다.
+
 ## 기준과 변경
 
 main `fe9e935804cecc449d1f52f32c4c8436ab766280`까지 작업 브랜치에 반영했다. [PR #67](https://github.com/agentops-lostfound/ai-lostfound-tower/pull/67)의 비전 안전·매칭·로봇 도구와 [PR #68](https://github.com/agentops-lostfound/ai-lostfound-tower/pull/68)의 화면·Docker 통합을 포함한다. main에 우리 작업을 병합한 것은 아니다.

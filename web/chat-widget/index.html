@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 챗봇 위젯 시험</title>
+<style>
+  :root { --bg:#f6f7fb; --fg:#1d2433; --muted:#5d6678; --card:#fff; --line:#dfe3ea; --accent:#1f5eff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#10131a; --fg:#e8ebf2; --muted:#a3abbb; --card:#171b24; --line:#2c3344; --accent:#6e95ff; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:'Pretendard','Noto Sans KR','Malgun Gothic',system-ui,sans-serif; line-height:1.6; }
+  main { max-width:760px; margin:0 auto; padding:40px max(16px, env(safe-area-inset-left,0px)) 120px; }
+  .tag { display:inline-block; font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:2px 10px; }
+  h1 { margin:12px 0 6px; font-size:26px; }
+  p { color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-top:20px; }
+  .open { margin-top:12px; border:0; border-radius:12px; background:var(--accent); color:#fff; font-size:16px; font-weight:700; padding:12px 20px; cursor:pointer; }
+  code { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-size:13px; }
+  ol { padding-left:20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <span class="tag">시험 페이지 · 분실인 웹 자리</span>
+  <h1>잃어버린 물건을 찾고 계신가요?</h1>
+  <p>이 페이지는 재민 님의 분실인 웹이 완성되기 전에 챗봇 위젯을 확인하는 자리입니다. 실제 화면에는 아래 두 줄만 넣으면 똑같이 동작합니다.</p>
+
+  <div class="card">
+    <strong>분실물 찾기 도움이 필요하면</strong>
+    <p>찾는 방법, 본센터 방문, 준비물 같은 안내를 채팅으로 받을 수 있어요.</p>
+    <button class="open" type="button" data-chatbot-open>AI챗봇 사용하기</button>
+  </div>
+
+  <div class="card">
+    <strong>재민 님 화면에 붙이는 법</strong>
+    <ol>
+      <li>원하는 버튼에 <code>data-chatbot-open</code> 속성을 붙입니다.</li>
+      <li><code>&lt;/body&gt;</code> 바로 위에 <code>&lt;script src="/chat-widget/widget.js" defer&gt;&lt;/script&gt;</code> 를 넣습니다.</li>
+      <li>버튼이 없는 화면에는 오른쪽 아래에 동그란 "AI 챗봇" 버튼이 자동으로 생깁니다.</li>
+    </ol>
+  </div>
+</main>
+<script src="/chat-widget/widget.js" defer></script>
+</body>
+</html>
