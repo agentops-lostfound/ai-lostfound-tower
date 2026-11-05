@@ -87,8 +87,8 @@ def load_trial(path):
 
 
 def preflight(record, expected_file, *, sync_goal=False, diagnose=False):
-    if sync_goal and diagnose:
-        raise ValueError("진단과 목표값 변경은 함께 실행하지 않습니다")
+    if sync_goal:
+        raise RuntimeError("--sync-goal 사용 중단: 목표값 기록이 토크를 켤 수 있습니다")
     if not record.get("patch_installed"):
         raise RuntimeError("기존 패치 적용 기록이 필요합니다")
     expected_file = Path(expected_file).resolve()
