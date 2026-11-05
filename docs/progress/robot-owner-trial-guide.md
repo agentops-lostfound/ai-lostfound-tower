@@ -129,3 +129,14 @@ py -3.11 .\tools\prepare_robot_owner_trial.py move-test --trial "$trialFile" --c
 2·3번의 move-test는 Home에서 조금 떨어지기 위한 것이므로 여기서는 MANUAL_STOP_NOT_OBSERVED + hold_commanded_after_trial=true가 정상이다. Home 도중 정지한 뒤 자동 복귀를 재개하지 않는다. 현재 범위를 벗어나면 강제 Home하지 않고 새 경로 확인을 요구한다. 시험 후 화면의 Home 상세 JSON에서 HOME_REACHED 또는 HOME_STOPPED와 유지 확인을 읽는다. 목표 도달 허용 오차는 정규화 0.2단위이며 기계 안전 범위나 정지 최악 지연 보장이 아니다.
 
 코드 검증: 전체 180개 시험 실행, 2개 건너뜀. 근거리 복귀·중간 정지·이미 도달·범위 밖 거부·확인/세대 오류·카운트다운 취소·통신 실패 시험 통과. HTTP Home 확인/중복 차단·Home 진행 중 별도 정지 응답·시작 전 거부 시 다른 작업 미정지 시험 통과. 실제 Zenoh 1.10.2 + 가짜 소유자 + 화면용 stdin 작업자를 사용해 HOME_REACHED 및 8개 목표 후 HOME_STOPPED를 확인했다. 사용자 실물 Home 결과는 아직 없다.
+
+
+## 전원 재인가 후 보정 불일치 조사 · 11월 5일
+
+사용자가 로봇 전원과 PC를 재시작한 뒤 읽기 전용 preflight에서 보정 불일치가 다시 확인됐다. 변경된 관절과 원인은 아직 미확인이다. 기존 시험 기록을 유지하며 아래 진단으로 실제 보드값·기준값·차이·현재 토크를 보존한다. 모터 레지스터 쓰기는 수행하지 않는다.
+
+```powershell
+py -3.11 .\tools\prepare_robot_owner_trial.py diagnose --trial "$trialFile"
+```
+
+`CALIBRATION_MISMATCH`는 차이를 수집했다는 뜻이며 복구 완료가 아니다. JSON과 Windows 백업이 생성되면 차이를 검토한 뒤 다음 조치를 결정한다. `CALIBRATION_MATCH`여도 토크와 목표값을 별도로 검토해야 한다. 조사 중에는 Studio 연결, Home 이동, 목표값 동기화, 기존 보정 스크립트 재실행을 진행하지 않는다. 전원 재인가와 PC 재시작 중 어느 과정에서 바뀌었는지는 아직 구분되지 않았다.

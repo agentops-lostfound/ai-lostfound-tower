@@ -86,7 +86,9 @@ def load_trial(path):
     return record
 
 
-def preflight(record, expected_file, *, sync_goal=False):
+def preflight(record, expected_file, *, sync_goal=False, diagnose=False):
+    if sync_goal and diagnose:
+        raise ValueError("진단과 목표값 변경은 함께 실행하지 않습니다")
     if not record.get("patch_installed"):
         raise RuntimeError("기존 패치 적용 기록이 필요합니다")
     expected_file = Path(expected_file).resolve()
@@ -106,6 +108,8 @@ def preflight(record, expected_file, *, sync_goal=False):
                "--expected-file", target]
     if sync_goal:
         command.append("--sync-goal")
+    if diagnose:
+        command.append("--diagnose")
     result = json.loads(execute(*command))
     # 토크 OFF 목표값 동기화의 변경 전 기록도 Windows에 보존한다.
     if result.get("backup"):
@@ -141,7 +145,7 @@ def capture_home(record, expected_file):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight", "move-test", "capture-home"))
+    parser.add_argument("operation", choices=("prepare", "apply", "rollback", "panel", "preflight", "diagnose", "move-test", "capture-home"))
     parser.add_argument("--candidate-dir")
     parser.add_argument("--trial")
     parser.add_argument("--expected-file", default=str(ROOT.parent / "soarm-setup/new-follower-calibration-complete.json"))
@@ -170,8 +174,8 @@ def main():
         subprocess.run(["docker", "exec", CONTAINER, "python",
                         record["container_dir"] + "/robot_bounded_stop_trial.py", "--confirm-ready"], check=True)
         return
-    if args.operation == "preflight":
-        print(json.dumps(preflight(record, args.expected_file, sync_goal=args.sync_goal), ensure_ascii=True, indent=2))
+    if args.operation in ("preflight", "diagnose"):
+        print(json.dumps(preflight(record, args.expected_file, sync_goal=args.sync_goal, diagnose=args.operation == "diagnose"), ensure_ascii=True, indent=2))
         return
     if args.operation == "panel":
         if not record.get("patch_installed"):

@@ -14,6 +14,40 @@ SERIAL = "5B91030622"
 NAMES = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")
 
 
+def diagnose_bus(bus, expected, *, backup_dir):
+    """불일치 상태도 그대로 기록한다. 모터 레지스터에는 쓰지 않는다."""
+    actual = {name: dataclasses.asdict(cal) for name, cal in bus.read_calibration().items()}
+    differences = {}
+    for name in sorted(set(expected) | set(actual)):
+        reference, observed = expected.get(name, {}), actual.get(name, {})
+        changed = {key: {"expected": reference.get(key), "actual": observed.get(key)}
+                   for key in sorted(set(reference) | set(observed))
+                   if reference.get(key) != observed.get(key)}
+        if changed:
+            differences[name] = changed
+    joints = {}
+    for name in NAMES:
+        if bus.ping(name) != 777:
+            raise RuntimeError(f"모터 식별 실패: {name}")
+        joints[name] = {key: bus.read(register, name, normalize=False)
+                       for key, register in (("torque", "Torque_Enable"),
+                           ("mode", "Operating_Mode"), ("present_raw", "Present_Position"),
+                           ("goal_raw", "Goal_Position"))}
+    result = {"result": "CALIBRATION_MISMATCH" if differences else "CALIBRATION_MATCH",
+              "serial": SERIAL, "calibration_matches": not differences,
+              "differences": differences, "expected_calibration": expected,
+              "actual_calibration": actual, "joints": joints, "writes_performed": False}
+    folder = Path(backup_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    destination = folder / f"follower-calibration-diagnostic-{time.time_ns()}.json"
+    result["backup"] = str(destination)
+    with destination.open("x", encoding="utf-8") as stream:
+        json.dump(result, stream, ensure_ascii=True, indent=2)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return result
+
+
 def inspect_bus(bus, expected, *, sync_goal=False, backup_dir=None):
     """호출자가 통신 소유권을 확보하고 연결한 버스를 사용한다."""
     actual = {name: dataclasses.asdict(cal) for name, cal in bus.read_calibration().items()}
@@ -70,7 +104,9 @@ def inspect_bus(bus, expected, *, sync_goal=False, backup_dir=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--expected-file", required=True)
-    parser.add_argument("--sync-goal", action="store_true")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--sync-goal", action="store_true")
+    group.add_argument("--diagnose", action="store_true")
     parser.add_argument("--backup-dir", default="/app/storage/soarm-safety-backups")
     args = parser.parse_args()
     saved = json.loads(Path(args.expected_file).read_text(encoding="utf-8-sig"))
@@ -86,7 +122,10 @@ def main():
     bus = FeetechMotorsBus(f"/dev/serial/by-id/usb-1a86_USB_Single_Serial_{SERIAL}-if00", motors=motors)
     try:
         bus.connect(handshake=False)
-        result = inspect_bus(bus, saved["calibration"], sync_goal=args.sync_goal, backup_dir=args.backup_dir)
+        if args.diagnose:
+            result = diagnose_bus(bus, saved["calibration"], backup_dir=args.backup_dir)
+        else:
+            result = inspect_bus(bus, saved["calibration"], sync_goal=args.sync_goal, backup_dir=args.backup_dir)
         print(json.dumps(result, ensure_ascii=True, indent=2))
     finally:
         if bus.is_connected:

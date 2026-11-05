@@ -1,10 +1,11 @@
 """시작 전 점검이 토크/보정을 쓰지 않고 raw 목표만 맞추는지 시험."""
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import json
 import tempfile
 import unittest
 
-from tools.robot_start_preflight import inspect_bus, NAMES
+from tools.robot_start_preflight import inspect_bus, diagnose_bus, NAMES
 
 
 @dataclass
@@ -85,3 +86,29 @@ class StartPreflightTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "자세 변화"):
                 inspect_bus(self.bus, self.expected, sync_goal=True, backup_dir=folder)
         self.assertTrue(all(state["Torque_Enable"] == 0 for state in self.bus.data.values()))
+
+
+class CalibrationDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.bus = FakeBus()
+        self.expected = {name: asdict(cal) for name, cal in self.bus.calibration.items()}
+    def test_mismatch_and_live_torque_are_reported_without_writes(self):
+        self.bus.calibration[NAMES[0]].homing_offset = 200
+        self.bus.data[NAMES[-1]]["Torque_Enable"] = 1
+        with tempfile.TemporaryDirectory() as folder:
+            result = diagnose_bus(self.bus, self.expected, backup_dir=folder)
+            saved = json.loads(Path(result["backup"]).read_text())
+        self.assertEqual(result["result"], "CALIBRATION_MISMATCH")
+        self.assertEqual(result["differences"][NAMES[0]]["homing_offset"],
+                         {"expected": 0, "actual": 200})
+        self.assertEqual(result["joints"][NAMES[-1]]["torque"], 1)
+        self.assertEqual(saved, result)
+        self.assertEqual(self.bus.writes, [])
+
+    def test_matching_diagnostic_does_not_align_goals(self):
+        with tempfile.TemporaryDirectory() as folder:
+            result = diagnose_bus(self.bus, self.expected, backup_dir=folder)
+        self.assertEqual(result["result"], "CALIBRATION_MATCH")
+        self.assertEqual(result["differences"], {})
+        self.assertFalse(result["writes_performed"])
+        self.assertEqual(self.bus.writes, [])
