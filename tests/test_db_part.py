@@ -94,7 +94,7 @@ class DbPartTest(unittest.TestCase):
 
     def test_get_merges_public_and_private(self):
         it = self.part.db_get_item("A-W01")
-        self.assertEqual(it["features"], {"color": "검정", "mark": "별 모양 스티커"})
+        self.assertEqual(it["features"], {"category": "지갑", "color": "검정", "mark": "별 모양 스티커"})   # 11/4 품목 포함(정책 매칭이 품목으로 거름)
         self.assertIsNone(self.part.db_get_item("없음"))
 
     def test_set_status_writes_log(self):
@@ -211,7 +211,7 @@ class McpDbModeTest(unittest.TestCase):
             be = CompositeBackend(db=PostgresDbPart("x", connect=FakeDB().connect), fallback=MockBackend())
             mcp_server.build_server(backend=be)
             rec = registered["db_get_item"]("A-W01")
-            self.assertEqual(rec["features"], {"color": "검정"})        # mark(확인 질문 정답)는 빠짐
+            self.assertEqual(rec["features"], {"category": "지갑", "color": "검정"})        # mark(확인 질문 정답)는 빠짐
             self.assertIsNone(registered["db_get_item"]("없음"))
         finally:
             for k in ("mcp", "mcp.server", "mcp.server.fastmcp"):

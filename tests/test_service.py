@@ -269,12 +269,13 @@ class ApiRoutesTest(unittest.TestCase):
         from agents import api
         api.build_app(service())
         r = self.routes
-        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/places"),
-                                     ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/staff"),
+        self.assertEqual(sorted(r), [("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/places"),
+                                     ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
                                      ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold"),
-                                     ("POST", "/robot/home"), ("POST", "/robot/stop")])
+                                     ("POST", "/robot/home"), ("POST", "/robot/stop"), ("POST", "/sim/found"),
+                                 ("POST", "/sim/lost"), ("POST", "/sim/lost/{pending_id}/answer"), ("POST", "/sim/reset")])
         self.assertEqual(r[("POST", "/returns")](ok_payload())["decision"], DECISION_RETURNED)
         for payload, code in ((ok_payload(), 409), (ok_payload(case="R2", phone="010"), 422)):
             with self.assertRaises(self.HTTPException) as cm:

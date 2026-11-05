@@ -1,0 +1,3 @@
+# 전용 분실물 봇(tools/lostfound_bot.py) 전용 — 관제탑(agents/requirements.txt)과 따로 설치해도 된다
+# 2.5 이상: Python 3.13 지원(2.4.0 은 3.13 에서 없어진 audioop 을 불러와 import 실패, 11/4 교육원 PC 확인)
+discord.py==2.5.2

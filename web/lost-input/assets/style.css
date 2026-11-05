@@ -5,3 +5,5 @@
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 .voice-toolbar{display:flex;gap:10px;align-items:center;padding:4px 2px 9px;font-size:10px;color:#6c8273}.voice-toolbar button,.audio-upload{background:#eef5ec;border:1px solid #dce7d9;border-radius:7px;color:#426e4d;padding:6px 9px;cursor:pointer;font-size:11px}.audio-upload:focus-within{outline:2px solid #518866}.candidate-cards{width:96%;display:grid;gap:8px;margin-top:12px}.candidate-card{background:white;border:1px solid #dbe8d9;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:4px}.candidate-card strong{font-size:13px}.candidate-card span{font-size:11px;color:#718573}
+
+.search-context-note{font-size:11px;line-height:1.6;background:#f1f6ee;border-radius:7px;padding:8px;margin:8px 0;color:#42674c;overflow-wrap:anywhere}.search-context-note button{border:0;background:transparent;color:#42674c;text-decoration:underline;font-size:10px;cursor:pointer;margin-left:5px}#searchReviewed{margin-left:8px;background:#e5efe6;color:#255c39}

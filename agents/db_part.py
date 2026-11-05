@@ -61,7 +61,9 @@ class PostgresDbPart:
             return None
         iid, status, category, features, private, object_id = row
         return {"item_id": iid, "status": status, "category": category,
-                "features": {**(features or {}), **(private or {})},   # 흐름·매칭은 둘 다 씀. MCP는 public_card 로 거름
+                # 흐름·매칭은 공개+비공개 둘 다 씀(MCP는 public_card 로 거름). 11/4: 품목도 넣는다 — 김건태 정책 매칭이
+                # 찾는 물건의 품목(category)으로 먼저 거르는데, 빠지면 'unknown' 으로 넘어가 품목 거르기가 안 됐음
+                "features": {**({"category": category} if category else {}), **(features or {}), **(private or {})},
                 "object_id": object_id}
 
     def db_list_active(self) -> list[dict] | None:

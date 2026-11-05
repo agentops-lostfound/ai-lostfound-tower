@@ -1,3 +1,3 @@
 -r requirements.txt
-Pillow>=12.1,<13
+# Image decoding is included in requirements.txt for the shared CI test environment.
 # speech/requirements.txt is optional; STT uses the existing offline small model.

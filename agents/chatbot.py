@@ -6,6 +6,7 @@ from typing import TypedDict
 from agents.lost_input import checked_text
 from agents.chat_rag import GroundedRag
 from agents.chat_search import SearchAgent
+from agents.search_context import checked_context
 from langsmith import tracing_context
 
 _search_access = ContextVar('lf_chat_search_access', default=None)
@@ -13,6 +14,7 @@ _search_access = ContextVar('lf_chat_search_access', default=None)
 
 class ChatState(TypedDict, total=False):
     question: str
+    search_context: dict
     route: str
     result: dict
 
@@ -26,7 +28,7 @@ class Chatbot:
         graph = StateGraph(ChatState)
         graph.add_node('route_question', self._route)
         graph.add_node('document_guidance', lambda s: {'result': self.rag.ask(s['question'])})
-        graph.add_node('item_search', lambda s: {'result': self.search.ask(s['question'], _search_access.get())})
+        graph.add_node('item_search', lambda s: {'result': self.search.ask(s['question'], _search_access.get(), s.get('search_context'))})
         graph.add_node('combined_help', self._both)
         graph.add_edge(START, 'route_question')
         graph.add_conditional_edges('route_question', lambda s: s['route'],
@@ -50,19 +52,20 @@ class Chatbot:
 
     def _both(self, state):
         guide = self.rag.ask(state['question'])
-        search = self.search.ask(state['question'], _search_access.get())
+        search = self.search.ask(state['question'], _search_access.get(), state.get('search_context'))
         return {'result': {**search, 'answer': guide['answer'] + '\n\n' + search['answer'],
                            'sources': guide['sources'], 'generation_used': guide.get('generation_used', False),
                            'status': 'answered' if guide['status'] == 'answered' and search['item_search_performed'] else 'partial',
                            'method': 'document_guidance_and_read_only_item_search'}}
 
-    def ask(self, question, access_token=None):
+    def ask(self, question, access_token=None, context=None):
         question = checked_text(question, '질문', 500)
+        context = checked_context(context)
         # Bearer credentials must never enter graph state, checkpoints or tracing.
         context_token = _search_access.set(access_token)
         try:
             with tracing_context(enabled=False, parent=False):
-                state = self.graph.invoke({'question': question}, config={'callbacks': []})
+                state = self.graph.invoke({'question': question, 'search_context': context}, config={'callbacks': []})
         finally:
             _search_access.reset(context_token)
         return {**state['result'], 'agent': state['route'],

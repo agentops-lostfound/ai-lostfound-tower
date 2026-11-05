@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관제탑 실시간</title>
+<!--
+  관제탑 실시간 화면 (LF-17·LF-29, 11/4) — docs/design/virtual_demo.md
+  한줄 설명: 관제탑이 디스코드 관제 채널로 보내는 진행을 같은 순서로 보여 주고, 가상 시연(TOWER_SIM=1)이면
+            보관함 탑뷰 그림 위에서 물건 배치와 로봇팔 움직임까지 보여 준다. /live/state 를 0.4초마다 읽는다.
+  외부 파일·글꼴을 쓰지 않는다(교육원 PC 인터넷이 끊겨도 열림). 로봇팔 모양은 관제탑이 주는 /live/so101_shape.js
+  (SO-ARM100 공식 모델에서 tools/so101_shape.py 로 뽑은 부품 점)를 관절 각도로 돌려 그린다.
+-->
+<style>
+:root{
+  --bg:#f5f7fb; --panel:#ffffff; --ink:#1d2433; --sub:#5b6577; --line:#e3e8f0; --soft:#eef2f8;
+  --accent:#2f6fec; --accent-soft:#e6efff; --ok:#1f9d61; --ok-soft:#e3f6ec; --bad:#d64545; --bad-soft:#fdeaea;
+  --warn:#c98a00; --warn-soft:#fff5d9; --team:#7a4bd6; --team-soft:#f1eaff;
+  --bench:#fbfaf6; --bin:#f1efe7; --binline:#cfc8b4; --arm:#3a4660; --arm2:#5f6f94;
+  --part:#ffffff; --part-line:#5d6676; --motor:#23262d; --motor-line:#0d0f12; --cam:#3d4450; --floor:#e9e5d8;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#11151d; --panel:#181e29; --ink:#e7ecf5; --sub:#9aa6ba; --line:#2a3242; --soft:#1f2735;
+    --accent:#6f9bff; --accent-soft:#1f2c47; --ok:#43c487; --ok-soft:#183427; --bad:#ff7070; --bad-soft:#3a1d1d;
+    --warn:#f0b93a; --warn-soft:#3a2f12; --team:#b394ff; --team-soft:#2a2142;
+    --bench:#1c2230; --bin:#232b3b; --binline:#46506a; --arm:#c9d3e6; --arm2:#8d9ab5;
+    --part:#e9edf3; --part-line:#7d879a; --motor:#0b0d11; --motor-line:#5a6272; --cam:#4d5566; --floor:#2a3242; color-scheme:dark}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Pretendard","Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+h1{font-size:18px;margin:0 8px 0 0;letter-spacing:-.01em}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:var(--soft);color:var(--sub);font-size:12.5px;white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--sub)}
+.dot.on{background:var(--ok)} .dot.off{background:var(--bad)}
+.spacer{flex:1}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.stop{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:700}
+button.confirm{background:var(--warn-soft);border-color:var(--warn);color:var(--ink)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+main{display:grid;grid-template-columns:330px minmax(0,1fr) 340px;gap:14px;
+  padding:14px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+@media (max-width:1180px){main{grid-template-columns:minmax(0,1fr) 320px}.col-left{grid-column:1/-1;order:3}}
+@media (max-width:760px){main{grid-template-columns:minmax(0,1fr)}.col-right{order:4}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.card h2{font-size:13px;margin:0 0 8px;color:var(--sub);font-weight:600;letter-spacing:.02em}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+/* 이야기 */
+.story{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel)}
+.story+.story{margin-top:10px}
+.story .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.story .kind{font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:6px}
+.kind.found{background:var(--accent-soft);color:var(--accent)} .kind.lost{background:var(--team-soft);color:var(--team)}
+.story .title{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.ids{color:var(--sub);font-size:12px;margin:2px 0 6px;font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+.steps li{display:grid;grid-template-columns:18px 1fr;gap:6px;align-items:start;font-size:13px;color:var(--sub)}
+.steps li .m{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);margin-top:3px}
+.steps li.done{color:var(--ink)} .steps li.done .m{background:var(--ok);border-color:var(--ok)}
+.steps li.active{color:var(--ink);font-weight:600} .steps li.active .m{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);animation:pulse 1s infinite}
+.steps li.fail{color:var(--bad);font-weight:600} .steps li.fail .m{background:var(--bad);border-color:var(--bad)}
+.steps li small{display:block;color:var(--sub);font-weight:400;font-size:11.5px;overflow-wrap:anywhere}
+@keyframes pulse{50%{box-shadow:0 0 0 6px transparent}}
+.result{margin-top:8px;padding:6px 10px;border-radius:8px;font-size:13px;font-weight:600}
+.result.ok{background:var(--ok-soft);color:var(--ok)} .result.fail{background:var(--bad-soft);color:var(--bad)}
+.empty{color:var(--sub);font-size:13px}
+/* 탑뷰 */
+.view{position:relative}
+svg{display:block;width:100%;height:auto;max-width:100%}
+.phase{position:absolute;right:14px;top:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-weight:600;font-size:13px}
+.phase.stopped{background:var(--bad);border-color:var(--bad);color:#fff}
+.legend{display:flex;flex-wrap:wrap;gap:12px;color:var(--sub);font-size:12px;margin-top:6px}
+.places{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
+.place{border:1px dashed var(--line);border-radius:10px;padding:8px 10px;min-height:58px}
+.place b{font-size:12.5px} .place .row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tok{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:1px 6px;border-radius:6px;background:var(--soft);font-family:ui-monospace,Consolas,monospace}
+.tok i{width:9px;height:9px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,.2)}
+/* 기록 */
+.log{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:72vh;overflow:auto}
+.log li{border-left:3px solid var(--line);padding:4px 8px;background:var(--soft);border-radius:0 8px 8px 0;font-size:12.5px;overflow-wrap:anywhere}
+.log li.progress{border-color:var(--accent)} .log li.alert{border-color:var(--bad);background:var(--bad-soft)}
+.log li.team{border-color:var(--team);background:var(--team-soft)} .log li.result{border-color:var(--ok);background:var(--ok-soft)}
+.log li .t{color:var(--sub);font-size:11px;font-family:ui-monospace,Consolas,monospace;margin-right:6px}
+.log li .b{color:var(--sub);display:block}
+/* 시험 입력 */
+.try textarea{width:100%;min-height:56px;resize:vertical;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel);color:var(--ink)}
+.try .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.try .msg{margin-top:6px;font-size:12.5px;color:var(--sub);overflow-wrap:anywhere}
+.try .q{margin-top:8px;padding:8px;border-radius:8px;background:var(--warn-soft)}
+.try .q input{width:100%;margin-top:4px;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+.hint{color:var(--sub);font-size:12px;margin-top:4px}
+.s-bench{fill:var(--bench);stroke:var(--line)} .s-bin{fill:var(--bin);stroke:var(--binline);stroke-width:2}
+.s-slot{fill:none;stroke:var(--binline);stroke-dasharray:4 4} .s-sub{fill:var(--sub)} .s-acc{fill:var(--accent)}
+.s-basket{fill:none;stroke:var(--accent);stroke-width:2.5}
+.s-shadow{fill:var(--arm);opacity:.13} .s-edge{fill:none;stroke:var(--sub);stroke-dasharray:6 5;opacity:.7}
+.s-reach{fill:none;stroke:var(--warn);stroke-width:1.5;stroke-dasharray:3 6}
+/* SO-101 부품: 흰색 3D 프린트 부품 · 검정 STS3215 모터 · 손목 카메라 */
+.p-part{fill:var(--part);stroke:var(--part-line);stroke-width:1;stroke-linejoin:round}
+.p-motor{fill:var(--motor);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
+.p-camera{fill:var(--cam);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
+.side-wrap{border:1px solid var(--line);border-radius:10px;background:var(--bench);margin-bottom:10px;overflow:hidden}
+.side-cap{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--sub);padding:5px 9px 0}
+.s-floor{fill:var(--floor)} .s-grid{stroke:var(--line);stroke-width:1} .s-tick{fill:var(--sub);font-size:11px}
+/* 경보 띠 */
+.banner{margin:12px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));padding:10px 14px;border-radius:10px;
+  background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad);font-weight:600;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner small{color:var(--sub);font-weight:400}
+[hidden]{display:none!important}   /* display 를 지정한 요소도 hidden 이면 숨김(경보 띠가 빈 채로 보이던 문제) */
+/* 로봇팔 관절 */
+.robot-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.joints{display:grid;gap:7px}
+.joint{display:grid;grid-template-columns:22px minmax(0,1fr) 62px;gap:8px;align-items:center;font-size:12.5px}
+.joint .id{width:22px;height:22px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-weight:700;font-size:11.5px}
+.joint .nm{min-width:0}
+.joint .nm b{font-weight:600} .joint .nm code{color:var(--sub);font-size:11px}
+.joint .bar{height:6px;border-radius:4px;background:var(--soft);position:relative;margin-top:3px;overflow:hidden}
+.joint .bar i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:4px}
+.joint .bar.mid::after{content:"";position:absolute;left:var(--z,50%);top:-2px;bottom:-2px;width:1px;background:var(--sub);opacity:.5}
+.joint .bar.near i{background:var(--warn)}
+.joint .val{text-align:right;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.robot-note{color:var(--sub);font-size:11.5px;margin-top:8px;line-height:1.5}
+.story .time{margin-left:auto;color:var(--sub);font-size:11.5px;font-family:ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+<header>
+  <h1>관제탑 실시간</h1>
+  <span class="chip"><span class="dot" id="conn"></span><span id="connText">연결 중</span></span>
+  <span class="chip" id="modeChip">모드 <b id="mode">-</b></span>
+  <span class="chip">로봇 <b id="armChip">-</b></span>
+  <span class="spacer"></span>
+  <button class="stop" id="btnStop" title="반환 진행 중에도 누를 수 있음">🛑 정지</button>
+  <button id="btnHome" title="로봇 주변을 확인한 뒤에만">원점 복귀</button>
+  <button id="btnReset" hidden>가상 세계 초기화</button>
+</header>
+<div class="banner" id="banner" hidden></div>
+<main>
+  <section class="col col-left">
+    <div class="card">
+      <h2>진행 중인 이야기</h2>
+      <div id="stories"><p class="empty">아직 신고가 없습니다. 디스코드 분실물 채널이나 아래 시험 입력으로 시작하세요.</p></div>
+    </div>
+    <div class="card try" id="tryCard" hidden>
+      <h2>시험 입력 (디스코드 없이)</h2>
+      <textarea id="tryText" placeholder="예) 서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"></textarea>
+      <div class="btns">
+        <button class="primary" data-kind="found">습득 신고</button>
+        <button data-kind="lost">분실 신고</button>
+      </div>
+      <div class="hint">꼬리표: #집기실패 · #보정실패 · #신분증불일치 · #수동인계</div>
+      <div class="msg" id="tryMsg"></div>
+      <div class="q" id="tryQ" hidden><b id="tryQText"></b><input id="tryAns" placeholder="답 (모르면 모름)"><div class="btns"><button id="tryAnsBtn" class="primary">답하기</button></div></div>
+    </div>
+  </section>
+
+  <section class="col">
+    <div class="card view">
+      <h2>본센터 작업대 (탑뷰, mm)</h2>
+      <div class="phase" id="phase">대기</div>
+      <svg id="bench" viewBox="-20 -20 680 455" role="img" aria-label="보관함과 로봇팔 탑뷰"></svg>
+      <div class="legend"><span>■ 표식(ArUco) 2개 — 보정 기준</span><span>점선 칸 = 보관함 12칸</span><span>흰 부품·검정 모터 = SO-101 팔로워(공식 모델 모양, 위에서 본 모습) · 옅은 원 = 집게 높이</span><span id="scaleNote"></span></div>
+      <div class="places" id="places"></div>
+    </div>
+  </section>
+
+  <section class="col col-right">
+    <div class="card" id="robotCard" hidden>
+      <h2>로봇팔 SO-101 · 팔로워(흰색)</h2>
+      <div class="robot-meta" id="robotMeta"></div>
+      <div class="side-wrap"><div class="side-cap"><span>옆모습(팔 평면) · 실제 크기 눈금 mm</span><span id="sideTip"></span></div>
+        <svg id="side" viewBox="-190 -330 610 350" role="img" aria-label="SO-101 팔로워 옆모습"></svg></div>
+      <div class="joints" id="joints"></div>
+      <div class="robot-note" id="robotNote"></div>
+    </div>
+    <div class="card">
+      <h2>관제 메시지 (디스코드 관제 채널과 같은 내용)</h2>
+      <ul class="log" id="log"></ul>
+    </div>
+  </section>
+</main>
+
+<script src="/live/so101_shape.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const COLORS = {"검정":"#2b2b2b","흰색":"#f7f7f7","회색":"#a2a8b1","빨강":"#e05252","파랑":"#3d7be0","남색":"#2e3f73",
+                  "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
+  const CAT = {"지갑":"지갑","USB":"USB","립밤":"립밤","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리"};
+  const LOC = {kiosk:"등록기계", transit:"이동 중", bin:"보관함", gripper:"그리퍼", basket:"바구니", handed:"인계 완료", staff:"직원 보관"};
+  let seq = 0, world = null, shown = {z: 100}, target = {z: 100}, failCount = 0, pendingId = null;
+  const JN = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"];
+  let shownJ = null, targetJ = null;     // 관절 각도(도, 집게는 %) — 화면에서 부드럽게 따라감
+  let lastAlert = null;   // 최근 경보(20초 동안 위쪽 띠로 보여 줌)
+  const NS = "http://www.w3.org/2000/svg";
+
+  // ---------- 작업대 그림 ----------
+  function drawBench(b) {
+    const svg = $("bench");
+    const [W, H] = b.size_mm, [x1, y1, x2, y2] = b.bin_mm, [bx, by] = b.basket_mm, [rx, ry] = b.base_mm;
+    let s = `<rect x="0" y="0" width="${W}" height="${H}" rx="10" class="s-bench"/>`;
+    s += `<rect x="${x1}" y="${y1}" width="${x2-x1}" height="${y2-y1}" rx="8" class="s-bin"/>`;
+    s += `<text x="${x1+8}" y="${y2+16}" font-size="12" class="s-sub">공용 보관함</text>`;
+    b.slots_mm.forEach(([sx, sy], i) => {
+      s += `<rect x="${sx-52}" y="${sy-38}" width="104" height="76" rx="8" class="s-slot"/>`;
+      s += `<text x="${sx-46}" y="${sy-26}" font-size="10" class="s-sub">${i+1}</text>`;
+    });
+    b.markers_mm.forEach(([mx, my], i) => {
+      s += `<g transform="translate(${mx-9},${my-9})"><rect width="18" height="18" fill="#111"/><rect x="4" y="4" width="5" height="5" fill="#fff"/><rect x="9" y="9" width="5" height="5" fill="#fff"/></g>`;
+    });
+    s += `<rect x="${bx-55}" y="${by-45}" width="110" height="90" rx="14" class="s-basket"/>`;
+    s += `<text x="${bx}" y="${by+62}" text-anchor="middle" font-size="12" class="s-acc">바구니(인계)</text>`;
+    s += `<line x1="-20" y1="${H}" x2="${W+20}" y2="${H}" class="s-edge"/>`;
+    s += `<text x="${W}" y="${H+16}" text-anchor="end" font-size="11" class="s-sub">작업대 앞 가장자리 · 로봇 받침은 가장자리에 고정</text>`;
+    s += `<g id="reach"></g><g id="items"></g><circle id="shadow" r="20" class="s-shadow"/><g id="held"></g><g id="armTop" opacity=".92"></g>`;
+    svg.innerHTML = s;
+    svg.setAttribute("viewBox", `-20 -20 ${W + 40} ${H + 135}`);   // 받침·뒤로 젖힌 위팔이 앞 가장자리 밖으로 나옴
+  }
+
+  function itemShape(it, x, y) {
+    const c = COLORS[it.color] || "#b9b4ff";
+    const tip = `<title>${esc(it.item_id)} · ${esc(it.category || "")} · ${esc(it.color || "")} · ${esc(it.status)}</title>`;
+    const light = ["흰색","노랑"].includes(it.color);
+    const label = CAT[it.category] || "?";
+    const short = it.item_id.slice(-4);
+    return `<g transform="translate(${x},${y})">${tip}<rect x="-38" y="-24" width="76" height="48" rx="8" fill="${c}" stroke="rgba(0,0,0,.25)"/>`+
+      `<text y="-4" text-anchor="middle" font-size="13" font-weight="700" fill="${light?"#222":"#fff"}">${esc(label)}</text>`+
+      `<text y="13" text-anchor="middle" font-size="10.5" fill="${light?"#333":"#eee"}">${esc(it.item_id.slice(0,1))}…${esc(short)}</text></g>`;
+  }
+
+  function renderItems() {
+    if (!world) return;
+    const g = $("items"); if (!g) return;
+    const [bx, by] = world.bench.basket_mm;
+    let s = "", basketN = 0;
+    for (const it of world.items) {
+      if (it.loc === "bin" && it.mm) s += itemShape(it, it.mm[0], it.mm[1]);
+      if (it.loc === "basket") { s += itemShape(it, bx - 12 + basketN * 8, by - 4 + basketN * 6); basketN++; }
+    }
+    g.innerHTML = s;
+    const held = world.items.find(i => i.loc === "gripper");
+    $("held").innerHTML = held ? itemShape(held, 0, 0) : "";
+    // 등록기계·이동 중·인계 완료
+    const groups = {"KIOSK-C 서면역 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-C",
+                    "KIOSK-A 해운대 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-A",
+                    "KIOSK-B 중앙 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-B",
+                    "🚚 본센터로 이동 중": i => i.loc === "transit",
+                    "🤝 인계 완료 · 직원 보관": i => i.loc === "handed" || i.loc === "staff"};
+    $("places").innerHTML = Object.entries(groups).map(([name, f]) => {
+      const list = world.items.filter(f);
+      return `<div class="place"><b>${esc(name)}</b><div class="row">${list.length ? list.map(i =>
+        `<span class="tok" title="${esc(i.status)}"><i style="background:${COLORS[i.color]||"#b9b4ff"}"></i>${esc(i.item_id)}${i.loc==="staff"?" (직원)":""}</span>`).join("") :
+        '<span class="empty">없음</span>'}</div></div>`;
+    }).join("");
+  }
+
+  // ---------- SO-101 실제 형상(공식 MuJoCo 모델 so101_new_calib_camera) ----------
+  // 부품마다 겉모양 점(mm, 몸체 좌표)을 관절 각도로 돌려(정방향 기구학) 위·옆에서 본 볼록 껍질로 그린다.
+  // 모델 좌표: 앞 = +X, 왼쪽 = +Y, 위 = +Z. 관절 0° = 위팔 거의 수직 · 아래팔·손목 수평('ㄱ' 자세)
+  const SHAPE = window.SO101_SHAPE || null;
+  const D2R = Math.PI / 180;
+  const qmat = ([w, x, y, z]) => { const n = Math.hypot(w, x, y, z); w /= n; x /= n; y /= n; z /= n;
+    return [1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y), 2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x), 2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y)]; };
+  const mm3 = (A, B) => { const C = new Array(9);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) C[r*3+c] = A[r*3]*B[c] + A[r*3+1]*B[3+c] + A[r*3+2]*B[6+c]; return C; };
+  const mv3 = (A, v) => [A[0]*v[0]+A[1]*v[1]+A[2]*v[2], A[3]*v[0]+A[4]*v[1]+A[5]*v[2], A[6]*v[0]+A[7]*v[1]+A[8]*v[2]];
+  const rz = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, -s, 0, s, c, 0, 0, 0, 1]; };
+  const QB = SHAPE ? SHAPE.bodies.map(b => qmat(b.quat)) : [];
+
+  function fk(qdeg) {                         // 관절(도) → 몸체마다 [회전, 위치mm]
+    const out = [];
+    SHAPE.bodies.forEach((b, i) => {
+      const [R0, p0] = b.parent < 0 ? [[1,0,0,0,1,0,0,0,1], [0,0,0]] : out[b.parent];
+      let R = mm3(R0, QB[i]); const d = mv3(R0, b.pos), p = [p0[0]+d[0], p0[1]+d[1], p0[2]+d[2]];
+      if (b.joint) R = mm3(R, rz((qdeg[b.joint] || 0) * D2R));
+      out.push([R, p]);
+    });
+    return out;
+  }
+  function hull(P) {                          // 2차원 볼록 껍질(단조 사슬)
+    P = P.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+    const lo = [], up = [];
+    for (const p of P) { while (lo.length > 1 && cr(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let k = P.length - 1; k >= 0; k--) { const p = P[k]; while (up.length > 1 && cr(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  // proj(점) → [그림 x, 그림 y, 깊이(클수록 앞에 그림)]
+  function drawArm(gEl, tf, proj) {
+    const polys = SHAPE.geoms.map(g => {
+      const [R, p] = tf[g.body]; let depth = 0;
+      const pts = g.pts.map(v => { const w = mv3(R, v); const q = proj([w[0]+p[0], w[1]+p[1], w[2]+p[2]]); depth += q[2]; return [q[0], q[1]]; });
+      const h = hull(pts);
+      return {k: g.kind, depth: depth / pts.length, d: "M" + h.map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z"};
+    }).sort((a, b) => a.depth - b.depth);
+    gEl.innerHTML = polys.map(o => `<path class="p-${o.k}" d="${o.d}"/>`).join("");
+  }
+  function tipOf(tf) { const [R, p] = tf[SHAPE.tip.body], w = mv3(R, SHAPE.tip.pos); return [w[0]+p[0], w[1]+p[1], w[2]+p[2]]; }
+
+  function qFrom(j) {                         // 서버 관절 값 → 모델 관절(도). 집게 %는 각도 범위로
+    const [g0, g1] = (world && world.robot && world.robot.grip_deg) || [-10, 100];
+    return {...j, gripper: g0 + (j.gripper ?? 30) / 100 * (g1 - g0)};
+  }
+
+  function placeArm() {
+    if (!world || !SHAPE || !shownJ) return;
+    const r = world.robot || {}, S = r.scale || 1, PX = r.pan_x || 38.84, [bx, by] = world.bench.base_mm;
+    const q = qFrom(shownJ);
+    // 탑뷰: 작업대 mm(오른쪽 +x, 아래 +y). 모델 앞(+X) = 보관함 쪽(-y), 모델 왼쪽(+Y) = 작업대 왼쪽(-x). 높을수록 위에 그림
+    const tf = fk(q);
+    const top = (P) => [bx - S * P[1], by - S * (P[0] - PX), P[2]];
+    drawArm($("armTop"), tf, top);
+    const t = top(tipOf(tf));
+    $("shadow").setAttribute("cx", t[0]); $("shadow").setAttribute("cy", t[1]);
+    $("shadow").setAttribute("r", 10 + Math.max(0, shown.z) / 7);    // 집게가 높을수록 옅은 원이 큼
+    $("held").setAttribute("transform", `translate(${t[0]},${t[1]}) scale(.7)`);
+    // 옆모습: 좌우 회전을 0으로 둔 팔 평면, 실제 크기(mm). 보는 사람 쪽(-Y)이 앞
+    const tf0 = fk({...q, shoulder_pan: 0});
+    const side = (P) => [P[0] - PX, -P[2], -P[1]];
+    drawArm($("sideArm"), tf0, side);
+    const ts = side(tipOf(tf0));
+    $("sideTip").textContent = `집게 끝 앞 ${Math.round(ts[0])} · 높이 ${Math.round(-ts[1])} mm`;
+  }
+
+  function drawSide() {                       // 옆모습 바닥·눈금(한 번만)
+    let s = `<rect x="-190" y="0" width="610" height="20" class="s-floor"/>`;
+    for (let z = 100; z <= 300; z += 100) s += `<line x1="-190" y1="${-z}" x2="420" y2="${-z}" class="s-grid"/><text x="-184" y="${-z - 3}" class="s-tick">${z}</text>`;
+    for (let x = -100; x <= 400; x += 100) s += `<text x="${x}" y="15" text-anchor="middle" class="s-tick">${x}</text>`;
+    s += `<line x1="0" y1="0" x2="0" y2="-330" class="s-grid" stroke-dasharray="4 4"/><g id="sideArm"></g>`;
+    $("side").innerHTML = s;
+  }
+
+  function tick() {          // 화면에서 팔이 부드럽게 따라가게(관제탑은 0.2초 간격으로 위치를 바꿈)
+    if (targetJ) {
+      if (!shownJ) shownJ = {...targetJ};
+      for (const k of JN) shownJ[k] += ((targetJ[k] ?? 0) - (shownJ[k] ?? 0)) * 0.22;
+    }
+    shown.z += (target.z - shown.z) * 0.22;
+    placeArm();
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- 로봇팔 관절 ----------
+  function renderRobot(w) {
+    const r = w.robot, a = w.arm;
+    if (!r) return;
+    $("robotCard").hidden = false;
+    const held = a.holding ? `들고 있음 ${a.holding}` : "빈 집게";
+    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, `집게 높이 ${Math.round(a.z)}mm(작업대)`, held]
+      .map(t => `<span class="chip">${esc(t)}</span>`).join("");
+    $("joints").innerHTML = r.joints.map(j => {
+      const v = (a.joints || {})[j.name] ?? 0;
+      let bar;
+      const [lo, hi] = j.range || (j.name === "gripper" ? [0, 100] : [-180, 180]);   // 실제 관절 한계(공식 모델)
+      const pos = (x) => (Math.max(lo, Math.min(hi, x)) - lo) / (hi - lo) * 100;
+      if (j.name === "gripper") bar = `<div class="bar"><i style="left:0;width:${pos(v)}%"></i></div>`;
+      else {                                                    // 0° 위치에서 현재 각도까지 칠함
+        const z0 = pos(0), p = pos(v);
+        bar = `<div class="bar mid" style="--z:${z0}%"><i style="left:${Math.min(z0, p)}%;width:${Math.abs(p - z0)}%"></i></div>`;
+      }
+      const near = j.range && j.name !== "gripper" && (v < lo + 5 || v > hi - 5);  // 한계 5° 안
+      bar = bar.replace('class="bar', `title="한계 ${lo}~${hi}${j.unit}" class="bar${near ? " near" : ""}`);
+      return `<div class="joint"><span class="id">${j.id}</span><div class="nm"><b>${esc(j.label)}</b> <code>${esc(j.name)}</code>${bar}</div>`+
+             `<span class="val">${v.toFixed(1)}${esc(j.unit)}</span></div>`;
+    }).join("");
+    $("robotNote").innerHTML = `${esc(r.role)}<br>${esc(r.leader)}<br>카메라: ${r.cameras.map(esc).join(" · ")}<br>` +
+      `모터 6개 = 움직이는 축 5개 + 집게 1개 · 막대 = 공식 모델의 관절 한계 안 위치 · 각도는 가상 계산(추정), 진짜 값은 로봇 부품이 보정값으로 읽음` +
+      (r.shape ? `<br>모양: ${esc(r.shape)}` : "");
+    const reach = r.real_reach_mm, [bx, by] = w.bench.base_mm;
+    $("scaleNote").textContent = r.scale && r.scale !== 1 ? `팔 그림·계산 ${r.scale}배(가상 작업대에 맞춤)` +
+      (reach ? ` · 주황 점선 = 실제 크기 팔이 바닥까지 닿는 거리 약 ${Math.round(reach)}mm(추정)` : "") : "";
+    $("reach").innerHTML = reach && r.scale !== 1 ? `<circle cx="${bx}" cy="${by}" r="${reach}" class="s-reach"/>` : "";
+  }
+
+  function renderBanner(w) {
+    const b = $("banner");
+    if (w && w.arm.stopped) {
+      b.hidden = false; b.innerHTML = `🛑 로봇 정지 <small>주변을 확인한 뒤 위쪽 '원점 복귀' 버튼(두 번 눌러 확인)</small>`;
+    } else if (lastAlert && Date.now() / 1000 - lastAlert.t < 20) {
+      b.hidden = false; b.innerHTML = `⚠️ ${esc(lastAlert.title)} <small>${esc(lastAlert.body || "")}</small>`;
+    } else b.hidden = true;
+  }
+
+  // ---------- 이야기 ----------
+  function renderStories(stories) {
+    if (!stories || !stories.length) return;
+    $("stories").innerHTML = stories.map(st => {
+      const ids = Object.entries(st.ids || {}).map(([k, v]) => `${{item_id:"물건",claim_id:"찾기",case_id:"사례"}[k]||k} ${v}`).join(" · ");
+      const steps = st.stages.map(s => `<li class="${s.state}"><span class="m"></span><span>${esc(s.label)}${s.detail ? `<small>${esc(s.detail)}</small>` : ""}</span></li>`).join("");
+      const res = st.result ? `<div class="result ${st.result.ok ? "ok" : "fail"}">${st.result.ok ? "✅" : "⚠️"} ${esc(st.result.text)}</div>` : "";
+      const secs = Math.round(((st.result ? st.result.t : Date.now() / 1000) - st.started));
+      return `<div class="story"><div class="top"><span class="kind ${st.kind}">${st.kind === "found" ? "습득" : "분실"} ${esc(st.story_id)}</span><span class="title">${esc(st.title)}</span><span class="time">${secs}초</span></div>`+
+             `<div class="ids">${esc(ids)}</div><ol class="steps">${steps}</ol>${res}</div>`;
+    }).join("");
+  }
+
+  function addEvents(evs) {
+    const log = $("log");
+    for (const e of evs) {
+      if (e.channel === "stage") continue;
+      if (e.channel === "alert") lastAlert = e;
+      const li = document.createElement("li");
+      li.className = e.channel;
+      const dt = new Date(e.t * 1000), p2 = n => String(n).padStart(2, "0");
+      const t = `${p2(dt.getHours())}:${p2(dt.getMinutes())}:${p2(dt.getSeconds())}`;
+      li.innerHTML = `<span class="t">${t}${e.story ? " " + esc(e.story) : ""}</span>${esc(e.title)}${e.body && e.channel !== "result" ? `<span class="b">${esc(e.body)}</span>` : ""}`;
+      log.prepend(li);
+    }
+    while (log.children.length > 200) log.lastChild.remove();
+  }
+
+  // ---------- 읽기 ----------
+  async function poll() {
+    try {
+      const r = await fetch(`/live/state?after=${seq}`, {cache: "no-store"});
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      failCount = 0;
+      $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
+      $("mode").textContent = d.sim ? "가상 시연" : "진짜 부품";
+      $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim;
+      if (d.world) {
+        if (!world) { drawBench(d.world.bench); drawSide(); }
+        world = d.world;
+        target = {z: world.arm.z ?? 100};
+        if (world.arm.joints) targetJ = world.arm.joints;
+        renderRobot(world);
+        renderItems();
+        const ph = $("phase");
+        ph.textContent = world.arm.stopped ? "🛑 정지 — 확인 후 원점 복귀" : world.arm.phase;
+        ph.className = "phase" + (world.arm.stopped ? " stopped" : "");
+        $("armChip").textContent = world.arm.stopped ? "정지" : world.arm.phase;
+      } else {
+        $("armChip").textContent = "진짜 부품(/health)";
+      }
+      addEvents(d.events || []);
+      renderBanner(d.world);
+      renderStories(d.stories);
+      seq = d.seq;
+    } catch (e) {
+      failCount++;
+      if (failCount > 2) { $("conn").className = "dot off"; $("connText").textContent = "관제탑 연결 끊김"; }
+    }
+    setTimeout(poll, 400);
+  }
+
+  // ---------- 버튼 ----------
+  async function post(url, body) {
+    const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
+    let d = null; try { d = await r.json(); } catch (_) {}
+    if (!r.ok) throw new Error(typeof d?.detail === "string" ? d.detail : (d?.detail?.message || `오류 ${r.status}`));
+    return d;
+  }
+  $("btnStop").onclick = () => post("/robot/stop").catch(e => $("tryMsg").textContent = e.message);
+  let homeArmed = null;
+  $("btnHome").onclick = () => {
+    const b = $("btnHome");
+    if (!homeArmed) {
+      b.classList.add("confirm"); b.textContent = "주변 확인했나요? 한 번 더";
+      homeArmed = setTimeout(() => { homeArmed = null; b.classList.remove("confirm"); b.textContent = "원점 복귀"; }, 4000);
+      return;
+    }
+    clearTimeout(homeArmed); homeArmed = null; b.classList.remove("confirm"); b.textContent = "원점 복귀";
+    post("/robot/home", {staff_confirmed: true}).catch(e => $("tryMsg").textContent = e.message);
+  };
+  $("btnReset").onclick = () => post("/sim/reset").then(() => $("tryMsg").textContent = "초기화했습니다").catch(e => $("tryMsg").textContent = e.message);
+
+  document.querySelectorAll(".try [data-kind]").forEach(btn => btn.onclick = async () => {
+    const text = $("tryText").value.trim(); if (!text) return;
+    const kind = btn.dataset.kind;
+    $("tryMsg").textContent = "보내는 중…"; $("tryQ").hidden = true;
+    try {
+      const d = await post(`/sim/${kind}`, {text});
+      if (d.pending_id) {
+        pendingId = d.pending_id; $("tryQText").textContent = "확인 질문: " + d.question; $("tryQ").hidden = false;
+        $("tryMsg").textContent = `후보 ${d.candidates.length}개 — 확인 질문에 답하면 찾기 요청을 만듭니다`;
+      } else if (kind === "found") {
+        $("tryMsg").textContent = `접수 번호 ${d.item_id} · ${d.place_text} · ${d.features}`;
+      } else {
+        $("tryMsg").textContent = d.staff ? `후보 ${d.candidates.length}개 구별 불가 → 직원 확인` :
+          `찾기 번호 ${d.claim_id} · 후보 ${d.item_id} · 확인 질문 ${d.quiz_passed ? "통과" : "미통과"}`;
+      }
+    } catch (e) { $("tryMsg").textContent = "⚠️ " + e.message; }
+  });
+  $("tryAnsBtn").onclick = async () => {
+    if (!pendingId) return;
+    try {
+      const d = await post(`/sim/lost/${pendingId}/answer`, {text: $("tryAns").value.trim() || "모름"});
+      $("tryAns").value = "";
+      if (d.pending_id) {                                   // 질문이 하나 더 있음
+        pendingId = d.pending_id; $("tryQText").textContent = "확인 질문: " + d.question; return;
+      }
+      pendingId = null; $("tryQ").hidden = true;
+      if (d.staff) { $("tryMsg").textContent = `후보 ${d.candidates.length}개 구별 불가 → 직원 확인`; return; }
+      $("tryMsg").textContent = `찾기 번호 ${d.claim_id} · 후보 ${d.item_id} · 확인 질문 ${d.quiz_passed ? "통과" : "미통과"}`;
+    } catch (e) { $("tryMsg").textContent = "⚠️ " + e.message; }
+  };
+
+  poll();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

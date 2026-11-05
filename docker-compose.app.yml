@@ -1,0 +1,37 @@
+services:
+  app-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lostfound_app}
+      POSTGRES_USER: ${POSTGRES_USER:-lostfound_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - app_postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lostfound_app} -d ${POSTGRES_DB:-lostfound_app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  app-api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-lostfound_app}:${POSTGRES_PASSWORD}@app-db:5432/${POSTGRES_DB:-lostfound_app}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - app_uploads:/app/uploads
+    depends_on:
+      app-db:
+        condition: service_healthy
+    restart: unless-stopped
+  app-web:
+    build: ./frontend
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      - app-api
+    restart: unless-stopped
+volumes:
+  app_postgres_data:
+  app_uploads:

@@ -19,7 +19,9 @@ CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배
 MVP_CATEGORIES = ["지갑"]       # MVP는 지갑 1종, 확장 때 나머지 추가
 FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]
 PRIVATE_FIELDS = ["mark", "visible_text"]   # 확인 질문용 비공개 특징(후보 카드에 안 보임)
-COLORS = ["검정", "흰색", "회색", "빨강", "파랑", "남색", "초록", "노랑", "갈색", "기타"]
+# 11/4: "분홍" 추가 — 구매한 카드지갑 중 하나가 핑크샌드(임시, 실물 도착 뒤 바뀔 수 있음). 없으면 "기타"로 뭉개져 색으로 구별 못 함
+#        (김건태 매칭 korean_query·정책은 pink 를 이미 다룸 → 관제탑 목록만 맞춤)
+COLORS = ["검정", "흰색", "회색", "빨강", "파랑", "남색", "초록", "노랑", "갈색", "분홍", "기타"]
 VISIBILITY = ["보임", "안 보임", "해당 없음"]
 
 # 분실인 설명(claim.description) 칸 = 품목 + 접수 특징과 같은 이름(매칭이 칸끼리 바로 비교, 11/3 확정)
@@ -32,7 +34,9 @@ ITEM_ID_PATTERN = r"^[A-Z]-([0-9]{8}-[0-9]{4}|W[0-9]{2})$"
 CLAIM_ID_PATTERN = r"^C-[0-9]{8}-[0-9]{4}$"
 ITEM_ID_RE = re.compile(ITEM_ID_PATTERN)
 CLAIM_ID_RE = re.compile(CLAIM_ID_PATTERN)
-MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-B": "B", "CENTER": "H"}   # 본센터 직접 접수 = H
+# 11/4: 가상 시연용 서면역 등록기계 KIOSK-C 추가(디스코드 "서면역 ○번 출구에서 주웠어요" 시연, docs/design/virtual_demo.md)
+#   앞글자는 C 가 아니라 S(Seomyeon): C 로 하면 접수 번호 C-20261104-0001 이 찾기 번호(C-날짜-순번)와 똑같아진다
+MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-B": "B", "KIOSK-C": "S", "CENTER": "H"}   # 본센터 직접 접수 = H
 
 # 습득자 연락처(finder_contact) 보관: 인계 완료 뒤 30일이 지나면 지운다(tools/purge_contacts.py)
 CONTACT_RETENTION_DAYS = 30

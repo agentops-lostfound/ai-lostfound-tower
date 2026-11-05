@@ -14,7 +14,7 @@ from agents.support_security import normalized_text, has_private_pattern
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md"}
-APPROVED_CORPUS_SHA256 = '2d9c9752d22a2019314a81276e85eb5962538a78ffb6b9212c7f1659ab42c8ff'
+APPROVED_CORPUS_SHA256 = 'fea3d43ea8819cd8e3b428c89a6a122923a5eeaee52c2e4698c2d3ca073ff3b7'
 SUGGESTIONS = [
     ("pickup", "물건을 수령하려면 어떻게 해야 하나요?", ["수령", "찾기", "준비물", "예약"]),
     ("site_help", "사진으로 물건 설명은 어떻게 입력하나요?", ["사진", "설명", "입력", "녹음", "음성", "사용법"]),
@@ -72,7 +72,7 @@ class Guidance:
             raise ValueError("이름·연락처·신분번호를 제외하고 안내 사항만 질문해주세요")
         q = re.sub(r"\s+", "", q)
         if (re.search(r"찾아\s*줘|찾아주세요|검색해|후보.*보여|내\s*물건.*있|접수번호.*조회", q)
-                and not re.search(r"방법|절차|안내|운영|보관|수령", q)):
+                and not re.search(r"방법|절차|안내|운영|보관|수령|어떻게|사용법|이용법|설명확인|버튼", q)):
             return self._response("item_search_not_supported", "이 안내 챗봇에서는 물건을 검색하지 않습니다. 위의 분실물 설명 입력과 기존 찾기 절차를 이용해주세요.", [])
         topics, gaps = set(), []
         if re.search(r"몇시|운영시간|운영시각|영업|주말|토요일|일요일|평일|공휴일|휴일|open|오픈|문.*(?:열|닫)|센터.*(?:열|닫)|방문.*시간", q):
@@ -101,7 +101,7 @@ class Guidance:
             topics.add("pickup")
         if re.search(r"동의|인증", q):
             topics.add("consent")
-        if re.search(r"사용법|이용법|설명입력|설명정리|사진.*(?:올|입력)|음성|녹음|마이크|사이트.*(?:사용|이용)|검색.*방법|찾는방법", q):
+        if re.search(r"사용법|이용법|설명입력|설명정리|설명확인|후보검색버튼|조건지우|사진.*(?:올|입력)|음성|녹음|마이크|사이트.*(?:사용|이용)|검색.*방법|찾는방법", q):
             topics.add("site_help")
         if re.search(r"개인정보|신분정보|신분증.*저장|신분증.*보관", q) and (not finder or claimant):
             topics.add("masked_identity")
