@@ -67,6 +67,7 @@ header .chatbot-open{min-height:56px;padding:0 22px;font-size:22px;border-radius
 .card{background:var(--surface);border:3px solid var(--line);border-radius:16px;padding:10px 14px;font-size:21px;line-height:1.35}
 .card b{display:block;font-size:24px;margin-bottom:2px}
 #manual{min-height:64px;font-size:24px}
+#camSel{font:inherit;font-size:22px;min-height:60px;border-radius:14px;border:3px solid var(--line);background:var(--surface);color:var(--ink)}
 @media (prefers-reduced-motion:no-preference){button:active{transform:scale(.98)}}
 </style>
 </head>
@@ -117,6 +118,7 @@ header .chatbot-open{min-height:56px;padding:0 22px;font-size:22px;border-radius
         <video id="cam" playsinline muted hidden></video>
         <p class="status wait" id="camStatus" role="status" aria-live="polite">카메라를 켜는 중…</p>
         <div class="bar" aria-hidden="true"><i id="camBar"></i></div>
+        <select id="camSel" hidden aria-label="카메라 고르기(직원용)"></select>
         <button class="ghost" id="manual" hidden>카메라가 안 돼요 → 사진 파일로 접수</button>
         <p class="note">현금·위험물은 역무실로</p>
       </div>
@@ -267,18 +269,56 @@ function capture() {
   c.getContext('2d').drawImage(v, 0, 0);
   c.toBlob(b => b && gotPhoto(b), 'image/jpeg', .9);
 }
+// ---- 11/6 카메라 고르기: 태블릿 자체 앞·뒤 카메라 말고 포토박스 USB 캠(ROYCHE RPC-20F, UVC 1080p)을 쓴다 ----
+// 우선순위: 주소 ?cam=(번호 또는 이름 일부) → 저장된 카메라 → 이름에 USB·Webcam·FHD 가 있고 front/back/전면/후면이 아닌 것 → 첫 카메라
+// ?camsetup=1 이면 화면에 카메라 목록이 나와 직원이 고르고, 고른 카메라를 이 태블릿에 기억한다
+const CAM_KEY = 'kioskCamera', CAM_PARAM = new URLSearchParams(location.search).get('cam');
+const HD = {width: {ideal: 1920}, height: {ideal: 1080}};
+function camSaved() { try { return localStorage.getItem(CAM_KEY) || ''; } catch (e) { return ''; } }
+function camSave(id) { try { localStorage.setItem(CAM_KEY, id); } catch (e) {} }
+function camPick(list) {
+  if (!list.length) return null;
+  if (CAM_PARAM) {
+    const n = Number(CAM_PARAM);
+    const hit = Number.isInteger(n) && String(n) === CAM_PARAM ? list[n] : list.find(d => d.label.toLowerCase().includes(CAM_PARAM.toLowerCase()));
+    if (hit) return hit;
+  }
+  const saved = list.find(d => d.deviceId && d.deviceId === camSaved());
+  if (saved) return saved;
+  return list.find(d => /usb|webcam|fhd|uvc|rpc/i.test(d.label) && !/front|back|전면|후면|integrated|built-?in/i.test(d.label)) || list[0];
+}
+async function camOpen() {
+  let s = await navigator.mediaDevices.getUserMedia({video: {...HD, deviceId: camSaved() ? {ideal: camSaved()} : undefined}});
+  const list = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');   // 허락 뒤라 이름이 보임
+  const want = camPick(list), cur = s.getVideoTracks()[0]?.getSettings().deviceId;
+  if (want && want.deviceId && want.deviceId !== cur) {
+    s.getTracks().forEach(t => t.stop());
+    s = await navigator.mediaDevices.getUserMedia({video: {...HD, deviceId: {exact: want.deviceId}}});
+  }
+  if (want && want.deviceId) camSave(want.deviceId);
+  camMenu(list, want);
+  return s;
+}
+function camMenu(list, want) {
+  if (new URLSearchParams(location.search).get('camsetup') !== '1') return;
+  const sel = $('#camSel'); sel.hidden = false; sel.textContent = '';
+  list.forEach((d, i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = `${i}: ${d.label || '카메라 ' + i}`; o.selected = want && d.deviceId === want.deviceId; sel.appendChild(o); });
+  sel.onchange = () => { camSave(sel.value); empty = null; trueEmpty = null; startCam(); };
+}
 async function startCam() {
   stopCam();
   try {
     if (!navigator.mediaDevices) throw 0;
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}}});
+    stream = await camOpen();
     $('#cam').srcObject = stream; $('#cam').hidden = false; await $('#cam').play();
     $('#manual').hidden = true; lastSmall = null; stillSince = 0; emptySince = 0;
     camSay(empty ? '물건을 넣어 주세요' : '상자를 확인하는 중…', 'wait', 0);
     autoTimer = setInterval(tick, AUTO.every);
   } catch (e) {
     stream = null; $('#cam').hidden = true; $('#manual').hidden = false;
-    camSay('카메라를 쓸 수 없어요 · 역무실에 알려 주세요', 'move', 0);
+    // 브라우저는 https 또는 localhost 에서만 카메라를 준다. 태블릿이 http://10.10.21.21:8080 으로 열면 여기로 온다(web/README.md 설정 안내)
+    camSay(window.isSecureContext === false ? '카메라 권한이 막힌 주소예요 · 관리자: 태블릿 크롬 설정 필요(web/README.md)'
+                                            : '카메라를 쓸 수 없어요 · 역무실에 알려 주세요', 'move', 0);
   }
 }
 function stopCam() {

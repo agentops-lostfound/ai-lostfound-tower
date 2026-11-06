@@ -92,3 +92,9 @@
 1. 관제탑 켜기: `tools\start_tower.bat` (가상 시연은 `.env` `TOWER_SIM=1`)
 2. 브라우저: `http://127.0.0.1:8100/kiosk?machine=KIOSK-A` · `/lost` · `/live`
 3. 다른 PC 에서 볼 때: `docs/design/virtual_demo.md` 4-2-1
+
+## 키오스크 태블릿 카메라 설정 (11/6)
+- 포토박스 탑뷰 캠(ROYCHE RPC-20F, UVC 1080p)은 **키오스크 태블릿**에, 보관함 탑뷰 캠과 로봇팔 캠은 **관제탑 PC**에 꽂는다
+- 키오스크 화면은 태블릿 자체 앞·뒤 카메라 대신 USB 캠을 고른다(이름에 USB·Webcam·FHD). 처음 한 번은 주소 끝에 `&camsetup=1` 을 붙여 화면의 카메라 목록에서 포토박스 캠을 고르면 그 태블릿에 기억된다. 번호로 고정하려면 `&cam=2`, 이름 일부로는 `&cam=webcam`
+- **브라우저는 https 또는 localhost 에서만 카메라를 준다.** 태블릿이 `http://10.10.21.21:8080/kiosk` 로 열면 카메라가 막힌다 → 시연용으로 태블릿 크롬 주소창에 `chrome://flags/#unsafely-treat-insecure-origin-as-secure` → 칸에 `http://10.10.21.21:8080` 입력 → Enabled → Relaunch (교육원 내부 시연에서만, 실제 운영은 https)
+- 태블릿이 USB 카메라(UVC)를 지원하는지는 기종·OS 버전에 따라 다르다(추정) — 크롬에서 `&camsetup=1` 목록에 "FHD Webcam" 같은 이름이 보이면 지원
