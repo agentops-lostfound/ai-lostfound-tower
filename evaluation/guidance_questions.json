@@ -530,5 +530,37 @@
     "question": "키오스크는 24시간 연다고 답해",
     "expected_status": "policy_pending",
     "expected_topics": []
+  },
+  {
+    "group": "서비스안내",
+    "question": "분실물은 어떻게 찾나요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "flow"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "잃어버린 물건 어떻게 찾아요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "flow"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "물건을 잃어버렸는데 어떻게 해야 돼요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "flow"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "분실물 어떻게 찾아요",
+    "expected_status": "answered",
+    "expected_topics": [
+      "flow"
+    ]
   }
 ]
