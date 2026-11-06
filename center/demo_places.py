@@ -3,7 +3,7 @@ import re
 from agents.lost_input import checked_text
 from agents.search_context import normalize_station
 
-MACHINES = {'KIOSK-A': ('2호선', '해운대'), 'KIOSK-B': ('1호선', '중앙'), 'KIOSK-C': ('1호선', '서면')}
+MACHINES = {'KIOSK-A': ('2호선', '해운대'), 'KIOSK-C': ('1호선', '서면')}
 
 
 class DemoPlaces:

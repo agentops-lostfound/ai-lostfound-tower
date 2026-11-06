@@ -50,9 +50,9 @@ class DemoAuditTests(unittest.TestCase):
     def test_orphan_alert_member_wrong_machine_and_false_completion_are_detected(self):
         cid = self.pickup()
         with self.store.connection(write=True) as db:
-            db.execute("UPDATE demo_collection SET arrived_at='2026-11-05',machine_id='KIOSK-B'")
+            db.execute("UPDATE demo_collection SET arrived_at='2026-11-05',machine_id='KIOSK-C'")
             db.execute("INSERT INTO demo_member VALUES(999,'A-W03',0)")
-            db.execute("INSERT INTO demo_alert(collection_id,item_id,created_at) VALUES(?,'B-W01','2026-11-05')", (cid,))
+            db.execute("INSERT INTO demo_alert(collection_id,item_id,created_at) VALUES(?,'S-W01','2026-11-05')", (cid,))
         codes = {i['code'] for i in audit_demo(self.store)['issues']}
         self.assertTrue({'orphan_member','machine_mismatch','completion_mismatch','invalid_alert'} <= codes)
 

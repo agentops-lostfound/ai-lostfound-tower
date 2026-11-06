@@ -36,7 +36,7 @@ WSL2에서는 Windows 가상환경을 복사하지 않고 `python3.11 -m venv .v
 
 ## 모델과 경로
 
-기본 `models/yolo26n.pt`는 없으면 Ultralytics의 공식 asset 다운로드 함수를 통해 받습니다. 네트워크가 필요합니다. 커스텀 모델은 자동 다운로드하지 않습니다. 기존 학습 결과를 쓰려면 `configs/vision.yaml`의 `model`을 `models/<학습 이름>/best.pt`로 바꿉니다.
+기본 `models/yolo26l.pt`(11/6 large 고정)는 없으면 Ultralytics의 공식 asset 다운로드 함수를 통해 받습니다. 네트워크가 필요합니다. 커스텀 모델은 자동 다운로드하지 않습니다. 기존 학습 결과를 쓰려면 `configs/vision.yaml`의 `model`을 `models/<학습 이름>/best.pt`로 바꿉니다.
 
 사전학습 모델의 COCO 클래스 이름은 그대로 반환합니다. 임의로 4종/6종 클래스에 매핑하지 않으며 작은 USB·립밤 등 실제 물품의 검출은 보장하지 않습니다.
 

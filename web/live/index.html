@@ -247,7 +247,6 @@ svg{display:block;width:100%;height:auto;max-width:100%}
     // 등록기계·이동 중·인계 완료
     const groups = {"KIOSK-C 서면역 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-C",
                     "KIOSK-A 해운대 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-A",
-                    "KIOSK-B 중앙 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-B",
                     "🚚 본센터로 이동 중": i => i.loc === "transit",
                     "🤝 인계 완료 · 직원 보관": i => i.loc === "handed" || i.loc === "staff"};
     $("places").innerHTML = Object.entries(groups).map(([name, f]) => {

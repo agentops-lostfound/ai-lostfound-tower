@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = '01f42f963ad9fbecddc1fb2aacdf9778109bfe57614ec2cadc30dd698b61d3e6'  # 11/6 변재원: 시연 운영 기준 9개 주제 추가
+APPROVED_CORPUS_SHA256 = 'da20cdfc8f50c06ce26ccd617ef2ae7b603261a3fd71a1b13e2135d8e07485de'  # 11/6 변재원: 본센터 부산역·중앙역 삭제 반영
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),

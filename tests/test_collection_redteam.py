@@ -99,7 +99,7 @@ class CollectionRedteam(unittest.TestCase):
 
     def test_duplicate_json_deep_json_sql_injection_and_static_escape(self):
         self.client.headers['x-demo-revision'] = self.store.dashboard()['revision']
-        self.assertEqual(self.client.post('/collections', content='{"machine_id":"KIOSK-A","machine_id":"KIOSK-B"}', headers={'content-type': 'application/json'}).status_code, 422)
+        self.assertEqual(self.client.post('/collections', content='{"machine_id":"KIOSK-A","machine_id":"KIOSK-C"}', headers={'content-type': 'application/json'}).status_code, 422)
         self.assertEqual(self.client.post('/collections', content='{"nested":' + '[' * 40 + '0' + ']' * 40 + '}', headers={'content-type': 'application/json'}).status_code, 422)
         for body in [dict(self.payload, machine_id="KIOSK-A'; DROP TABLE demo_item;--"), dict(self.payload, item_ids=['A-W01 OR 1=1']), dict(self.payload, item_ids={'A-W01': True})]:
             self.assertEqual(self.client.post('/collections', json=body).status_code, 409)

@@ -36,7 +36,7 @@ class PostgresIntegration(unittest.TestCase):
         with self.connect() as conn:
             conn.execute("TRUNCATE machine CASCADE")
             conn.execute("TRUNCATE place CASCADE")
-            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('KIOSK-A','kiosk','2호선','해운대'),('KIOSK-B','kiosk','1호선','중앙')")
+            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('KIOSK-A','kiosk','2호선','해운대'),('KIOSK-C','kiosk','1호선','서면')")
             for iid in ("A-W01", "A-W02"):
                 conn.execute("INSERT INTO item(item_id,machine_id,place_text,category,received_at) VALUES(%s,'KIOSK-A','시험 장소','USB','2026-11-04 00:30+09')", (iid,))
         self.store = CollectionStore(self.connect)
@@ -146,7 +146,7 @@ class PostgresIntegration(unittest.TestCase):
     def test_failed_collection_keeps_search_and_statistics_and_does_not_grant_identity(self):
         ids, received, context, agent = self.receive_wallets()
         with self.assertRaises(CollectionError):
-            self.store.pickup('KIOSK-B', ids, 'integrated-wrong-machine')
+            self.store.pickup('KIOSK-C', ids, 'integrated-wrong-machine')
         with self.assertRaises(CollectionError):
             self.store.pickup('KIOSK-A', [ids[0], 'A-W99'], 'integrated-missing-item')
         self.assert_search_and_count(agent, context, ids, received)

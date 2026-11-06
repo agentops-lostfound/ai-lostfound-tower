@@ -77,7 +77,7 @@ class CollectionDeskTests(unittest.TestCase):
         self.assertEqual(self.store.dashboard()['event_count'], 2)
 
     def test_invalid_pickup_does_not_partially_change_items(self):
-        for ids in [['A-W01', 'B-W01'], ['A-W01', 'A-W99'], ['A-W01', 'A-W01']]:
+        for ids in [['A-W01', 'S-W01'], ['A-W01', 'A-W99'], ['A-W01', 'A-W01']]:
             with self.assertRaises(CollectionError):
                 self.store.pickup('KIOSK-A', ids, 'bad-request-001')
         self.assertEqual(self.store.dashboard()['event_count'], 0)
@@ -86,7 +86,7 @@ class CollectionDeskTests(unittest.TestCase):
     def test_invalid_arrival_rolls_back_and_cannot_reverse_completed_items(self):
         cid = self.pickup()['collection_id']
         with self.assertRaises(CollectionError):
-            self.store.arrive(cid, ['A-W01', 'B-W01'])
+            self.store.arrive(cid, ['A-W01', 'S-W01'])
         self.assertEqual(self.store.dashboard()['event_count'], 2)
         self.store.arrive(cid, ['A-W01'])
         self.store.arrive(cid, [])

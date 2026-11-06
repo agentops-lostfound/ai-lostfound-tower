@@ -167,3 +167,20 @@ class PurgeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BusanCenterTest(unittest.TestCase):
+    """11/6 역 정리: 본센터 = 1호선 부산역, 등록기계는 해운대·서면만(중앙역 삭제)"""
+
+    def test_machines_and_places_match_code(self):
+        import re
+        from agents.intake import DEMO_PLACES
+        self.assertEqual(set(c.MACHINE_LETTERS), {"KIOSK-A", "KIOSK-C", "CENTER"})
+        self.assertEqual(set(DEMO_PLACES), {"KIOSK-A", "KIOSK-C", "CENTER"})
+        sql = read("center/migrations/010_busan_center_1106.sql")
+        self.assertIn("station = '부산' WHERE machine_id = 'CENTER'", sql)
+        self.assertEqual(re.findall(r"\('1호선', '부산', '([^']+)'\)", sql), DEMO_PLACES["CENTER"])
+        for rel in ("center/seed_demo.sql", "center/migrations/003_places_1103.sql", "agents/sim_world.py",
+                    "web/kiosk/index.html", "web/live/index.html", "docs/guidance/service-guide.md"):
+            self.assertNotIn("중앙역", read(rel), rel)
+            self.assertNotIn("KIOSK-B", read(rel), rel)

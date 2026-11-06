@@ -50,10 +50,10 @@ class DemoItemDatabase:
             db.executemany('INSERT INTO chat_demo_catalog VALUES (?, ?, ?, ?, ?, ?, ?) '
                            'ON CONFLICT(item_id) DO UPDATE SET received_date=excluded.received_date', [
                 ('DEMO-001', '지갑', '검정', '본센터 보관', '2호선', '해운대', recent),
-                ('DEMO-002', '모형폰', '검정', '본센터 보관', '1호선', '중앙', recent),
+                ('DEMO-002', '모형폰', '검정', '본센터 보관', '1호선', '서면', recent),
                 ('DEMO-003', 'USB', '회색', '등록기계 보관', '1호선', '서면', recent),
                 ('DEMO-004', '립밤', '흰색', '본센터 보관', '2호선', '해운대', recent),
-                ('DEMO-005', '보조배터리', '흰색', '본센터 보관', '1호선', '중앙', recent),
+                ('DEMO-005', '보조배터리', '흰색', '본센터 보관', '2호선', '해운대', recent),
                 ('DEMO-006', '핸드크림', '흰색', '등록기계 보관', '1호선', '서면', older)])
 
     def search(self, category, color, context=None):

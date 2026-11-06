@@ -21,7 +21,7 @@ class DemoPlaceTests(unittest.TestCase):
         second = self.places.recommend('KIOSK-A', first['next_offset'])
         self.assertEqual((len(second['places']), second['next_offset']), (1, None))
         self.assertTrue(all(p['station'] == '해운대' for p in first['places']))
-        self.assertEqual(self.places.recommend('KIOSK-B')['station'], '중앙')
+        self.assertEqual(self.places.recommend('KIOSK-C')['station'], '서면')
 
     def test_duplicate_normalization_concurrency_and_correct_page(self):
         def add(_):
@@ -33,7 +33,7 @@ class DemoPlaceTests(unittest.TestCase):
         self.assertIn('가상 새 장소', [p['label'] for p in self.places.recommend('KIOSK-A', results[0]['page_offset'])['places']])
 
     def test_invalid_scope_private_data_and_paging_are_rejected(self):
-        for args in [('2호선', '중앙역', '가상 장소'), ('2호선', '해운대', '010-1234-5678'), ('2호선', '해운대', '가' * 65)]:
+        for args in [('2호선', '서면역', '가상 장소'), ('2호선', '해운대', '010-1234-5678'), ('2호선', '해운대', '가' * 65)]:
             with self.assertRaises(ValueError):
                 self.places.put(*args)
         for offset in [-1, True, 10001]:

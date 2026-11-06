@@ -106,7 +106,7 @@ stateDiagram-v2
 ## 6. 확정 사항 (11/3, 변재원)
 | 항목 | 결정 | 어디에 반영 |
 | --- | --- | --- |
-| 접수 번호 형식 | `등록기계 문자-날짜-하루 순번 4자리`, 예 `A-20261103-0001`. 문자: KIOSK-A=A, KIOSK-B=B, 본센터 직접 접수=H. 시연 물건 `A-W01`~`A-W07` 도 허용 | DB 검사 `item_id_format`, `contracts.ITEM_ID_PATTERN`·`make_item_id()` |
+| 접수 번호 형식 | `등록기계 문자-날짜-하루 순번 4자리`, 예 `A-20261103-0001`. 문자: KIOSK-A(해운대)=A, KIOSK-C(서면)=S, 본센터(부산역) 직접 접수=H. 시연 물건 `A-W01`~`A-W07` 도 허용 | DB 검사 `item_id_format`, `contracts.ITEM_ID_PATTERN`·`make_item_id()` |
 | 찾기 번호 형식 | `C-날짜-순번`, 예 `C-20261103-0001` | DB 검사 `claim_id_format`, `contracts.CLAIM_ID_PATTERN` |
 | 습득자 연락처 보관 | 물건이 **인계 완료된 뒤 30일**이 지나면 지운다(그 사이 반환 보류 등으로 상태가 바뀌면 남김). 이름·전화는 화면·로그에 찍지 않는다 | `tools/purge_contacts.py`(관제탑 켤 때 자동 실행), `contracts.CONTACT_RETENTION_DAYS` |
 | 분실인 설명 칸 | 접수 특징과 **같은 칸 이름**: `category · color · shape · mark · visible_text · material`. 다른 칸이 들어오면 DB가 거부 | DB 검사 `claim_description_keys`, `contracts.DESCRIPTION_FIELDS`·`validate_description()` |

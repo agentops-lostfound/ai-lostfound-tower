@@ -36,7 +36,7 @@ class KioskReturnTest(unittest.TestCase):
         self.assertEqual(self.svc.get_claim(self.cid)["status"], "visited")
 
     def test_only_center_machine(self):
-        for m in ("KIOSK-A", "KIOSK-B", "center", ""):
+        for m in ("KIOSK-A", "KIOSK-C", "center", ""):
             with self.assertRaises(RequestError):
                 self.svc.kiosk_return(body(self.cid, machine_id=m))
         self.assertEqual(self.svc.get_claim(self.cid)["status"], "booked")

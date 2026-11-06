@@ -16,6 +16,10 @@ def runtime_info(device="auto"):
             "gpu": torch.cuda.get_device_name(0) if available else None}
 
 
+# 공식 가중치만 자동 다운로드(커스텀 학습 결과는 직접 받아야 함). 11/6 기본은 yolo26l(large)
+OFFICIAL_WEIGHTS = {f"yolo26{size}.pt" for size in "nsmlx"}
+
+
 class YoloDetector:
     def __init__(self, model_path, device="auto", confidence=0.25, imgsz=640):
         from ultralytics import YOLO
@@ -23,7 +27,7 @@ class YoloDetector:
         path = Path(model_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():
-            if path.name != "yolo26n.pt":
+            if path.name not in OFFICIAL_WEIGHTS:
                 raise FileNotFoundError(f"Custom weights not found: {path}")
             # Ultralytics downloads the named official asset into the requested directory.
             from ultralytics.utils.downloads import attempt_download_asset

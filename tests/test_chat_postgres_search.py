@@ -25,7 +25,7 @@ class ChatPostgresSearchTests(unittest.TestCase):
             db.execute('CREATE TABLE machine (machine_id text PRIMARY KEY, line text, station text)')
             db.execute('CREATE TABLE item (item_id text PRIMARY KEY, category text, features jsonb, status text, '
                        'machine_id text REFERENCES machine, received_at timestamptz, private_features jsonb)')
-            db.execute("INSERT INTO machine VALUES ('test-A','2호선','해운대'), ('test-B','2호선','서면'), ('test-C','1호선','중앙')")
+            db.execute("INSERT INTO machine VALUES ('test-A','2호선','해운대'), ('test-B','2호선','서면'), ('test-C','1호선','부산')")
             rows = [('A-W01','본센터 보관','test-A',now-timedelta(hours=1)),
                     ('A-W02','인계 완료','test-A',now-timedelta(hours=1)),
                     ('A-W03','본센터 보관','test-A',now-timedelta(days=5)),

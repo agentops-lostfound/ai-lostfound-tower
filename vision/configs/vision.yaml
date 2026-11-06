@@ -1,4 +1,4 @@
-model: models/yolo26m.pt
+model: models/yolo26l.pt   # 11/6 YOLO26 large 로 고정(nano·medium → large)
 device: auto
 confidence: 0.25
 imgsz: 640

@@ -58,9 +58,9 @@ ITEMS: dict[str, dict] = {
                         # 같은 물건을 다시 찍었더니 표현이 흔들림: brown→dark brown, rectangular→rectangle
                         "bin": qwen("card_wallet", ["dark brown"], shape="rectangle")},
     "A-20261103-0004": {"name": "카드지갑 남색", "reg": qwen("card_wallet", ["navy"])},
-    "B-20261103-0001": {"name": "USB 은색(SanDisk 글자)",
+    "S-20261103-0001": {"name": "USB 은색(SanDisk 글자)",
                         "reg": qwen("usb", ["silver"], shape="stick", materials=["metal", "plastic"], text=["SanDisk"])},
-    "B-20261103-0002": {"name": "보조배터리 검정(VOVA 글자)",
+    "S-20261103-0002": {"name": "보조배터리 검정(VOVA 글자)",
                         "reg": qwen("power_bank", ["black"], materials=["plastic"], text=["VOVA"])},
     "A-20261103-0005": {"name": "카드지갑 남색 — 0004 와 같은 제품(2세트 구매), 아직 보관함에 안 옴",
                         "reg": qwen("card_wallet", ["navy"]), "bin": None},
@@ -71,9 +71,9 @@ ITEMS: dict[str, dict] = {
 # 사례: (번호, 설명, 찾는 물건, 기대 결과, 시나리오 옵션)
 CASES = [
     ("S01", "정상 반환", "A-20261103-0001", "returned", {}),
-    ("S02", "같은 검정이지만 품목이 다름(지갑 옆에 보조배터리)", "B-20261103-0002", "returned", {}),
+    ("S02", "같은 검정이지만 품목이 다름(지갑 옆에 보조배터리)", "S-20261103-0002", "returned", {}),
     ("S03", "같은 물건인데 Qwen 표현이 흔들림(dark brown)", "A-20261103-0003", "returned", {}),
-    ("S04", "다른 품목(USB)", "B-20261103-0001", "returned", {}),
+    ("S04", "다른 품목(USB)", "S-20261103-0001", "returned", {}),
     ("S05", "물건이 아직 보관함에 없음(똑같은 제품만 있음)", "A-20261103-0005", "staff_check", {}),
     ("S06", "보관함 사진에서 Qwen 실패", "A-20261103-0006", "staff_check", {}),
     ("S07", "집기 1번 실패 → 다시 집기 성공", "A-20261103-0002", "returned", {"grasp_plan": [False, True]}),
