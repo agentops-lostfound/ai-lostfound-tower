@@ -5,12 +5,13 @@ from robot.stage_timing import StageClock
 
 
 def move_stage(robot,target,*,duration=5,cancelled=lambda:False,observe=lambda *args:None,
-               vendor=None,timer=None):
+               vendor=None,timer=None,include_gripper=False):
     if vendor is None:from so101_control import control as vendor
     if not math.isfinite(duration) or not 0<duration<=5:
         raise ValueError('Stage duration must be in (0, 5] seconds')
     current=robot.get_observation()
-    target=dict(target);target['gripper.pos']=current['gripper.pos']
+    target=dict(target)
+    if not include_gripper:target['gripper.pos']=current['gripper.pos']
     timer=timer or StageClock(duration)
 
     class Sender:

@@ -19,6 +19,7 @@ class VendorTests(unittest.TestCase):
         from robot.stage_timing import StageClock
         self.assertEqual(STAGE_SECONDS,{1:5.0,2:4.0,3:3.0})
         now=[0.0];goal={k:0.0 for k in KEYS};goal[KEYS[0]]=10
+        goal[KEYS[-1]]=77
         robot=SimpleNamespace(values={k:0.0 for k in KEYS})
         holds=[]
         robot.get_observation=lambda:dict(robot.values)
@@ -34,9 +35,10 @@ class VendorTests(unittest.TestCase):
             self.assertLess(kwargs['duration_s'],2.4)
             now[0]=2.4;sender.send_action(target)
         vendor=SimpleNamespace(time=object(),move_to_joints=move)
-        result=move_stage(robot,goal,duration=3,vendor=vendor,timer=timer)
+        result=move_stage(robot,goal,duration=3,vendor=vendor,timer=timer,include_gripper=True)
         self.assertAlmostEqual(now[0],3)
         self.assertEqual(result[KEYS[0]],10)
+        self.assertEqual(result[KEYS[-1]],77)
         self.assertEqual(holds[-1][1][KEYS[0]],10)
 
     def test_saved_pose_converts_via_encoder_ticks(self):
@@ -89,8 +91,8 @@ class StageGUIBackend:
     def repair(self):self.repaired=True
     def stop(self):self.busy=False;self.pending=None
     def close(self):pass
-    def start_stage(self,target,expected,level):
-        self.started.append((dict(target),dict(expected),level));self.busy=True;self.pending=1
+    def start_stage(self,target,expected,level,*,include_gripper=False):
+        self.started.append((dict(target),dict(expected),level,include_gripper));self.busy=True;self.pending=1
 
 
 class VendorGUITests(unittest.TestCase):
@@ -111,6 +113,7 @@ class VendorGUITests(unittest.TestCase):
                     gui._jog(0,1);gui._review();gui._review()
                     self.assertEqual(backend.started,[])
                     gui._approve();self.assertEqual(len(backend.started),1)
+                    self.assertFalse(backend.started[-1][3])
                     gui._tick();self.assertTrue(panel.moving)
                     backend.values[KEYS[0]]=0.08
                     backend.busy=False;backend.pending=None
@@ -121,4 +124,33 @@ class VendorGUITests(unittest.TestCase):
                     self.assertEqual(Panel(folder).poses['custom'][KEYS[0]],0.08)
                     gui._jog(0,1);gui._review();gui._approve();gui._stop()
                     self.assertTrue(panel.stopped);self.assertFalse(panel.moving)
+            finally:root.destroy()
+
+    def test_outlet_buttons_stage_recorded_gripper_and_require_both_approvals(self):
+        import tkinter as tk
+        from robot.teaching_gui import TeachingGUI
+        with tempfile.TemporaryDirectory() as folder:
+            try:root=tk.Tk()
+            except tk.TclError as exc:self.skipTest(str(exc))
+            root.withdraw()
+            try:
+                backend=StageGUIBackend();panel=Panel(folder)
+                for name, gripper in [('close', 1.8), ('open', 77.0), ('outlet_return_1', 1.2), ('home', 4.5)]:
+                    panel.poses[name] = {**backend.values, KEYS[-1]: gripper}
+                gui=TeachingGUI(root,panel,backend,Path(folder),SimpleNamespace(close=lambda:None))
+                with patch('robot.teaching_gui.messagebox.askyesno',return_value=True):
+                    gui._tick();gui._repair()
+                    for name, button in gui.outlet_pose_buttons.items():
+                        button.invoke()
+                        self.assertEqual(panel.target, panel.poses[name])
+                    gui._load('home')
+                    self.assertFalse(panel.target_includes_gripper)
+                    self.assertEqual(panel.target[KEYS[-1]],backend.values[KEYS[-1]])
+                    gui.outlet_pose_buttons['open'].invoke()
+                    gui._approve()
+                    self.assertEqual(backend.started,[])
+                    gui._review()
+                    self.assertEqual(backend.started,[])
+                    gui._approve()
+                    self.assertEqual(backend.started,[(panel.poses['open'], backend.values, 1, True)])
             finally:root.destroy()

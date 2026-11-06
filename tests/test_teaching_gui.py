@@ -73,14 +73,15 @@ class TeachingGUITests(unittest.TestCase):
                 self.assertFalse(self.panel.moving)
 
     def test_custom_buttons_load_matching_pose_without_moving_or_changing_gripper(self):
-        self.assertTrue(self.gui.custom_pose_buttons['pose_5'].instate(['disabled']))
+        names = [f'pose_{number}' for number in range(1, 9)]
+        self.assertEqual(list(self.gui.custom_pose_buttons), names)
         before=self.backend.snapshot()
-        for number in range(1,6):
+        for number, name in enumerate(names, 1):
+            self.assertTrue(self.gui.custom_pose_buttons[name].instate(['disabled']))
             values={key:float(number*2+i) for i,key in enumerate(KEYS)}
-            self.panel.poses[f'pose_{number}']=values
+            self.panel.poses[name]=values
         self.gui._refresh_pose_names()
-        for number in range(1,6):
-            name=f'pose_{number}'
+        for name in names:
             button=self.gui.custom_pose_buttons[name]
             self.assertFalse(button.instate(['disabled']))
             button.invoke()

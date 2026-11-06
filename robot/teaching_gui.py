@@ -25,7 +25,8 @@ from robot.vendor_backend import VendorBackend, STAGE_SECONDS
 
 DEFAULT_PROJECT = '7840975d-960f-4ede-bcca-bd24e4caf24e'
 DEFAULT_FOLLOWER = 'bc50f050-d0a5-4430-af97-0486cdaec3a2'
-CUSTOM_POSES = tuple(f'pose_{i}' for i in range(1, 6))
+CUSTOM_POSES = tuple(f'pose_{i}' for i in range(1, 9))
+OUTLET_POSES = {'close': 'Close', 'open': 'Open', 'outlet_return_1': '원복 1단계'}
 
 
 class TeachingGUI:
@@ -72,7 +73,9 @@ class TeachingGUI:
         header.pack(fill='x')
         ttk.Label(header, text='SO-101 Teaching Pendant', font=('Segoe UI', 18, 'bold')).pack(side='left')
         ttk.Label(header, textvariable=self.mode_text, foreground='#ba3b35', font=('Segoe UI', 12, 'bold')).pack(side='right')
-        ttk.Label(outer, text='Saved pose units: normalized | gripper locked | '+('Driver: so101-control / LeRobot | 10 deg following cap | max 5s' if self.stage_motion else 'Simulation / legacy Studio'), foreground='#a24521').pack(anchor='w', pady=(4,8))
+        driver_info = ('Gripper targets enabled for outlet presets | so101-control / LeRobot | max 5s'
+                       if self.stage_motion else 'Gripper locked | Simulation / legacy Studio')
+        ttk.Label(outer, text=f'Saved pose units: normalized | {driver_info}', foreground='#a24521').pack(anchor='w', pady=(4,8))
 
         mid = ttk.Panedwindow(outer, orient='horizontal')
         mid.pack(fill='both', expand=True)
@@ -146,12 +149,21 @@ class TeachingGUI:
         for number, name in enumerate(CUSTOM_POSES, 1):
             button = ttk.Button(custom, text=f'커스텀 {number}', width=10,
                                 command=lambda pose=name: self._load(pose))
-            button.pack(side='left', padx=3)
+            row, column = divmod(number - 1, 4)
+            button.grid(row=row, column=column, padx=3, pady=2)
             self.custom_pose_buttons[name] = button
         navigation = ttk.Frame(route)
         navigation.grid(row=3, column=0, columnspan=3, sticky='w')
         ttk.Button(navigation, text='Next forward preview', command=lambda: self._preview_route('forward')).pack(side='left', padx=3)
         ttk.Button(navigation, text='Next reverse preview', command=lambda: self._preview_route('reverse')).pack(side='left', padx=3)
+        outlet = ttk.Frame(route)
+        outlet.grid(row=4, column=0, columnspan=3, sticky='w', pady=(4,0))
+        ttk.Label(outlet, text='배출구').pack(side='left', padx=(3,6))
+        self.outlet_pose_buttons = {}
+        for name, label in OUTLET_POSES.items():
+            button = ttk.Button(outlet, text=label, command=lambda pose=name: self._load(pose))
+            button.pack(side='left', padx=3)
+            self.outlet_pose_buttons[name] = button
         controls = ttk.LabelFrame(left, text='Stage movement / operator authority', padding=8)
         controls.pack(fill='x', pady=8)
         ttk.Button(controls, text='1. Review target', command=self._review).pack(side='left', padx=3)
@@ -230,7 +242,7 @@ class TeachingGUI:
 
     def _refresh_pose_names(self):
         self.pose_list.configure(values=sorted(self.panel.poses))
-        for name, button in self.custom_pose_buttons.items():
+        for name, button in (self.custom_pose_buttons | self.outlet_pose_buttons).items():
             button.configure(state='normal' if name in self.panel.poses else 'disabled')
 
     def _load(self, name=None):
@@ -238,11 +250,12 @@ class TeachingGUI:
             self._require_fresh()
             if self.panel.stopped: raise RuntimeError('Repair HOLD before staging a pose')
             pose=(name or self.pose_name.get()).strip()
-            self.panel.load(pose)
+            self.panel.load(pose, include_gripper=self.stage_motion and pose in OUTLET_POSES)
             for j,k in enumerate(KEYS):self.targets[j].set(f'{self.panel.target[k]:.3f}')
             self._displayed_target=dict(self.panel.target)
             self.pose_name.set(pose)
-            self.status_text.set(f'{pose}: preview only. Check clearance and review before moving.')
+            joints = 'Arm and gripper' if self.panel.target_includes_gripper else 'Arm'
+            self.status_text.set(f'{pose}: {joints} preview. Check clearance and review before moving.')
         self._safe(act)
 
     def _save(self):
@@ -277,9 +290,10 @@ class TeachingGUI:
                     raise ValueError('Unapplied target input. Press Apply on the edited joint before review.')
             diffs = [abs(self.panel.target[k]-self.panel.current[k]) for k in KEYS[:5]]
             max_delta=max(diffs)
+            gripper = 'Move to the saved gripper value.' if self.panel.target_includes_gripper else 'Keep the current gripper value.'
             msg=(f'Current → target (Studio normalized units)\n\n'
                  + '\n'.join(f'{nm}: {self.panel.current[k]:.4f} → {self.panel.target[k]:.4f}' for nm,k in zip(JOINTS,KEYS))
-                 + f'\n\nMaximum arm joint delta: {max_delta:.4f}'
+                 + f'\n\n{gripper}\nMaximum arm joint delta: {max_delta:.4f}'
                  + (f'\nso101-control: {STAGE_SECONDS[self.panel.speed]:g}s stage, 10 degree following cap'
                     if self.stage_motion else f'\nSpeed level: {self.panel.speed} (max {SPEEDS[self.panel.speed]}/step)')
                  + '\n\nNO COLLISION CHECK. Intermediate joint path may hit the lip.\nReview physical clearance and emergency stop access.')
@@ -298,7 +312,8 @@ class TeachingGUI:
                 if not math.isfinite(value) or abs(value-self.panel.target[KEYS[i]]) > 0.0006:
                     self.panel.confirm_pending=False
                     raise ValueError('Target input changed; Apply and Review again')
-            if not messagebox.askyesno('Final stage approval','Is the path CLEAR and the physical STOP accessible?\nMove this ONE stage using the reviewed duration?'):
+            motion = 'arm and gripper' if self.panel.target_includes_gripper else 'arm'
+            if not messagebox.askyesno('Final stage approval',f'Is the path CLEAR and the physical STOP accessible?\nMove the {motion} for this ONE stage?'):
                 self.panel.confirm_pending=False
                 return
             self._require_fresh()
@@ -306,7 +321,8 @@ class TeachingGUI:
                 raise RuntimeError('State changed during approval; review again')
             self.panel.confirm()
             if self.stage_motion:
-                try:self.backend.start_stage(dict(self.panel.target),dict(self.panel.current),self.panel.speed)
+                try:self.backend.start_stage(dict(self.panel.target),dict(self.panel.current),self.panel.speed,
+                                             include_gripper=self.panel.target_includes_gripper)
                 except Exception:
                     self.panel.stop('Stage could not start; repair and review required')
                     self.backend.stop()
@@ -373,7 +389,9 @@ class TeachingGUI:
                     self.backend.result=None
                     self.panel.moving=False;self.panel.armed=False
                     residual=max(result.get('errors_degrees',{}).values(),default=0)
-                    self.panel.message=f'Stage finished; max residual {residual:.2f} deg. Check pose before next stage.'
+                    gripper_error=result.get('gripper_error_normalized')
+                    grip_status=f', gripper {gripper_error:.2f} normalized' if gripper_error is not None else ''
+                    self.panel.message=f'Stage finished; max arm residual {residual:.2f} deg{grip_status}. Check pose before next stage.'
                     self.status_text.set(self.panel.message)
             elif self.panel.moving:
                 # ready() deliberately checks pending and can set failure on timeout.

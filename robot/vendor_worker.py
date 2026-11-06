@@ -66,7 +66,7 @@ def main(robot_factory=None):
     def interrupted():
         return cancel_event.is_set() or quit_event.is_set() or time.monotonic()-state['last_ping']>1.5
 
-    def execute(command,target,duration):
+    def execute(command,target,duration,include_gripper):
         error=None;completed=False;started=time.monotonic()
         def trace(action,applied):
             with io:measured=robot.get_observation()
@@ -76,7 +76,7 @@ def main(robot_factory=None):
                     'command':action,'applied':applied,'measured':measured})+'\n')
         try:
             move_stage(LockedRobot(),target,duration=duration,cancelled=interrupted,observe=trace,
-                       vendor=vendor_control)
+                       vendor=vendor_control,include_gripper=include_gripper)
             completed=True
         except Exception as exc:error=f'{type(exc).__name__}: {exc}'
         finally:
@@ -85,8 +85,9 @@ def main(robot_factory=None):
             try:
                 actual=status()
                 errors={k:abs(actual[k]-target[k]) for k in target if k!='gripper.pos'}
+                gripper_error=abs(actual['gripper.pos']-target['gripper.pos']) if include_gripper else None
                 emit('result',id=command,completed=completed,error=error,
-                     elapsed=time.monotonic()-started,errors_degrees=errors)
+                     elapsed=time.monotonic()-started,errors_degrees=errors,gripper_error_normalized=gripper_error)
             except Exception as exc:
                 cancel_event.set()
                 with state_lock:state.update(stopped=True,error=str(exc))
@@ -140,7 +141,8 @@ def main(robot_factory=None):
                             raise RuntimeError('Measured pose changed; review again')
                         target=coordinates.degrees(command['target'])
                         state['busy']=True;cancel_event.clear()
-                    movement=threading.Thread(target=execute,args=(command['id'],target,duration),daemon=True)
+                    include_gripper=command.get('include_gripper') is True
+                    movement=threading.Thread(target=execute,args=(command['id'],target,duration,include_gripper),daemon=True)
                     movement.start()
                 else:raise ValueError('Unknown command')
             except Exception as exc:emit('error',message=str(exc))

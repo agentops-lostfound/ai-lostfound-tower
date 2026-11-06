@@ -1,18 +1,20 @@
 # SO-101 티칭 패널
 
-## 현재 운영 방식: 저장 자세 약 5개 (11/5 최종 결정)
+## 현재 운영 방식: 저장 자세 8개
 
 사용자 결정으로 XYZ/YOLO 중심에서 모터값을 자동 계산하는 방식은 중단하고, 직접 티칭·저장한 고정 관절 자세를 선택해 이동한다. 기존 GUI·모터 통신·정지·속도 선택·CSV·저장 기능을 사용한다. [전환 결정](../docs/reports/2026-11-05-fixed-pose-decision.md).
 
-현재 `outputs/robot_panel_live/poses.json`에는 기존 `home`, `raised`, `entry`, `observe`와 텔레옵으로 티칭한 `pose_1`~`pose_5`가 있다. 새 **커스텀 1~5** 버튼은 해당 `pose_1`~`pose_5`를 미리 불러온다. 버튼 선택만으로는 움직이지 않는다. 이름 입력/목록과 `Load preview`도 사용할 수 있다. 해당 자세가 없는 PC에서는 그 커스텀 버튼을 비활성화한다. 저장 자세 파일은 로컬 outputs에 있으므로 Git에 버튼 코드만 공유해도 실측 자세가 함께 전달되는 것은 아니다.
+현재 `outputs/robot_panel_live/poses.json`에는 기존 `home`, `raised`, `entry`, `observe`와 11/6에 텔레옵으로 티칭한 `pose_1`~`pose_8`이 있다. **커스텀 1~8** 버튼은 해당 번호의 자세를 미리 불러온다. 이름 입력/목록과 `Load preview`도 사용할 수 있다. 저장 파일에 자세가 없으면 해당 버튼이 비활성화된다. 실측 자세 파일은 로컬 `outputs`에 저장된다.
 
-티칭 원본은 `outputs/robot_poses/teleop_teaching_20261105/poses.json`과 각 자세별 `pose.json`/`observations.csv`, 전체 표는 `poses_summary.csv`다. 각 자세에서 HOLD 관측 10개를 기록했다. GUI 목록으로 병합하기 전 기존 파일을 `poses.backup-before-custom-buttons-*.json`으로 백업했고 기존 네 자세의 값을 보존했다. 커스텀 1~5는 개별 선택용이며 기존 forward/reverse 순서에 자동 추가하지 않는다.
+티칭 원본과 요약은 `outputs/robot_poses/teleop_teaching_20261106_8slots/`에 있다. 자세마다 HOLD 관측 10개를 기록했고, 2·3·5·7번은 다시 측정한 값을 적용했다. 이전 GUI 자세 파일은 `poses.backup-before-8-slots-*.json`에 보관했다. 커스텀 1~8은 개별 선택용이며 forward/reverse는 기본 네 자세를 사용한다.
 
 현재 GUI는 자세 파일을 시작할 때 읽으므로 실행 중 외부에서 파일을 수정해도 자동 반영되지 않는다. 이번 코드·자세 병합을 반영하려면 GUI를 다시 실행한다. 이후 GUI의 `Save measured / overwrite`로 저장하면 실행 중 목록과 커스텀 버튼 상태도 갱신된다. 실물 GUI 재실행 전 Studio 텔레옵/런타임과 시리얼 소유권을 정리해야 하며, 이번 UI 갱신은 실행 중 Studio를 종료하거나 팔을 움직이지 않았다.
 
 관절 표는 헤더와 여섯 행이 하나의 grid를 공유한다. `Measured`, `Target input`, `Error` 및 조작 버튼을 같은 열에 배치하고 숫자 표시/입력을 오른쪽 정렬했다.
 
-선택 → `Load preview` → `Review target` → `Approve ONE stage`로 한 자세씩 이동한다. 새 자세는 실제로 맞춘 상태에서 새 이름을 입력하고 `Save measured / overwrite`로 저장한다. 고정 자세 사이의 경로와 순서는 실물에서 확인한다. 약 5개의 자세를 저장하는 것과 전체 순서를 자동 실행하는 것은 별도이며, 현재 전체 자동 재생 기능은 없다.
+선택 → `Load preview` → `Review target` → `Approve ONE stage`로 한 자세씩 이동한다. 새 자세는 실제로 맞춘 상태에서 새 이름을 입력하고 `Save measured / overwrite`로 저장한다. 고정 자세 사이의 경로와 순서는 실물에서 확인한다.
+
+배출구는 **Close → Open → 원복 1단계 → home** 순서로 한 단계씩 선택한다. LIVE 기본 드라이버는 배출구 세 자세에서 기록한 집게값까지 사용한다. 각 버튼은 미리보기이며 단계마다 `Review target`과 `Approve ONE stage`를 거친다. `home`에서는 이동 시작 시점의 집게값을 유지한다. 티칭 원본은 `outputs/robot_poses/outlet_motion_20261106/`에 있으며 `Open` 버튼은 `outlet_place` 기록을 사용한다.
 
 이전 좌표 계산 시험의 목표 숫자가 GUI에 남아 있다면 저장 자세를 `Load preview`로 다시 불러온 뒤 검토한다. 이번 운영 전환 작업은 실행 중 GUI 목표·로봇 상태를 자동 변경하지 않았다. 오프라인 IK·좌표 출력 코드와 계산 결과는 과거 실험 자료로 보존하며 현재 운영 목표로 사용하지 않는다. 190mm 실측은 참고 기록이고, 저장 자세 이동이 일정 Z를 자동 유지한다는 의미는 아니다.
 
@@ -29,7 +31,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File robot/launch_live_panel.ps1
 
 외부 워커는 기존 Docker Python과 `outputs/external/so101-control/src/so101_control`, `outputs/so101_vendor_trial/calibration.json`을 사용한다. 배포 시 임시 폴더 `/tmp/lf-teaching`에 코드/보정 사본을 복사한다. Windows 환경에 LeRobot을 설치하지 않는다. 해당 로컬 외부 소스/보정 사본은 Git에 포함되지 않으므로 다른 PC에서는 별도 준비가 필요하다. Studio 또는 다른 제어기가 포트를 점유하면 연결을 거부한다. 자동으로 기존 제어기를 종료하지 않는다. 모터 보정/PID를 다시 쓰거나 토크를 전환하지 않고 기존 설정을 확인한다. 토크가 꺼져 있으면 연결 오류를 표시한다.
 
-UI 표시·poses.json·CSV는 기존 Studio normalized 단위를 유지한다. 기존 보정으로 정수 encoder tick을 거쳐 LeRobot degrees로 변환한다. 저장된 사용자 자세를 덮어쓰거나 다른 단위로 다시 저장하지 않는다. 그리퍼는 이동 시작 실측값을 유지한다.
+UI 표시·poses.json·CSV는 기존 Studio normalized 단위를 유지한다. 기존 보정으로 정수 encoder tick을 거쳐 팔 관절값을 LeRobot degrees로 변환한다. 배출구 프리셋에서 집게값과 집게 잔여 오차는 normalized 단위로 표시한다. 그 외 자세는 이동 시작 시점의 집게값을 사용한다.
 
 시작은 STOPPED. Repair HOLD → 자세 선택/Load preview → Review target → Approve ONE stage. 조그/숫자 입력은 목표 편집이며 별도 승인이 필요하다. 시간 선택 1=5초, 2=4초, 3=3초. 전체 시간의 앞 80%에 목표를 보간하고 마지막 20%는 최종 목표를 유지하여 실제 모터 추종 시간을 확보한다. 목표 선행 제한은 10도다. 명령 발행에는 5초 마감과 실제 경과시간 기반 pacing을 적용한다. 최종 잔여 오차는 degrees로 표시하며, 제한 시간 종료/명령 완료를 정확한 도착으로 판정하지 않는다. OS·시리얼 블로킹 때문에 물리적 정지를 실시간 하드웨어 수준으로 보장하는 기능은 아니다.
 

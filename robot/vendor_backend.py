@@ -121,13 +121,13 @@ class VendorBackend:
         with self.lock:
             return self.capable and self.fresh() and not self.error and not self.stopped and not self.busy and self.pending is None
 
-    def start_stage(self,target,expected,level):
+    def start_stage(self,target,expected,level,*,include_gripper=False):
         vector(target);vector(expected)
         with self.lock:
             if not self.ready():raise RuntimeError(self.error or 'Vendor not ready; Repair first')
             self.result=None;self.busy=True
             self.pending=self._send('move',target=target,expected=expected,
-                                    duration=STAGE_SECONDS[level],approved=True)
+                                    duration=STAGE_SECONDS[level],approved=True,include_gripper=include_gripper)
 
     def stop(self):self._send('stop')
     def repair(self):

@@ -19,6 +19,7 @@ class Panel:
         self.poses=json.loads(self.pose_file.read_text(encoding='utf-8')) if self.pose_file.exists() else {}
         for values in self.poses.values():vector(values)
         self.current=None;self.target=None;self.speed=1;self.selected=0
+        self.target_includes_gripper=False
         self.commanded=None
         self.wait_since=None
         self.stopped=True;self.armed=False;self.moving=False;self.confirm_pending=False
@@ -31,12 +32,14 @@ class Panel:
 
     def stop(self,reason='Operator stop'):
         self.stopped=True;self.armed=False;self.moving=False;self.confirm_pending=False
+        self.target_includes_gripper=False
         if self.current is not None:self.target=dict(self.current)
         self.message=reason
 
     def repair(self):
         if self.current is None:raise ValueError('Fresh observations required')
         self.stopped=False;self.armed=False;self.moving=False;self.confirm_pending=False
+        self.target_includes_gripper=False
         self.target=dict(self.current);self.message='Repaired; target reset. Review and Enter twice to move.'
         self.commanded=dict(self.current)
         self.wait_since=None
@@ -44,6 +47,7 @@ class Panel:
     def edit(self,index,value):
         if self.moving:raise ValueError('Stop before editing')
         if self.current is None:raise ValueError('No observation')
+        if self.target_includes_gripper:raise ValueError('Select an arm-only pose or Repair HOLD before editing')
         candidate=dict(self.target);candidate[KEYS[index]]=float(value);vector(candidate)
         if index==5:raise ValueError('Gripper motion locked in this version')
         self.target=candidate;self.armed=False;self.confirm_pending=False
@@ -57,12 +61,13 @@ class Panel:
         temp.write_text(json.dumps(self.poses,indent=2),encoding='utf-8');temp.replace(self.pose_file)
         self.message='Saved current measured pose: '+name
 
-    def load(self,name):
+    def load(self,name,*,include_gripper=False):
         if self.moving:raise ValueError('Stop before choosing a pose')
         if self.current is None:raise ValueError('No observation')
         values=dict(self.poses[name]);vector(values)
-        values[KEYS[5]]=self.current[KEYS[5]]
+        if not include_gripper:values[KEYS[5]]=self.current[KEYS[5]]
         self.target=values;self.armed=False;self.confirm_pending=False
+        self.target_includes_gripper=include_gripper
         self.message='Preview '+name+'; Enter twice for this stage only'
 
     def confirm(self):
