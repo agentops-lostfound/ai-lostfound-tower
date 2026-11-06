@@ -94,7 +94,8 @@ class VirtualWorkflowTests(unittest.TestCase):
         before = rows()
         response = self.client.post('/chat/questions', json={'question': '수령 절차와 주말 운영시간 알려줘'})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['status'], 'partial')
+        self.assertEqual(response.json()['status'], 'answered')          # 11/6 시연 운영 기준(운영시간)
+        self.assertIn('시연 기준', response.json()['answer'])
         self.assertTrue(response.json()['sources'])
         self.assertEqual(self.client.post('/descriptions/text', json={**self.metadata,
             'text': '검정 지갑 010-1234-5678'}).status_code, 422)

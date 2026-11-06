@@ -145,12 +145,14 @@ class ConversationTests(unittest.TestCase):
                 self.assertFalse(result['item_search_performed'])
                 self.assertIn('site_help', [s['topic'] for s in result['sources']])
 
-    def test_photo_policy_questions_still_report_unconfirmed_rules(self):
-        for question in ['사진 등록하면 택배로 받을 수 있어?', '사진 어디서 넣어요? 센터 주말에도 해요?']:
+    def test_photo_policy_questions_answer_both_parts_with_demo_policy(self):
+        # 11/6 시연 운영 기준: 사진 안내 + 운영값(택배·운영시간)을 함께 답하고 '시연 기준' 표시
+        for question, topic in [('사진 등록하면 택배로 받을 수 있어?', 'delivery'), ('사진 어디서 넣어요? 센터 주말에도 해요?', 'hours')]:
             with self.subTest(question=question):
                 result = self.bot.ask(question)
-                self.assertEqual(result['status'], 'partial')
-                self.assertIn('확정 운영값', result['answer'])
+                self.assertEqual(result['status'], 'answered')
+                self.assertIn(topic, [s['topic'] for s in result['sources']])
+                self.assertIn('시연 기준', result['answer'])
                 self.assertFalse(result['item_search_performed'])
 
 
