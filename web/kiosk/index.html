@@ -48,13 +48,14 @@ textarea{width:100%;font:inherit;font-size:28px;min-height:120px;padding:14px 22
 #lost,#ret{overflow:auto;justify-content:flex-start;padding-top:12px;gap:18px}
 #lost h1,#ret h1{font-size:40px}
 button.stop{background:var(--warn);color:#fff}
+header .chatbot-open{min-height:56px;padding:0 22px;font-size:22px;border-radius:14px;background:var(--surface);color:var(--ink);border:3px solid var(--line);margin-left:auto;margin-right:16px}
 .tabs button[hidden]{display:none}
 @media (prefers-reduced-motion:no-preference){button:active{transform:scale(.98)}}
 </style>
 </head>
 <body>
 <div id="app">
-  <header><span id="stn"></span><div class="prog" id="prog"><i></i><i></i><i></i><i></i></div></header>
+  <header><span id="stn"></span><button type="button" class="chatbot-open" data-chatbot-open aria-label="AI 안내 도우미 열기">💬 AI 안내</button><div class="prog" id="prog"><i></i><i></i><i></i><i></i></div></header>
   <nav class="tabs" role="tablist" aria-label="메뉴">
     <button type="button" id="tabFound" class="on" role="tab" aria-selected="true">물건 주웠어요 (습득)</button>
     <button type="button" id="tabLost" role="tab" aria-selected="false">물건 잃어버렸어요 (분실접수)</button>
@@ -306,5 +307,7 @@ $('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rch
 startCam();
 </script>
 <p style="position:fixed;right:12px;bottom:8px;font-size:14px;color:#566677;margin:0">미리보기: 서버 없이 가짜 응답으로 동작해요</p>
+<!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
+<script src="/chat-widget/widget.js" data-mode="kiosk" defer></script>
 </body>
 </html>

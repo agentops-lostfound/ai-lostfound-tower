@@ -5,6 +5,8 @@
  *   data-launcher="auto"(기본: 열기 버튼이 없을 때만 동그란 버튼) | "always" | "off"
  *   data-api="http://…"  챗봇 API 주소(기본: 이 스크립트를 내려준 서버 = 관제탑)
  *   data-title="AI 안내 도우미"
+ *   data-mode="kiosk"     공용 키오스크용(11/6): 글자·버튼을 크게, 창을 닫으면 대화를 바로 지움
+ *   data-idle-reset="90"  아무 조작이 없으면 N초 뒤 대화를 지우고 창을 닫음(다음 사람에게 앞사람 대화가 보이지 않게). kiosk 기본 90, 웹은 0(끔)
  * 코드에서: window.LostFoundChat.open() / close() / toggle()
  * 대화 내용은 이 화면에만 있고 저장하지 않는다(새로 고침하면 사라짐). 스타일은 Shadow DOM 안에 가둬 화면 디자인을 건드리지 않는다.
  */
@@ -20,6 +22,9 @@
   var API = opt("api", script && script.src ? new URL(script.src, location.href).origin : location.origin).replace(/\/+$/, "");
   var TITLE = opt("title", "AI 안내 도우미");
   var LAUNCHER = opt("launcher", "auto");
+  var KIOSK = opt("mode", "web") === "kiosk";
+  var IDLE_S = Math.max(0, Math.min(3600, parseInt(opt("idle-reset", KIOSK ? "90" : "0"), 10) || 0));
+  var idleTimer = null;
   var MAX_LEN = 500, MAX_HISTORY = 4, MAX_MESSAGES = 40;
 
   var CSS = [
@@ -31,6 +36,17 @@
     ".launcher:focus-visible,button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}",
     ".panel{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(92px,calc(env(safe-area-inset-bottom,0px) + 92px));z-index:2147483001;width:380px;max-width:calc(100vw - 32px);height:min(600px,calc(100vh - 120px));display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;font-size:15px;line-height:1.55}",
     ".panel[hidden],.launcher[hidden]{display:none}",
+    ".wrap.kiosk .panel{width:min(560px,calc(100vw - 32px));height:min(760px,calc(100vh - 120px));font-size:19px}",
+    ".wrap.kiosk .launcher{width:96px;height:96px;font-size:18px}",
+    ".wrap.kiosk .chip{font-size:18px;padding:14px 16px}",
+    ".wrap.kiosk textarea{font-size:19px}",
+    ".wrap.kiosk .send{font-size:18px;padding:0 22px}",
+    ".wrap.kiosk .foot,.wrap.kiosk .foot button{font-size:15px}",
+    ".wrap.kiosk .welcome,.wrap.kiosk .card{font-size:18px}",
+    ".wrap.kiosk header h2{font-size:21px}",
+    ".wrap.kiosk header .mode{font-size:15px}",
+    ".wrap.kiosk .badge,.wrap.kiosk details,.wrap.kiosk .retry{font-size:15px}",
+    ".wrap.kiosk .icon{width:52px;height:52px;font-size:24px}",
     "@media (max-width:480px){.wrap.open .launcher{display:none}.panel{right:0;left:0;bottom:0;width:100%;max-width:100%;height:min(88vh,640px);border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}}",
     "header{display:flex;align-items:center;gap:10px;padding:14px 14px 12px 18px;border-bottom:1px solid var(--line)}",
     "header .dot{width:10px;height:10px;border-radius:50%;background:#22a06b;flex:none}",
@@ -92,7 +108,7 @@
     root = host.attachShadow({ mode: "open" });
     var style = document.createElement("style");
     style.textContent = CSS;
-    wrap = el("div", "wrap");
+    wrap = el("div", KIOSK ? "wrap kiosk" : "wrap");
 
     launcher = el("button", "launcher", "AI\n챗봇");
     launcher.type = "button";
@@ -160,6 +176,8 @@
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input.value); }
     });
     panel.addEventListener("keydown", function (e) { if (e.key === "Escape") closePanel(); });
+    // 공용 기기: 창 안에서 무엇이든 조작하면 무입력 시계를 다시 잰다
+    ["pointerdown", "keydown", "input", "wheel"].forEach(function (t) { panel.addEventListener(t, touchIdle, { passive: true }); });
     showWelcome();
   }
 
@@ -319,11 +337,21 @@
       if (activeRequest !== request) return;
       activeRequest = null;
       setBusy(false);
+      touchIdle();   // 답을 읽는 시간부터 다시 잰다
       if (!panel.hidden && (document.activeElement === host || document.activeElement === input)) input.focus();
     });
   }
 
-  function resetChat() {
+  function touchIdle() {
+    if (!IDLE_S) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () {
+      if (log && log.querySelector(".msg")) resetChat(true);   // 대화가 있을 때만 지움
+      closePanel();
+    }, IDLE_S * 1000);
+  }
+
+  function resetChat(silent) {
     var previous = activeRequest;
     activeRequest = null;
     conversationVersion++;
@@ -335,7 +363,7 @@
     log.replaceChildren();
     showWelcome();
     statusEl.textContent = "이 화면의 대화를 지웠어요";
-    input.focus();
+    if (silent !== true) input.focus();
   }
 
   function loadStatus() {
@@ -358,6 +386,7 @@
     wrap.classList.add("open"); // 휴대폰 폭에서는 창이 화면을 덮으므로 동그란 버튼을 숨긴다(창의 ✕ 로 닫음)
     launcher.setAttribute("aria-expanded", "true");
     if (!loadedOnce) { loadedOnce = true; loadStatus(); }
+    touchIdle();
     setTimeout(function () { if (!panel.hidden) input.focus(); }, 0);
   }
 
@@ -366,6 +395,7 @@
     panel.hidden = true;
     wrap.classList.remove("open");
     launcher.setAttribute("aria-expanded", "false");
+    if (KIOSK) { clearTimeout(idleTimer); if (log && log.querySelector(".msg")) resetChat(true); }  // 공용 기기는 닫으면 바로 지움
     if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
   }
 

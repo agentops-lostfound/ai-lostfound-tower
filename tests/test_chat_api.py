@@ -4,6 +4,7 @@ import os
 import sys
 import types
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -256,3 +257,21 @@ class ChatbotFromEnvTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WidgetPlacementTest(unittest.TestCase):
+    """11/6: 챗봇은 키오스크·분실인 웹 둘 다 있어야 하고, 키오스크는 공용 기기 모드"""
+
+    def test_kiosk_and_lost_pages_load_widget(self):
+        root = Path(__file__).resolve().parent.parent / "web"
+        kiosk = (root / "kiosk/index.html").read_text(encoding="utf-8")
+        lost = (root / "lost/index.html").read_text(encoding="utf-8")
+        self.assertIn('<script src="/chat-widget/widget.js" data-mode="kiosk" defer></script>', kiosk)
+        self.assertIn("data-chatbot-open", kiosk)          # 머리말 버튼(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀)
+        self.assertIn('<script src="/chat-widget/widget.js" defer></script>', lost)
+        self.assertIn("data-chatbot-open", lost)
+
+    def test_widget_kiosk_options(self):
+        js = (Path(__file__).resolve().parent.parent / "web/chat-widget/widget.js").read_text(encoding="utf-8")
+        for needle in ('opt("mode", "web") === "kiosk"', 'opt("idle-reset", KIOSK ? "90" : "0")', "function touchIdle", "resetChat(true)"):
+            self.assertIn(needle, js)
