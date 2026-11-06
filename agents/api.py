@@ -260,6 +260,21 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
+    @app.post("/api/kiosk/returns")
+    def kiosk_return(payload: dict = Body(...)) -> dict:
+        """본센터 키오스크 회수(로그인 없음, 11/6). 본문 {machine_id: "CENTER", claim_id, id_no_masked}. 관문 값은 서버가 정한다.
+        신분 번호를 3번 틀리면 잠금(409 kind=locked). 정지 버튼(/api/robot/stop)은 반환 중에도 항상 열려 있다"""
+        try:
+            return svc.kiosk_return(payload)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
     @app.post("/returns/{case_id}/handover", dependencies=admin)
     @app.post("/api/admin/returns/{case_id}/handover", dependencies=admin)
     def handover(case_id: str, payload: dict = Body(...)) -> dict:

@@ -8,7 +8,7 @@
 ## 1. 화면 목록
 | 화면 | 주소(관제탑 `:8100` 또는 Docker `:8080`) | 폴더 | 화면 담당 | 부르는 API | 상태(11/5) |
 | --- | --- | --- | --- | --- | --- |
-| 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 김재민 | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 탭 2개(습득 신고 / 분실접수). 습득은 서버 연결됨, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수는 본센터 키오스크에 추가 예정 |
+| 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 김재민 | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 탭 2개(습득 신고 / 분실접수). 습득은 서버 연결됨, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수 탭은 `?machine=CENTER`(본센터)일 때만 보임 — `POST /api/kiosk/returns`(11/6, 관문 값은 서버가 정함) |
 | 등록기계(습득 신고) | `/intake?machine=KIOSK-A` | `intake/` | 김재민 | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 키오스크 습득 탭과 같은 일 → **키오스크로 합치는 중**(이 화면은 호환용으로 남김, 3차에서 `/kiosk` 로 넘김) |
 | 분실인 웹(분실 확인) | `/lost` | `lost/` | 김재민 | (서버 연결 전) | 화면 흐름 시안 |
 | 관제 모니터링 | `/live` | `live/` | 김재민 | `GET /api/admin/live/state`, `/sim/*`, `POST /api/robot/stop`, `/api/admin/robot/home` | 됨(가상 시연·SO-101 실제 형상) |

@@ -75,6 +75,9 @@ GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id"
 ALLOWED = {"case_id", "item_id", *GATE_FIELDS}
 VISIT_GATES = ["visitor_id_match", "inner_feature_ok", "staff_confirmed"]   # 본센터 방문 때 직원 화면이 채움
 VISIT_ALLOWED = {"claim_id", "case_id", *VISIT_GATES}
+KIOSK_RETURN_ALLOWED = {"machine_id", "claim_id", "id_no_masked"}   # 11/6 본센터 키오스크 회수: 관문 값은 화면이 못 보냄
+KIOSK_RETURN_MACHINE = "CENTER"      # 회수는 본센터 키오스크만(11/5 결정)
+KIOSK_MAX_FAILS = 3                  # 신분 번호를 이만큼 틀리면 그 찾기 번호는 키오스크에서 잠금(역무실 안내)
 
 
 class RequestError(ValueError):
@@ -152,6 +155,7 @@ class TowerService:
         self._stop_event = threading.Event()     # 직원 정지 버튼(반환을 새로 시작할 때 지움)
         self.photo_dir = photo_dir                 # 등록기계 사진 저장 폴더(None = TOWER_PHOTO_DIR 또는 저장소/data)
         self.gpu_lease = gpu_lease                 # user → GpuLease. None = GPU 사용권 안 씀(시험·가짜 부품)
+        self._kiosk_fails: dict[str, int] = {}     # 키오스크 회수에서 신분 번호를 틀린 횟수(찾기 번호별)
 
     # ---------- 습득물 접수(등록기계 화면) ----------
     def list_places(self, machine_id: str, limit: int = 10) -> list[dict]:
@@ -247,6 +251,42 @@ class TowerService:
         if row.get("status") != "booked":
             raise Conflict("duplicate", f"이미 방문 처리됐거나 취소된 찾기 요청: {cid} ({row.get('status')})")
         return ReturnRequest(case_id=case or f"R-{cid}", item_id=row["item_id"], **web_gates(row), **visit), cid
+
+    def kiosk_return(self, payload: object) -> dict:
+        """본센터 키오스크 회수(11/6, 직원 단계 제외). 화면은 관문 값을 보내지 못하고 서버가 정한다.
+        - machine_id 는 CENTER 만, 본문은 machine_id·claim_id·id_no_masked 만
+        - visitor_id_match: 키오스크에서 다시 입력한 가린 신분 번호 == 찾기 요청에 저장된 값 (틀리면 반환을 시작하지 않고 횟수만 센다)
+        - inner_feature_ok: 웹의 확인 질문 통과(quiz_passed) 그대로
+        - staff_confirmed: 직원 단계를 뺀 결정(11/5)에 따라 서버가 True — 안전 규칙이라 PR 에서 이순필 확인 필요"""
+        if not isinstance(payload, dict):
+            raise RequestError("JSON 객체여야 합니다")
+        unknown = sorted(set(payload) - KIOSK_RETURN_ALLOWED)
+        if unknown or set(payload) != KIOSK_RETURN_ALLOWED:
+            raise RequestError(f"본문은 {sorted(KIOSK_RETURN_ALLOWED)} 만 보냅니다(모르는 칸: {unknown})")
+        if payload["machine_id"] != KIOSK_RETURN_MACHINE:
+            raise RequestError(f"machine_id: 회수는 본센터 키오스크({KIOSK_RETURN_MACHINE})에서만 할 수 있습니다")
+        cid, typed = payload["claim_id"], payload["id_no_masked"]
+        if not isinstance(cid, str) or not CLAIM_ID_RE.match(cid):
+            raise RequestError("claim_id: 찾기 번호 형식(예: C-20261103-0001)")
+        if not isinstance(typed, str) or not typed.strip():
+            raise RequestError("id_no_masked: 가린 신분 번호를 입력하세요")
+        if self._kiosk_fails.get(cid, 0) >= KIOSK_MAX_FAILS:
+            raise Conflict("locked", "신분 확인을 여러 번 틀려 키오스크에서는 더 할 수 없습니다. 역무실로 가 주세요")
+        try:
+            row = self.claims.get(cid)
+        except Exception as e:
+            raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__}) — 신분을 확인하지 못해 실행하지 않음") from e
+        if row is None:
+            raise NotFound(f"없는 찾기 번호: {cid}")
+        gates = web_gates(row)
+        if not (gates["consent"] and gates["id_verified"] and gates["quiz_passed"]):
+            raise Conflict("state", "웹 확인(동의·신분·확인 질문)이 끝나지 않은 찾기 요청 — 역무실로 가 주세요")
+        if typed.strip() != row["id_no_masked"]:
+            self._kiosk_fails[cid] = self._kiosk_fails.get(cid, 0) + 1
+            raise RequestError("신분 번호가 맞지 않습니다. 다시 확인해 주세요")
+        self._kiosk_fails.pop(cid, None)
+        return self.start_return({"claim_id": cid, "visitor_id_match": True,
+                                  "inner_feature_ok": gates["quiz_passed"], "staff_confirmed": True})
 
     def start_return(self, payload: object) -> dict:
         """1단계(관문 6개를 한 번에) 또는 2단계(claim_id + 현장 관문 3개) 요청을 받는다."""

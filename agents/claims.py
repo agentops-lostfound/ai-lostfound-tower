@@ -150,7 +150,7 @@ SQL_INSERT_CLAIM = (
 SQL_INSERT_QUIZ = "INSERT INTO quiz_attempt (claim_id, item_id, field, passed) VALUES (%s, %s, %s, %s)"
 SQL_INSERT_RESERVATION = "INSERT INTO reservation (claim_id, item_id, visit_date) VALUES (%s, %s, %s)"
 SQL_GET = (
-    "SELECT c.claim_id, c.consented_at, c.name_masked, c.id_verified, r.item_id, r.visit_date, r.status, "
+    "SELECT c.claim_id, c.consented_at, c.name_masked, c.id_verified, c.id_no_masked, r.item_id, r.visit_date, r.status, "
     "c.created_at FROM claim c JOIN reservation r ON r.claim_id = c.claim_id WHERE c.claim_id = %s"
 )
 SQL_GET_QUIZ = "SELECT field, passed FROM quiz_attempt WHERE claim_id = %s ORDER BY id"
@@ -203,7 +203,7 @@ class PostgresClaimStore:
             row = cur.fetchone()
             if row is None:
                 return None
-            cols = ["claim_id", "consented_at", "name_masked", "id_verified", "item_id", "visit_date", "status",
+            cols = ["claim_id", "consented_at", "name_masked", "id_verified", "id_no_masked", "item_id", "visit_date", "status",
                     "created_at"]
             d = {k: _iso(v) for k, v in zip(cols, row)}
             cur.execute(SQL_GET_QUIZ, (claim_id,))
