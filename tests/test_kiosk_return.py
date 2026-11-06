@@ -100,3 +100,18 @@ class KioskReturnApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KioskAutoCaptureTest(unittest.TestCase):
+    """11/6 습득자 화면: 찍기 버튼 없이 자동 촬영 + 품목 6종 놓는 법 + 연락처 이용 목적 안내(브라우저 실행은 Playwright 로 확인)"""
+
+    def test_page_has_auto_capture_guide_and_privacy_notice(self):
+        from pathlib import Path
+        html = (Path(__file__).resolve().parents[1] / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('id="shoot"', html)                      # 찍기 버튼 없음
+        for word in ("stillMs", "getUserMedia", "trueEmpty"):      # 정지 2초 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
+            self.assertIn(word, html)
+        for cat in ("모형폰", "지갑", "USB", "립밤", "핸드크림", "보조배터리"):
+            self.assertIn(f"<b>{cat}", html)
+        self.assertIn("다른 목적으로 쓰거나 다른 곳에 주지 않아요", html)
+        self.assertNotIn("서버 없이 가짜 응답", html)
