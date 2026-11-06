@@ -13,7 +13,8 @@ class GuidanceRegression(unittest.TestCase):
         g = Guidance()
         for q in ["운 영 시 간 알려줘", "운영\u200b시간 알려줘", "토 요 일 문 닫나요?", "ＯＰＥＮ 시간은?"]:
             with self.subTest(question=q):
-                self.assertEqual(g.ask(q)["status"], "policy_pending")
+                r = g.ask(q)
+                self.assertEqual((r["status"], [s["topic"] for s in r["sources"]]), ("answered", ["hours"]))
 
     def test_unicode_private_data_is_rejected(self):
         with self.assertRaises(ValueError):

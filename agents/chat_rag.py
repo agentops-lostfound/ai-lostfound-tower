@@ -39,6 +39,10 @@ class GroundedRag:
         # Do not feed policy gaps to a generative model or let it resolve them.
         if not result['sources'] or result['status'] != 'answered':
             return result
+        # 11/6 시연 운영 기준(운영시간·보관 기간 등)은 확정 문장 그대로만 — 모델이 고르거나 바꾸지 않게
+        from agents.guidance import DEMO_POLICY_TOPICS
+        if any(s['topic'] in DEMO_POLICY_TOPICS.values() for s in result['sources']):
+            return {**result, 'generation_status': 'fixed_policy_text'}
         if not self.model:
             return {**result, 'generation_status': 'model_not_configured'}
         if not self._lock.acquire(blocking=False):

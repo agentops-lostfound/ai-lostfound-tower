@@ -167,7 +167,8 @@ class LostApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/health").json()["guidance_rag"], "project_documents_with_policy_gaps")
         r = self.client.post("/guidance/questions", json={"question": "몇 시까지?"})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()["status"], "policy_pending")
+        self.assertEqual(r.json()["status"], "answered")           # 11/6 시연 운영 기준(운영시간)
+        self.assertIn("시연 기준", r.json()["answer"])
 
     def test_station_name_is_not_fabric_material(self):
         self.assertNotIn("material", text_features("인천역에서 검정 지갑을 잃었어요")[0])
