@@ -4,7 +4,7 @@
 챗봇 두뇌는 관제탑의 `/chat/questions`(정연우 LF-5 챗봇: 이용 안내 RAG + 물건 검색 에이전트, LangGraph)이고, 위젯은 화면만 맡는다.
 
 - 담당: 챗봇·위젯·붙일 화면 모두 변재원(11/6 김재민 작업 완료 후 이어받음)
-- 1차 적용 화면: 분실인 웹(`web/lost/`) — **재민 님 웹이 완성됐다고 하면 그때 붙인다**
+- 적용 화면(11/6): **키오스크(`web/kiosk/`, 키오스크 모드)** + **분실인 웹(`web/lost/`)** — 챗봇은 두 곳 모두에 있어야 한다(교수님 확인)
 - 시험 페이지: 관제탑 켠 뒤 `http://127.0.0.1:8100/chat-widget/demo`
 - 팀 DB·로봇을 켜지 않는 독립 미리보기: `python -m tools.run_chat_widget_demo` → `http://127.0.0.1:8112/chat-widget/demo`. 승인 문서와 별도 가상 DB만 사용하며 모델을 내려받지 않는다. 다른 포트는 `--port`로 지정한다.
 
@@ -25,6 +25,8 @@
 | `data-launcher` | `auto`(기본) · `always` · `off` | 동그란 버튼: 여는 버튼이 없을 때만 / 항상 / 안 보임 |
 | `data-title` | 글자 | 창 제목(기본 "AI 안내 도우미") |
 | `data-api` | 주소 | 챗봇 API 서버(기본: 위젯을 내려준 서버 = 관제탑) |
+| `data-mode` | `web`(기본) · `kiosk` | `kiosk`: 글자·버튼을 크게(터치용), **창을 닫으면 대화를 바로 지움** |
+| `data-idle-reset` | 초(0~3600) | 아무 조작이 없으면 N초 뒤 대화를 지우고 창을 닫음. `kiosk` 기본 90, `web` 기본 0(끔) — 공용 기기에서 다음 사람에게 앞사람 대화가 보이지 않게 |
 - 코드에서 열고 닫기: `LostFoundChat.open()` · `LostFoundChat.close()` · `LostFoundChat.toggle()`
 
 ## 3. 동작 규칙
