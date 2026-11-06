@@ -92,7 +92,7 @@ python tools/storage_export.py --out data/storage.json
 ## 6. 다음 할 일
 | 할 일 | 누가 |
 | --- | --- |
-| 로봇 티칭으로 칸 8개 + H-1 저장 자세 이름 정하기 → `.../slots/{칸}/pose` 로 연결 | 김건태·이순필 |
+| ~~로봇 티칭으로 칸 8개 + H-1 저장 자세 이름 정하기~~ → 11/6 완료(8장, 013 마이그레이션) | 김건태·변재원 |
 | 비전 영역 이름을 R1~R4 로 저장 | 김건태 |
 | 관리자 화면에 보관함 칸 보기·넣기 버튼 | 변재원 |
 | 본센터 도착 시 빈 칸 자동 추천(품목 → 행) | 변재원 |
@@ -111,3 +111,21 @@ python tools/storage_export.py --out data/storage.json
 - 칸 관리(접힌 메뉴): 칸 비우기, 저장 자세 이름 연결(로봇 티칭 담당)
 - API: `GET /api/admin/storage/arrivals`, `POST /api/admin/storage/arrivals/{item_id}/place` `{"slot_id": "R4-1", "override_category": false}`
 - 시연 데이터 주의: `center/seed_demo.sql` 의 A-W01~W07 은 모두 지갑(옛 가짜 탑뷰 시연용)이라 지갑 행(2칸)이 금방 찬다 → 나머지는 다른 행으로 추천된다
+
+## 8. 칸 ↔ 로봇 저장 자세 (11/6 김건태 확정, 013)
+한줄 설명: 로봇팔이 칸마다 **미리 티칭해 둔 자세 이름**(`pose_1`~`pose_8`)으로 가서, 거기서부터 집기 모델(SmolVLA)이 집는다. 좌표 계산(IK)은 쓰지 않는다(11/5 김건태 결정).
+
+| 행 | 1(로봇팔 가까운 칸) | 2(먼 칸) |
+| --- | --- | --- |
+| R1 모형폰 | `pose_1` | `pose_2` |
+| R2 USB·핸드크림·보조배터리 | `pose_3` | `pose_4` |
+| R3 립밤 | `pose_5` | `pose_6` |
+| R4 지갑 | `pose_7` | `pose_8` |
+| H-1 제출보관함(배출구) | `close` | |
+
+- 반환 한 번의 로봇 동작: **칸 자세(pose_N)** → 집기·들어 올리기(SmolVLA) → **배출구 순서** `outlet_return_1 → close → open → outlet_return_1 → home`(`agents/storage.py` `OUTLET_SEQUENCE`)
+- 자세 값(관절 6개)의 원본은 김건태 PC `outputs/robot_panel_live/poses.json`(Studio normalized 단위 -100~100, 각도·mm 아님). DB 에는 **이름만** 둔다. 다른 팔·다른 보정이면 그 값을 그대로 쓰지 않고 다시 티칭한다
+- 013 은 **비어 있는 칸만** 채운다(보관함 화면에서 직접 바꾼 이름은 그대로). 관제탑이 켜져 있지 않을 때(메모리 보관함·가상 시연)도 같은 연결표(`SLOT_POSES`)를 쓴다
+- 반환을 시작하면 관제 기록에 "보관 칸 R4-2 · 자세 pose_8" 처럼 남는다(로봇에 자세 이름을 실제로 보내는 연결은 로봇 계약 변경 뒤 — `docs/contracts/robot_api.md`, 팀 확인 필요)
+- Studio 쪽 자세 이동 통로(김건태 11/6, 설치 전): 같은 런타임 WebSocket 에 `{"event":"move_saved_pose","data":{"pose":"pose_1",...}}` + 200ms 마다 heartbeat, `saved_pose_status=arrived` 가 도착 확인. 집기 성공 자동 판정·배출구 연속 실행은 아직 없음
+
