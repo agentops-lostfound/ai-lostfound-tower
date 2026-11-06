@@ -4,7 +4,7 @@
 비전(김건태) run_storage_check.py 가 읽는 storage JSON 으로 내보낸다.
 
 흐름: 등록기계 → 본센터 도착(본센터 보관) → 직원이 칸에 넣고 assign → YOLO 가 그 행만 잘라 개수 확인 → 로봇이 저장 자세로 집기
-      → 인계 대기·인계 완료가 되면 칸이 자동으로 빈다(DB 트리거, 메모리 저장소는 내보낼 때 거름)
+      → 인계 완료가 되면 칸이 자동으로 빈다(DB 트리거, 메모리 저장소는 읽을 때 거름). 인계 대기 동안은 칸 예약 유지(11/6 교차 검증)
 
 배치(center/migrations/007_storage_slots_1106.sql 과 같음): 4행 × 2칸 = 8칸 + 인계 구역 H-1(제출보관함 20×20cm)
 - 행별 품목은 판 사진에 맞춘 시연 시작값(009, 팀이 임의로 정함)이며 바꿀 수 있다. 모형폰 행(R1)은 폰 2개를 각각 사선으로 두고, 다른 행보다 칸 간격이 넓다(11/6 사진)
@@ -28,7 +28,7 @@ from agents.contracts import ITEM_ID_RE
 
 # 김건태 run_storage_check.ON_SHELF 와 같음: 이 상태일 때만 보관함 위에 있다고 본다
 ON_SHELF = ("본센터 보관", "확인 중", "승인·수령 예약")
-RELEASE_STATUSES = ("인계 대기", "인계 완료")         # 바구니로 나감 → 칸 비움
+RELEASE_STATUSES = ("인계 완료",)   # 11/6: 인계 대기 중에는 칸 예약 유지(교차 검증이 틀리면 원래 칸으로), 011 마이그레이션
 CHECK_STATUSES = ("count_match", "count_mismatch", "verification_unavailable", "resolution_mismatch",
                   "invalid_calibration", "section_out_of_frame", "match_held")
 POSE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")

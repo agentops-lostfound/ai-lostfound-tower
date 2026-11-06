@@ -74,6 +74,8 @@ class GuardedBackend:
 GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id", "item_id")]
 ALLOWED = {"case_id", "item_id", *GATE_FIELDS}
 VISIT_GATES = ["visitor_id_match", "inner_feature_ok", "staff_confirmed"]   # 본센터 방문 때 직원 화면이 채움
+# 11/6 인계 교차 검증 3가지(키 → 화면 이름). docs/design/handover_cross_check.md
+VERIFY_CHECKS = {"item_match": "물건 대조", "id_match": "신분증 대조", "feature_match": "비공개 특징"}
 VISIT_ALLOWED = {"claim_id", "case_id", *VISIT_GATES}
 KIOSK_RETURN_ALLOWED = {"machine_id", "claim_id", "id_no_masked"}   # 11/6 본센터 키오스크 회수: 관문 값은 화면이 못 보냄
 KIOSK_RETURN_MACHINE = "CENTER"      # 회수는 본센터 키오스크만(11/5 결정)
@@ -274,7 +276,8 @@ class TowerService:
         - machine_id 는 CENTER 만, 본문은 machine_id·claim_id·id_no_masked 만
         - visitor_id_match: 키오스크에서 다시 입력한 가린 신분 번호 == 찾기 요청에 저장된 값 (틀리면 반환을 시작하지 않고 횟수만 센다)
         - inner_feature_ok: 웹의 확인 질문 통과(quiz_passed) 그대로
-        - staff_confirmed: 직원 단계를 뺀 결정(11/5)에 따라 서버가 True — 안전 규칙이라 PR 에서 이순필 확인 필요"""
+        - staff_confirmed: 로봇을 움직이기 전 직원 단계는 뺀다(11/5). 대신 제출보관함에서 직원 교차 검증(verify_handover)을
+          통과해야 건넨다(11/6) — 그래서 서버가 True 로 둔다. 안전 규칙이라 PR 에서 이순필 확인 필요"""
         if not isinstance(payload, dict):
             raise RequestError("JSON 객체여야 합니다")
         unknown = sorted(set(payload) - KIOSK_RETURN_ALLOWED)
@@ -436,6 +439,105 @@ class TowerService:
         except Exception:
             pass
         return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_HOLD, "reason": payload["reason"]}
+
+    # ---------- 인계 교차 검증(11/6, docs/design/handover_cross_check.md) ----------
+    # 로봇이 제출보관함(H-1)에 둔 물건을 직원이 AI 판단과 독립적으로 3가지 확인한 뒤에만 건넨다.
+    # 하나라도 틀리면 반환 보류 → 물건은 원래 보관 칸으로(칸 예약은 인계 완료 때만 풀림, 011 마이그레이션)
+    def handover_queue(self, limit: int = 20) -> list[dict]:
+        """직원 화면: 제출보관함에서 확인을 기다리는 반환(인계 대기). 개인정보는 가린 이름만"""
+        out = []
+        be = self.backend_factory()
+        for row in self.recent(limit):
+            if row.get("decision") != DECISION_RETURNED:
+                continue
+            item = be.db_get_item(row.get("item_id")) or {}
+            if item.get("status") != HANDOVER_WAIT:
+                continue
+            feats = item.get("features") or {}
+            claim = None
+            if row.get("claim_id"):
+                try:
+                    c = self.claims.get(row["claim_id"])
+                    claim = {"claim_id": c["claim_id"], "name_masked": c["name_masked"]} if c else None
+                except Exception:
+                    claim = None
+            out.append({"case_id": row["case_id"], "item_id": row["item_id"], "claim": claim,
+                        "category": item.get("category") or feats.get("category"),
+                        "public": {k: feats[k] for k in ("color", "shape", "material") if feats.get(k)},
+                        "has_photo": self.item_photo(row["item_id"]) is not None})
+        return out
+
+    def handover_secret(self, case_id: str) -> dict:
+        """직원 화면 '답 보기': 비공개 특징(확인 질문 정답). 분실인 설명을 먼저 들은 뒤에만 연다(화면 쪽 규칙).
+        인계 대기 중에만 돌려준다(끝난 사례의 정답은 다시 보여 주지 않음)."""
+        be, item_id, status = self._waiting_item(case_id)
+        if status != HANDOVER_WAIT:
+            raise Conflict("state", f"인계 대기 상태가 아님(지금 {status})")
+        feats = (be.db_get_item(item_id) or {}).get("features") or {}
+        return {"case_id": case_id, "item_id": item_id,
+                "secret": {k: feats[k] for k in ("mark", "visible_text") if feats.get(k)}}
+
+    def verify_handover(self, case_id: str, payload: object) -> dict:
+        """직원 교차 검증 결과. 본문 {"item_match": bool, "id_match": bool, "feature_match": bool}
+        셋 다 True → 인계 완료. 하나라도 False → 반환 보류(이유는 서버가 정함: 신분 → 본인 아님, 물건·특징 → 물건 다름)"""
+        if (not isinstance(payload, dict) or set(payload) != set(VERIFY_CHECKS)
+                or not all(isinstance(payload[k], bool) for k in VERIFY_CHECKS)):
+            raise RequestError(f"본문은 {list(VERIFY_CHECKS)} 세 칸(true/false)만 보냅니다")
+        failed = [k for k in VERIFY_CHECKS if not payload[k]]
+        summary = " · ".join(f"{VERIFY_CHECKS[k]} {'O' if payload[k] else 'X'}" for k in VERIFY_CHECKS)
+        if not failed:
+            out = self.handover(case_id, {"staff_confirmed": True})
+            result = {**out, "result": HANDOVER_DONE, "checks": dict(payload)}
+        else:
+            reason = "본인 아님" if "id_match" in failed else "물건 다름"
+            out = self.hold_handover(case_id, {"reason": reason})
+            result = {**out, "result": HANDOVER_HOLD, "checks": dict(payload),
+                      "next": "물건을 원래 보관 칸에 다시 넣고 '보관함으로 되돌림'을 누르세요"}
+        try:
+            self.reporter.progress(case_id, "교차 검증", f"물건 {result['item_id']} · {summary}")
+        except Exception:
+            pass
+        return result
+
+    def restock(self, case_id: str, payload: object) -> dict:
+        """반환 보류된 물건을 원래 보관 칸에 다시 넣었다 → 본센터 보관(직원). 본문 {"staff_confirmed": true}"""
+        if not isinstance(payload, dict) or set(payload) != {"staff_confirmed"} or payload["staff_confirmed"] is not True:
+            raise RequestError('본문은 {"staff_confirmed": true} 만 보냅니다(원래 칸에 넣은 뒤)')
+        be, item_id, status = self._waiting_item(case_id)
+        if status != HANDOVER_HOLD:
+            raise Conflict("state", f"반환 보류 상태가 아님(지금 {status})")
+        r = be.db_set_status(item_id, "본센터 보관", changed_by="staff")
+        if not (r or {}).get("ok"):
+            raise Unavailable(f"상태 기록 실패: {(r or {}).get('reason', '')}")
+        slot = None
+        try:
+            slot = next(({"slot_id": s["slot_id"], "pose_name": s["pose_name"]}
+                         for sec in self.storage.layout()["sections"] for s in sec["slots"]
+                         if s.get("item") and s["item"]["item_id"] == item_id), None)
+        except Exception:
+            pass
+        try:
+            self.reporter.progress(case_id, "보관함 복귀", f"물건 {item_id} · {slot['slot_id'] if slot else '칸 정보 없음'}")
+        except Exception:
+            pass
+        return {"case_id": case_id, "item_id": item_id, "status": "본센터 보관", "slot": slot}
+
+    def item_photo(self, item_id: str):
+        """등록 사진 파일(Path) 또는 None. 사진 폴더 밖 경로는 거부"""
+        from agents.intake import photo_root
+        from pathlib import Path
+        fn = getattr(self.intake, "photo_path", None)
+        try:
+            rel = fn(item_id) if callable(fn) else None
+        except Exception:
+            rel = None
+        if not rel:
+            return None
+        root = Path(self.photo_dir) if self.photo_dir else photo_root()
+        path = (root / rel).resolve()
+        if root.resolve() not in path.parents or not path.is_file():
+            return None
+        return path
 
     # ---------- 로봇 상태(11/5, docs/contracts/robot_api.md) ----------
     def robot_state(self) -> dict:
