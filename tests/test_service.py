@@ -611,6 +611,26 @@ class HandoverTest(unittest.TestCase):
             svc.intake.items[out["item_id"]]["photo_path"] = "../../etc/passwd"
             self.assertIsNone(svc.item_photo(out["item_id"]))
 
+    def test_return_logs_storage_slot(self):
+        """11/6: 반환을 시작하면 보관 칸·저장 자세(또는 기록 없음)를 관제 기록에 남김"""
+        self.svc.start_return(ok_payload(case="S1"))
+        self.assertTrue(any("보관 칸 기록 없음" in m.get("body", "") + m.get("title", "") for m in self.rep.messages))
+        self.svc.handover("S1", {"staff_confirmed": True})
+        self.svc.backend_factory().db_set_status("A-W02", "본센터 보관")
+        self.svc.storage.assign("A-W02", "R4-1"); self.svc.storage.set_pose("R4-1", "pose_7")
+        self.svc.start_return(ok_payload(case="S2", item="A-W02"))
+        self.assertTrue(any("R4-1" in str(m) and "pose_7" in str(m) for m in self.rep.messages))
+
+    def test_item_not_arrived_is_refused_without_side_effects(self):
+        """11/6 시뮬레이션 허점: 역 상자 안(등록기계 보관) 물건을 찾으러 오면 로봇·상태를 건드리지 않고 409"""
+        be = self.svc.backend_factory()
+        be.db_set_status("A-W03", "등록기계 보관")
+        with self.assertRaises(Conflict) as cm:
+            self.svc.start_return(ok_payload(case="N1", item="A-W03"))
+        self.assertEqual(cm.exception.kind, "not_arrived")
+        self.assertEqual(self.status("A-W03"), "등록기계 보관")
+        self.assertFalse(self.svc.recorder.has("N1"))
+
     def test_arrivals_recommend_and_place(self):
         """11/6 본센터 도착 처리: 역 키오스크 접수(등록기계 보관) → 도착 목록(역/본센터 구분·추천 칸) → 넣기 → 본센터 보관"""
         st = self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "대합실"})["item_id"]
