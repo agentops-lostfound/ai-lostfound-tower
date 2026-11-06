@@ -15,7 +15,7 @@ header{display:flex;justify-content:space-between;align-items:center;font-size:2
 .prog{display:flex;gap:8px}
 .prog i{width:56px;height:10px;border-radius:5px;background:var(--line)}
 .prog i.on{background:var(--accent)}
-section{flex:1;display:none;flex-direction:column;justify-content:center;gap:24px;min-height:0}
+section{flex:1;display:none;flex-direction:column;justify-content:safe center;gap:24px;min-height:0;overflow:auto}   /* 11/6: 창이 낮으면 위로 넘치지 않고 스크롤 */
 section.on{display:flex}
 h1{font-size:46px;line-height:1.25;margin:0;font-weight:900;letter-spacing:-.02em}
 p{margin:0}

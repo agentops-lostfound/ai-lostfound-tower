@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>본센터 보관함</title>
+<!-- 본센터 보관 화면(11/6, LF-8) — 관제탑이 /storage-desk 로 열고 관리자 화면 '보관함' 탭에 들어간다.
+     흐름: 회수해 온 물건(도착 대기) 고르기 → 추천 칸 확인(또는 다른 칸 고르기) → 실제로 넣은 뒤 "넣었음" → 본센터 보관 + 칸 기록
+     개인정보: 물건 번호·품목·공개 특징·등록 사진만. 연락처·비공개 특징은 보이지 않음 -->
+<style>
+  :root { --bg:#f5f6f4; --panel:#fff; --fg:#1d2420; --muted:#5d6a63; --line:#d9ded9; --accent:#1f6f50; --accent-fg:#fff;
+          --ok:#1f7a46; --bad:#b3261e; --warn:#8a5a00; --chip:#eef2ef; --slot:#e3f1e8; --pick:#ffe9a8; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121614; --panel:#1b201d; --fg:#e6ebe7; --muted:#9aa69f;
+          --line:#2e3631; --accent:#5cc095; --accent-fg:#0f1411; --ok:#6fd39a; --bad:#ff8a80; --warn:#e2b04a; --chip:#232a26;
+          --slot:#1f3a2b; --pick:#5a4a12; color-scheme: dark; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 "Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+         padding:16px max(16px, env(safe-area-inset-left, 0px)) 32px max(16px, env(safe-area-inset-right, 0px)); }
+  main { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:16px; align-items:start; }
+  @media (max-width:860px) { main { grid-template-columns:1fr; } }
+  header { grid-column:1/-1; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:8px; }
+  h1 { font-size:1.3rem; margin:0; } h2 { font-size:1rem; margin:0 0 10px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
+  .muted { color:var(--muted); font-size:.88rem; }
+  button { font:inherit; padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:var(--chip); color:var(--fg); cursor:pointer; }
+  button.primary { background:var(--accent); color:var(--accent-fg); border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .item { display:grid; grid-template-columns:72px minmax(0,1fr); gap:10px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; cursor:pointer; }
+  .item.on { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; }
+  .thumb { width:72px; height:56px; border-radius:6px; background:var(--chip); object-fit:cover; display:grid; place-items:center; font-size:.75rem; color:var(--muted); }
+  .tag { display:inline-block; padding:0 6px; border-radius:6px; background:var(--chip); font-size:.8rem; margin-right:4px; }
+  .tag.warn { color:var(--warn); } .tag.ok { color:var(--ok); }
+  #arrivals h3 { font-size:.85rem; margin:10px 0 6px; }
+  .boardwrap { display:grid; grid-template-columns:minmax(0,1fr) 120px; gap:12px; align-items:center; }
+  .board { display:grid; gap:6px; padding:10px; border-radius:10px; background:var(--chip); border-left:6px solid var(--muted); }
+  .row { display:grid; grid-template-columns:70px 1fr 1fr; gap:6px; align-items:stretch; }
+  .row.r1 { margin-bottom:14px; }            /* 실제 판: 1행(모형폰)은 2행과 간격이 넓다 */
+  .rlabel { font-size:.8rem; color:var(--muted); align-self:center; }
+  .slot { min-height:64px; border-radius:8px; border:2px dashed var(--line); background:var(--panel); padding:6px; font-size:.82rem;
+          text-align:left; display:grid; gap:2px; }
+  .slot.full { border-style:solid; background:var(--slot); }
+  .slot.pick { border-color:var(--warn); background:var(--pick); }
+  .slot.rec { border-color:var(--accent); }
+  .slot b { font-size:.85rem; }
+  .handover { min-height:120px; }
+  .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; }
+  .msg { font-weight:600; } .msg.bad { color:var(--bad); } .msg.ok { color:var(--ok); }
+  details summary { cursor:pointer; color:var(--muted); }
+  input[type=text] { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); width:120px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>본센터 보관함 · 도착 물건 넣기</h1>
+    <span class="muted" id="sum">불러오는 중…</span>
+  </header>
+
+  <section aria-labelledby="h-arr">
+    <h2 id="h-arr">1. 도착 대기 (칸이 정해지지 않은 물건)</h2>
+    <p class="muted">회수해 온 물건을 고르면 품목에 맞는 빈 칸을 추천합니다. 품목을 모르면 사진을 보고 칸을 직접 고르세요.</p>
+    <div id="arrivals"><p class="muted">불러오는 중…</p></div>
+  </section>
+
+  <section aria-labelledby="h-board">
+    <h2 id="h-board">2. 보관판 (위에서 본 모습)</h2>
+    <div class="boardwrap">
+      <div class="board" id="board"></div>
+      <div id="hbox"></div>
+    </div>
+    <p class="muted">왼쪽 굵은 선 = 로봇팔 쪽 · 1행 모형폰은 사선으로, 칸 간격이 넓음 · 노란 바구니는 가림막(칸 아님)</p>
+    <div class="actions">
+      <span id="pickInfo" class="muted">물건을 먼저 고르세요</span>
+    </div>
+    <div class="actions">
+      <button id="place" class="primary" disabled>이 칸에 넣었음</button>
+      <label class="muted" id="ovWrap" hidden><input type="checkbox" id="override"> 품목이 다른 행이지만 넣음</label>
+      <span class="msg" id="msg" role="status" aria-live="polite"></span>
+    </div>
+    <details>
+      <summary>칸 관리(비우기·저장 자세) — 로봇 티칭 담당용</summary>
+      <p class="muted">칸을 누르면 아래에서 그 칸을 비우거나 저장 자세 이름(예: pose_1)을 연결합니다.</p>
+      <div class="actions"><b id="mgSlot">칸 없음</b><input type="text" id="pose" placeholder="pose_1" aria-label="저장 자세 이름">
+        <button id="savePose" disabled>자세 저장</button><button id="release" disabled>칸 비우기</button><span class="msg" id="mgMsg"></span></div>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var arrivals = [], layout = null, pickItem = null, pickSlot = null, mgSlot = null, busy = false;
+  function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
+  async function api(method, path, body) {
+    var res = await fetch(path, { method: method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+    var data = null; try { data = await res.json(); } catch (e) {}
+    if (res.status === 401) (window.top || window).location = "/admin";
+    return { status: res.status, data: data };
+  }
+  function detail(r) { var d = r.data && r.data.detail; if (!d) return "오류 " + r.status; return typeof d === "string" ? d : (d.message || JSON.stringify(d)); }
+  var STATION = { "KIOSK-A": "해운대", "KIOSK-C": "서면", "CENTER": "부산역 본센터" };
+
+  function slotOf(id) {
+    if (!layout) return null;
+    for (var i = 0; i < layout.sections.length; i++) for (var j = 0; j < layout.sections[i].slots.length; j++)
+      if (layout.sections[i].slots[j].slot_id === id) return { sec: layout.sections[i], slot: layout.sections[i].slots[j] };
+    return null;
+  }
+  function renderArrivals() {
+    var box = $("arrivals"); box.textContent = "";
+    if (!arrivals.length) { box.appendChild(el("p", "도착 대기 물건이 없습니다", "muted")); return; }
+    var lastWhere = null;
+    arrivals.forEach(function (a) {
+      if (a.where !== lastWhere) {                      // 본센터에 있는 물건 / 아직 역 키오스크 상자 안
+        lastWhere = a.where;
+        box.appendChild(el("h3", a.where === "center" ? "본센터에 있음 — 바로 넣기" : "역 키오스크 상자 안 — 회수해 온 뒤 넣기", "muted"));
+      }
+      var row = el("div", undefined, "item" + (pickItem && pickItem.item_id === a.item_id ? " on" : ""));
+      row.tabIndex = 0;
+      var t;
+      if (a.has_photo) { t = el("img", undefined, "thumb"); t.alt = "등록 사진"; t.src = "/api/admin/items/" + encodeURIComponent(a.item_id) + "/photo"; }
+      else t = el("div", "사진 없음", "thumb");
+      var info = el("div");
+      info.appendChild(el("b", a.item_id));
+      var line = el("div");
+      line.appendChild(el("span", a.category && a.category !== "확인 불가" ? a.category : "품목 미확인", "tag" + (a.category && a.category !== "확인 불가" ? "" : " warn")));
+      line.appendChild(el("span", a.status === "등록기계 보관" ? (a.where === "center" ? "본센터 접수" : "역에 보관 중") : a.status, "tag"));
+      line.appendChild(el("span", STATION[a.machine_id] || a.machine_id || "", "tag"));
+      info.appendChild(line);
+      var pub = a.public || {}; var txt = Object.keys(pub).map(function (k) { return pub[k]; }).join(" · ");
+      info.appendChild(el("div", (txt ? txt + " · " : "") + (a.recommended ? "추천 " + a.recommended.slot_id + (a.recommended.other_row ? "(다른 행)" : "") : "추천 칸 없음"), "muted"));
+      row.appendChild(t); row.appendChild(info);
+      function choose() { pickItem = a; pickSlot = a.recommended ? a.recommended.slot_id : null; $("msg").textContent = ""; render(); }
+      row.addEventListener("click", choose);
+      row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(); } });
+      box.appendChild(row);
+    });
+  }
+  function slotButton(sec, s) {
+    var b = el("button", undefined, "slot" + (s.item ? " full" : "") + (pickSlot === s.slot_id ? " pick" : "") +
+               (pickItem && pickItem.recommended && pickItem.recommended.slot_id === s.slot_id ? " rec" : "") + (sec.kind === "handover" ? " handover" : ""));
+    b.type = "button";
+    b.appendChild(el("b", s.slot_id + (s.pose_name ? " · " + s.pose_name : " · 자세 없음")));
+    b.appendChild(el("span", s.item ? s.item.item_id + " · " + (s.item.category || "") + " · " + s.item.status : (sec.kind === "handover" ? "제출보관함" : "빈 칸")));
+    if (s.note) b.appendChild(el("span", s.note, "muted"));
+    b.addEventListener("click", function () {
+      mgSlot = s; $("mgSlot").textContent = s.slot_id; $("pose").value = s.pose_name || "";
+      $("savePose").disabled = false; $("release").disabled = !s.item; $("mgMsg").textContent = "";
+      if (sec.kind === "shelf" && !s.item && pickItem) { pickSlot = s.slot_id; $("msg").textContent = ""; }
+      render();
+    });
+    return b;
+  }
+  function renderBoard() {
+    var board = $("board"), hbox = $("hbox"); board.textContent = ""; hbox.textContent = "";
+    if (!layout) return;
+    layout.sections.forEach(function (sec) {
+      if (sec.kind === "handover") { sec.slots.forEach(function (s) { hbox.appendChild(slotButton(sec, s)); }); return; }
+      var row = el("div", undefined, "row" + (sec.code === "R1" ? " r1" : ""));
+      row.appendChild(el("span", sec.label, "rlabel"));
+      sec.slots.forEach(function (s) { row.appendChild(slotButton(sec, s)); });
+      board.appendChild(row);
+    });
+    var sm = layout.summary;
+    $("sum").textContent = "보관 칸 " + sm.shelf_slots + " · 사용 " + sm.used + " · 빈 칸 " + sm.free + " · 자세 없는 칸 " + sm.slots_without_pose + " · 도착 대기 " + arrivals.length;
+  }
+  function renderPick() {
+    var known = pickItem && pickItem.category && pickItem.category !== "확인 불가";
+    var target = pickSlot && slotOf(pickSlot);
+    var mismatch = !!(target && known && target.sec.allowed_categories.length && target.sec.allowed_categories.indexOf(pickItem.category) < 0);
+    $("ovWrap").hidden = !mismatch; if (!mismatch) $("override").checked = false;
+    $("pickInfo").textContent = !pickItem ? "물건을 먼저 고르세요" : !pickSlot ? pickItem.item_id + " — 빈 칸을 눌러 고르세요" :
+      pickItem.item_id + " → " + pickSlot + (known ? "" : " (품목 미확인: 사진을 보고 고른 칸)") + (mismatch ? " · 이 행의 품목이 아님" : "");
+    $("place").disabled = busy || !pickItem || !pickSlot || (mismatch && !$("override").checked);
+  }
+  function render() { renderArrivals(); renderBoard(); renderPick(); }
+  $("override").addEventListener("change", renderPick);
+
+  async function load() {
+    var a = await api("GET", "/api/admin/storage/arrivals?limit=100"), l = await api("GET", "/api/admin/storage");
+    if (a.status !== 200 || l.status !== 200) { $("sum").textContent = "불러오지 못함: " + detail(a.status !== 200 ? a : l); return; }
+    arrivals = a.data; layout = l.data;
+    if (pickItem) {                                     // 다시 불러와도 고른 물건 유지(이미 넣었으면 해제)
+      pickItem = arrivals.find(function (x) { return x.item_id === pickItem.item_id; }) || null;
+      if (!pickItem) pickSlot = null;
+      else if (pickSlot) { var t = slotOf(pickSlot); if (!t || t.slot.item) pickSlot = pickItem.recommended ? pickItem.recommended.slot_id : null; }
+    }
+    render();
+  }
+  $("place").addEventListener("click", async function () {
+    if (!pickItem || !pickSlot || busy) return;
+    busy = true; renderPick(); $("msg").className = "msg"; $("msg").textContent = "저장 중…";
+    var known = pickItem.category && pickItem.category !== "확인 불가";
+    var r = await api("POST", "/api/admin/storage/arrivals/" + encodeURIComponent(pickItem.item_id) + "/place",
+                      { slot_id: pickSlot, override_category: !known || $("override").checked });
+    busy = false;
+    if (r.status === 200) { $("msg").className = "msg ok"; $("msg").textContent = "✅ " + r.data.item_id + " → " + r.data.slot_id + " 기록함(본센터 보관)"; pickItem = null; pickSlot = null; }
+    else { $("msg").className = "msg bad"; $("msg").textContent = "저장 안 됨: " + detail(r); }
+    load();
+  });
+  $("savePose").addEventListener("click", async function () {
+    if (!mgSlot) return;
+    var r = await api("POST", "/api/admin/storage/slots/" + encodeURIComponent(mgSlot.slot_id) + "/pose", { pose_name: $("pose").value.trim() || null });
+    $("mgMsg").className = "msg " + (r.status === 200 ? "ok" : "bad");
+    $("mgMsg").textContent = r.status === 200 ? "저장함" : "저장 안 됨: " + detail(r); load();
+  });
+  $("release").addEventListener("click", async function () {
+    if (!mgSlot || !mgSlot.item) return;
+    var r = await api("POST", "/api/admin/storage/release", { slot_id: mgSlot.slot_id });
+    $("mgMsg").className = "msg " + (r.status === 200 ? "ok" : "bad");
+    $("mgMsg").textContent = r.status === 200 ? mgSlot.slot_id + " 비움(물건은 도착 대기로 돌아감)" : "저장 안 됨: " + detail(r);
+    mgSlot = null; $("release").disabled = true; load();
+  });
+  load(); setInterval(function () { if (!document.hidden && !busy) load(); }, 5000);
+})();
+</script>
+</body>
+</html>
