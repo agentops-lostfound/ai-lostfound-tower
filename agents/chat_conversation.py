@@ -12,7 +12,9 @@ TOPIC_LABELS = {'consent': '본인인증', 'pickup': '수령 절차', 'masked_id
                 # 11/6 시연 운영 기준 주제 — 이어 묻기("그건?")가 같은 주제로 이어지게, 각 이름은 agents/guidance.py 감지 규칙에 걸리는 말
                 'hours': '운영시간', 'retention': '보관 기간', 'proxy_pickup': '대리수령', 'delivery': '택배 수령',
                 'fee': '수령 비용', 'id_document': '신분증 없을 때', 'reservation_change': '예약 취소',
-                'center_contact': '센터 주소', 'privacy_policy': '개인정보처리 방침'}
+                'center_contact': '센터 주소', 'privacy_policy': '개인정보처리 방침',
+                # 11/6 자동 촬영·도착 시간
+                'placement_guide': '물건 놓는 법', 'arrival': '본센터 도착 언제'}
 
 
 def is_referential(q):
