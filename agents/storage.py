@@ -28,6 +28,7 @@ from agents.contracts import ITEM_ID_RE
 
 # 김건태 run_storage_check.ON_SHELF 와 같음: 이 상태일 때만 보관함 위에 있다고 본다
 ON_SHELF = ("본센터 보관", "확인 중", "승인·수령 예약")
+ARRIVING = ("등록기계 보관", "회수 중")   # 11/6 본센터 도착 처리(place)로 칸에 넣으면서 '본센터 보관'으로 바꿀 수 있는 상태
 RELEASE_STATUSES = ("인계 완료",)   # 11/6: 인계 대기 중에는 칸 예약 유지(교차 검증이 틀리면 원래 칸으로), 011 마이그레이션
 CHECK_STATUSES = ("count_match", "count_mismatch", "verification_unavailable", "resolution_mismatch",
                   "invalid_calibration", "section_out_of_frame", "match_held")
@@ -59,6 +60,8 @@ class StorageConflict(Exception):
 class StorageStore(Protocol):
     def layout(self) -> dict: ...
     def assign(self, item_id: str, slot_id: str, override_category: bool = False, by: str = "staff") -> dict: ...
+    def place(self, item_id: str, slot_id: str, override_category: bool = False) -> dict: ...
+    def unplaced(self, limit: int = 50) -> list[dict]: ...
     def release(self, item_id: str | None = None, slot_id: str | None = None) -> dict: ...
     def set_pose(self, slot_id: str, pose_name: str | None) -> dict: ...
     def record_check(self, check: dict) -> dict: ...
@@ -140,12 +143,31 @@ def _category_ok(section: dict, category: str | None, override: bool) -> None:
                            "그래도 넣으려면 override_category: true")
 
 
+def recommend_slot(layout: dict, category: str | None) -> dict | None:
+    """품목에 맞는 빈 칸 추천(11/6): 그 품목을 받는 행의 빈 칸 → 없으면 품목 제한 없는 행 → 없으면 아무 빈 보관 칸(other_row).
+    품목을 모르면(None·확인 불가) 추천하지 않는다(직원이 사진을 보고 고름)"""
+    shelves = [s for s in layout["sections"] if s["kind"] == "shelf"]
+    free = [(s, slot) for s in shelves for slot in s["slots"] if slot.get("item") is None]
+    if not free or not category or category == "확인 불가":
+        return None
+    for want in (lambda s: category in s["allowed_categories"], lambda s: not s["allowed_categories"], lambda s: True):
+        for s, slot in free:
+            if want(s):
+                return {"slot_id": slot["slot_id"], "section": s["code"], "label": s["label"],
+                        "pose_name": slot.get("pose_name"), "other_row": category not in s["allowed_categories"]}
+    return None
+
+
 class MemoryStorageStore:
     """프로그램이 켜져 있는 동안만 기억(시연·시험용). item_lookup(item_id) → {"status", "category"} | None"""
 
-    def __init__(self, item_lookup: Callable[[str], dict | None] | None = None, layout=None):
+    def __init__(self, item_lookup: Callable[[str], dict | None] | None = None, layout=None,
+                 item_source: Callable[[], list[dict]] | None = None,
+                 status_setter: Callable[[str, str], bool] | None = None):
         self._lock = threading.Lock()
         self._lookup = item_lookup
+        self._source = item_source        # 11/6 도착 목록용: [{"item_id","status","category",...}]
+        self._set_status = status_setter  # 11/6 도착 처리: (item_id, status) → 성공 여부
         self._sections: list[dict] = []
         for code, label, kind, allowed, n, note in (layout or LAYOUT):
             self._sections.append({"code": code, "label": label, "kind": kind, "allowed_categories": list(allowed),
@@ -190,26 +212,45 @@ class MemoryStorageStore:
             sections = copy.deepcopy(self._sections)
         return _layout_view(sections, rows)
 
-    def assign(self, item_id: str, slot_id: str, override_category: bool = False, by: str = "staff") -> dict:
+    def assign(self, item_id: str, slot_id: str, override_category: bool = False, by: str = "staff",
+               arrive: bool = False) -> dict:
         check_item_id(item_id)
         check_slot_id(slot_id)
         with self._lock:
             self._rows()                          # 바구니로 나간 물건의 칸을 먼저 비움(트리거 대신)
             section, slot = self._slot(slot_id)
             item = self._item(item_id)
-            if item.get("status") not in ON_SHELF:
+            arriving = arrive and item.get("status") in ARRIVING
+            if not arriving and item.get("status") not in ON_SHELF:
                 raise StorageConflict(f"{item_id} 은 '{item.get('status')}' 상태라 보관함에 넣을 수 없습니다"
                                       f"({'·'.join(ON_SHELF)}만)")
             _category_ok(section, item.get("category"), override_category)
             current = self._assign.get(slot_id)
             if current and current["item_id"] != item_id:
                 raise StorageConflict(f"{slot_id} 에는 이미 {current['item_id']} 이 있습니다(먼저 비우기)")
+            if arriving:                           # 검사를 다 통과한 뒤에만 상태를 바꾼다
+                if self._set_status is None or not self._set_status(item_id, "본센터 보관"):
+                    raise StorageConflict(f"{item_id} 상태를 '본센터 보관'으로 바꾸지 못함 — 칸에 넣지 않음")
             for sid, a in list(self._assign.items()):
                 if a["item_id"] == item_id and sid != slot_id:
                     del self._assign[sid]      # 다른 칸에서 옮겨 옴
             self._assign[slot_id] = {"item_id": item_id, "assigned_at": _now(), "assigned_by": by}
             return {"ok": True, "item_id": item_id, "slot_id": slot_id, "section": section["code"],
                     "slot": str(slot["slot_no"]), "pose_name": slot["pose_name"]}
+
+    def place(self, item_id: str, slot_id: str, override_category: bool = False) -> dict:
+        """본센터 도착 처리(11/6): 직원이 칸에 넣음 → (등록기계 보관·회수 중이면) 본센터 보관 + 칸 기록"""
+        return {**self.assign(item_id, slot_id, override_category, by="staff", arrive=True), "status": "본센터 보관"}
+
+    def unplaced(self, limit: int = 50) -> list[dict]:
+        """칸이 정해지지 않은 물건(등록기계 보관·회수 중·본센터 보관), 오래된 접수부터"""
+        if self._source is None:
+            return []
+        with self._lock:
+            placed = {a["item_id"] for a in self._assign.values()}
+        rows = [r for r in self._source() if r.get("status") in ARRIVING + ("본센터 보관",) and r["item_id"] not in placed]
+        rows.sort(key=lambda r: (str(r.get("received_at") or ""), r["item_id"]))
+        return rows[:max(1, min(int(limit), 200))]
 
     def release(self, item_id: str | None = None, slot_id: str | None = None) -> dict:
         if (item_id is None) == (slot_id is None):
@@ -313,6 +354,12 @@ SQL_CHECK = ("INSERT INTO inventory_check (section_code, item_id, expected_count
 SQL_CHECKS = ("SELECT id, section_code, item_id, expected_count, detected_count, status, at FROM inventory_check "
               "ORDER BY id DESC LIMIT %s")
 SQL_SECTION_EXISTS = "SELECT 1 FROM storage_section WHERE section_code = %s"
+SQL_ARRIVE = "UPDATE item SET status = '본센터 보관', updated_at = now() WHERE item_id = %s"
+SQL_ARRIVE_LOG = ("INSERT INTO item_status_log (item_id, from_status, to_status, changed_by) "
+                  "VALUES (%s, %s, '본센터 보관', 'staff')")
+SQL_UNPLACED = ("SELECT i.item_id, i.status, i.category, i.machine_id, i.received_at, i.features FROM item i "
+                "WHERE i.status = ANY(%s) AND NOT EXISTS (SELECT 1 FROM storage_assignment a WHERE a.item_id = i.item_id) "
+                "ORDER BY i.received_at, i.item_id LIMIT %s")
 
 
 def _iso(v) -> str | None:
@@ -358,7 +405,8 @@ class PostgresStorageStore:
             sections, rows = self._read(cur)
         return build_export(sections, rows)
 
-    def assign(self, item_id: str, slot_id: str, override_category: bool = False, by: str = "staff") -> dict:
+    def assign(self, item_id: str, slot_id: str, override_category: bool = False, by: str = "staff",
+               arrive: bool = False) -> dict:
         check_item_id(item_id)
         check_slot_id(slot_id)
         with self._connect(self._dsn) as conn, conn.cursor() as cur:
@@ -372,7 +420,8 @@ class PostgresStorageStore:
             if item is None:
                 raise StorageError(f"없는 물건: {item_id}", not_found=True)
             status, category = item
-            if status not in ON_SHELF:
+            arriving = arrive and status in ARRIVING
+            if not arriving and status not in ON_SHELF:
                 raise StorageConflict(f"{item_id} 은 '{status}' 상태라 보관함에 넣을 수 없습니다({'·'.join(ON_SHELF)}만)")
             _category_ok({"code": code, "kind": kind, "allowed_categories": list(allowed or [])}, category,
                          override_category)
@@ -380,6 +429,9 @@ class PostgresStorageStore:
             cur_row = cur.fetchone()
             if cur_row and cur_row[0] != item_id:
                 raise StorageConflict(f"{slot_id} 에는 이미 {cur_row[0]} 이 있습니다(먼저 비우기)")
+            if arriving:                           # 같은 거래 안에서 상태·기록·칸을 함께(하나라도 실패하면 모두 취소)
+                cur.execute(SQL_ARRIVE, (item_id,))
+                cur.execute(SQL_ARRIVE_LOG, (item_id, status))
             cur.execute(SQL_MOVE_OUT, (item_id, slot_id))
             if not cur_row:
                 cur.execute(SQL_ASSIGN, (slot_id, item_id, by))
@@ -387,6 +439,16 @@ class PostgresStorageStore:
                     raise StorageConflict(f"{slot_id} 에 방금 다른 물건이 들어갔습니다(새로고침)")
         return {"ok": True, "item_id": item_id, "slot_id": slot_id, "section": code, "slot": str(no),
                 "pose_name": pose}
+
+    def place(self, item_id: str, slot_id: str, override_category: bool = False) -> dict:
+        """본센터 도착 처리(11/6): 등록기계 보관·회수 중 → 본센터 보관 + 칸 기록을 거래 하나로"""
+        return {**self.assign(item_id, slot_id, override_category, by="staff", arrive=True), "status": "본센터 보관"}
+
+    def unplaced(self, limit: int = 50) -> list[dict]:
+        with self._connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(SQL_UNPLACED, (list(ARRIVING) + ["본센터 보관"], max(1, min(int(limit), 200))))
+            return [{"item_id": i, "status": st, "category": cat, "machine_id": m, "received_at": _iso(at),
+                     "features": f or {}} for i, st, cat, m, at, f in cur.fetchall()]
 
     def release(self, item_id: str | None = None, slot_id: str | None = None) -> dict:
         if (item_id is None) == (slot_id is None):

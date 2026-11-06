@@ -160,8 +160,40 @@ class TowerService:
         self._kiosk_fails: dict[str, int] = {}     # 키오스크 회수에서 신분 번호를 틀린 횟수(찾기 번호별)
         if storage is None:                        # 11/6 보관함 정답지(agents/storage.py). DB 모드면 PostgresStorageStore
             from agents.storage import MemoryStorageStore
-            storage = MemoryStorageStore(item_lookup=self._storage_item)
+            storage = MemoryStorageStore(item_lookup=self._storage_item, item_source=self._storage_items,
+                                         status_setter=self._storage_set_status)
         self.storage = storage
+
+    def _storage_items(self) -> list[dict]:
+        """메모리 보관함 도착 목록용: 등록기계 접수 기록 + 시연 부품(가짜 보관함)의 물건"""
+        rows = []
+        for iid, it in list(getattr(self.intake, "items", {}).items()):
+            rows.append({"item_id": iid, "status": it.get("status"), "category": it.get("category"),
+                         "machine_id": it.get("machine_id"), "received_at": it.get("received_at"),
+                         "features": it.get("features") or {}})
+        try:
+            demo = getattr(getattr(self.backend_factory(), "fallback", None), "db", None) or {}
+        except Exception:
+            demo = {}
+        for iid, it in demo.items():
+            if not any(r["item_id"] == iid for r in rows):
+                feats = it.get("features") or {}
+                rows.append({"item_id": iid, "status": it.get("status"), "category": it.get("category") or feats.get("category"),
+                             "machine_id": "KIOSK-A", "received_at": "", "features": feats})
+        return rows
+
+    def _storage_set_status(self, item_id: str, status: str) -> bool:
+        """메모리 보관함 도착 처리용 상태 변경: 부품 DB → 등록기계 접수 기록"""
+        try:
+            if (self.backend_factory().db_set_status(item_id, status, changed_by="staff") or {}).get("ok"):
+                return True
+        except Exception:
+            pass
+        it = getattr(self.intake, "items", {}).get(item_id)
+        if it is None:
+            return False
+        it["status"] = status
+        return True
 
     def _storage_item(self, item_id: str) -> dict | None:
         """메모리 보관함용 물건 조회: 부품(DB·가짜 보관함) → 등록기계 접수 기록 순서로 찾는다"""
@@ -440,6 +472,55 @@ class TowerService:
             pass
         return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_HOLD, "reason": payload["reason"]}
 
+    # ---------- 본센터 도착·보관(11/6, docs/design/storage_slots.md 7장) ----------
+    def storage_arrivals(self, limit: int = 50) -> list[dict]:
+        """직원 보관 화면: 칸이 정해지지 않은 물건 + 품목에 맞는 추천 칸. 공개 특징만(비공개 특징·연락처 없음)"""
+        from agents.storage import recommend_slot
+        try:
+            rows = self.storage.unplaced(limit)
+            layout = self.storage.layout()
+        except Exception as e:
+            raise Unavailable(f"보관함 DB 사용 불가({type(e).__name__})") from e
+        out = []
+        for r in rows:
+            feats = r.get("features") or {}
+            cat = r.get("category") or feats.get("category")
+            rec = recommend_slot(layout, cat)
+            # where: center = 본센터에 있음(본센터 접수·회수 중·본센터 보관) / station = 아직 역 키오스크 상자 안(회수해 와야 넣을 수 있음)
+            where = "station" if r.get("status") == "등록기계 보관" and r.get("machine_id") != "CENTER" else "center"
+            out.append({"item_id": r["item_id"], "status": r.get("status"), "category": cat, "where": where,
+                        "machine_id": r.get("machine_id"), "received_at": r.get("received_at"),
+                        "public": {k: feats[k] for k in ("color", "shape", "material") if feats.get(k)},
+                        "has_photo": self.item_photo(r["item_id"]) is not None, "recommended": rec})
+            if rec:   # 같은 목록 안에서 같은 칸을 두 번 추천하지 않게
+                for sec in layout["sections"]:
+                    for slot in sec["slots"]:
+                        if slot["slot_id"] == rec["slot_id"]:
+                            slot["item"] = {"item_id": r["item_id"]}
+        out.sort(key=lambda a: a["where"] != "center")      # 본센터에 있는 물건 먼저(접수 순서는 유지)
+        return out
+
+    def place_item(self, item_id: str, payload: object) -> dict:
+        """직원이 물건을 칸에 넣었다 → 본센터 보관 + 칸 기록. 본문 {"slot_id": "R4-1", "override_category": false}"""
+        from agents.storage import StorageConflict, StorageError
+        if not isinstance(payload, dict) or not set(payload) <= {"slot_id", "override_category"} or "slot_id" not in payload:
+            raise RequestError('본문은 {"slot_id": "R4-1", "override_category": false} 만 보냅니다')
+        if "override_category" in payload and not isinstance(payload["override_category"], bool):
+            raise RequestError("override_category: true/false")
+        try:
+            out = self.storage.place(item_id, payload["slot_id"], payload.get("override_category") is True)
+        except StorageError as e:
+            raise (NotFound(str(e)) if e.not_found else RequestError(str(e))) from e
+        except StorageConflict as e:
+            raise Conflict("state", str(e)) from e
+        except Exception as e:
+            raise Unavailable(f"보관함 DB 사용 불가({type(e).__name__})") from e
+        try:
+            self.reporter.progress("STORAGE", "보관함 넣음", f"물건 {item_id} → {out['slot_id']}")
+        except Exception:
+            pass
+        return out
+
     # ---------- 인계 교차 검증(11/6, docs/design/handover_cross_check.md) ----------
     # 로봇이 제출보관함(H-1)에 둔 물건을 직원이 AI 판단과 독립적으로 3가지 확인한 뒤에만 건넨다.
     # 하나라도 틀리면 반환 보류 → 물건은 원래 보관 칸으로(칸 예약은 인계 완료 때만 풀림, 011 마이그레이션)
@@ -461,7 +542,13 @@ class TowerService:
                     claim = {"claim_id": c["claim_id"], "name_masked": c["name_masked"]} if c else None
                 except Exception:
                     claim = None
-            out.append({"case_id": row["case_id"], "item_id": row["item_id"], "claim": claim,
+            slot = None
+            try:
+                slot = next((s["slot_id"] for sec in self.storage.layout()["sections"] for s in sec["slots"]
+                             if s.get("item") and s["item"]["item_id"] == row["item_id"]), None)
+            except Exception:
+                pass
+            out.append({"case_id": row["case_id"], "item_id": row["item_id"], "claim": claim, "slot": slot,
                         "category": item.get("category") or feats.get("category"),
                         "public": {k: feats[k] for k in ("color", "shape", "material") if feats.get(k)},
                         "has_photo": self.item_photo(row["item_id"]) is not None})

@@ -276,14 +276,16 @@ class ApiRoutesTest(unittest.TestCase):
         new_api = [("GET", "/admin")] + [("GET", p) for p in ("/api/admin/claims/{claim_id}", "/api/admin/live/state", "/api/admin/me", "/api/admin/returns",
                                         "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places",
                                         "/api/admin/storage", "/api/admin/storage/export", "/api/admin/storage/checks",
-                                        "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo")] + \
+                                        "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo",
+                                        "/api/admin/storage/arrivals", "/storage-desk")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
                                          "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",
                                          "/api/kiosk/items/{item_id}/features", "/api/kiosk/returns", "/api/lost/claims", "/api/robot/stop",
                                          "/api/admin/storage/assign", "/api/admin/storage/release",   # 11/6 보관함 정답지
                                          "/api/admin/storage/slots/{slot_id}/pose", "/api/admin/storage/checks",
-                                         "/api/admin/returns/{case_id}/verify", "/api/admin/returns/{case_id}/restock")]   # 11/6 교차 검증   # 11/5 /api/ 주소 체계
+                                         "/api/admin/returns/{case_id}/verify", "/api/admin/returns/{case_id}/restock",
+                                         "/api/admin/storage/arrivals/{item_id}/place")]   # 11/6 교차 검증   # 11/5 /api/ 주소 체계
         self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/metrics"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
@@ -608,6 +610,32 @@ class HandoverTest(unittest.TestCase):
             self.assertTrue(p is not None and Path(d).resolve() in p.parents)
             svc.intake.items[out["item_id"]]["photo_path"] = "../../etc/passwd"
             self.assertIsNone(svc.item_photo(out["item_id"]))
+
+    def test_arrivals_recommend_and_place(self):
+        """11/6 본센터 도착 처리: 역 키오스크 접수(등록기계 보관) → 도착 목록(역/본센터 구분·추천 칸) → 넣기 → 본센터 보관"""
+        st = self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "대합실"})["item_id"]
+        ct = self.svc.create_item({"machine_id": "CENTER", "place_text": "대합실"})["item_id"]
+        self.svc.set_item_features(st, {"qwen": {"category": "wallet", "colors": ["black"]}, "confidence": 0.9})
+        arr = {a["item_id"]: a for a in self.svc.storage_arrivals()}
+        self.assertEqual((arr[st]["where"], arr[ct]["where"]), ("station", "center"))
+        self.assertEqual(arr[st]["category"], "지갑")
+        self.assertIsNone(arr[ct]["recommended"])                    # 품목 미확인 → 추천 안 함
+        order = list(arr)
+        self.assertLess(order.index(ct), order.index(st))            # 본센터에 있는 물건 먼저, 역 상자 안은 뒤
+        recs = [a["recommended"]["slot_id"] for a in arr.values() if a["recommended"]]
+        self.assertEqual(len(recs), len(set(recs)))                  # 같은 칸을 두 번 추천하지 않음
+        with self.assertRaises(RequestError):                        # 품목 미확인은 override 필요
+            self.svc.place_item(ct, {"slot_id": "R2-1"})
+        out = self.svc.place_item(ct, {"slot_id": "R2-1", "override_category": True})
+        self.assertEqual((out["slot_id"], self.svc.intake.items[ct]["status"]), ("R2-1", "본센터 보관"))
+        with self.assertRaises(Conflict):                            # 칸 하나에 물건 하나
+            self.svc.place_item(st, {"slot_id": "R2-1", "override_category": True})
+        for bad in ({}, {"slot_id": "R2-2", "x": 1}, {"slot_id": "R2-2", "override_category": "yes"}, None):
+            with self.assertRaises(RequestError, msg=repr(bad)):
+                self.svc.place_item(st, bad)
+        with self.assertRaises(NotFound):
+            self.svc.place_item("A-W99", {"slot_id": "R2-2"})
+        self.assertNotIn(ct, [a["item_id"] for a in self.svc.storage_arrivals()])
 
     def test_schema_and_migration_list_all_statuses(self):
         from agents.contracts import ITEM_STATUS

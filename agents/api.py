@@ -46,7 +46,8 @@ except ImportError:           # fastapi 없이 import 만 할 때
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 화면 = web/<이름>/index.html (11/5 정리, 화면 지도: web/README.md). 관제탑과 같은 주소에서 열려 API 를 바로 부른다
 WEB_DIR = os.path.join(ROOT, "web")
-PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live", "admin": "admin"}   # 주소 → 폴더
+PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live", "admin": "admin",
+         "storage": "storage-desk"}   # 주소 → 폴더
 LIVE_PAGE = os.path.join(WEB_DIR, "live", "index.html")     # 실시간 화면(보관함·로봇팔·진행)
 
 
@@ -321,6 +322,16 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
+    @app.get("/api/admin/storage/arrivals", dependencies=admin)
+    def storage_arrivals(limit: int = 50) -> list:
+        """본센터 도착 처리: 칸이 정해지지 않은 물건과 추천 칸(11/6)"""
+        return _case(lambda: svc.storage_arrivals(max(1, min(int(limit), 200))))
+
+    @app.post("/api/admin/storage/arrivals/{item_id}/place", dependencies=admin)
+    def storage_place(item_id: str, payload: dict = Body(...)) -> dict:
+        """직원이 칸에 넣었음 → 본센터 보관 + 칸 기록. 본문 {"slot_id": "R4-1", "override_category": false}"""
+        return _case(lambda: svc.place_item(item_id, payload))
+
     @app.get("/api/admin/handovers", dependencies=admin)
     def handover_queue(limit: int = 20) -> list:
         """제출보관함에서 직원 확인을 기다리는 반환(인계 대기) 목록"""
@@ -461,6 +472,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def admin_page():
         """관리자 관제 — web/admin/ (로그인 화면 + 관제 모니터링·직원 화면을 탭으로). 화면 자체는 열려 있고 데이터 API 가 잠긴다"""
         return _page("admin")
+
+    @app.get("/storage-desk", include_in_schema=False)
+    def storage_desk_page():
+        """본센터 보관 화면(11/6): 도착한 물건을 칸에 넣고 기록 — web/storage-desk/. 관리자 화면 '보관함' 탭"""
+        return _page("storage")
 
     @app.get("/staff", include_in_schema=False)
     def staff_page():
