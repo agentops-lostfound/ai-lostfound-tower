@@ -179,7 +179,11 @@ class BusanCenterTest(unittest.TestCase):
         self.assertEqual(set(DEMO_PLACES), {"KIOSK-A", "KIOSK-C", "CENTER"})
         sql = read("center/migrations/010_busan_center_1106.sql")
         self.assertIn("station = '부산' WHERE machine_id = 'CENTER'", sql)
-        self.assertEqual(re.findall(r"\('1호선', '부산', '([^']+)'\)", sql), DEMO_PLACES["CENTER"])
+        more = read("center/migrations/012_more_places_1106.sql")             # 11/6 역마다 12개
+        self.assertEqual(re.findall(r"\('1호선', '부산', '([^']+)'\)", sql) + re.findall(r"\('1호선', '부산', '([^']+)'\)", more),
+                         DEMO_PLACES["CENTER"])
+        for line, st, machine in (("2호선", "해운대", "KIOSK-A"), ("1호선", "서면", "KIOSK-C")):
+            self.assertEqual(re.findall(rf"\('{line}', '{st}', '([^']+)'\)", more), DEMO_PLACES[machine][6:])
         for rel in ("center/seed_demo.sql", "center/migrations/003_places_1103.sql", "agents/sim_world.py",
                     "web/kiosk/index.html", "web/live/index.html", "docs/guidance/service-guide.md"):
             self.assertNotIn("중앙역", read(rel), rel)
