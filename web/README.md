@@ -8,9 +8,9 @@
 ## 1. 화면 목록
 | 화면 | 주소(관제탑 `:8100` 또는 Docker `:8080`) | 폴더 | 화면 담당 | 부르는 API | 상태(11/5) |
 | --- | --- | --- | --- | --- | --- |
-| 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 김재민 | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 탭 2개(습득 신고 / 분실접수). 습득은 서버 연결됨, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수 탭은 `?machine=CENTER`(본센터)일 때만 보임 — `POST /api/kiosk/returns`(11/6, 관문 값은 서버가 정함) |
+| 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 김재민 | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 모든 역: 습득 신고 + 분실 확인, 본센터만 셀프 신분 확인·회수(11/5 정책, `docs/design/operating_flow_1105.md`). 탭 2개(습득 신고 / 분실접수). 습득은 서버 연결됨, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수 탭은 `?machine=CENTER`(본센터)일 때만 보임 — `POST /api/kiosk/returns`(11/6, 관문 값은 서버가 정함) |
 | 등록기계(습득 신고) | `/intake?machine=KIOSK-A` | `intake/` | 김재민 | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 키오스크 습득 탭과 같은 일 → **키오스크로 합치는 중**(이 화면은 호환용으로 남김, 3차에서 `/kiosk` 로 넘김) |
-| 분실인 웹(분실 확인) | `/lost` | `lost/` | 김재민 | (서버 연결 전) | 화면 흐름 시안 |
+| 분실인 웹(분실 확인) | `/lost` | `lost/` | 김재민 | (서버 연결 전) | 화면 흐름 시안. 분실 확인 후 본센터 방문 안내 정책 적용 예정 |
 | 관제 모니터링 | `/live` | `live/` | 김재민 | `GET /api/admin/live/state`, `/sim/*`, `POST /api/robot/stop`, `/api/admin/robot/home` | 됨(가상 시연·SO-101 실제 형상) |
 | 관리자 관제(로그인) | `/admin` | `admin/` | 김재민 | `/api/admin/login·logout·me` | 로그인 후 관제 모니터링(`/live`)·반환/직원(`/staff`)을 탭으로. `.env` `LF_ADMIN_PASSWORD` 가 없으면 로그인 없이 열림 |
 | AI 챗봇 위젯 | 화면에 `<script src="/chat-widget/widget.js">` · 시험 `/chat-widget/demo` | `chat-widget/` | 변재원(붙이기 김재민) | `POST /chat/questions`, `/chat/suggestions`, `/chat/health` | 됨(가상 물건 DB). 분실인 웹 완성 뒤 붙임 — `chat-widget/README.md` |
@@ -19,10 +19,11 @@
 | 분실인 8단계 시안 | 파일 직접 열기 | `lost-finder/` | LF-4 | 가짜 자료 | 참고용 |
 | 옛 시안 | - | `archive/` | - | - | 참고용(관제탑이 열지 않음) |
 
-- 등록기계 번호: `KIOSK-A` 해운대 · `KIOSK-B` 중앙 · `KIOSK-C` 서면(접수 번호 앞글자 S). 본센터 키오스크 번호는 TBD
+- 등록기계 번호: `KIOSK-A` 해운대 · `KIOSK-B` 중앙 · `KIOSK-C` 서면(접수 번호 앞글자 S) · `CENTER` 본센터 키오스크(운영 장비 ID 매핑 필요)
 - 화면은 관제탑과 같은 주소에서 열리므로 `fetch("/items")` 처럼 앞부분 없이 부른다
 
 ## 2. 화면이 따를 흐름 (11/5 칠판 정리)
+상세 이벤트·API 권한·본센터 판별·6종 분류 정책은 [docs/design/operating_flow_1105.md](../docs/design/operating_flow_1105.md)를 기준으로 한다.
 ```
 [일반 역 키오스크]  습득 신고 + 분실 확인 → (물건 있으면) "본센터에서 받으세요" 안내
 [본센터 키오스크]   습득 신고 + 분실 확인 + 회수(키오스크가 신분 확인 → 로봇팔 → 인계)
@@ -35,7 +36,7 @@
 ## 3. 지켜야 할 약속
 - 요청·응답 형식: `agents/contracts.py`, `docs/contracts/mcp_tools.md`, 등록기계 API 는 `intake/README.md`
 - 찾기 요청(`POST /claims`)은 동의·신분 인증 결과·가린 이름·특징 설명·확인 질문이 필요하다(전화번호 원문을 받지 않는다)
-- 물건 종류는 팀 6종: 지갑 · USB · 립밤 · 모형폰 · 핸드크림 · 보조배터리 (`agents/contracts.py` CATEGORIES)
+- 물건 종류는 팀 6종: 지갑 · USB · 립밤 · 모형폰 · 핸드크림 · 보조배터리 (`agents/contracts.py` CATEGORIES 및 MVP_CATEGORIES)
 - 개인정보(전화번호·주민번호·이메일)는 장소·설명 칸에 쓰면 관제탑이 거절한다
 - 로봇 관련 화면 요소(정지·원점·관절 값)는 `docs/contracts/robot_api.md` 기준
 
