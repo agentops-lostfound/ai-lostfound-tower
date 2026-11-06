@@ -10,7 +10,7 @@
     python vision/prepare_dataset.py --export D:/ls_export --val-sessions s2 --out datasets/vision_v1103
 
 - 같은 세션 사진이 train과 val에 섞이지 않게 세션 단위로 나눈다(데이터 누수 방지).
-- classes.txt 순서가 우리 순서(config.CLASSES)와 달라도 이름으로 맞춰 번호를 다시 매긴다.
+- classes.txt 순서가 우리 순서(config.CLASSES)와 달라도 이름으로 맞춰 번호를 다시 매긴다(예전 이름 wallet·lipbalm 도 읽음).
 - Label Studio가 파일 이름 앞에 붙이는 'a1b2c3d4-' 같은 접두어를 떼고 원래 이름으로 저장한다.
 - 라벨 파일이 없는 사진은 '빈 배경'으로 보고 빈 라벨을 만든다.
 """
@@ -26,7 +26,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vision.config import CLASSES, parse_filename  # noqa: E402
+from vision.config import CLASSES, canonical_class, parse_filename  # noqa: E402
 
 IMG_EXT = {".jpg", ".jpeg", ".png"}
 
@@ -46,9 +46,10 @@ def class_remap(classes_txt: Path) -> dict[int, int]:
     names = [n.strip() for n in classes_txt.read_text(encoding="utf-8-sig").splitlines() if n.strip()]
     remap: dict[int, int] = {}
     for i, n in enumerate(names):
-        if n not in CLASSES:
-            raise SystemExit(f"classes.txt 에 모르는 품목 이름이 있습니다: {n!r} (허용: {CLASSES})")
-        remap[i] = CLASSES.index(n)
+        c = canonical_class(n)          # 예전 이름(wallet·lipbalm)도 새 이름으로 맞춤
+        if c is None:
+            raise SystemExit(f"classes.txt 에 모르는 품목 이름이 있습니다: {n!r} (허용: {CLASSES}, 예전 이름 wallet·lipbalm 도 가능)")
+        remap[i] = CLASSES.index(c)
     return remap
 
 

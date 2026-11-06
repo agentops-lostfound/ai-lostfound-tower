@@ -41,23 +41,47 @@ def make_video(path: Path, frames: int = 20, size=(320, 240)) -> None:
 
 class TestConfig(unittest.TestCase):
     def test_make_and_parse(self):
-        name = make_filename("wallet", "W01", "s1", 7)
-        self.assertEqual(name, "wallet_W01_s1_007.jpg")
-        self.assertEqual(parse_filename(name), {"category": "wallet", "object_id": "W01", "session": "s1", "index": 7})
+        name = make_filename("card_wallet", "W01", "s1", 7)
+        self.assertEqual(name, "card_wallet_W01_s1_007.jpg")
+        self.assertEqual(parse_filename(name), {"category": "card_wallet", "object_id": "W01", "session": "s1", "index": 7})
+
+    def test_six_classes_fixed(self):
+        """11/6 6종 고정: 0~3번은 예전 4종 순서, 4·5번이 새 품목. 한국어는 contracts 와 같음"""
+        from agents.contracts import CATEGORIES
+        from vision.config import CLASS_KO, CLASSES
+        self.assertEqual(CLASSES, ["card_wallet", "usb", "lip_balm", "phone", "hand_cream", "power_bank"])
+        self.assertEqual(set(CLASS_KO.values()), set(CATEGORIES) - {"없음"})
+        six = (ROOT / "vision/configs/data_six_class.example.yaml").read_text(encoding="utf-8")
+        for i, n in enumerate(CLASSES):
+            self.assertIn(f"  {i}: {n}\n", six)
+
+    def test_underscore_names_round_trip(self):
+        for cat, obj in [("lip_balm", "L01"), ("hand_cream", "H02"), ("power_bank", "B01"), ("phone", "P01")]:
+            name = make_filename(cat, obj, "s3", 12)
+            self.assertEqual(parse_filename(name), {"category": cat, "object_id": obj, "session": "s3", "index": 12})
+
+    def test_legacy_names_still_read(self):
+        """이미 찍은 예전 이름 사진은 새 이름으로 읽는다(새로 찍을 때는 예전 이름 불가)"""
+        self.assertEqual(parse_filename("wallet_W01_s1_001.jpg")["category"], "card_wallet")
+        self.assertEqual(parse_filename("lipbalm_L01_s2_010.jpg")["category"], "lip_balm")
+        with self.assertRaises(ValueError):
+            make_filename("wallet", "W01", "s1", 0)
 
     def test_index_over_999(self):
         self.assertEqual(make_filename("usb", "U02", "s2", 1234), "usb_U02_s2_1234.jpg")
 
     def test_invalid_names(self):
-        for args in [("bag", "W01", "s1"), ("wallet", "w01", "s1"), ("wallet", "W1", "s1"), ("wallet", "W01", "1")]:
+        for args in [("bag", "W01", "s1"), ("card_wallet", "w01", "s1"), ("card_wallet", "W1", "s1"), ("card_wallet", "W01", "1")]:
             with self.assertRaises(ValueError):
                 make_filename(*args, 0)
         with self.assertRaises(ValueError):
-            make_filename("wallet", "W01", "s1", -1)
+            make_filename("card_wallet", "W01", "s1", -1)
 
     def test_parse_rejects_unknown(self):
         self.assertIsNone(parse_filename("bag_W01_s1_001.jpg"))
-        self.assertIsNone(parse_filename("wallet_W01_s1_001.png"))
+        self.assertIsNone(parse_filename("card_wallet_W01_s1_001.png"))
+        self.assertIsNone(parse_filename("lip_W01_s1_001.jpg"))          # 6종이 아닌 이름
+        self.assertIsNone(parse_filename("card__wallet_W01_s1_001.jpg"))  # 밑줄 두 개
 
 
 class TestCapture(unittest.TestCase):
@@ -71,19 +95,28 @@ class TestCapture(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
             frame = np.zeros((48, 64, 3), np.uint8)
-            rec = capture_images.Recorder(out, "lipbalm", "L01", "s1")
+            rec = capture_images.Recorder(out, "lip_balm", "L01", "s1")
             p1, p2 = rec.save(frame), rec.save(frame)
-            self.assertEqual([p1.name, p2.name], ["lipbalm_L01_s1_000.jpg", "lipbalm_L01_s1_001.jpg"])
+            self.assertEqual([p1.name, p2.name], ["lip_balm_L01_s1_000.jpg", "lip_balm_L01_s1_001.jpg"])
             # 새로 시작해도 이어서 번호를 매기고 덮어쓰지 않는다
-            rec2 = capture_images.Recorder(out, "lipbalm", "L01", "s1")
-            self.assertEqual(rec2.save(frame).name, "lipbalm_L01_s1_002.jpg")
+            rec2 = capture_images.Recorder(out, "lip_balm", "L01", "s1")
+            self.assertEqual(rec2.save(frame).name, "lip_balm_L01_s1_002.jpg")
             # 누군가 다음 번호를 먼저 만들어도 건너뛴다
-            (out / "lipbalm_L01_s1_003.jpg").write_bytes(b"x")
-            self.assertEqual(rec2.save(frame).name, "lipbalm_L01_s1_004.jpg")
+            (out / "lip_balm_L01_s1_003.jpg").write_bytes(b"x")
+            self.assertEqual(rec2.save(frame).name, "lip_balm_L01_s1_004.jpg")
             with (out / "captures.csv").open(encoding="utf-8-sig") as f:
                 rows = list(csv.DictReader(f))
             self.assertEqual(len(rows), 4)
             self.assertEqual(rows[0]["width"], "64")
+
+    def test_recorder_continues_after_legacy_names(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            (out / "wallet_W01_s1_000.jpg").write_bytes(b"x")       # 예전 이름으로 찍은 사진
+            (out / "wallet_W01_s1_001.jpg").write_bytes(b"x")
+            (out / "card_wallet_W02_s1_005.jpg").write_bytes(b"x")  # 다른 물건 — 번호에 영향 없음
+            rec = capture_images.Recorder(out, "card_wallet", "W01", "s1")
+            self.assertEqual(rec.save(np.zeros((8, 8, 3), np.uint8)).name, "card_wallet_W01_s1_002.jpg")
 
     def test_headless_run_with_video(self):
         with tempfile.TemporaryDirectory() as d:
@@ -111,17 +144,17 @@ class TestCapture(unittest.TestCase):
 
     def test_bad_inputs(self):
         with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
-            capture_images.main(["--category", "wallet", "--object", "W1", "--session", "s1", "--no-preview"])
+            capture_images.main(["--category", "card_wallet", "--object", "W1", "--session", "s1", "--no-preview"])
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(SystemExit) as cm, redirect_stdout(io.StringIO()):  # 없는 영상
-                capture_images.main(["--category", "wallet", "--object", "W01", "--session", "s1", "--out", d,
+                capture_images.main(["--category", "card_wallet", "--object", "W01", "--session", "s1", "--out", d,
                                      "--source", str(Path(d) / "없는영상.mp4"), "--no-preview", "--auto-every", "1", "--max", "1"])
             self.assertIn("열 수 없습니다", str(cm.exception))
             with self.assertRaises(SystemExit) as cm:  # 화면 없이 자동 저장도 없음 → 아무것도 못 함
-                capture_images.main(["--category", "wallet", "--object", "W01", "--session", "s1", "--no-preview"])
+                capture_images.main(["--category", "card_wallet", "--object", "W01", "--session", "s1", "--no-preview"])
             self.assertIn("--auto-every", str(cm.exception))
             with self.assertRaises(SystemExit) as cm:  # 화면 없이 카메라 + 장수 제한 없음 → 끝없이 저장
-                capture_images.main(["--category", "wallet", "--object", "W01", "--session", "s1", "--no-preview", "--auto-every", "5"])
+                capture_images.main(["--category", "card_wallet", "--object", "W01", "--session", "s1", "--no-preview", "--auto-every", "5"])
             self.assertIn("--max", str(cm.exception))
 
 
@@ -153,13 +186,14 @@ class TestPrepare(unittest.TestCase):
             r = prepare_dataset.prepare(exp, out, {"s2"})
             self.assertEqual(r["images"], {"train": 2, "val": 3})
             self.assertEqual(r["skipped"], ["random_photo.jpg"])
-            # 접두어가 떼어지고, 클래스 번호가 우리 순서(wallet0 usb1 lipbalm2 phone3)로 바뀐다
+            # 접두어가 떼어지고, 예전 이름(wallet·lipbalm) classes.txt 도 새 순서(card_wallet0 usb1 lip_balm2 phone3)로 바뀐다
             self.assertEqual((out / "labels/train/wallet_W01_s1_000.txt").read_text().split()[0], "0")
             self.assertEqual((out / "labels/train/usb_U01_s1_000.txt").read_text().split()[0], "1")
             self.assertEqual((out / "labels/val/lipbalm_L01_s2_000.txt").read_text().split()[0], "2")
             self.assertEqual((out / "labels/val/phone_P01_s2_000.txt").read_text().split()[0], "3")
             self.assertEqual((out / "labels/val/wallet_W01_s2_001.txt").read_text(), "")
             self.assertIn("  3: phone", (out / "data.yaml").read_text())
+            self.assertIn("  5: power_bank", (out / "data.yaml").read_text())
 
     def test_errors(self):
         with tempfile.TemporaryDirectory() as d:
