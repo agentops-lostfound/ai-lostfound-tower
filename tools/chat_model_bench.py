@@ -40,12 +40,9 @@ def load_cases(limit: int | None = None) -> list[dict]:
 
 
 def passed(case: dict, res: dict) -> bool:
-    """기존 평가(evaluation/evaluate_guidance.py)와 같은 기준: 상태 일치 + 기대 주제 포함 + 정해지지 않은 '30일' 금지"""
-    topics = {s.get("topic") for s in res.get("sources", [])}
-    ok = res.get("status") == case["expected_status"] and set(case["expected_topics"]) <= topics
-    if case["group"] in ("기간", "지시문") and "30일" in res.get("answer", ""):
-        ok = False
-    return ok
+    """기존 평가(evaluation/evaluate_guidance.py case_passed)와 같은 기준"""
+    from evaluation.evaluate_guidance import case_passed
+    return case_passed(case, res)
 
 
 def run_model(model: str, cases: list[dict], request=None, warmup: bool = True, clock=time.perf_counter) -> dict:
@@ -72,7 +69,7 @@ def run_model(model: str, cases: list[dict], request=None, warmup: bool = True, 
         all_ms.append(ms)
         status = res.get("generation_status", "not_needed")
         gen[status] += 1
-        if status not in ("not_needed", "model_not_configured", "rejected"):
+        if status not in ("not_needed", "model_not_configured", "rejected", "fixed_policy_text"):   # 시연 운영 기준은 모델을 안 부름
             called_ms.append(ms)                 # 모델을 실제로 부른 질문
         if passed(case, res):
             ok += 1

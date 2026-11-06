@@ -94,5 +94,77 @@
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
     "evidence": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오며 본인 물건이라는 확정이 아니다.",
     "answer": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오고, 본인 물건이라는 확정이 아니에요. 실제로 받으려면 본센터 키오스크에서 신분 확인과 물건 확인 질문을 통과해야 해요."
+  },
+  {
+    "topic": "hours",
+    "title": "운영시간 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "본센터 키오스크는 평일 09:00~18:00에 열고 주말·공휴일은 쉰다. 역 키오스크의 습득 신고는 지하철 운행 시간 동안 할 수 있다.",
+    "answer": "본센터 키오스크(물건 받는 곳)는 평일 09:00~18:00에 열고 주말·공휴일은 쉬어요. 역 키오스크에서 하는 습득 신고는 지하철 운행 시간 동안 할 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "retention",
+    "title": "보관 기간 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "물건은 본센터에서 14일 동안 보관한 뒤 경찰(LOST112)로 넘긴다. 분실인 신분 확인 정보는 물건을 건넨 뒤 30일이 지나면 지운다.",
+    "answer": "물건은 본센터에서 14일 동안 보관한 뒤 경찰(LOST112)로 넘겨요. 분실인 신분 확인 정보는 물건을 건넨 뒤 30일이 지나면 지워요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "proxy_pickup",
+    "title": "대리수령 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "본센터 키오스크에서 본인이 직접 신분 확인을 하므로 대리수령은 받지 않는다.",
+    "answer": "본센터 키오스크에서 본인이 직접 신분 확인을 하기 때문에 대리수령은 받지 않아요. 물건 주인이 직접 방문해 주세요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "delivery",
+    "title": "배송·우편 수령 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "택배·우편으로 보내지 않고 본센터 방문 수령만 한다.",
+    "answer": "택배나 우편으로는 보내 드리지 않고, 본센터에 방문해서 받는 방법만 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "fee",
+    "title": "수령 비용 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "물건을 받을 때 내는 돈은 없다.",
+    "answer": "물건을 받을 때 내는 비용은 없어요(무료). (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "id_document",
+    "title": "신분증 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "신분증이 없으면 물건을 받을 수 없다. 주민등록증·운전면허증·여권을 인정한다(시연은 가상 신분증 사용).",
+    "answer": "신분증이 없으면 물건을 받을 수 없어요. 주민등록증·운전면허증·여권을 인정해요(시연에서는 가상 신분증을 써요). (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "reservation_change",
+    "title": "예약 취소·변경 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "분실인 웹에서 찾기 번호로 취소하고, 바꾸려면 취소 후 다시 신청한다. 예약한 날에 오지 않으면 예약은 자동으로 취소된다.",
+    "answer": "예약은 분실인 웹에서 찾기 번호로 취소할 수 있어요. 날짜를 바꾸려면 취소한 뒤 다시 신청해 주세요. 예약한 날에 오지 않으면 예약은 자동으로 취소돼요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "center_contact",
+    "title": "센터 위치·연락처 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "시연용 가상 본센터라 실제 주소와 전화번호는 없다.",
+    "answer": "지금은 시연용 가상 본센터라 실제 주소와 전화번호는 없어요. 물건 확인과 방문 안내는 키오스크·분실인 웹·이 챗봇에서 받을 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "privacy_policy",
+    "title": "개인정보 처리 요약 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+    "evidence": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 쓰며, 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않는다.",
+    "answer": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 써요. 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않아요. 전체 처리방침이 아니라 시연용 요약이에요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
   }
 ]

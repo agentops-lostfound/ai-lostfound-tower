@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = '557a386c4ee01b3267fd86eb5d82b4810ee04f34e56617357f8b538d52901760'  # 11/5 변재원: service-guide 주제 7개 추가
+APPROVED_CORPUS_SHA256 = '01f42f963ad9fbecddc1fb2aacdf9778109bfe57614ec2cadc30dd698b61d3e6'  # 11/6 변재원: 시연 운영 기준 9개 주제 추가
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),
@@ -29,6 +29,20 @@ SUGGESTIONS = [
     ("consent", "본인인증에 실패하면 어떻게 되나요?", ["동의", "인증", "실패"]),
     ("finder", "습득자 연락처는 언제 지우나요?", ["습득자", "연락처", "삭제"]),
 ]
+
+
+# 미정으로 빠지던 운영값 → 11/6 시연 운영 기준 주제(docs/guidance/knowledge.json)
+DEMO_POLICY_TOPICS = {
+    "운영시간": "hours",
+    "분실물 또는 분실인 개인정보의 보관·파기 기간": "retention",
+    "대리수령 허용 조건": "proxy_pickup",
+    "배송·우편 수령 정책": "delivery",
+    "수령 비용": "fee",
+    "신분증 대체·미지참 처리": "id_document",
+    "예약 취소·변경 절차": "reservation_change",
+    "실제 센터 위치·연락처": "center_contact",
+    "운영기관의 전체 개인정보 처리방침": "privacy_policy",
+}
 
 
 class Guidance:
@@ -143,6 +157,12 @@ class Guidance:
         process_question = re.sub(r"대리수령|택배수령|우편수령", "", q)
         if gaps and not re.search(r"(?:수령|반환|찾는)(?:절차|방법)|준비물", process_question):
             topics.discard("pickup")
+        # 11/6 시연 운영 기준(service-guide.md 마지막 절, 확정 변재원): 미정이던 운영값을 승인된 주제로 답한다
+        for label in list(dict.fromkeys(gaps)):
+            topic = DEMO_POLICY_TOPICS.get(label)
+            if topic and any(d["topic"] == topic for d in self.documents):
+                topics.add(topic)
+                gaps = [g for g in gaps if g != label]
         docs = [d for d in self.documents if d["topic"] in topics]
         # Closed-topic lexical retrieval; unknown questions never get a nearest but unrelated answer.
         if not docs and not gaps:

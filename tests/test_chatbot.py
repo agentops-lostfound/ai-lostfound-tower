@@ -56,9 +56,9 @@ class ChatbotTests(unittest.TestCase):
         self.assertTrue(result['candidates'])
         self.assertIn('시연용 가상 DB', result['answer'])
         result = self.bot.ask('검정 지갑 찾아줘. 주말 운영시간은?')
-        self.assertEqual(result['status'], 'partial')
+        self.assertEqual(result['status'], 'answered')          # 11/6 시연 운영 기준
         self.assertTrue(result['candidates'])
-        self.assertIn('확정 운영값이 없어', result['answer'])
+        self.assertIn('시연 기준', result['answer'])
 
     def test_ambiguous_and_missing_item_require_details(self):
         for question in ['내 물건 찾아줘', '지갑 말고 USB 찾아줘', '지갑과 립밤 찾아줘']:
@@ -88,9 +88,9 @@ class ChatbotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.bot.ask('010-1234-5678 지갑 찾아줘')
 
-    def test_unknown_policy_is_not_answered_with_demo_items(self):
+    def test_policy_question_is_not_answered_with_demo_items(self):
         result = self.bot.ask('지갑 보관기간은 며칠인가요?')
-        self.assertEqual(result['status'], 'policy_pending')
+        self.assertEqual([s['topic'] for s in result['sources']], ['retention'])
         self.assertFalse(result['item_search_performed'])
 
     def test_public_projection_rejects_secret_or_invalid_db_values(self):
@@ -156,7 +156,9 @@ class RagTests(unittest.TestCase):
     def test_unknown_policy_never_calls_model(self):
         generate = MagicMock()
         result = GroundedRag(Guidance(), 'local-test', request=generate).ask('주말 운영시간은?')
-        self.assertEqual(result['status'], 'policy_pending')
+        self.assertEqual((result['status'], result['generation_status']), ('answered', 'fixed_policy_text'))
+        generate.assert_not_called()                             # 시연 운영 기준은 모델이 고르거나 바꾸지 않음
+        self.assertEqual(GroundedRag(Guidance(), 'local-test', request=generate).ask('몇 시에 열어? 아니면 모르는 거야?')['status'], 'answered')
         generate.assert_not_called()
 
     def test_offline_model_falls_back_to_document_evidence(self):
