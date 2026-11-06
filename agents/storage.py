@@ -44,6 +44,13 @@ LAYOUT = [
     ("H", "인계 구역(제출보관함)", "handover", [], 1, "20×20cm·로봇팔 반대쪽"),
 ]
 
+# 11/6 김건태 확정(디스코드 일반 채널): 칸 ↔ 로봇 저장 자세(poses.json, Studio normalized 관절값) — 013 마이그레이션과 같음
+# 각 행 1(로봇팔 가까운 칸) = pose_1·3·5·7, 2(먼 칸) = pose_2·4·6·8. H-1 은 배출구에 내려놓는 자세 close
+SLOT_POSES = {"R1-1": "pose_1", "R1-2": "pose_2", "R2-1": "pose_3", "R2-2": "pose_4",
+              "R3-1": "pose_5", "R3-2": "pose_6", "R4-1": "pose_7", "R4-2": "pose_8", "H-1": "close"}
+# 집은 뒤 배출구(제출보관함)까지: 원복 1단계 → close(배출구 위, 집게 닫힘) → open(집게 열어 놓기) → 원복 1단계 → home
+OUTLET_SEQUENCE = ("outlet_return_1", "close", "open", "outlet_return_1", "home")
+
 
 class StorageError(ValueError):
     """잘못된 요청(없는 칸·형식 오류·품목 불일치) → 422/404"""
@@ -163,7 +170,8 @@ class MemoryStorageStore:
 
     def __init__(self, item_lookup: Callable[[str], dict | None] | None = None, layout=None,
                  item_source: Callable[[], list[dict]] | None = None,
-                 status_setter: Callable[[str, str], bool] | None = None):
+                 status_setter: Callable[[str, str], bool] | None = None,
+                 poses: dict[str, str] | None = None):
         self._lock = threading.Lock()
         self._lookup = item_lookup
         self._source = item_source        # 11/6 도착 목록용: [{"item_id","status","category",...}]
@@ -172,7 +180,8 @@ class MemoryStorageStore:
         for code, label, kind, allowed, n, note in (layout or LAYOUT):
             self._sections.append({"code": code, "label": label, "kind": kind, "allowed_categories": list(allowed),
                                    "bounds_mm": None,
-                                   "slots": [{"slot_id": f"{code}-{i}", "slot_no": i, "pose_name": None, "note": note}
+                                   "slots": [{"slot_id": f"{code}-{i}", "slot_no": i,
+                                              "pose_name": (poses or {}).get(f"{code}-{i}"), "note": note}
                                              for i in range(1, n + 1)]})
         self._assign: dict[str, dict] = {}       # slot_id → {"item_id", "assigned_at", "assigned_by"}
         self._checks: list[dict] = []

@@ -200,6 +200,42 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
         self.assertIn("DROP TRIGGER IF EXISTS", sql)
 
 
+class SlotPosesTest(unittest.TestCase):
+    """11/6 김건태 확정 칸 ↔ 로봇 저장 자세(013 마이그레이션)"""
+
+    def test_migration_matches_constant(self):
+        from agents.storage import LAYOUT, OUTLET_SEQUENCE, POSE_RE, SLOT_POSES
+        sql = (ROOT / "center" / "migrations" / "013_slot_poses_1106.sql").read_text(encoding="utf-8")
+        self.assertEqual(dict(re.findall(r"\('([A-Z]\d?-\d)', '(\w+)'\)", sql)), SLOT_POSES)
+        self.assertIn("s.pose_name IS NULL", sql)                          # 직접 넣은 이름은 덮어쓰지 않음
+        slots = {f"{code}-{i}" for code, _l, _k, _a, n, _note in LAYOUT for i in range(1, n + 1)}
+        self.assertEqual(set(SLOT_POSES), slots)                           # 칸 9개 모두
+        self.assertEqual(len(set(SLOT_POSES.values())), 9)                 # 자세 이름 겹침 없음
+        self.assertTrue(all(POSE_RE.match(p) for p in list(SLOT_POSES.values()) + list(OUTLET_SEQUENCE)))
+        self.assertEqual(OUTLET_SEQUENCE[1:3], ("close", "open"))
+
+    def test_memory_store_with_poses_exports_without_warning(self):
+        from agents.storage import SLOT_POSES
+        s = MemoryStorageStore(poses=SLOT_POSES)
+        self.assertEqual(s.layout()["summary"]["slots_without_pose"], 0)
+        s.assign("A-W01", "R4-2")
+        out = s.export()
+        self.assertEqual(out["warnings"], [])
+        self.assertEqual(out["sections"]["R4"]["slots"]["2"], "pose_8")
+        self.assertEqual(out["sections"]["H"]["slots"]["1"], "close")
+        self.assertEqual(MemoryStorageStore().layout()["summary"]["slots_without_pose"], 8)   # poses 없이 = 예전 그대로
+
+    def test_service_default_store_has_team_poses(self):
+        from agents.api import demo_backend_factory
+        from agents.service import TowerService
+        from discord_ops.reporter import Reporter
+        svc = TowerService(demo_backend_factory(), Reporter())
+        lay = svc.storage.layout()
+        self.assertEqual(lay["summary"]["slots_without_pose"], 0)
+        poses = {sl["slot_id"]: sl["pose_name"] for sec in lay["sections"] for sl in sec["slots"]}
+        self.assertEqual((poses["R1-1"], poses["R4-2"], poses["H-1"]), ("pose_1", "pose_8", "close"))
+
+
 class StorageExportToolTest(unittest.TestCase):
     def test_demo_and_store_exit_codes(self):
         from tools import storage_export

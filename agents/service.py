@@ -159,9 +159,9 @@ class TowerService:
         self.gpu_lease = gpu_lease                 # user → GpuLease. None = GPU 사용권 안 씀(시험·가짜 부품)
         self._kiosk_fails: dict[str, int] = {}     # 키오스크 회수에서 신분 번호를 틀린 횟수(찾기 번호별)
         if storage is None:                        # 11/6 보관함 정답지(agents/storage.py). DB 모드면 PostgresStorageStore
-            from agents.storage import MemoryStorageStore
+            from agents.storage import SLOT_POSES, MemoryStorageStore
             storage = MemoryStorageStore(item_lookup=self._storage_item, item_source=self._storage_items,
-                                         status_setter=self._storage_set_status)
+                                         status_setter=self._storage_set_status, poses=SLOT_POSES)
         self.storage = storage
 
     def _storage_items(self) -> list[dict]:
