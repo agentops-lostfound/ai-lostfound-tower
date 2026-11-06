@@ -35,7 +35,7 @@ from agents.sim_world import (LOC_BIN, LOC_TRANSIT, MACHINE_STATION, SimRobot, S
 
 PUBLIC_COMPARE = ("category", "color", "shape", "material")
 CANDIDATE_STATUSES = ("등록기계 보관", "회수 중", "본센터 보관")
-QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (서면·해운대·중앙)", "color": "물건 색이 무엇인가요?",
+QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (서면·해운대)", "color": "물건 색이 무엇인가요?",
                   "visible_text": "물건에 적힌 글자(로고)가 있다면 무엇인가요?",
                   "mark": "물건에 붙은 스티커나 표시가 있다면 어떤 모양인가요?"}
 
@@ -107,7 +107,7 @@ class SimDirector:
         clean, tags = split_tags(text)
         machine, place = parse_place(clean)
         if not machine:
-            raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 서면·해운대·중앙 중 하나를 넣어 주세요(등록기계가 있는 역)")
+            raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 서면·해운대 중 하나를 넣어 주세요(등록기계가 있는 역)")
         q = sim_qwen(clean)
         if q["category"] == "unknown":
             raise RequestError("무슨 물건인지 알 수 없어요 — 지갑·USB·립밤·모형폰·핸드크림·보조배터리 중 하나를 넣어 주세요")

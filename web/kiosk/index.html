@@ -127,7 +127,7 @@ header .chatbot-open{min-height:56px;padding:0 22px;font-size:22px;border-radius
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
 <script>
 const API = '';
-const KIOSKS = {'KIOSK-A':'해운대','KIOSK-B':'중앙','CENTER':'본센터'};
+const KIOSKS = {'KIOSK-A':'해운대','KIOSK-C':'서면','CENTER':'부산'};   // 11/6 본센터 = 부산역, 역 키오스크는 해운대·서면
 const RESET_SEC = 10;
 const BUSY_MSG = '잠시 후 다시 시도하거나 역무실로 가 주세요.';
 const $ = s => document.querySelector(s);
@@ -141,7 +141,7 @@ if (!station) {
   $('#app').innerHTML = '<section class="on center"><h1>기계 번호를 확인할 수 없어요</h1><p class="sub">관리자에게 알려 주세요. (주소 끝에 ?kiosk=KIOSK-A 형식)</p></section>';
   throw new Error('unknown kiosk');
 }
-$('#stn').textContent = kiosk === 'CENTER' ? '본센터 분실물' : station + '역 분실물 접수';
+$('#stn').textContent = kiosk === 'CENTER' ? '부산역 본센터 분실물' : station + '역 분실물 접수';
 const isCenter = kiosk === 'CENTER';     // 회수는 본센터 키오스크만(11/5 결정)
 $('#tabRet').hidden = !isCenter;
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;

@@ -62,9 +62,9 @@ class MemoryStoreTest(unittest.TestCase):
     def test_ids_per_machine_and_day(self):
         a1 = self.s.create(parse_intake(p()), DAY)["item_id"]
         a2 = self.s.create(parse_intake(p()), DAY)["item_id"]
-        b1 = self.s.create(parse_intake(p(machine_id="KIOSK-B", place_text="중앙역")), DAY)["item_id"]
+        b1 = self.s.create(parse_intake(p(machine_id="KIOSK-C", place_text="서면역")), DAY)["item_id"]
         nxt = self.s.create(parse_intake(p()), date(2026, 11, 4))["item_id"]
-        self.assertEqual((a1, a2, b1, nxt), ("A-20261103-0001", "A-20261103-0002", "B-20261103-0001", "A-20261104-0001"))
+        self.assertEqual((a1, a2, b1, nxt), ("A-20261103-0001", "A-20261103-0002", "S-20261103-0001", "A-20261104-0001"))
         self.assertEqual(self.s.items[a1]["status"], "등록기계 보관")
 
     def test_places_recommendation_order(self):
@@ -74,8 +74,9 @@ class MemoryStoreTest(unittest.TestCase):
         for _ in range(2):
             self.s.create(parse_intake(p(place_id=toilet["place_id"], place_text="화장실")), DAY)
         self.assertEqual(self.s.places("KIOSK-A")[0]["label"], "화장실")      # 많이 고른 장소가 앞으로
-        self.assertEqual(self.s.places("CENTER"), [])
-        other = self.s.places("KIOSK-B")[0]["place_id"]
+        self.assertEqual(self.s.places("CENTER")[0]["label"], "부산역 승강장")   # 11/6 본센터 = 부산역
+        self.assertEqual(self.s.places("KIOSK-B"), [])                         # 11/6 중앙역 삭제
+        other = self.s.places("KIOSK-C")[0]["place_id"]
         with self.assertRaises(IntakeError):                                   # 다른 역 추천 번호는 거부
             self.s.create(parse_intake(p(place_id=other)), DAY)
 
@@ -205,7 +206,7 @@ class PostgresStoreTest(unittest.TestCase):
 
     def test_unknown_machine_or_place(self):
         with self.assertRaises(IntakeError):
-            self.s.create(parse_intake(p(machine_id="KIOSK-B", place_text="중앙역")), DAY)
+            self.s.create(parse_intake(p(machine_id="KIOSK-Z", place_text="없는 역")), DAY)
         with self.assertRaises(IntakeError):
             self.s.create(parse_intake(p(place_id=7)), DAY)
 
@@ -286,6 +287,6 @@ class IntakePhotoTest(unittest.TestCase):
         self.assertEqual(self.files(), [])                                 # 저장 실패면 사진도 지움
 
     def test_without_photo_unchanged(self):
-        out = self.svc.create_item({"machine_id": "KIOSK-B", "place_text": "대합실"})
+        out = self.svc.create_item({"machine_id": "KIOSK-C", "place_text": "대합실"})
         self.assertIsNone(self.svc.intake.items[out["item_id"]]["photo_path"])
         self.assertEqual(self.files(), [])

@@ -45,7 +45,7 @@ PICK_RADIUS_MM = 35.0                                 # 접근 좌표에서 이 
 LOC_KIOSK, LOC_TRANSIT, LOC_BIN, LOC_GRIPPER, LOC_BASKET, LOC_HANDED, LOC_STAFF = (
     "kiosk", "transit", "bin", "gripper", "basket", "handed", "staff")
 
-STATIONS = {"서면": "KIOSK-C", "해운대": "KIOSK-A", "중앙": "KIOSK-B"}   # 말에 나오는 역 이름 → 등록기계
+STATIONS = {"서면": "KIOSK-C", "해운대": "KIOSK-A"}   # 말에 나오는 역 이름 → 등록기계
 MACHINE_STATION = {v: k for k, v in STATIONS.items()}
 
 

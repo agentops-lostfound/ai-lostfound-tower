@@ -76,8 +76,8 @@
     "title": "키오스크 위치 — 시연 기준",
     "path": "docs/guidance/service-guide.md",
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#키오스크-위치-시연-기준",
-    "evidence": "시연 기준 키오스크는 KIOSK-A 해운대역, KIOSK-B 중앙역, KIOSK-C 서면역이다.",
-    "answer": "시연 기준 키오스크는 해운대역(KIOSK-A), 중앙역(KIOSK-B), 서면역(KIOSK-C)에 있어요. 본센터 키오스크의 번호와 위치는 아직 정해지지 않았어요."
+    "evidence": "시연 기준 역 키오스크는 KIOSK-A 해운대역, KIOSK-C 서면역이다. 본센터는 부산역에 있고 본센터 키오스크 번호는 CENTER 이다.",
+    "answer": "역 키오스크는 해운대역(KIOSK-A)과 서면역(KIOSK-C)에 있어요. 물건을 받는 본센터는 부산역에 있어요(본센터 키오스크 CENTER)."
   },
   {
     "topic": "privacy_input",
@@ -156,8 +156,8 @@
     "title": "센터 위치·연락처 — 시연 기준",
     "path": "docs/guidance/service-guide.md",
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "시연용 가상 본센터라 실제 주소와 전화번호는 없다.",
-    "answer": "지금은 시연용 가상 본센터라 실제 주소와 전화번호는 없어요. 물건 확인과 방문 안내는 키오스크·분실인 웹·이 챗봇에서 받을 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+    "evidence": "본센터는 부산역에 있는 시연용 가상 센터라 실제 주소와 전화번호는 없다.",
+    "answer": "본센터는 부산역에 있어요. 다만 시연용 가상 센터라 실제 주소와 전화번호는 없어요. 물건 확인과 방문 안내는 키오스크·분실인 웹·이 챗봇에서 받을 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
   },
   {
     "topic": "privacy_policy",

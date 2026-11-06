@@ -22,8 +22,8 @@ test('new text entered during an in-flight save is not erased by the previous ac
  assert.equal(s.get('placeLabel').disabled,true);s.get('placeLabel').value='다음 장소';release();await pending;assert.equal(s.get('placeLabel').value,'다음 장소');
 });
 test('unsaved place labels remain associated with their selected machine',async()=>{
- const s=await setup();s.get('placeLabel').value='A용 장소';s.get('placeMachine').value='KIOSK-B';s.get('placeMachine').onchange();await tick();assert.equal(s.get('placeLabel').value,'');
- s.get('placeLabel').value='B용 장소';s.get('placeMachine').value='KIOSK-A';s.get('placeMachine').onchange();await tick();assert.equal(s.get('placeLabel').value,'A용 장소');
+ const s=await setup();s.get('placeLabel').value='A용 장소';s.get('placeMachine').value='KIOSK-C';s.get('placeMachine').onchange();await tick();assert.equal(s.get('placeLabel').value,'');
+ s.get('placeLabel').value='C용 장소';s.get('placeMachine').value='KIOSK-A';s.get('placeMachine').onchange();await tick();assert.equal(s.get('placeLabel').value,'A용 장소');
 });
 test('reset clears drafts even when the previous place list fetch failed',async()=>{
  const s=await setup();s.get('placeLabel').value='저장할 장소';await s.get('placeForm').onsubmit({preventDefault(){}});

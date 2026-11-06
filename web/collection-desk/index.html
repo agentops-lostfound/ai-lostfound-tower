@@ -9,7 +9,7 @@
 <p id="message" class="message" role="status" aria-live="polite"></p>
 <div class="metrics" aria-label="물건 상태 요약"><div><span>등록기계 보관</span><strong id="waiting">—</strong></div><div><span>회수 중 · 도착 전</span><strong id="moving">—</strong></div><div><span>본센터 도착</span><strong id="arrived">—</strong></div><div class="warning-metric"><span>미도착 알림 미리보기</span><strong id="missing">—</strong></div></div>
 <div class="workspace"><section class="panel pickup"><div class="section-heading"><div><p class="step">STEP 01</p><h2>등록기계에서 회수</h2></div></div>
-<label for="machine">등록기계 선택</label><select id="machine"><option value="KIOSK-A">등록기계 A · 가상</option><option value="KIOSK-B">등록기계 B · 가상</option><option value="KIOSK-C">등록기계 C · 가상</option></select>
+<label for="machine">등록기계 선택</label><select id="machine"><option value="KIOSK-A">등록기계 A · 가상</option><option value="KIOSK-C">등록기계 C · 가상</option></select>
 <div class="list-heading"><span>회수할 물건</span><button id="selectAll" type="button" class="text-button">전체 선택</button></div><div id="pickupList" class="item-list"></div>
 <p class="hint">실제로 꺼낸 물건만 선택하세요. 한 번의 회수는 같은 등록기계의 물건으로 묶입니다.</p><button id="pickup" type="button" class="primary full" disabled>선택한 물건 회수 기록</button><p id="pickupHint" class="hint">물건을 선택해주세요.</p><button id="retryPickup" type="button" class="quiet full" hidden>같은 요청으로 다시 확인</button><button id="discardPickup" type="button" class="text-button" hidden>요청 결과를 확인했어요 · 선택 다시 하기</button></section>
 <section class="panel arrivals"><div class="section-heading"><div><p class="step">STEP 02</p><h2>본센터 도착 확인</h2></div><span id="batchCount" class="pill">0건</span></div><p class="hint">도착한 물건만 체크하고 저장하세요. 체크하지 않은 물건은 회수 중으로 남습니다.</p><div id="batchList"></div></section></div>
@@ -26,7 +26,7 @@
 <p class="hint">가상 물건의 접수 통계입니다. 실제 분실물 수량이 아닙니다. 색상·특징·역·기간별 집계와 개인정보 조회는 지원하지 않습니다.</p></div></section>
 <section id="places" class="panel statistics"><div class="section-heading"><div><p class="step">PLACE CATALOG</p><h2>습득 장소 목록 관리</h2></div><span class="pill">가상 추천 목록</span></div>
 <p class="hint">등록기계가 있는 역의 장소를 5개씩 확인하고 추가합니다. 아래 기본 장소는 시연용 이름이며 실제 역의 장소 정보가 아닙니다. 목록은 등록 순서이며 실제 이용 빈도순이 아닙니다.</p>
-<label for="placeMachine">등록기계 · 호선 · 역</label><select id="placeMachine"><option value="KIOSK-A">A · 2호선 해운대역</option><option value="KIOSK-B">B · 1호선 중앙역</option><option value="KIOSK-C">C · 1호선 서면역</option></select>
+<label for="placeMachine">등록기계 · 호선 · 역</label><select id="placeMachine"><option value="KIOSK-A">A · 2호선 해운대역</option><option value="KIOSK-C">C · 1호선 서면역</option></select>
 <p id="placeScope" class="hint"></p><div id="placeList" class="item-list"></div><div class="batch-actions"><span id="placePage"></span><div class="stat-examples"><button id="placePrev" class="quiet" type="button" disabled>이전 목록</button><button id="placeNext" class="quiet" type="button" disabled>다음 목록</button><button id="placeReload" class="quiet" type="button" disabled>목록 새로고침</button></div></div>
 <form id="placeForm"><label for="placeLabel">이 역에 장소 추가</label><div class="stats-composer"><input id="placeLabel" maxlength="64" required placeholder="예: 가상 안내 데스크 옆" autocomplete="off"><button id="placeSave" type="submit" disabled>장소 저장</button></div><p class="hint">이름·연락처·상세 개인 주소를 넣지 마세요. 같은 장소는 중복 등록하지 않습니다.</p></form><p id="placeStatus" class="message" role="status" aria-live="polite">목록을 준비하고 있습니다…</p></section>
 <footer>도착 확인은 실물 확인 후 기록하는 단계입니다. 이 화면은 예약·반환 승인·로봇 동작을 실행하지 않습니다.</footer>

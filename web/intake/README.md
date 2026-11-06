@@ -28,7 +28,7 @@ GET /places?machine_id=KIOSK-A
 ```
 POST /items
 {
-  "machine_id": "KIOSK-A",              // 필수: 기계 번호(KIOSK-A 해운대, KIOSK-B 중앙)
+  "machine_id": "KIOSK-A",              // 필수: 기계 번호(KIOSK-A 해운대, KIOSK-C 서면, CENTER 부산역 본센터)
   "place_id": 3,                         // 추천 칩을 골랐을 때만
   "place_text": "화장실",                 // 필수: 고른 칩 글자 또는 직접 입력(128자 이하)
   "finder": {"name": "김습득", "phone": "010-1234-5678"},   // 선택: 둘 다 비우면 저장 안 함(저장 = 동의)

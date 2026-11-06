@@ -26,7 +26,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=Path, default=ROOT / "vision/configs/data_item.yaml")
     parser.add_argument("--name", default="item_baseline")
-    parser.add_argument("--model", default=str(ROOT / "models/yolo26n.pt"))
+    parser.add_argument("--model", default=str(ROOT / "models/yolo26l.pt"))
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=4)

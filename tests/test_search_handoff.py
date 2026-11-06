@@ -48,13 +48,13 @@ class SearchHandoffTests(unittest.TestCase):
 
     def test_station_has_priority_without_filling_cards_from_other_stations(self):
         self.insert(('DEMO-007','지갑','검정','본센터 보관','2호선','서면','2026-11-04'),
-                    ('DEMO-008','지갑','검정','본센터 보관','1호선','중앙','2026-11-04'))
+                    ('DEMO-008','지갑','검정','본센터 보관','1호선','부산','2026-11-04'))
         result = self.agent.ask('찾아줘', context=CONTEXT)
         self.assertEqual(len(result['candidates']), 1)
         self.assertEqual(self.agent.resolve_candidate(result['search_result_id'],1,None), 'DEMO-001')
 
     def test_station_without_results_falls_back_only_to_same_line(self):
-        self.insert(('DEMO-007','지갑','검정','본센터 보관','1호선','중앙','2026-11-04'))
+        self.insert(('DEMO-007','지갑','검정','본센터 보관','1호선','부산','2026-11-04'))
         result = self.agent.ask('찾아줘', context={**CONTEXT,'lost_station':'광안역'})
         self.assertEqual(len(result['candidates']), 1)
         self.assertEqual(self.agent.resolve_candidate(result['search_result_id'],1,None), 'DEMO-001')

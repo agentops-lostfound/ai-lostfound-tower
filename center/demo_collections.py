@@ -97,7 +97,7 @@ class DemoCollections:
     def _seed_places(db):
         db.executemany('INSERT INTO demo_place(line,station,label) VALUES(?,?,?)',
                        [(line, station, f'가상 장소 {i:02d}') for line, station in
-                        [('2호선', '해운대'), ('1호선', '중앙'), ('1호선', '서면')] for i in range(1, 7)])
+                        [('2호선', '해운대'), ('1호선', '서면')] for i in range(1, 7)])
 
     @staticmethod
     def _seed(db):
@@ -105,9 +105,9 @@ class DemoCollections:
             ('A-W01', 'KIOSK-A', '지갑', '검정', '등록기계 보관'),
             ('A-W02', 'KIOSK-A', 'USB', '회색', '등록기계 보관'),
             ('A-W03', 'KIOSK-A', '립밤', '흰색', '등록기계 보관'),
-            ('B-W01', 'KIOSK-B', '모형폰', '검정', '등록기계 보관'),
-            ('B-W02', 'KIOSK-B', '보조배터리', '흰색', '등록기계 보관'),
-            (MACHINE_LETTERS['KIOSK-C']+'-W01', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')]
+            (MACHINE_LETTERS['KIOSK-C']+'-W01', 'KIOSK-C', '모형폰', '검정', '등록기계 보관'),
+            (MACHINE_LETTERS['KIOSK-C']+'-W02', 'KIOSK-C', '보조배터리', '흰색', '등록기계 보관'),
+            (MACHINE_LETTERS['KIOSK-C']+'-W03', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')]
         timestamp = int(datetime.now(timezone.utc).timestamp() * 1_000_000)
         db.executemany('INSERT INTO demo_item(item_id,machine_id,category,color,status,received_at) VALUES(?,?,?,?,?,?)',
                        [(*row, timestamp) for row in rows])
@@ -144,7 +144,7 @@ class DemoCollections:
         ids = item_ids(ids)
         if not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', request_id):
             raise CollectionError('같은 회수 요청의 재시도에는 동일한 request_id가 필요합니다')
-        if machine_id not in ('KIOSK-A', 'KIOSK-B', 'KIOSK-C'):
+        if machine_id not in ('KIOSK-A', 'KIOSK-C'):
             raise CollectionError('등록기계를 확인해주세요')
         with self.connection(write=True) as db:
             self._check_revision(db, revision)
