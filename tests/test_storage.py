@@ -54,7 +54,7 @@ class MemoryStorageTest(unittest.TestCase):
         self.assertEqual(lay["summary"], {"shelf_slots": 8, "used": 0, "free": 8, "slots_without_pose": 8})
         r1 = lay["sections"][0]
         self.assertEqual([x["slot_id"] for x in r1["slots"]], ["R1-1", "R1-2"])
-        self.assertEqual({x["note"] for x in r1["slots"]}, {"가로 배치"})      # 폰 2개를 각각 가로로
+        self.assertEqual({x["note"] for x in r1["slots"]}, {"사선 배치·간격 넓음"})      # 11/6: 폰은 사선, 간격 넓음
         self.assertEqual(lay["sections"][4]["kind"], "handover")
 
     def test_assign_conflict_move_and_release(self):
@@ -166,9 +166,13 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
         self.assertEqual([(c, lb, k, [x for x in cats.split(",") if x]) for c, lb, k, cats, _ in sections],
                          [(c, lb, k, al) for c, lb, k, al, _, _ in LAYOUT])
         slots = re.findall(r"\('([A-Z]\d?-\d)',\s*'(\w+)',\s*(\d+),\s*(NULL|'[^']*')\)", sql)
+        # 008 이 바꾼 메모(옛 값 → 새 값)를 007 시작값에 적용하면 LAYOUT 과 같아야 한다
+        fix = (ROOT / "center" / "migrations" / "008_storage_layout_photo_1106.sql").read_text(encoding="utf-8")
+        renames = {old: new for new, old in re.findall(r"SET note = '([^']+)' WHERE .*?note = '([^']+)'", fix)}
+        got = [(sid, c, no, f"'{renames.get(n[1:-1], n[1:-1])}'" if n != "NULL" else n) for sid, c, no, n in slots]
         expect = [(f"{c}-{i}", c, str(i), "NULL" if note is None else f"'{note}'")
                   for c, _, _, _, n, note in LAYOUT for i in range(1, n + 1)]
-        self.assertEqual(slots, expect)
+        self.assertEqual(got, expect)
 
     def test_on_shelf_and_check_statuses_match_sql(self):
         from agents.storage import CHECK_STATUSES, RELEASE_STATUSES
