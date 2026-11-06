@@ -587,7 +587,14 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     # ---------- AI 챗봇 위젯 (LF-5, 11/5) — /chat/*, /chat-widget/* (agents/chat_api.py) ----------
     from agents.chat_api import add_chat_routes
-    add_chat_routes(app, chatbot)
+
+    def staff_allowed(request: Request) -> bool:      # 11/6 직원 관제 질문: 관리자 API 와 같은 문지기
+        return auth.allowed(request.cookies.get(COOKIE, ""), request.headers.get("x-admin-key", ""))
+
+    def ops_source() -> dict:                          # 관제 분석 에이전트 조사자: /returns·/live/state 와 같은 자료를 안에서 바로
+        return {"returns": svc.recent(100), "live": live_state(0, None)}
+
+    add_chat_routes(app, chatbot, staff_allowed=staff_allowed, ops_source=ops_source)
     return app
 
 

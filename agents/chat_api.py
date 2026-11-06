@@ -4,7 +4,7 @@
 챗봇 두뇌는 정연우 LF-5 의 `agents/chatbot.py`(LangGraph: 이용 안내 RAG + 물건 검색 에이전트)를 그대로 쓴다.
 
 주소
-    POST /chat/questions      {"question": "...", "history": ["이전 질문", ...최대 4개]} → 답변·근거·후보 카드
+    POST /chat/questions      {"question": "...", "history": ["이전 질문", ...최대 4개], "mode": "staff"(직원 화면만)} → 답변·근거·후보 카드
     GET  /chat/suggestions    추천 질문 목록
     GET  /chat/health         챗봇 준비 상태(문서 RAG 모델·검색 모드)
     GET  /chat/metrics        챗봇 운영 지표(LLMOps): 건수·응답 시간 p50/p95·결과 비율 — 질문 원문은 저장 안 함(agents/chat_metrics.py)
@@ -18,12 +18,23 @@
 
 - 챗봇 부품(langgraph 등)은 첫 질문 때 만든다. 설치가 안 돼 있어도 관제탑은 켜지고, 챗봇 주소만 503 으로 알린다
 - 질문 원문은 저장하지 않는다(추천 질문 선택 횟수만 셈). 인증 토큰은 Authorization: Bearer 로만 받는다
+
+직원 관제 질문(11/6, A안)
+- 관리자 화면 위젯(data-mode="staff")은 본문에 "mode": "staff" 를 붙인다. 관제탑이 관리자 로그인(쿠키·X-Admin-Key)을 확인한 뒤에만
+  챗봇에 staff=True 를 넘기고, 로그인이 안 됐으면 401. 분실인 화면(/lost)·키오스크는 mode 를 보내지 않으므로 관제 길이 열리지 않는다
+- 관제 질문은 LangManus 구조 관제 분석 에이전트(agents/ops_analyst.py)가 답한다. 관제 기록은 HTTP 를 다시 부르지 않고
+  관제탑 안에서 바로 읽는다(ops_source). 보고 문장 모델은 OPS_ANALYST_MODEL, 없으면 LF_CHAT_RAG_MODEL
 """
 from __future__ import annotations
 
 import os
 import threading
 import time
+
+try:      # `from __future__ import annotations` 때문에 FastAPI 가 함수 안 import 를 못 찾는다 → Request 는 모듈 맨 위에서(agents/api.py 와 같음)
+    from fastapi import Request
+except ImportError:      # fastapi 가 없어도 관제탑 시험(가짜 fastapi)은 돈다
+    Request = None
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIDGET_DIR = os.path.join(ROOT, "web", "chat-widget")
@@ -69,8 +80,30 @@ class LazyChatbot:
         return self._bot
 
 
-def add_chat_routes(app, chatbot=None) -> None:
-    """관제탑 앱(agents/api.py build_app)에 챗봇·위젯 주소를 더한다. chatbot 은 시험용으로 바꿔 끼울 수 있다."""
+class _OpsReader:
+    """관제 분석 에이전트의 조사자(researcher)가 읽는 자료: 관제탑 기록(ops_source) + 챗봇 운영 지표. 읽기만 한다."""
+
+    def __init__(self, source, metrics):
+        self._source, self._metrics = source, metrics
+
+    def collect(self) -> dict:
+        data = dict(self._source())
+        try:
+            data["chat"] = self._metrics.snapshot()
+        except Exception:
+            data["chat"] = None
+        return data
+
+
+def build_ops_agent(source, metrics):
+    from agents.ops_analyst import OpsAnalyst
+    model = os.environ.get("OPS_ANALYST_MODEL") or os.environ.get("LF_CHAT_RAG_MODEL") or None
+    return OpsAnalyst(reader=_OpsReader(source, metrics), model=model)
+
+
+def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_factory=build_ops_agent) -> None:
+    """관제탑 앱(agents/api.py build_app)에 챗봇·위젯 주소를 더한다. chatbot 은 시험용으로 바꿔 끼울 수 있다.
+    staff_allowed(request) → 관리자 로그인 여부, ops_source() → {"returns": [...], "live": {...}}. 둘 다 있어야 직원 관제 길이 열린다."""
     from fastapi import Body, Header, HTTPException
     from fastapi.responses import FileResponse, HTMLResponse
 
@@ -83,16 +116,38 @@ def add_chat_routes(app, chatbot=None) -> None:
     except AttributeError:
         pass
 
+    staff_ready = staff_allowed is not None and ops_source is not None
+    ops_lock = threading.Lock()
+
     def bot():
         try:
-            return holder.get()
+            b = holder.get()
         except RuntimeError:
             raise HTTPException(status_code=503, detail="챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요") from None
+        if staff_ready and getattr(b, "ops", "absent") is None:     # 직원 관제 에이전트는 처음 한 번만 붙인다
+            with ops_lock:
+                if b.ops is None:
+                    try:
+                        b.ops = ops_factory(ops_source, metrics)
+                    except Exception:      # 붙이지 못해도 분실인 안내·검색은 그대로
+                        pass
+        return b
 
     @app.post("/chat/questions")
-    def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None)) -> dict:
-        """AI 챗봇 질문. 본문 {question, history?(이전 질문 최대 4개), suggestion_id?, search_context?}"""
+    def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None), request: Request = None) -> dict:
+        """AI 챗봇 질문. 본문 {question, history?(이전 질문 최대 4개), suggestion_id?, search_context?, mode?("staff": 관리자 화면)}"""
         t0 = time.perf_counter()
+        mode = body.get("mode") if isinstance(body, dict) else None
+        staff = False
+        if mode == "staff":
+            if not staff_ready:
+                raise HTTPException(status_code=404, detail="직원 관제 질문은 관제탑에서만 쓸 수 있습니다")
+            if not staff_allowed(request):
+                metrics.record("question", (time.perf_counter() - t0) * 1000, "rejected")
+                raise HTTPException(status_code=401, detail="관리자 로그인이 필요합니다")
+            staff = True
+        elif mode not in (None, "", "web", "kiosk"):
+            raise HTTPException(status_code=422, detail="mode 는 web·kiosk·staff 중 하나")
         try:
             b = bot()
         except HTTPException:
@@ -100,7 +155,10 @@ def add_chat_routes(app, chatbot=None) -> None:
             raise
         token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
         try:
-            result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"))
+            if staff:
+                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), staff=True)
+            else:
+                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"))
         except ValueError as e:
             metrics.record("question", (time.perf_counter() - t0) * 1000, "rejected")
             raise HTTPException(status_code=422, detail=str(e)) from None
@@ -136,7 +194,8 @@ def add_chat_routes(app, chatbot=None) -> None:
         except RuntimeError:
             return {"ready": False, "error": holder.error}
         return {"ready": True, "rag_model_configured": bool(getattr(b.rag, "model", None)),
-                "search_mode": b.search.mode, "orchestration": "langgraph_guidance_and_item_search"}
+                "search_mode": b.search.mode, "staff_ops": staff_ready,
+                "orchestration": "langgraph_guidance_item_search_and_staff_ops" if staff_ready else "langgraph_guidance_and_item_search"}
 
     @app.get("/chat-widget/widget.js", include_in_schema=False)
     def chat_widget_js():
@@ -150,4 +209,4 @@ def add_chat_routes(app, chatbot=None) -> None:
             return HTMLResponse(f.read())
 
 
-__all__ = ["add_chat_routes", "build_chatbot_from_env", "LazyChatbot"]
+__all__ = ["add_chat_routes", "build_chatbot_from_env", "build_ops_agent", "LazyChatbot"]

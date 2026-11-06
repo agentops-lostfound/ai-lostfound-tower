@@ -50,5 +50,5 @@ python tools/ops_report.py "전체 현황" --from-json 기록.json      # 관제
 
 ## 5. 다음
 - 디스코드 관제 채널에 하루 요약 자동 전송(사용자 허락 후)
-- 챗봇 위젯에서 직원용 "관제 요약" 질문 연결(직원 인증 정해진 뒤)
+- ~~챗봇 위젯에서 직원용 "관제 요약" 질문 연결~~ → 11/6 완료: 관리자 화면 챗봇(`data-mode="staff"`, 관리자 로그인)에서 관제 질문이 이 에이전트로 간다(`docs/design/chatbot_sllm_rag.md` 6장)
 - 시험: `tests/test_ops_analyst.py`(LLM 숫자 검증·관제탑 꺼짐·주제 밖 질문)
