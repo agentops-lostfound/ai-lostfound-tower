@@ -356,7 +356,21 @@ class TowerService:
                 raise Unavailable(f"기록 저장소 연결 실패({type(e).__name__}) — 중복 확인을 못 해 실행하지 않음") from e
             if seen:
                 raise Conflict("duplicate", f"이미 처리한 사례 번호: {req.case_id}")
+            try:   # 11/6 시뮬레이션에서 찾은 허점: 아직 역 상자 안 물건이면 로봇·상태·찾기 요청을 건드리지 않고 거절
+                where = (self.backend_factory().db_get_item(req.item_id) or {}).get("status")
+            except Exception:
+                where = None
+            if where in ("등록기계 보관", "회수 중"):
+                raise Conflict("not_arrived", f"물건 {req.item_id} 은 아직 본센터에 도착하지 않았습니다({where}) — "
+                                              "회수해 온 뒤 다시 와 주세요(찾기 요청은 그대로 유지)")
             self._stop_event.clear()
+            slot = self.slot_of(req.item_id)        # 11/6 보관함 정답지: 로봇이 갈 칸·저장 자세를 관제 기록에 남김
+            try:
+                self.reporter.progress(req.case_id, "보관 칸",
+                                       f"물건 {req.item_id} · {slot['slot_id']} · 자세 {slot['pose_name'] or '없음(티칭 필요)'}" if slot
+                                       else f"물건 {req.item_id} · 보관 칸 기록 없음 — 탑뷰로만 찾음(보관함 탭에서 칸 기록 필요)")
+            except Exception:
+                pass
             be = GuardedBackend(self.backend_factory(), self._stop_event, self.gpu_lease)
             try:
                 out = self.flow(req, be, self.reporter, reviewer=self.reviewer).to_dict()
@@ -542,12 +556,7 @@ class TowerService:
                     claim = {"claim_id": c["claim_id"], "name_masked": c["name_masked"]} if c else None
                 except Exception:
                     claim = None
-            slot = None
-            try:
-                slot = next((s["slot_id"] for sec in self.storage.layout()["sections"] for s in sec["slots"]
-                             if s.get("item") and s["item"]["item_id"] == row["item_id"]), None)
-            except Exception:
-                pass
+            slot = (self.slot_of(row["item_id"]) or {}).get("slot_id")
             out.append({"case_id": row["case_id"], "item_id": row["item_id"], "claim": claim, "slot": slot,
                         "category": item.get("category") or feats.get("category"),
                         "public": {k: feats[k] for k in ("color", "shape", "material") if feats.get(k)},
@@ -596,18 +605,21 @@ class TowerService:
         r = be.db_set_status(item_id, "본센터 보관", changed_by="staff")
         if not (r or {}).get("ok"):
             raise Unavailable(f"상태 기록 실패: {(r or {}).get('reason', '')}")
-        slot = None
-        try:
-            slot = next(({"slot_id": s["slot_id"], "pose_name": s["pose_name"]}
-                         for sec in self.storage.layout()["sections"] for s in sec["slots"]
-                         if s.get("item") and s["item"]["item_id"] == item_id), None)
-        except Exception:
-            pass
+        slot = self.slot_of(item_id)
         try:
             self.reporter.progress(case_id, "보관함 복귀", f"물건 {item_id} · {slot['slot_id'] if slot else '칸 정보 없음'}")
         except Exception:
             pass
         return {"case_id": case_id, "item_id": item_id, "status": "본센터 보관", "slot": slot}
+
+    def slot_of(self, item_id: str) -> dict | None:
+        """물건이 기록된 보관 칸 {"slot_id", "pose_name"} 또는 None(기록 없음·DB 오류)"""
+        try:
+            return next(({"slot_id": s["slot_id"], "pose_name": s["pose_name"]}
+                         for sec in self.storage.layout()["sections"] for s in sec["slots"]
+                         if s.get("item") and s["item"]["item_id"] == item_id), None)
+        except Exception:
+            return None
 
     def item_photo(self, item_id: str):
         """등록 사진 파일(Path) 또는 None. 사진 폴더 밖 경로는 거부"""
