@@ -225,6 +225,12 @@ class MemoryIntakeStore:
             row.update(category=cat, features=pub, private_features=priv)
             return True
 
+    def photo_path(self, item_id: str) -> str | None:
+        """11/6 인계 교차 검증: 직원이 실물과 비교할 등록 사진의 상대 경로(없으면 None)"""
+        with self._lock:
+            row = self.items.get(item_id)
+            return row.get("photo_path") if row else None
+
 
 # 시연용 추천 장소(PostgreSQL 은 center/migrations/003 에 같은 목록)
 DEMO_PLACES = {
@@ -312,6 +318,13 @@ class PostgresIntakeStore:
             cur.execute(SQL_SET_FEATURES, (cat, json.dumps(pub, ensure_ascii=False),
                                            json.dumps(priv, ensure_ascii=False), item_id))
             return cur.rowcount == 1
+
+    def photo_path(self, item_id: str) -> str | None:
+        """11/6 인계 교차 검증: 직원이 실물과 비교할 등록 사진의 상대 경로(없으면 None)"""
+        with self._connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT photo_path FROM item WHERE item_id = %s", (item_id,))
+            row = cur.fetchone()
+            return row[0] if row else None
 
 
 def valid_item_id(item_id: str) -> bool:

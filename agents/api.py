@@ -308,6 +308,51 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
+    # ---------- 11/6 인계 교차 검증(docs/design/handover_cross_check.md) ----------
+    def _case(call):
+        try:
+            return call()
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+    @app.get("/api/admin/handovers", dependencies=admin)
+    def handover_queue(limit: int = 20) -> list:
+        """제출보관함에서 직원 확인을 기다리는 반환(인계 대기) 목록"""
+        return _case(lambda: svc.handover_queue(max(1, min(int(limit), 100))))
+
+    @app.get("/api/admin/returns/{case_id}/secret", dependencies=admin)
+    def handover_secret(case_id: str) -> dict:
+        """비공개 특징(정답) — 분실인 설명을 먼저 들은 뒤 '답 보기'로만 연다. 인계 대기 중에만"""
+        return _case(lambda: svc.handover_secret(case_id))
+
+    @app.post("/api/admin/returns/{case_id}/verify", dependencies=admin)
+    def verify_handover(case_id: str, payload: dict = Body(...)) -> dict:
+        """교차 검증 결과. 본문 {"item_match": true, "id_match": true, "feature_match": true} — 셋 다 맞으면 인계 완료, 아니면 반환 보류"""
+        return _case(lambda: svc.verify_handover(case_id, payload))
+
+    @app.post("/api/admin/returns/{case_id}/restock", dependencies=admin)
+    def restock(case_id: str, payload: dict = Body(...)) -> dict:
+        """반환 보류 물건을 원래 칸에 넣은 뒤 → 본센터 보관. 본문 {"staff_confirmed": true}"""
+        return _case(lambda: svc.restock(case_id, payload))
+
+    @app.get("/api/admin/items/{item_id}/photo", dependencies=admin)
+    def item_photo(item_id: str):
+        """등록 사진(직원이 실물과 비교). 없으면 404"""
+        from agents.intake import valid_item_id
+        from fastapi.responses import FileResponse
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        path = svc.item_photo(item_id)
+        if path is None:
+            raise HTTPException(status_code=404, detail="등록 사진 없음")
+        return FileResponse(str(path), headers={"Cache-Control": "no-store"})
+
     @app.get("/robot/state", dependencies=admin)
     @app.get("/api/admin/robot/state", dependencies=admin)
     def robot_state() -> dict:

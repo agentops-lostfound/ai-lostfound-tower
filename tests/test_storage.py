@@ -121,7 +121,9 @@ class MemoryStorageTest(unittest.TestCase):
         self.items.db["A-W01"]["status"] = "반환 중"                  # 로봇이 집는 중: 칸은 유지, 내보내기에서는 빠짐
         self.assertNotIn("A-W01", self.s.export()["inventory"])
         self.assertEqual(self.s.layout()["summary"]["used"], 2)
-        self.items.db["A-W01"]["status"] = "인계 대기"                # 바구니로 나감 → 칸 비움
+        self.items.db["A-W01"]["status"] = "인계 대기"                # 제출보관함: 칸 예약 유지(교차 검증이 틀리면 되돌림)
+        self.assertEqual(self.s.layout()["summary"]["used"], 2)
+        self.items.db["A-W01"]["status"] = "인계 완료"                # 건넴 → 칸 비움
         self.items.db["A-W02"]["status"] = "인계 완료"
         self.assertEqual(self.s.assign("A-W05", "R4-1", override_category=True)["slot_id"], "R4-1")   # 화면 새로고침 없이 바로 넣기
         self.s.release(slot_id="R4-1")
@@ -186,7 +188,8 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
         sql = MIGRATION.read_text(encoding="utf-8")
         block = sql[sql.index("status IN ('count_match'"):]
         self.assertEqual(re.findall(r"'(\w+)'", block[:block.index(")),")]), list(CHECK_STATUSES))
-        self.assertIn("NEW.status IN ('" + "', '".join(RELEASE_STATUSES) + "')", sql)
+        latest = (ROOT / "center" / "migrations" / "011_storage_release_on_done_1106.sql").read_text(encoding="utf-8")
+        self.assertIn("NEW.status IN ('" + "', '".join(RELEASE_STATUSES) + "')", latest)   # 11/6 인계 완료 때만
         from agents.contracts import ITEM_STATUS
         self.assertTrue(set(ON_SHELF) | set(RELEASE_STATUSES) <= set(ITEM_STATUS))
 
@@ -274,6 +277,9 @@ class PostgresStorageTest(unittest.TestCase):
         gunte_load_storage(out)
         with psycopg.connect(self.dsn) as conn:
             conn.execute("UPDATE item SET status='인계 대기' WHERE item_id='A-W01'")
+        self.assertEqual(self.s.layout()["summary"]["used"], 1)       # 11/6 인계 대기는 칸 예약 유지
+        with psycopg.connect(self.dsn) as conn:
+            conn.execute("UPDATE item SET status='인계 완료' WHERE item_id='A-W01'")
         self.assertEqual(self.s.layout()["summary"]["used"], 0)
         row = self.s.record_check({"section": "R4", "expected_count": 0, "detected_count": 0, "status": "count_match"})
         self.assertEqual(self.s.recent_checks(5)[0]["id"], row["id"])

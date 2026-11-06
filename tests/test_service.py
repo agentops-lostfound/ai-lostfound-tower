@@ -275,13 +275,15 @@ class ApiRoutesTest(unittest.TestCase):
         r = self.routes
         new_api = [("GET", "/admin")] + [("GET", p) for p in ("/api/admin/claims/{claim_id}", "/api/admin/live/state", "/api/admin/me", "/api/admin/returns",
                                         "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places",
-                                        "/api/admin/storage", "/api/admin/storage/export", "/api/admin/storage/checks")] + \
+                                        "/api/admin/storage", "/api/admin/storage/export", "/api/admin/storage/checks",
+                                        "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
                                          "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",
                                          "/api/kiosk/items/{item_id}/features", "/api/kiosk/returns", "/api/lost/claims", "/api/robot/stop",
                                          "/api/admin/storage/assign", "/api/admin/storage/release",   # 11/6 보관함 정답지
-                                         "/api/admin/storage/slots/{slot_id}/pose", "/api/admin/storage/checks")]   # 11/5 /api/ 주소 체계
+                                         "/api/admin/storage/slots/{slot_id}/pose", "/api/admin/storage/checks",
+                                         "/api/admin/returns/{case_id}/verify", "/api/admin/returns/{case_id}/restock")]   # 11/6 교차 검증   # 11/5 /api/ 주소 체계
         self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/metrics"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
@@ -336,6 +338,27 @@ class ApiRoutesTest(unittest.TestCase):
         self.assertEqual(r[("POST", "/api/admin/storage/checks")](check)["id"], 1)
         self.assertEqual(len(r[("GET", "/api/admin/storage/checks")](5)), 1)
         self.assertEqual(r[("POST", "/api/admin/storage/release")]({"slot_id": "R4-1"})["item_id"], "A-W01")
+
+    def test_cross_check_routes(self):
+        """11/6 교차 검증 경로: 대기 목록·답 보기·검증·되돌림·사진 오류 코드"""
+        from agents import api
+        svc = service()
+        api.build_app(svc)
+        r = self.routes
+        svc.start_return(ok_payload(case="Y1"))
+        self.assertEqual(r[("GET", "/api/admin/handovers")](20)[0]["case_id"], "Y1")
+        self.assertIn("mark", r[("GET", "/api/admin/returns/{case_id}/secret")]("Y1")["secret"])
+        for args, code in ((("Y1", {"item_match": True}), 422), (("NONE", {"item_match": True, "id_match": True, "feature_match": True}), 404)):
+            with self.assertRaises(self.HTTPException) as cm:
+                r[("POST", "/api/admin/returns/{case_id}/verify")](*args)
+            self.assertEqual(cm.exception.status_code, code)
+        ok = {"item_match": True, "id_match": True, "feature_match": False}
+        self.assertEqual(r[("POST", "/api/admin/returns/{case_id}/verify")]("Y1", ok)["result"], "반환 보류")
+        self.assertEqual(r[("POST", "/api/admin/returns/{case_id}/restock")]("Y1", {"staff_confirmed": True})["status"], "본센터 보관")
+        for item, code in (("A W01", 422), ("A-W01", 404)):
+            with self.assertRaises(self.HTTPException) as cm:
+                r[("GET", "/api/admin/items/{item_id}/photo")](item)
+            self.assertEqual(cm.exception.status_code, code)
 
     def test_db_down_is_503(self):
         from agents import api
@@ -529,6 +552,62 @@ class HandoverTest(unittest.TestCase):
             self.svc.hold_handover("H7", {"reason": "분실인 거부"})
         self.assertEqual(cm.exception.kind, "state")
         self.assertEqual(self.status(), "인계 완료")
+
+    def test_cross_check_all_ok_hands_over_and_frees_slot(self):
+        """11/6 교차 검증: 대기 목록 → 답 보기 → 셋 다 맞음 → 인계 완료 + 칸 비움"""
+        self.svc.storage.assign("A-W01", "R4-1")
+        self.svc.start_return(ok_payload(case="X1"))
+        q = self.svc.handover_queue()
+        self.assertEqual([r["case_id"] for r in q], ["X1"])
+        self.assertNotIn("mark", q[0]["public"])                     # 목록에는 비공개 특징 없음
+        self.assertEqual(self.svc.handover_secret("X1")["secret"]["mark"], "별 모양 스티커")
+        self.assertEqual(self.svc.storage.layout()["summary"]["used"], 1)   # 인계 대기 중에는 칸 예약
+        res = self.svc.verify_handover("X1", {"item_match": True, "id_match": True, "feature_match": True})
+        self.assertEqual((res["result"], self.status()), ("인계 완료", "인계 완료"))
+        self.assertEqual(self.svc.storage.layout()["summary"]["used"], 0)
+        self.assertEqual(self.svc.handover_queue(), [])
+        self.assertTrue(any("교차 검증" in m["title"] for m in self.rep.messages))
+        with self.assertRaises(Conflict):                             # 끝난 사례의 정답은 다시 안 보여 줌
+            self.svc.handover_secret("X1")
+
+    def test_cross_check_fail_holds_then_restock_to_same_slot(self):
+        self.svc.storage.assign("A-W01", "R4-1")
+        self.svc.storage.set_pose("R4-1", "pose_7")
+        self.svc.start_return(ok_payload(case="X2"))
+        res = self.svc.verify_handover("X2", {"item_match": True, "id_match": False, "feature_match": True})
+        self.assertEqual((res["result"], res["reason"]), ("반환 보류", "본인 아님"))
+        self.assertEqual(self.svc.storage.layout()["summary"]["used"], 1)   # 원래 칸 그대로 예약
+        with self.assertRaises(RequestError):
+            self.svc.restock("X2", {})
+        out = self.svc.restock("X2", {"staff_confirmed": True})
+        self.assertEqual((out["status"], out["slot"]), ("본센터 보관", {"slot_id": "R4-1", "pose_name": "pose_7"}))
+        self.assertEqual(self.svc.storage.export()["inventory"], {"A-W01": {"section": "R4", "slot": "1"}})
+        with self.assertRaises(Conflict):                             # 두 번 되돌릴 수 없음
+            self.svc.restock("X2", {"staff_confirmed": True})
+
+    def test_cross_check_reasons_and_bad_body(self):
+        self.svc.start_return(ok_payload(case="X3"))
+        for body in ({}, {"item_match": True, "id_match": True}, {"item_match": 1, "id_match": True, "feature_match": True},
+                     {"item_match": True, "id_match": True, "feature_match": True, "memo": "x"}, None):
+            with self.assertRaises(RequestError, msg=repr(body)):
+                self.svc.verify_handover("X3", body)
+        res = self.svc.verify_handover("X3", {"item_match": False, "id_match": True, "feature_match": True})
+        self.assertEqual(res["reason"], "물건 다름")
+        with self.assertRaises(Conflict):
+            self.svc.verify_handover("X3", {"item_match": True, "id_match": True, "feature_match": True})
+        self.assertIsNone(self.svc.item_photo("A-W01"))              # 시연 물건은 등록 사진 없음
+
+    def test_item_photo_stays_inside_photo_dir(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            svc = TowerService(demo_backend_factory(), Reporter(), photo_dir=d)
+            out = svc.create_item({"machine_id": "KIOSK-A", "place_text": "대합실",
+                                   "photo": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="})
+            p = svc.item_photo(out["item_id"])
+            self.assertTrue(p is not None and Path(d).resolve() in p.parents)
+            svc.intake.items[out["item_id"]]["photo_path"] = "../../etc/passwd"
+            self.assertIsNone(svc.item_photo(out["item_id"]))
 
     def test_schema_and_migration_list_all_statuses(self):
         from agents.contracts import ITEM_STATUS
