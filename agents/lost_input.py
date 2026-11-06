@@ -15,10 +15,14 @@ KST = timezone(timedelta(hours=9))
 ALIASES = {"지갑": ("지갑", "wallet"), "USB": ("usb", "유에스비", "유에스비 메모리"),
            "모형폰": ("휴대폰", "휴대전화", "스마트폰", "모형폰", "핸드폰"),
            "립밤": ("립밤",), "핸드크림": ("핸드크림", "핸드 크림"), "보조배터리": ("보조배터리", "보조 배터리")}
-COLORS = {"검정": ("검정", "검은", "검정색", "블랙"), "흰색": ("흰색", "하얀", "화이트"),
-          "회색": ("회색", "은색", "실버"), "빨강": ("빨간", "빨강"), "파랑": ("파란", "파랑"),
-          "남색": ("남색",), "갈색": ("갈색",), "초록": ("초록",), "노랑": ("노란", "노랑"),
-          "분홍": ("분홍", "핑크")}
+# 11/6: 비전(agents/vision_adapter.py COLOR)과 같은 묶음으로 — light blue→파랑, beige→갈색, purple·orange→기타
+COLORS = {"검정": ("검정", "검은", "검정색", "블랙", "까만"), "흰색": ("흰색", "하얀", "화이트"),
+          "회색": ("회색", "은색", "실버", "그레이"), "빨강": ("빨간", "빨강", "레드"),
+          "파랑": ("파란", "파랑", "하늘색", "블루"), "남색": ("남색", "네이비", "곤색"),
+          "갈색": ("갈색", "브라운", "베이지"), "초록": ("초록", "녹색", "연두", "그린"),
+          "노랑": ("노란", "노랑", "옐로"), "분홍": ("분홍", "핑크")}
+# 우리 색 목록(contracts.COLORS) 밖의 색 → "기타"로 찾는다(비전도 purple·orange 등은 기타). 연보라·진보라도 보라. "자주"는 "자주 잃어버려요"와 헷갈려 뺌
+OTHER_COLORS = ("보라", "퍼플", "라벤더", "주황", "오렌지", "금색", "골드", "민트", "청록", "카키", "와인색", "버건디")
 
 
 def checked_text(value, name="설명", limit=2000):
@@ -40,6 +44,8 @@ def text_features(text):
             # '검은색' and '밝은색' contain '은색' but do not mean silver.
             return bool(re.search(r"(?<![가-힣])은색", text)) if term == "은색" else term in text
         found = {label for label, terms in aliases.items() if any(present(term) for term in terms)}
+        if field == "color" and any(term in text for term in OTHER_COLORS):
+            found.add("기타")                  # 11/6 연보라색 → 예전엔 색을 못 알아듣고 색 없이(다른 색 후보까지) 찾았음
         if len(found) == 1 and not re.search(r"아니|말고|않|제외", text):
             desc[field] = found.pop()
         elif found:

@@ -20,6 +20,7 @@ _search_access = ContextVar('lf_chat_search_access', default=None)
 
 class ChatState(TypedDict, total=False):
     question: str
+    history: list
     search_context: dict
     ops_turn: bool
     route: str
@@ -62,7 +63,7 @@ class Chatbot:
         self.ops = ops          # 관제 분석 에이전트(run(question) → {"report", ...}). 없으면 직원 관제 길은 닫힘
         graph = StateGraph(ChatState)
         graph.add_node('route_question', self._route)
-        graph.add_node('document_guidance', lambda s: {'result': self.rag.ask(s['question'])})
+        graph.add_node('document_guidance', lambda s: {'result': self._rag_ask(s)})
         graph.add_node('item_search', lambda s: {'result': self.search.ask(s['question'], _search_access.get(), s.get('search_context'))})
         graph.add_node('combined_help', self._both)
         graph.add_node('ops_report', self._ops)
@@ -91,12 +92,17 @@ class Chatbot:
         return {'route': 'search' if (search or direct_search) and not help_question else 'guidance'}
 
     def _both(self, state):
-        guide = self.rag.ask(state['question'])
+        guide = self._rag_ask(state)
         search = self.search.ask(state['question'], _search_access.get(), state.get('search_context'))
         return {'result': {**search, 'answer': guide['answer'] + '\n\n' + search['answer'],
                            'sources': guide['sources'], 'generation_used': guide.get('generation_used', False),
                            'status': 'answered' if guide['status'] == 'answered' and search['item_search_performed'] else 'partial',
                            'method': 'document_guidance_and_read_only_item_search'}}
+
+    def _rag_ask(self, state):
+        """11/6: 이전 질문(사용자 말만)을 sLLM 에 맥락으로 넘긴다. history 를 받지 않는 예전 rag 부품도 그대로 동작"""
+        history = state.get('history') or []
+        return self.rag.ask(state['question'], history=history) if history else self.rag.ask(state['question'])
 
     def _ops(self, state):
         """직원 관제 질문 → LangManus 구조 에이전트(조정→계획→감독⇄조사·분석·보고). 숫자는 관제 기록에서만."""
@@ -131,7 +137,8 @@ class Chatbot:
         context_token = _search_access.set(access_token)
         try:
             with tracing_context(enabled=False, parent=False):
-                state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn},
+                state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn,
+                                           'history': history},
                                           config={'callbacks': []})
         finally:
             _search_access.reset(context_token)
