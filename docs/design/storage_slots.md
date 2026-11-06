@@ -2,7 +2,7 @@
 
 한줄 설명: **"물건 X 는 보관함 몇 행 몇 번 칸에 있고, 로봇팔은 어느 저장 자세로 가야 하는가"** 를 팀 DB 에 남기고, 비전(김건태) `run_storage_check.py` 가 읽는 storage JSON 으로 내보낸다.
 
-- 표: `center/migrations/007_storage_slots_1106.sql` + 사진 반영 `008_storage_layout_photo_1106.sql` (관제탑 켤 때 `tools/db_migrate.py --apply` 가 자동 적용, dev 모드로 켜 둔 채 `git pull` 했다면 직접 `--apply`)
+- 표: `center/migrations/007_storage_slots_1106.sql` + 사진 반영 `008_storage_layout_photo_1106.sql`·`009_storage_categories_photo_1106.sql` (관제탑 켤 때 `tools/db_migrate.py --apply` 가 자동 적용, dev 모드로 켜 둔 채 `git pull` 했다면 직접 `--apply`)
 - 코드: `agents/storage.py` (메모리·PostgreSQL 저장소), 관리자 API `/api/admin/storage*`, 내보내기 `tools/storage_export.py`
 - 시험: `tests/test_storage.py`, `tests/test_service.py`(경로)
 
@@ -17,7 +17,7 @@
 ```
 YOLO 는 "어디에 무엇이 몇 개 보이나"만 안다. **어느 물건이 어느 칸인지는 DB 가 정답**이고, YOLO 는 그 정답과 개수가 맞는지 확인하는 역할이다.
 
-## 2. 배치 (11/6 사진 확인 — 행별 품목만 시작값)
+## 2. 배치 (11/6 판 사진 기준)
 보관판 긴 변 약 50cm × 짧은 변 약 25cm(로봇팔 받침 쪽 1.5cm 띠 포함 26.5cm). 긴 변 한쪽에 로봇팔, **반대쪽 긴 변 바깥에 제출보관함(20×20cm)**.
 한 행 = 짧은 변 방향으로 받침 2개, 행 4개가 긴 변 방향으로 늘어선다(위에서 내려다본 그림, 탑뷰 카메라 기준).
 
@@ -27,11 +27,11 @@ YOLO 는 "어디에 무엇이 몇 개 보이나"만 안다. **어느 물건이 �
         |   R1-1           R1-2    |   R1 model phone, diagonal
         |   (wider gap, own pose)  |      -> gap to R2 is larger
         |                          |
- robot  |     R2-1       R2-2      |   R2 USB / hand cream        +-----------+
+ robot  |     R2-1       R2-2      |   R2 USB / cream / battery   +-----------+
  arm  ==+                          |                              |  H-1      |
  mount  |     R3-1       R3-2      |   R3 lip balm                |  handover |
         |                          |                              |  20x20cm  |
-        |     R4-1       R4-2      |   R4 wallet / power bank     +-----------+
+        |     R4-1       R4-2      |   R4 wallet (card + bifold)  +-----------+
         +--------------------------+
  [ArUco ID1]
               [yellow basket = glare shield, not a slot]
@@ -40,7 +40,7 @@ YOLO 는 "어디에 무엇이 몇 개 보이나"만 안다. **어느 물건이 �
 - **R1(모형폰)**: 가로로 두면 인식이 잘 안 돼 폰을 **사선**으로 둔다. 받침 간격이 다른 행보다 넓고 R2 와도 멀다 → 저장 자세와 비전 영역을 R1 만 따로 잡는다(행마다 영역 1개라 코드는 그대로)
 - **H-1 제출보관함**: 로봇팔 받침 반대쪽 긴 변 바깥, 대략 R2~R3 옆(008 마이그레이션 메모)
 - **노란 바구니**: 빛 반사로 인식이 흔들려 세운 **가림막**이다. 보관 칸·인계 구역이 아니므로 DB 에 넣지 않는다
-- 행별 품목은 **시작값(추정)**: 다르면 `storage_section.allowed_categories` 만 바꾸면 된다(코드 수정 불필요). 다른 품목을 굳이 넣을 때는 `override_category: true`
+- 행별 품목은 판 사진에 맞춰 **팀이 정한 시연 시작값**(009): R1 모형폰 · R2 USB·핸드크림·보조배터리(사진에서 빈 행) · R3 립밤 · R4 지갑(카드지갑·반지갑). 바꾸려면 `storage_section.allowed_categories` 만 고치면 된다(코드 수정 불필요). 다른 품목을 굳이 넣을 때는 `override_category: true`
 
 ## 3. 표 4개
 | 표 | 무엇 | 핵심 규칙 |
@@ -93,6 +93,5 @@ python tools/storage_export.py --out data/storage.json
 | --- | --- |
 | 로봇 티칭으로 칸 8개 + H-1 저장 자세 이름 정하기 → `.../slots/{칸}/pose` 로 연결 | 김건태·이순필 |
 | 비전 영역 이름을 R1~R4 로 저장 | 김건태 |
-| 행별 품목이 시작값과 다르면 `allowed_categories` 수정 | 변재원 |
 | 관리자 화면에 보관함 칸 보기·넣기 버튼 | 변재원 |
 | 본센터 도착 시 빈 칸 자동 추천(품목 → 행) | 변재원 |
