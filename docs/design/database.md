@@ -74,6 +74,7 @@ erDiagram
 | 찾기 | claim_candidate | 후보 1·2·3과 점수(점수는 내부용) | 김건태(매칭)·김재민 | 없음 |
 | 찾기 | quiz_attempt | 확인 질문 시도(어느 특징을 물었는지·맞았는지만, 답은 저장 안 함) | 김재민 | 없음 |
 | 찾기 | reservation | 수령 예약(방문 날짜·상태) | 김재민 | 없음 |
+| 보관 | storage_section / storage_slot / storage_assignment / inventory_check | 본센터 보관함 정답지: 4행×2칸 + 인계 구역, 칸별 저장 자세, 물건 보관 위치(칸 하나에 물건 하나), 탑뷰 개수 확인 기록 — 11/6 `007_storage_slots_1106.sql`, 안내 `docs/design/storage_slots.md` | 변재원 LF-8(직원·관제탑), 저장 자세는 로봇 티칭 결과 | 없음 |
 | 반환 | return_case / return_step | 반환 결정·이유·단계(관제탑 API가 저장) | **관제탑** | 없음 |
 | 통계 | stats_item · stats_return (보기) | Text2SQL 통계 질문용 읽기 전용 | 정연우 LF-9 | 없음 |
 

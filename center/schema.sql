@@ -158,6 +158,9 @@ CREATE TABLE IF NOT EXISTS return_step (
     at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ========== 보관함 정답지(구역·칸·저장 자세·보관 위치) ==========
+-- [주인: 변재원 LF-8] 표 정의는 center/migrations/007_storage_slots_1106.sql (관제탑 켤 때 자동 적용) · docs/design/storage_slots.md
+
 -- ========== 통계 질문(Text2SQL)용 읽기 전용 보기 — 개인정보 칸 없음 ==========
 -- [주인: 정연우 LF-9]
 CREATE OR REPLACE VIEW stats_item AS

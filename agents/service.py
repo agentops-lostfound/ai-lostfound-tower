@@ -143,7 +143,7 @@ def parse_visit(payload: dict) -> tuple[str, str | None, dict]:
 class TowerService:
     def __init__(self, backend_factory: Callable[[], object], reporter, recorder: Recorder | None = None,
                  reviewer=None, flow: Callable = run_return, claims: ClaimStore | None = None,
-                 intake: IntakeStore | None = None, gpu_lease=None, photo_dir=None):
+                 intake: IntakeStore | None = None, gpu_lease=None, photo_dir=None, storage=None):
         self.backend_factory = backend_factory   # 요청마다 부품 묶음을 얻는 함수(진짜 부품이면 같은 객체를 돌려줘도 됨)
         self.reporter = reporter
         self.recorder = recorder if recorder is not None else MemoryRecorder()
@@ -156,6 +156,23 @@ class TowerService:
         self.photo_dir = photo_dir                 # 등록기계 사진 저장 폴더(None = TOWER_PHOTO_DIR 또는 저장소/data)
         self.gpu_lease = gpu_lease                 # user → GpuLease. None = GPU 사용권 안 씀(시험·가짜 부품)
         self._kiosk_fails: dict[str, int] = {}     # 키오스크 회수에서 신분 번호를 틀린 횟수(찾기 번호별)
+        if storage is None:                        # 11/6 보관함 정답지(agents/storage.py). DB 모드면 PostgresStorageStore
+            from agents.storage import MemoryStorageStore
+            storage = MemoryStorageStore(item_lookup=self._storage_item)
+        self.storage = storage
+
+    def _storage_item(self, item_id: str) -> dict | None:
+        """메모리 보관함용 물건 조회: 부품(DB·가짜 보관함) → 등록기계 접수 기록 순서로 찾는다"""
+        try:
+            item = self.backend_factory().db_get_item(item_id)
+        except Exception:
+            item = None
+        if item is None:
+            item = getattr(self.intake, "items", {}).get(item_id)
+        if item is None:
+            return None
+        return {"status": item.get("status"),
+                "category": item.get("category") or (item.get("features") or {}).get("category")}
 
     # ---------- 습득물 접수(등록기계 화면) ----------
     def list_places(self, machine_id: str, limit: int = 10) -> list[dict]:
