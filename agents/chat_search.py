@@ -139,6 +139,9 @@ class SearchAgent:
             if not self._authorized(access_token):
                 return response('authentication_required', '실제 물건 조회에는 기존 찾기 절차의 본인인증·필수 동의 연결이 필요해요. 현재 채팅에서는 인증을 대신하지 않습니다.')
         desc, warnings = search_context(question, context)
+        if any(w.startswith('색상') for w in warnings):   # 11/6: 여러 색이면 무엇이 문제인지 정확히 되묻는다
+            return response('search_needs_details', '색이 두 가지 이상으로 보여요. 물건에서 가장 넓게 보이는 색 하나로 다시 알려주세요. '
+                            '예: 검정 지갑 찾아줘. 무늬·키링 같은 특징은 후보를 찾은 뒤 확인 질문에서 비교해요.')
         if desc['category'] not in CATEGORIES or desc['category'] == '없음' or warnings:
             return response('search_needs_details', '찾는 물건 한 종류와 색상을 알려주세요. 예: 검정 지갑 찾아줘. 지갑·모형폰(휴대폰)·USB·립밤·보조배터리·핸드크림을 구분할 수 있어요.')
         if self.mode != 'demo_sqlite' and not all(desc.get(k) for k in ('lost_date', 'lost_line', 'lost_station')):
@@ -160,9 +163,13 @@ class SearchAgent:
         prefix = '시연용 가상 DB 조회 결과입니다. 실제 습득물이 아닙니다.\n\n' if demo else ''
         answer = (f'조건에 맞는 후보 {len(candidates)}개를 찾았어요. 본인 물건으로 확정된 결과는 아닙니다.'
                   if candidates else '이번 조회 조건에 맞는 후보가 없어요. 색상이나 물건 종류를 확인해주세요. 전체 분실물의 존재 여부를 확정한 것은 아닙니다.')
-        applied = ['품목']
-        if desc.get('color'):
-            applied.append('색상')
+        applied = [f"품목({desc['category']})"]
+        if desc.get('color') == '기타':
+            applied.append('색상(기타 — 보라·주황처럼 목록 밖 색은 함께 찾음)')
+        elif desc.get('color'):
+            applied.append(f"색상({desc['color']})")
+        else:
+            applied.append('색상 없음(모든 색)')
         if desc.get('lost_date'):
             applied.append('분실 날짜 이후 접수')
         if desc.get('lost_station') and desc.get('lost_line'):

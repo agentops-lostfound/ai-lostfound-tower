@@ -67,3 +67,24 @@ class BenchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RatingSheetTests(unittest.TestCase):
+    """11/6 사람 품질 평가표: 모델 이름을 가리고 모델이 답한 질문만"""
+
+    def test_rating_csv_is_blind_and_has_key(self):
+        import csv
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "rating.csv"
+            text = bench.main(["--models", "fake-good,fake-dead", "--limit", "40", "--rating", str(path)], request=good_model)
+            self.assertIn("사람 평가표", text)
+            with path.open(encoding="utf-8-sig") as f:
+                rows = list(csv.reader(f))
+            header, body = rows[0], rows[1:]
+            self.assertEqual(header[:2], ["번호", "질문"])
+            self.assertIn("답 A", header)
+            self.assertNotIn("fake-good", path.read_text(encoding="utf-8-sig"))    # 모델 이름이 표에 없음
+            self.assertTrue(0 < len(body) <= 20)
+            key = json.loads(path.with_suffix(".key.json").read_text(encoding="utf-8"))
+            self.assertEqual(set(key["letters"].values()), {"fake-good", "fake-dead"})
+            self.assertEqual(key["questions"], len(body))
