@@ -102,7 +102,8 @@ class ServiceTest(unittest.TestCase):
 
     def test_flow_and_no_pii_out(self):
         s = self.svc()
-        self.assertEqual(len(s.list_places("KIOSK-A")), 6)
+        self.assertEqual(len(s.list_places("KIOSK-A")), 10)                  # 기본 10개(역마다 12개, 11/6)
+        self.assertEqual(len(s.list_places("KIOSK-A", 30)), 12)
         r = s.create_item(p(finder={"name": "김습득", "phone": "010-1234-5678"}))
         self.assertRegex(r["item_id"], r"^A-\d{8}-0001$")
         self.assertTrue(r["contact_saved"])
