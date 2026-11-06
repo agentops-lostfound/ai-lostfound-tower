@@ -5,7 +5,7 @@
 
 사용법 (교육원 PC, 저장소 폴더, .venv, Ollama 켠 상태)
     python tools/chat_model_bench.py                                              # 모델 없음(문서 원문) 기준만
-    python tools/chat_model_bench.py --models qwen3-vl:2b-instruct,qwen3-vl:4b-instruct
+    python tools/chat_model_bench.py --models exaone3.5:2.4b,qwen3-vl:4b-instruct      # 11/6 추천 비교
     python tools/chat_model_bench.py --models qwen3-vl:2b-instruct --limit 10 --out data/reports/chat_bench.md
 - "none" 은 모델 없이 문서 문단 그대로 답하는 기준선이다(항상 맨 앞에 넣음)
 - 모델은 승인된 문단 번호만 고른다(chat_rag.GroundedRag). 운영값 미정·주제 밖 질문은 모델을 부르지 않는다
@@ -69,7 +69,8 @@ def run_model(model: str, cases: list[dict], request=None, warmup: bool = True, 
         all_ms.append(ms)
         status = res.get("generation_status", "not_needed")
         gen[status] += 1
-        if status not in ("not_needed", "model_not_configured", "rejected", "fixed_policy_text"):   # 시연 운영 기준은 모델을 안 부름
+        if status not in ("not_needed", "model_not_configured", "rejected", "fixed_policy_text",   # 시연 운영 기준은 모델을 안 부름
+                          "guided_question", "off_topic", "retrieval_clarification"):          # 11/6 규칙 되묻기·주제 밖도 모델 안 부름
             called_ms.append(ms)                 # 모델을 실제로 부른 질문
         if passed(case, res):
             ok += 1
@@ -78,8 +79,8 @@ def run_model(model: str, cases: list[dict], request=None, warmup: bool = True, 
     called = len(called_ms)
     return {"model": model, "total": len(cases), "passed": ok,
             "passed_pct": round(100 * ok / len(cases)) if cases else None,
-            "model_called": called, "generated": gen["generated"],
-            "generated_pct": round(100 * gen["generated"] / called) if called else None,
+            "model_called": called, "generated": gen["generated"] + gen["generated_clarification"],   # 11/6 sLLM 되묻기도 모델 사용
+            "generated_pct": round(100 * (gen["generated"] + gen["generated_clarification"]) / called) if called else None,
             "fallback": sum(v for k, v in gen.items() if k.endswith("_fallback")),
             "avg_ms": round(sum(called_ms or all_ms) / len(called_ms or all_ms), 1) if (called_ms or all_ms) else None,
             "p50_ms": _pct(called_ms or all_ms, 50), "p95_ms": _pct(called_ms or all_ms, 95),
