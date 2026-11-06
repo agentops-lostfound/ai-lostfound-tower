@@ -25,7 +25,7 @@
 | `data-launcher` | `auto`(기본) · `always` · `off` | 동그란 버튼: 여는 버튼이 없을 때만 / 항상 / 안 보임 |
 | `data-title` | 글자 | 창 제목(기본 "AI 안내 도우미") |
 | `data-api` | 주소 | 챗봇 API 서버(기본: 위젯을 내려준 서버 = 관제탑) |
-| `data-mode` | `web`(기본) · `kiosk` | `kiosk`: 글자·버튼을 크게(터치용), **창을 닫으면 대화를 바로 지움** |
+| `data-mode` | `web`(기본) · `kiosk` · `staff` | `kiosk`: 글자·버튼을 크게(터치용), **창을 닫으면 대화를 바로 지움** · `staff`: 관리자 화면 전용, 관제 질문(반환 현황·실패 원인)을 관제 분석 에이전트로(관리자 로그인 필요, 아니면 401) |
 | `data-idle-reset` | 초(0~3600) | 아무 조작이 없으면 N초 뒤 대화를 지우고 창을 닫음. `kiosk` 기본 90, `web` 기본 0(끔) — 공용 기기에서 다음 사람에게 앞사람 대화가 보이지 않게 |
 - 코드에서 열고 닫기: `LostFoundChat.open()` · `LostFoundChat.close()` · `LostFoundChat.toggle()`
 

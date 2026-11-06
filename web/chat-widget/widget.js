@@ -6,6 +6,7 @@
  *   data-api="http://…"  챗봇 API 주소(기본: 이 스크립트를 내려준 서버 = 관제탑)
  *   data-title="AI 안내 도우미"
  *   data-mode="kiosk"     공용 키오스크용(11/6): 글자·버튼을 크게, 창을 닫으면 대화를 바로 지움
+ *   data-mode="staff"     직원 관리자 화면용(11/6): 이용 안내 + "오늘 반환 실패 원인?" 같은 관제 질문(관리자 로그인 필요, LangManus 구조 분석 에이전트)
  *   data-idle-reset="90"  아무 조작이 없으면 N초 뒤 대화를 지우고 창을 닫음(다음 사람에게 앞사람 대화가 보이지 않게). kiosk 기본 90, 웹은 0(끔)
  * 코드에서: window.LostFoundChat.open() / close() / toggle()
  * 대화 내용은 이 화면에만 있고 저장하지 않는다(새로 고침하면 사라짐). 스타일은 Shadow DOM 안에 가둬 화면 디자인을 건드리지 않는다.
@@ -20,7 +21,9 @@
     return v == null || v === "" ? fallback : v;
   };
   var API = opt("api", script && script.src ? new URL(script.src, location.href).origin : location.origin).replace(/\/+$/, "");
-  var TITLE = opt("title", "AI 안내 도우미");
+  var STAFF = opt("mode", "web") === "staff";
+  var TITLE = opt("title", STAFF ? "관제 도우미" : "AI 안내 도우미");
+  var STAFF_CHIPS = [{ text: "오늘 반환 현황 요약해줘" }, { text: "최근 반환 실패 원인 알려줘" }, { text: "챗봇 처리 시간 분석해줘" }];
   var LAUNCHER = opt("launcher", "auto");
   var KIOSK = opt("mode", "web") === "kiosk";
   var IDLE_S = Math.max(0, Math.min(3600, parseInt(opt("idle-reset", KIOSK ? "90" : "0"), 10) || 0));
@@ -185,7 +188,9 @@
 
   function showWelcome() {
     var box = el("div", "welcome");
-    box.append(el("p", null, "안녕하세요. 분실물 찾는 방법, 본센터 방문, 필요한 준비물 같은 이용 안내를 도와드려요. 잃어버린 물건(품목·색)을 말씀하시면 보관 중인 후보도 찾아볼게요."));
+    box.append(el("p", null, STAFF
+      ? "직원용 관제 도우미예요. 반환 현황·실패 원인·로봇·챗봇 처리 시간을 관제 기록으로 계산해 보고해요(LangManus 구조 분석 에이전트). 이용 안내 질문도 그대로 답해요."
+      : "안녕하세요. 분실물 찾는 방법, 본센터 방문, 필요한 준비물 같은 이용 안내를 도와드려요. 잃어버린 물건(품목·색)을 말씀하시면 보관 중인 후보도 찾아볼게요."));
     var chips = el("div", "chips");
     chips.setAttribute("data-chips", "");
     box.append(chips);
@@ -197,7 +202,7 @@
     var chips = root.querySelector("[data-chips]");
     if (!chips) return;
     chips.replaceChildren();
-    suggestions.slice(0, 3).forEach(function (s) {
+    (STAFF ? STAFF_CHIPS : suggestions.slice(0, 3)).forEach(function (s) {
       var b = el("button", "chip", s.text);
       b.type = "button";
       b.addEventListener("click", function () { send(s.text, s.id); });
@@ -221,7 +226,7 @@
     var init = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
     controller = controller || new AbortController();
     init.signal = controller.signal;
-    var timer = setTimeout(function () { controller.abort(); }, 30000);
+    var timer = setTimeout(function () { controller.abort(); }, STAFF ? 60000 : 30000);   // 관제 분석은 모델을 두 번 불러 더 걸림
     return fetch(API + path, init).then(function (r) {
       return r.json().catch(function () { throw new Error("서버 응답을 읽지 못했어요. 다시 시도해 주세요."); }).then(function (data) {
         if (!r.ok) {
@@ -246,6 +251,7 @@
   }
 
   function badgeText(res) {
+    if (res.agent === "ops") return res.ops_used_llm && res.ops_used_llm.length ? "관제 분석 · AI 보고" : "관제 분석 · 계산 보고";
     if (res.agent === "search" || res.agent === "both") return res.database_mode === "demo_sqlite" ? "가상 DB 시연" : "물건 검색 안내";
     if (res.generation_used) return "문서 검색 + AI 답변";
     if (res.status === "answered") return res.sources && res.sources.length ? "문서 근거 안내" : "대화 안내";
@@ -330,6 +336,7 @@
     statusEl.textContent = "답변 준비 중";
     var body = { question: q, history: (retryHistory || history).slice(-MAX_HISTORY) };
     if (suggestionId) body.suggestion_id = suggestionId;
+    if (STAFF) body.mode = "staff";
     var request = { controller: new AbortController(), version: conversationVersion };
     activeRequest = request;
     api("/chat/questions", body, request.controller).then(function (res) {
@@ -338,7 +345,8 @@
       pending.remove();
       var m = line("bot", res.answer || "답변을 만들지 못했어요. 질문을 조금 바꿔 다시 물어봐 주세요.");
       addExtras(m, res);
-      statusEl.textContent = res.agent === "search" || res.agent === "both" ? "후보는 본인 물건 확정이 아니에요" : "안내 완료 · 근거를 펼쳐 볼 수 있어요";
+      statusEl.textContent = res.agent === "ops" ? "관제 기록 기준 · 직원 전용" :
+        res.agent === "search" || res.agent === "both" ? "후보는 본인 물건 확정이 아니에요" : "안내 완료 · 근거를 펼쳐 볼 수 있어요";
       scroll();
     }).catch(function (err) {
       if (activeRequest !== request) return;
@@ -388,7 +396,7 @@
     api("/chat/health").then(function (h) {
       if (!h.ready) { loadedOnce = false; modeEl.textContent = "준비 중 — 관제탑 확인 필요"; dotEl.className = "dot off"; return; }
       dotEl.className = "dot";
-      modeEl.textContent = h.search_mode === "demo_sqlite" ? "이용 안내 + 가상 물건 검색" : h.search_mode === "postgres" ? "이용 안내 + 본인인증 후 물건 검색" : "이용 안내";
+      modeEl.textContent = STAFF ? (h.staff_ops ? "이용 안내 + 관제 분석(직원)" : "이용 안내 — 관제 분석은 관제탑에서만") : h.search_mode === "demo_sqlite" ? "이용 안내 + 가상 물건 검색" : h.search_mode === "postgres" ? "이용 안내 + 본인인증 후 물건 검색" : "이용 안내";
       return api("/chat/suggestions").then(function (s) { suggestions = (s && s.items) || []; renderChips(); });
     }).catch(function () { loadedOnce = false; modeEl.textContent = "연결 확인 필요"; dotEl.className = "dot off"; })
       .finally(function () { statusLoading = false; });

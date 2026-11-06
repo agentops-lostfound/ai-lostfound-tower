@@ -81,5 +81,7 @@ $('#logout').onclick = async () => { try { await fetch('/api/admin/logout', {met
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => showApp(b.dataset.tab));
 check();
 </script>
+<!-- 11/6 관제 도우미: 이용 안내 + 관제 질문(반환 현황·실패 원인). 관리자 로그인이 안 됐으면 관제 질문은 401 로 막힌다 -->
+<script src="/chat-widget/widget.js" data-mode="staff" defer></script>
 </body>
 </html>
