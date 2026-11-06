@@ -93,8 +93,9 @@
 2. 브라우저: `http://127.0.0.1:8100/kiosk?machine=KIOSK-A` · `/lost` · `/live`
 3. 다른 PC 에서 볼 때: `docs/design/virtual_demo.md` 4-2-1
 
-## 키오스크 태블릿 카메라 설정 (11/6)
-- 포토박스 탑뷰 캠(ROYCHE RPC-20F, UVC 1080p)은 **키오스크 태블릿**에, 보관함 탑뷰 캠과 로봇팔 캠은 **관제탑 PC**에 꽂는다
-- 키오스크 화면은 태블릿 자체 앞·뒤 카메라 대신 USB 캠을 고른다(이름에 USB·Webcam·FHD). 처음 한 번은 주소 끝에 `&camsetup=1` 을 붙여 화면의 카메라 목록에서 포토박스 캠을 고르면 그 태블릿에 기억된다. 번호로 고정하려면 `&cam=2`, 이름 일부로는 `&cam=webcam`
-- **브라우저는 https 또는 localhost 에서만 카메라를 준다.** 태블릿이 `http://10.10.21.21:8080/kiosk` 로 열면 카메라가 막힌다 → 시연용으로 태블릿 크롬 주소창에 `chrome://flags/#unsafely-treat-insecure-origin-as-secure` → 칸에 `http://10.10.21.21:8080` 입력 → Enabled → Relaunch (교육원 내부 시연에서만, 실제 운영은 https)
-- 태블릿이 USB 카메라(UVC)를 지원하는지는 기종·OS 버전에 따라 다르다(추정) — 크롬에서 `&camsetup=1` 목록에 "FHD Webcam" 같은 이름이 보이면 지원
+## 키오스크 카메라 설정 (11/6 결정: 키오스크는 PC 화면에서 운영)
+- **11/6 17시 실측: 갤럭시 탭 A8(SM-X200, Android 14) 크롬은 USB 웹캠을 보여 주지 않는다.** `&camsetup=1` 목록에 내장 카메라 2개(`camera 0, facing back`·`camera 1, facing front`)만 나오고 ROYCHE 웹캠은 없었다(OTG 케이블 연결 상태). 안드로이드 크롬은 기기 카메라 체계(Camera2)에 등록된 카메라만 쓰는데, 이 기종은 외부 USB 카메라 등록을 지원하지 않는 것으로 보인다(추정) → **태블릿 키오스크는 포기, 키오스크는 PC 화면에서 운영**
+- 포토박스 탑뷰 캠(ROYCHE RPC-20F, UVC 1080p)은 **키오스크 화면을 띄우는 PC**에, 보관함 탑뷰 캠과 로봇팔 캠은 **관제탑 PC**에 꽂는다(같은 PC 라면 카메라 3대가 한 PC 에 — USB 포트 고정·라벨)
+- 키오스크 PC 에서 `http://127.0.0.1:8080/kiosk?machine=KIOSK-A` (해운대) · `KIOSK-C` (서면) · `CENTER` (부산역 본센터). 처음 한 번 주소 끝에 `&camsetup=1` 을 붙여 목록에서 포토박스 캠(이름에 USB·Webcam·FHD)을 고르면 그 PC 브라우저에 기억된다. 번호 고정 `&cam=2`, 이름 일부 `&cam=webcam`
+- **브라우저는 https 또는 localhost(127.0.0.1)에서만 카메라를 준다.** 관제탑 PC 자신이 키오스크면 `127.0.0.1` 로 열면 된다. 다른 PC 에서 `http://10.10.21.21:8080/kiosk` 로 열면 카메라가 막힌다 → 그 PC 크롬 `chrome://flags/#unsafely-treat-insecure-origin-as-secure` 에 `http://10.10.21.21:8080` 입력 → Enabled → Relaunch (교육원 내부 시연에서만)
+- 11/6 교육원 PC(10.10.21.21)에서 USB 캠 "USB CAMERA (1124:2925)" 인식·자동 촬영·접수(H-20261106-0009)까지 확인함
