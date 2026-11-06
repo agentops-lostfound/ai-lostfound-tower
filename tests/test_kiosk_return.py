@@ -115,3 +115,10 @@ class KioskAutoCaptureTest(unittest.TestCase):
             self.assertIn(f"<b>{cat}", html)
         self.assertIn("다른 목적으로 쓰거나 다른 곳에 주지 않아요", html)
         self.assertNotIn("서버 없이 가짜 응답", html)
+
+    def test_camera_selection_prefers_usb_and_is_configurable(self):
+        from pathlib import Path
+        html = (Path(__file__).resolve().parents[1] / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
+        for word in ("enumerateDevices", "kioskCamera", "camsetup", "ideal: 1920", "isSecureContext"):
+            self.assertIn(word, html)
+        self.assertNotIn("facingMode:'environment'", html)          # 태블릿 뒷면 카메라를 잡지 않게
