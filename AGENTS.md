@@ -7,8 +7,8 @@ Claude Code 는 `CLAUDE.md` 를 읽고, Codex 는 이 파일을 읽는다. 두 �
 - AI 분실물 관제탑: 습득물 등록기계 → 본센터(공용 보관함 + 탑뷰 카메라 + SO-101 로봇팔) → 분실인 웹, 이를 관제하는 AI 관제탑
 - MVP: 지갑 1종 → 성공하면 USB·립밤·모형폰·핸드크림·보조배터리(품목 6종, agents/contracts.py CATEGORIES). 업무는 Jira 스페이스 LF — 에픽 LF-1(접수·찾기)·LF-7(센터·데이터)·LF-13(관제탑) 아래 작업(11/4 기준 LF-34까지, 번호는 에픽별 1.x·2.x·3.x 를 이어서)
 - 설계 문서: `docs/design/` (구조도 `architecture.md`, DB `database.md`)
-- 기준 입·출력 약속: `agents/contracts.py`, `docs/contracts/mcp_tools.md` — 바꾸면 PR 본문에 이유를 적는다(관제탑 담당 김재민, 11/5 역할 조정)
-- 11/5 역할: 화면·관제탑(API·DB·로봇 연결) 김재민 · 챗봇 변재원(보조 정연우) · 비전·매칭·집기 김건태 · 로봇팔 이순필. 관제탑 인수인계 `docs/design/tower_handover.md`
+- 기준 입·출력 약속: `agents/contracts.py`, `docs/contracts/mcp_tools.md` — 바꾸면 PR 본문에 이유를 적는다(관제탑 담당 변재원, 11/6 김재민 작업 완료 후 이어받음)
+- 11/6 역할: 화면·관제탑(API·DB·로봇 연결)·챗봇 변재원(11/5 정연우, 11/6 김재민 작업 완료 후 이어받음) · 비전·매칭·집기 김건태 · 로봇팔 이순필. 관제탑 인수인계 `docs/design/tower_handover.md`, 이어받기 기록 `docs/reports/2026-11-06-jaewon-takeover-jaemin.md`
 
 ## 폴더와 담당
 | 폴더 | 내용 |
