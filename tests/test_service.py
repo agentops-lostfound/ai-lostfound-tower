@@ -274,11 +274,14 @@ class ApiRoutesTest(unittest.TestCase):
         api.build_app(service())
         r = self.routes
         new_api = [("GET", "/admin")] + [("GET", p) for p in ("/api/admin/claims/{claim_id}", "/api/admin/live/state", "/api/admin/me", "/api/admin/returns",
-                                        "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places")] + \
+                                        "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places",
+                                        "/api/admin/storage", "/api/admin/storage/export", "/api/admin/storage/checks")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
                                          "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",
-                                         "/api/kiosk/items/{item_id}/features", "/api/kiosk/returns", "/api/lost/claims", "/api/robot/stop")]   # 11/5 /api/ 주소 체계
+                                         "/api/kiosk/items/{item_id}/features", "/api/kiosk/returns", "/api/lost/claims", "/api/robot/stop",
+                                         "/api/admin/storage/assign", "/api/admin/storage/release",   # 11/6 보관함 정답지
+                                         "/api/admin/storage/slots/{slot_id}/pose", "/api/admin/storage/checks")]   # 11/5 /api/ 주소 체계
         self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/metrics"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
                                      ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
@@ -311,6 +314,28 @@ class ApiRoutesTest(unittest.TestCase):
         with self.assertRaises(self.HTTPException) as cm:          # 이미 인계 완료 → 보류 불가
             r[("POST", "/returns/{case_id}/hold")]("R1", {"reason": "기타"})
         self.assertEqual(cm.exception.status_code, 409)
+
+    def test_storage_routes(self):
+        """11/6 보관함 정답지: 시연 부품(A-W01~, 본센터 보관)으로 넣기·충돌·자세·내보내기·오류 코드"""
+        from agents import api
+        api.build_app(service())
+        r = self.routes
+        self.assertEqual(r[("GET", "/api/admin/storage")]()["summary"]["shelf_slots"], 8)
+        self.assertEqual(r[("POST", "/api/admin/storage/assign")]({"item_id": "A-W01", "slot_id": "R4-1"})["section"], "R4")
+        for payload, code in (({"item_id": "A-W02", "slot_id": "R4-1"}, 409), ({"item_id": "A-W02", "slot_id": "R9-1"}, 404),
+                              ({"item_id": "A-W02", "slot_id": "H-1"}, 422), ({"item_id": "A-W99", "slot_id": "R4-2"}, 404),
+                              ([], 422)):
+            with self.assertRaises(self.HTTPException) as cm:
+                r[("POST", "/api/admin/storage/assign")](payload)
+            self.assertEqual(cm.exception.status_code, code, payload)
+        self.assertEqual(r[("POST", "/api/admin/storage/slots/{slot_id}/pose")]("R4-1", {"pose_name": "pose_1"})["pose_name"], "pose_1")
+        out = r[("GET", "/api/admin/storage/export")]()
+        self.assertEqual(out["inventory"], {"A-W01": {"section": "R4", "slot": "1"}})
+        self.assertEqual(out["warnings"], [])
+        check = {"section": "R4", "expected_count": 1, "detected_count": 1, "status": "count_match"}
+        self.assertEqual(r[("POST", "/api/admin/storage/checks")](check)["id"], 1)
+        self.assertEqual(len(r[("GET", "/api/admin/storage/checks")](5)), 1)
+        self.assertEqual(r[("POST", "/api/admin/storage/release")]({"slot_id": "R4-1"})["item_id"], "A-W01")
 
     def test_db_down_is_503(self):
         from agents import api

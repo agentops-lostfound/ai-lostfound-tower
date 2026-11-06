@@ -96,6 +96,7 @@ def build_service(backend_factory=None) -> TowerService:
     recorder = None
     claims = None
     intake = None
+    storage = None
     user_factory = backend_factory is not None
     if _flag("TOWER_DB") and backend_factory is None:
         # DB 모드: 물건 기록·상태는 진짜 DB, 나머지 부품(비전·매칭·로봇)은 가짜 → 반환 기록도 DB 에 저장
@@ -111,6 +112,8 @@ def build_service(backend_factory=None) -> TowerService:
         claims = PostgresClaimStore(dsn)
         from agents.intake import PostgresIntakeStore
         intake = PostgresIntakeStore(dsn)
+        from agents.storage import PostgresStorageStore      # 11/6 보관함 정답지(007 마이그레이션)
+        storage = PostgresStorageStore(dsn)
     if not user_factory:
         backend_factory = _with_vision_file(backend_factory)
     from agents.gpu_lease import lease_from_env
@@ -118,7 +121,7 @@ def build_service(backend_factory=None) -> TowerService:
     svc = TowerService(backend_factory or demo_backend_factory(),
                        LiveReporter(Reporter(dry_run=not _flag("TOWER_SEND")), board),
                        recorder=recorder, reviewer=reviewer, claims=claims, intake=intake,
-                       gpu_lease=lease_from_env())
+                       gpu_lease=lease_from_env(), storage=storage)
     svc.board = board
     return svc
 
@@ -327,6 +330,64 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             raise HTTPException(status_code=422, detail=str(e))
         except Conflict as e:
             raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+
+    # ---------- 11/6 보관함 정답지(agents/storage.py, docs/design/storage_slots.md) ----------
+    def _storage(call):
+        from agents.storage import StorageConflict, StorageError
+        try:
+            return call()
+        except HTTPException:
+            raise
+        except StorageError as e:
+            raise HTTPException(status_code=404 if e.not_found else 422, detail=str(e))
+        except StorageConflict as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        except Exception as e:                   # DB 꺼짐 등(주소·비밀번호는 담지 않음)
+            raise HTTPException(status_code=503, detail=f"보관함 DB 사용 불가({type(e).__name__})")
+
+    def _body(payload) -> dict:
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=422, detail="JSON 객체여야 합니다")
+        return payload
+
+    @app.get("/api/admin/storage", dependencies=admin)
+    def storage_layout() -> dict:
+        """보관함 4행×2칸 + 인계 구역: 칸마다 저장 자세와 들어 있는 물건(물건 번호·상태·품목만)"""
+        return _storage(svc.storage.layout)
+
+    @app.get("/api/admin/storage/export", dependencies=admin)
+    def storage_export() -> dict:
+        """비전 run_storage_check.py --storage 형식 JSON(sections·inventory) + warnings"""
+        return _storage(svc.storage.export)
+
+    @app.post("/api/admin/storage/assign", dependencies=admin)
+    def storage_assign(payload: dict = Body(...)) -> dict:
+        """물건을 칸에 넣음. 본문 {"item_id": "A-W01", "slot_id": "R4-1", "override_category": false}. 다른 물건이 있으면 409"""
+        p = _body(payload)
+        return _storage(lambda: svc.storage.assign(p.get("item_id"), p.get("slot_id"),
+                                                   override_category=p.get("override_category") is True))
+
+    @app.post("/api/admin/storage/release", dependencies=admin)
+    def storage_release(payload: dict = Body(...)) -> dict:
+        """칸 비우기. 본문 {"item_id": ...} 또는 {"slot_id": ...} 중 하나"""
+        p = _body(payload)
+        return _storage(lambda: svc.storage.release(item_id=p.get("item_id"), slot_id=p.get("slot_id")))
+
+    @app.post("/api/admin/storage/slots/{slot_id}/pose", dependencies=admin)
+    def storage_set_pose(slot_id: str, payload: dict = Body(...)) -> dict:
+        """로봇 티칭으로 정한 저장 자세 이름을 칸에 연결. 본문 {"pose_name": "pose_1"} (null = 지움)"""
+        p = _body(payload)
+        return _storage(lambda: svc.storage.set_pose(slot_id, p.get("pose_name")))
+
+    @app.post("/api/admin/storage/checks", dependencies=admin)
+    def storage_record_check(payload: dict = Body(...)) -> dict:
+        """탑뷰 개수 확인 결과 기록. 본문 {"section": "R1", "expected_count": 2, "detected_count": 2, "status": "count_match"}"""
+        return _storage(lambda: svc.storage.record_check(_body(payload)))
+
+    @app.get("/api/admin/storage/checks", dependencies=admin)
+    def storage_checks(limit: int = 20) -> list:
+        """최근 개수 확인 기록(최신 순, 최대 100개)"""
+        return _storage(lambda: svc.storage.recent_checks(limit))
 
     def _page(name: str):
         from fastapi.responses import HTMLResponse
