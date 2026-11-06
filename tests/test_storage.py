@@ -163,7 +163,14 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
     def test_seed_rows_match_layout(self):
         sql = MIGRATION.read_text(encoding="utf-8")
         sections = re.findall(r"\('(\w+)',\s*'([^']+)',\s*'(shelf|handover)',\s*'\{([^}]*)\}',\s*(\d+)\)", sql)
-        self.assertEqual([(c, lb, k, [x for x in cats.split(",") if x]) for c, lb, k, cats, _ in sections],
+        got = {c: (lb, k, [x for x in cats.split(",") if x]) for c, lb, k, cats, _ in sections}
+        # 009 가 바꾼 행(이름·품목)을 007 시작값에 적용하면 LAYOUT 과 같아야 한다
+        fix9 = (ROOT / "center" / "migrations" / "009_storage_categories_photo_1106.sql").read_text(encoding="utf-8")
+        for lb, cats, code, old in re.findall(r"SET label = '([^']+)', allowed_categories = '\{([^}]*)\}'\s*"
+                                              r"WHERE section_code = '(\w+)' AND allowed_categories = '\{([^}]*)\}'", fix9):
+            self.assertEqual(",".join(got[code][2]), old)
+            got[code] = (lb, got[code][1], cats.split(","))
+        self.assertEqual([(c, *got[c]) for c, _, _, _, _ in sections],
                          [(c, lb, k, al) for c, lb, k, al, _, _ in LAYOUT])
         slots = re.findall(r"\('([A-Z]\d?-\d)',\s*'(\w+)',\s*(\d+),\s*(NULL|'[^']*')\)", sql)
         # 008 이 바꾼 메모(옛 값 → 새 값)를 007 시작값에 적용하면 LAYOUT 과 같아야 한다
