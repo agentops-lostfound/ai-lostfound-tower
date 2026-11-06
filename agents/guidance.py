@@ -2,7 +2,8 @@
 
 Answers are curated snippets retrieved from a versioned local corpus. Every
 available snippet must have literal evidence in an allowlisted repo document.
-Institution operating hours/retention policy are deliberately unavailable.
+Operating values (hours, retention, ...) come only from the 11/6 demo policy
+section of docs/guidance/service-guide.md and say so in every answer.
 """
 import json
 import re
@@ -16,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = 'da20cdfc8f50c06ce26ccd617ef2ae7b603261a3fd71a1b13e2135d8e07485de'  # 11/6 변재원: 본센터 부산역·중앙역 삭제 반영
+APPROVED_CORPUS_SHA256 = '86e041af0fc3a9276f09926bf2a6b679018bd399f9f9f1fd6cadbcc8b2e45256'  # 11/6 변재원: 자동 촬영·놓는 법·교차 검증·본센터 도착 시간 반영
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),
@@ -138,6 +139,14 @@ class Guidance:
             topics.add("center_pickup")
         if re.search(r"주웠|주운물건|습득신고|습득물.*(?:신고|맡|어디|어떻게)|신고하(?:려|고|는|면)|맡기(?:려|고|는|면)|맡길(?:래|게|수)", q):
             topics.add("found_report")
+        # 11/6 키오스크 자동 촬영: 상자에 놓는 법(품목별) · 역 → 본센터 도착 시간(1시간마다 회수)
+        # "사진은 어떻게 올려요?"(분실인 웹 사진 입력)와 섞이지 않게 상자·물건 이름이 있을 때만
+        if not re.search(r"사진|첨부|파일", q) and re.search(
+                r"(?:상자|박스|포토박스|등록기계|키오스크).*(?:놓|넣|두)|(?:휴대폰|폰|지갑|usb|립밤|핸드크림|보조배터리|물건).*(?:어떻게|어느\s*쪽|방향|어떤면|위로).*(?:놓|넣|두)"
+                r"|(?:놓는|넣는|두는)\s*(?:법|방법|방향)|세워|눕혀|뒷면.*위|앞면.*위|케이스.*위", q):
+            topics.add("placement_guide")
+        if re.search(r"언제.*(?:도착|옮겨|본센터.*(?:와|가|있))|도착.*(?:언제|시간|걸려|해야)|얼마나.*걸려|바로.*(?:받|찾|가)|회수.*(?:언제|주기|몇시간|마다)|몇시간.*(?:뒤|후).*(?:받|찾)", q):
+            topics.add("arrival")
         if re.search(r"어떤물건|무슨물건|품목|종류|몇종|6종|다루는물건|취급|찾을수있|맡길수있", q):
             topics.add("categories")
         if re.search(r"키오스크.*(?:어디|위치|있는역|몇개|어느)|어느역|등록기계.*(?:어디|위치)", q):

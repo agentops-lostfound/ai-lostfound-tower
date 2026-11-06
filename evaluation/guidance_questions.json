@@ -629,5 +629,45 @@
     "expected_topics": [
       "flow"
     ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "휴대폰은 상자에 어떻게 넣어요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "placement_guide"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "지갑은 어느 쪽이 위로 가게 놓나요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "placement_guide"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "물건 놓는 법 알려줘",
+    "expected_status": "answered",
+    "expected_topics": [
+      "placement_guide"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "오늘 맡긴 거 바로 받을 수 있나요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "arrival"
+    ]
+  },
+  {
+    "group": "서비스안내",
+    "question": "역에 맡긴 물건은 언제 본센터에 도착해요?",
+    "expected_status": "answered",
+    "expected_topics": [
+      "arrival"
+    ]
   }
 ]

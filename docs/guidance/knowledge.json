@@ -1,11 +1,11 @@
 [
   {
     "topic": "pickup",
-    "title": "분실물 수령 방향 — 11/5 팀 화면 흐름",
-    "path": "web/README.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/fe9e935/web/README.md#2-화면이-따를-흐름-115-칠판-정리",
-    "evidence": "[분실인 웹·챗봇]    분실 확인 → (물건 있으면) 본센터 방문 안내\n[관제 모니터링]     전체 진행(/live)\n```\n- \"본센터 여부\"는 등록기계 정보로 판단한다: 팀 DB `machine.kind` 가 `center` 면 본센터(`center/schema.sql`)\n- 신분 확인은 본센터 키오스크가 직접(셀프, 11/5 결정 a). 직원 확인 단계는 일단 뺀다",
-    "answer": "11월 5일 팀 설계는 분실인 웹·챗봇에서 물건을 확인하고 본센터 방문을 안내하는 흐름입니다. 본센터 신분 확인은 키오스크에서 셀프로 진행하는 방향이며 직원 확인 단계는 일단 제외됐습니다. 이는 설계 방향으로, 현재 화면의 인증·반환 연결이 완료됐다는 뜻은 아닙니다. 구체적인 준비물과 실제 방문 장소·시간은 확정 안내가 필요합니다."
+    "title": "물건 받으러 가기 전 — 11/6 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#물건-받으러-가기-전",
+    "evidence": "분실인 웹이나 키오스크에서 물건을 확인해 찾기 번호를 받은 뒤, 신분증을 가지고 부산역 본센터 키오스크로 간다.",
+    "answer": "분실인 웹이나 키오스크에서 물건을 확인해 찾기 번호를 받은 뒤, 신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요. 본센터 키오스크에서 신분 확인과 물건 확인 질문을 마치면 로봇팔이 물건을 꺼내 드려요."
   },
   {
     "topic": "consent",
@@ -49,19 +49,19 @@
   },
   {
     "topic": "center_pickup",
-    "title": "본센터에서 받는 순서 — 11/5 팀 결정",
+    "title": "본센터에서 받는 순서 — 11/6 기준",
     "path": "docs/guidance/service-guide.md",
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#본센터에서-받는-순서",
-    "evidence": "확인이 끝나면 로봇팔이 보관함에서 물건을 꺼내 수령대에 놓는다.",
-    "answer": "본센터 키오스크에서 ① 셀프 신분 확인을 하고 ② 물건 특징을 묻는 확인 질문에 답하면, ③ 로봇팔이 보관함에서 물건을 꺼내 수령대에 놓아 드려요. 이는 프로젝트 설계 순서이며, 실제 방문 시간·준비물은 확정 안내가 필요해요."
+    "evidence": "직원이 실물 신분증과 물건을 한 번 더 확인한 뒤 물건을 건넨다. 맞지 않으면 건네지 않고 물건을 보관함에 다시 넣는다.",
+    "answer": "본센터 키오스크에서 ① 셀프 신분 확인을 하고 ② 물건 특징을 묻는 확인 질문에 답하면, ③ 로봇팔이 보관함에서 물건을 꺼내 제출보관함(물건 받는 칸)에 놓아요. ④ 마지막으로 직원이 실물 신분증과 물건을 한 번 더 확인한 뒤 건네 드려요. 맞지 않으면 물건을 건네지 않고 보관함에 다시 넣어요."
   },
   {
     "topic": "found_report",
-    "title": "습득 신고 방법 — 습득물 등록기계 화면",
+    "title": "습득 신고 방법 — 습득물 등록기계 화면(11/6 자동 촬영)",
     "path": "docs/guidance/service-guide.md",
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
-    "evidence": "물건을 상자에 넣고 사진을 찍은 뒤 주운 장소를 고르면 접수 번호가 나온다.",
-    "answer": "주운 물건은 가까운 역 키오스크(습득물 등록기계)에서 신고해 주세요. 물건을 상자에 넣고 사진을 찍은 뒤 주운 장소를 고르면 접수 번호가 나와요. 연락처는 남기지 않아도 되고, 물건 종류·색은 사진을 보고 시스템이 채워요. 현금이나 위험물은 역무실로 가져가 주세요."
+    "evidence": "안내대로 물건을 상자 가운데에 두면 자동으로 사진을 찍고, 주운 장소를 고르면 접수 번호가 나온다.",
+    "answer": "주운 물건은 가까운 역 키오스크(습득물 등록기계)에서 신고해 주세요. 화면 안내대로 물건을 상자 가운데에 두고 손을 빼면 자동으로 사진을 찍어요. 이어서 주운 장소를 고르면 접수 번호가 나와요. 연락처는 남기지 않아도 되고, 물건 종류·색은 사진을 보고 시스템이 채워요. 현금이나 위험물은 역무실로 가져가 주세요."
   },
   {
     "topic": "categories",
@@ -166,5 +166,21 @@
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
     "evidence": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 쓰며, 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않는다.",
     "answer": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 써요. 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않아요. 전체 처리방침이 아니라 시연용 요약이에요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+  },
+  {
+    "topic": "placement_guide",
+    "title": "키오스크 상자에 물건 놓는 법 — 11/6 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#물건-놓는-법",
+    "evidence": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 한다. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 둔다.",
+    "answer": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 놓아 주세요. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요. 놓은 뒤 손을 빼고 2초 정도 기다리면 자동으로 찍혀요."
+  },
+  {
+    "topic": "arrival",
+    "title": "본센터 도착 시간 — 시연 기준",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#시연-운영-기준-116-확정-프로젝트-시연용--실제-기관-안내-아님",
+    "evidence": "본센터 도착: 역 키오스크에 맡긴 물건은 직원이 1시간마다 본센터로 옮기며, 본센터에 도착하기 전에는 받을 수 없다.",
+    "answer": "역 키오스크에 맡겨진 물건은 직원이 1시간마다 부산역 본센터로 옮겨요. 본센터에 도착하기 전에는 받을 수 없으니, 습득 신고 뒤 1시간 정도 지나서 방문해 주세요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
   }
 ]
