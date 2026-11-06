@@ -108,3 +108,15 @@ class LostHowToQuestionTest(unittest.TestCase):
         g = Guidance()
         self.assertEqual([s["topic"] for s in g.ask("주운 물건은 어디에 신고해요?")["sources"]], ["found_report"])
         self.assertEqual([s["topic"] for s in g.ask("분실물 보관 기간은?")["sources"]], ["retention"])
+
+
+class PlacementAndArrivalTest(unittest.TestCase):
+    """11/6 새 주제: 상자에 놓는 법·본센터 도착 시간 — 웹 사진 입력 질문과 섞이지 않게"""
+
+    def test_topics(self):
+        g = Guidance()
+        for q, want in (("휴대폰은 상자에 어떻게 넣어요?", ["placement_guide"]), ("폰 세워도 돼요?", ["placement_guide"]),
+                        ("오늘 맡긴 거 바로 받을 수 있나요?", ["arrival"]), ("사진은 어떻게 올려요?", ["site_help"]),
+                        ("사진은 어떻게 올려?", ["site_help"])):
+            with self.subTest(q=q):
+                self.assertEqual([s["topic"] for s in g.ask(q)["sources"]], want)
