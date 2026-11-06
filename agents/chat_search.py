@@ -140,7 +140,7 @@ class SearchAgent:
                 return response('authentication_required', '실제 물건 조회에는 기존 찾기 절차의 본인인증·필수 동의 연결이 필요해요. 현재 채팅에서는 인증을 대신하지 않습니다.')
         desc, warnings = search_context(question, context)
         if desc['category'] not in CATEGORIES or desc['category'] == '없음' or warnings:
-            return response('search_needs_details', '찾는 물건 한 종류와 색상을 알려주세요. 예: 검정 지갑 찾아줘. 지갑·휴대폰·USB·립밤·보조배터리·핸드크림을 구분할 수 있어요.')
+            return response('search_needs_details', '찾는 물건 한 종류와 색상을 알려주세요. 예: 검정 지갑 찾아줘. 지갑·모형폰(휴대폰)·USB·립밤·보조배터리·핸드크림을 구분할 수 있어요.')
         if self.mode != 'demo_sqlite' and not all(desc.get(k) for k in ('lost_date', 'lost_line', 'lost_station')):
             return response('search_needs_details', '실제 후보 검색에는 분실 날짜·호선·역이 필요해요. 왼쪽 설명을 확인하거나 질문에 함께 입력해주세요.')
         try:

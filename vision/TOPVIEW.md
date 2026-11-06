@@ -9,10 +9,10 @@
 - `vision_pipeline.py`: 통합 JSON과 디버그 이미지 저장
 - `scripts/test_vision.py`: 이미지 입력 CLI와 CUDA/버전 확인
 - `configs/vision.yaml`: 추론 모델·마커 좌표·출력 설정
-- `configs/data_six_class.example.yaml`: 별도 6종 실험용 데이터셋 예시
+- `configs/data_six_class.example.yaml`: 6종 데이터셋 예시(`config.py` CLASSES 와 같은 이름·순서, 11/6)
 - `../tests/test_topview_vision.py`: 합성 마커·보정 실패·crop·통합 데이터 흐름 시험
 
-기존 `config.py`, 촬영·데이터 준비·학습 스크립트의 4종 클래스 순서는 유지합니다. `phone/usb/lip_balm/hand_cream/card_wallet/power_bank` 6종 예시는 기존 `wallet/usb/lipbalm/phone` 라벨과 호환되지 않습니다. 기존 라벨을 재해석하거나 기존 학습 스크립트에 그대로 입력하지 마세요. 6종 학습에는 별도 데이터·클래스 합의와 학습 코드 대응이 필요합니다.
+11/6 6종으로 고정했습니다: `card_wallet/usb/lip_balm/phone/hand_cream/power_bank`(0~5번). 0~3번은 예전 4종 `wallet/usb/lipbalm/phone` 과 같은 번호라 기존 라벨 번호를 그대로 쓰고, 예전 이름은 `config.LEGACY_CLASS_ALIASES` 로 새 이름에 연결됩니다. 기존 4종 가중치는 6종 데이터로 다시 학습해야 합니다.
 
 ## Windows 실행
 
@@ -117,7 +117,7 @@ python -m vision.scripts.train_item --epochs 100 --batch 4 --device cpu
 # CUDA 학습 환경이 별도로 준비된 경우에만 --device 0 사용
 ```
 
-기본 시작 모델은 보유한 YOLO26n COCO 가중치입니다. 결과는 `models/item_baseline/best.pt`에 보관하며 같은 출력 폴더가 있으면 새 `--name`을 지정해야 합니다. 기존 팀의 4종 촬영·학습 스크립트와 6종 예시는 변경하지 않습니다. 기존 클래스 라벨 데이터와 이 설정을 혼용하지 마세요.
+기본 시작 모델은 보유한 YOLO26n COCO 가중치입니다. 결과는 `models/item_baseline/best.pt`에 보관하며 같은 출력 폴더가 있으면 새 `--name`을 지정해야 합니다. 이 품목 구분 없는 `item` 1종 설정과 6종 클래스 라벨 데이터는 혼용하지 마세요.
 
 학습 후 별도 사진에서 미검출·중복 박스·crop 품질을 확인한 뒤, 기존 추론 명령에 `--config vision/configs/vision_item.yaml`을 추가하면 학습한 가중치를 사용합니다. `--name`을 바꿨다면 해당 설정의 model 경로도 맞추세요. 현재 학습용 사진·라벨이 준비되지 않아 실제 학습은 실행하지 않았으며 기본 추론은 COCO 모델을 유지합니다.
 

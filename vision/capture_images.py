@@ -3,15 +3,16 @@
 한줄 설명: 키를 누를 때마다 파일 이름 규칙대로 사진을 저장하고, 사진마다 기록(CSV)을 남긴다.
 
 사용법 (물건 하나씩)
-    python vision/capture_images.py --category wallet --object W01 --session s1
+    python vision/capture_images.py --category card_wallet --object W01 --session s1
 조작
     스페이스: 한 장 저장 / a: 자동 연속 저장 켜기·끄기 / q 또는 Esc: 끝내기
 시험용(화면 없이)
-    python vision/capture_images.py --category wallet --object W01 --session s1 \
+    python vision/capture_images.py --category card_wallet --object W01 --session s1 \
         --source 영상파일.mp4 --no-preview --auto-every 5 --max 20
 
 - 화면의 안내 글자는 미리보기에만 그리고, 저장 사진에는 넣지 않는다.
-- 같은 이름이 있으면 덮어쓰지 않고 다음 번호로 저장한다.
+- 같은 이름이 있으면 덮어쓰지 않고 다음 번호로 저장한다(예전 이름 사진 wallet_*·lipbalm_* 의 번호도 이어서 센다).
+- 품목(6종, 11/6): card_wallet · usb · lip_balm · phone · hand_cream · power_bank
 - 흐림 점수(라플라시안 분산)가 기준보다 낮으면 미리보기에 '흐림'을 표시한다.
 """
 from __future__ import annotations
@@ -50,9 +51,10 @@ def next_index(out_dir: Path, category: str, object_id: str, session: str) -> in
     """이미 저장된 같은 물건·세션 사진의 다음 번호."""
     last = -1
     if out_dir.is_dir():
-        for p in out_dir.glob(f"{category}_{object_id}_{session}_*.jpg"):
+        # 예전 이름 사진(wallet_W01_s1_*)도 같은 물건·세션으로 세어 번호가 겹치지 않게 한다(11/6 6종 고정)
+        for p in out_dir.glob(f"*_{object_id}_{session}_*.jpg"):
             info = parse_filename(p.name)
-            if info:
+            if info and info["category"] == category and info["object_id"] == object_id and info["session"] == session:
                 last = max(last, info["index"])
     return last + 1
 
