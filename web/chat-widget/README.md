@@ -52,7 +52,7 @@
 | `GET /chat/health` | 준비 상태(`ready`, `search_mode`) — 준비 안 되면 창 위쪽에 "준비 중" |
 | `GET /chat/metrics` | 운영 지표(LLMOps): 질문 수·응답 시간 p50/p95·결과 비율. 질문 원문은 저장 안 함. 관제 분석 에이전트 "챗봇" 초점이 읽음 |
 | `GET /chat-widget/widget.js` · `/chat-widget/demo` | 위젯 파일 · 시험 페이지 |
-- `.env`(이름만): `LF_CHAT_RAG_MODEL`(Ollama 모델, 비우면 문서 문단 그대로) · `LF_CHAT_DATABASE_URL`(실제 DB, 인증 연결 전엔 닫힘) · `TOWER_CHAT_DEMO_DB`(가상 DB 파일, `0` 이면 물건 검색 끔)
+- `.env`(이름만): `LF_CHAT_RAG_MODEL`(Ollama 로컬 sLLM, 11/6 추천 `exaone3.5:2.4b` — 비우면 문서 문장 + 규칙 되묻기, `docs/design/chatbot_sllm_rag.md`) · `LF_CHAT_DATABASE_URL`(실제 DB, 인증 연결 전엔 닫힘) · `TOWER_CHAT_DEMO_DB`(가상 DB 파일, `0` 이면 물건 검색 끔)
 - 챗봇 부품(langgraph)은 첫 질문 때 만든다. 설치가 안 돼 있어도 관제탑은 켜지고 챗봇 주소만 503
 
 ## 5. 재민 님 서버를 따로 세운다면

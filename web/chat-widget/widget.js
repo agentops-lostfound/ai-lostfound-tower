@@ -59,6 +59,8 @@
     ".welcome{background:var(--soft);border-radius:14px;padding:14px;font-size:14px;color:var(--fg)}",
     ".welcome p{margin:0 0 10px}",
     ".chips{display:flex;flex-direction:column;gap:6px}",
+    ".choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}",
+    ".choice{font:inherit;font-size:.9em;padding:6px 10px;border-radius:999px;border:1px solid var(--accent,#1f6f50);background:transparent;color:inherit;cursor:pointer}",
     ".chip{text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:10px;padding:9px 12px;font-size:14px;cursor:pointer}",
     ".chip:hover{border-color:var(--accent)}",
     ".msg{display:flex;flex-direction:column;max-width:88%;gap:6px}",
@@ -248,6 +250,7 @@
     if (res.generation_used) return "문서 검색 + AI 답변";
     if (res.status === "answered") return res.sources && res.sources.length ? "문서 근거 안내" : "대화 안내";
     if (res.status === "partial" || res.status === "policy_pending") return "확정 안내가 필요한 내용";
+    if (res.status === "clarification_needed") return "조금 더 알려 주세요";
     return "질문을 조금 더 구체적으로";
   }
 
@@ -268,6 +271,19 @@
         cards.append(card);
       });
       m.append(cards);
+    }
+
+    // 11/6 되묻기(유도 질문): 고를 수 있는 답을 버튼으로. 누르면 그 글자로 바로 질문
+    var choices = Array.isArray(res.choices) ? res.choices.filter(function (c) { return typeof c === "string" && c.trim() && c.length <= 40; }).slice(0, 4) : [];
+    if (choices.length) {
+      var row = el("div", "choices");
+      choices.forEach(function (c) {
+        var btn = el("button", "choice", c);
+        btn.type = "button";
+        btn.addEventListener("click", function () { if (!busy) send(c); });
+        row.append(btn);
+      });
+      m.append(row);
     }
 
     var sources = res.sources || [];
