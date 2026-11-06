@@ -81,3 +81,22 @@ class ChatRouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LostHowToQuestionTest(unittest.TestCase):
+    """11/6 교육원 PC 실제 시험: 가장 흔한 첫 질문이 not_found 로 빠지던 문제"""
+
+    def test_how_to_find_lost_item_is_answered(self):
+        from agents.guidance import Guidance
+        g = Guidance()
+        for q in ("분실물은 어떻게 찾나요?", "잃어버린 물건 어떻게 찾아요?", "물건을 잃어버렸는데 어떻게 해야 돼요?", "분실물 어떻게 찾아요"):
+            r = g.ask(q)
+            self.assertEqual(r["status"], "answered", q)
+            self.assertIn("flow", [s["topic"] for s in r["sources"]], q)
+            self.assertIn("본센터", r["answer"], q)
+
+    def test_found_and_period_questions_unchanged(self):
+        from agents.guidance import Guidance
+        g = Guidance()
+        self.assertEqual([s["topic"] for s in g.ask("주운 물건은 어디에 신고해요?")["sources"]], ["found_report"])
+        self.assertEqual(g.ask("분실물 보관 기간은?")["status"], "policy_pending")
