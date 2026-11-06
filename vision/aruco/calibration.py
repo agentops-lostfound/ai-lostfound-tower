@@ -70,3 +70,28 @@ def transform_center(center_px, calibration):
     if np.isfinite(world).all():
         result.update(center_world_mm=world.tolist(), calibration_valid=True)
     return result
+
+
+def crop_section(image, homography, bounds_mm):
+    """Project a surveyed section into the current frame, then rectify that crop."""
+    left, top, right, bottom = np.asarray(bounds_mm, dtype=float)
+    if not np.isfinite([left, top, right, bottom]).all() or left >= right or top >= bottom:
+        raise ValueError('bounds_mm must be [left, top, right, bottom] with positive area')
+    corners = np.array([[left, top, 1], [right, top, 1], [right, bottom, 1], [left, bottom, 1]])
+    projected = corners @ np.linalg.inv(homography).T
+    scale = projected[:, 2]
+    if not (np.all(scale > 1e-10) or np.all(scale < -1e-10)):
+        return None
+    quad = projected[:, :2] / scale[:, None]
+    frame_h, frame_w = image.shape[:2]
+    if (not np.isfinite(quad).all() or (quad < 0).any()
+            or (quad[:, 0] > frame_w - 1).any() or (quad[:, 1] > frame_h - 1).any()):
+        return None
+    edges = np.linalg.norm(np.roll(quad, -1, axis=0) - quad, axis=1)
+    width = round(max(edges[0], edges[2]))
+    height = round(max(edges[1], edges[3]))
+    if min(width, height) < 2:
+        return None
+    target = np.float32([[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]])
+    transform = cv2.getPerspectiveTransform(quad.astype(np.float32), target)
+    return cv2.warpPerspective(image, transform, (width, height))
