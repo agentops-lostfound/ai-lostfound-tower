@@ -176,14 +176,14 @@ class FakePg:
                     pre = p[0].rstrip("%")
                     self.rows = [[1 + sum(k.startswith(pre) for k in db.claims)]]
                 elif sql == SQL_INSERT_CLAIM:
-                    db.claims[p[0]] = {"name": p[1], "verified": p[3], "desc": p[4]}
+                    db.claims[p[0]] = {"name": p[1], "idno": p[2], "verified": p[3], "desc": p[4]}
                 elif sql == SQL_INSERT_QUIZ:
                     db.quiz.append(p)
                 elif sql == SQL_INSERT_RESERVATION:
                     db.res[p[0]] = [p[1], p[2], "booked"]
                 elif sql == SQL_GET:
                     c = db.claims.get(p[0])
-                    self.rows = [[p[0], "2026-11-03T10:00:00+00:00", c["name"], c["verified"], *db.res[p[0]],
+                    self.rows = [[p[0], "2026-11-03T10:00:00+00:00", c["name"], c["verified"], c["idno"], *db.res[p[0]],
                                   "2026-11-03T10:00:00+00:00"]] if c else []
                 elif sql == SQL_GET_QUIZ:
                     self.rows = [[f, ok] for cid, _, f, ok in db.quiz if cid == p[0]]
@@ -208,6 +208,7 @@ class PostgresStoreTest(unittest.TestCase):
         self.assertEqual(row["claim_id"], "C-20261103-0001")
         self.assertEqual(web_gates(row), {"consent": True, "id_verified": True, "quiz_passed": True})
         self.assertIn('"mark": "별 모양 스티커"', db.claims["C-20261103-0001"]["desc"])   # 한글 그대로 JSON
+        self.assertEqual(st.get("C-20261103-0001")["id_no_masked"], "******-3******")   # 키오스크 회수의 신분 대조용
         st.mark_visited("C-20261103-0001")
         self.assertEqual(st.get("C-20261103-0001")["status"], "visited")
         self.assertNotIn("secret", repr(st))

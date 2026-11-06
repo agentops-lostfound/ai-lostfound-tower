@@ -45,8 +45,10 @@ input[type=text],input[type=tel]{width:100%;font:inherit;font-size:32px;min-heig
 .tabs button{flex:1;min-height:72px;font-size:30px;background:var(--surface);color:var(--ink);border:3px solid var(--line)}
 .tabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 textarea{width:100%;font:inherit;font-size:28px;min-height:120px;padding:14px 22px;border-radius:18px;border:3px solid var(--line);background:var(--surface);color:var(--ink);resize:none;-webkit-user-select:text;user-select:text}
-#lost{overflow:auto;justify-content:flex-start;padding-top:12px;gap:18px}
-#lost h1{font-size:40px}
+#lost,#ret{overflow:auto;justify-content:flex-start;padding-top:12px;gap:18px}
+#lost h1,#ret h1{font-size:40px}
+button.stop{background:var(--warn);color:#fff}
+.tabs button[hidden]{display:none}
 @media (prefers-reduced-motion:no-preference){button:active{transform:scale(.98)}}
 </style>
 </head>
@@ -56,6 +58,7 @@ textarea{width:100%;font:inherit;font-size:28px;min-height:120px;padding:14px 22
   <nav class="tabs" role="tablist" aria-label="메뉴">
     <button type="button" id="tabFound" class="on" role="tab" aria-selected="true">물건 주웠어요 (습득)</button>
     <button type="button" id="tabLost" role="tab" aria-selected="false">물건 잃어버렸어요 (분실접수)</button>
+    <button type="button" id="tabRet" role="tab" aria-selected="false" hidden>물건 찾으러 왔어요 (회수)</button>
   </nav>
   <section id="lost" class="lostsec">
     <h1>잃어버린 물건을 알려 주세요</h1>
@@ -68,6 +71,26 @@ textarea{width:100%;font:inherit;font-size:28px;min-height:120px;padding:14px 22
     <p class="err" id="lerr" role="alert"></p>
     <p class="legal" id="lnote" hidden>입력은 확인됐어요. 분실물 후보를 찾아 주는 서버 기능은 준비 중이라 아직 저장·접수되지 않아요. 역무실에서 도와 드릴게요.</p>
     <button id="lsend" disabled>확인하기</button>
+  </section>
+  <section id="ret" class="lostsec">
+    <div id="rform">
+      <h1>예약한 물건을 찾아가세요</h1>
+      <p class="sub">분실접수 때 받은 찾기 번호와 신분증 번호(가린 값)를 입력해 주세요.</p>
+      <input type="text" id="rclaim" maxlength="20" placeholder="찾기 번호 (예: C-20261106-0001)" autocomplete="off">
+      <input type="text" id="rid" maxlength="32" placeholder="가린 신분증 번호 (예: ******-3******)" autocomplete="off">
+      <p class="err" id="rerr" role="alert"></p>
+      <button id="rsend" disabled>물건 꺼내기</button>
+    </div>
+    <div id="rwork" hidden>
+      <h1>로봇이 물건을 꺼내고 있어요</h1>
+      <p class="sub">로봇팔이 움직이는 동안 손을 넣지 말고 기다려 주세요.</p>
+      <button class="stop" id="rstop">🛑 정지</button>
+    </div>
+    <div id="rdone" hidden>
+      <h1 id="rtitle"></h1>
+      <p class="sub" id="rmsg"></p>
+      <button class="ghost" id="rhome">처음으로</button>
+    </div>
   </section>
   <section id="s1" class="on">
     <h1>물건을 상자에 넣고<br>문을 닫아 주세요</h1>
@@ -103,7 +126,7 @@ textarea{width:100%;font:inherit;font-size:28px;min-height:120px;padding:14px 22
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
 <script>
 const API = '';
-const KIOSKS = {'KIOSK-A':'해운대','KIOSK-B':'중앙'};
+const KIOSKS = {'KIOSK-A':'해운대','KIOSK-B':'중앙','CENTER':'본센터'};
 const RESET_SEC = 10;
 const BUSY_MSG = '잠시 후 다시 시도하거나 역무실로 가 주세요.';
 const $ = s => document.querySelector(s);
@@ -117,21 +140,26 @@ if (!station) {
   $('#app').innerHTML = '<section class="on center"><h1>기계 번호를 확인할 수 없어요</h1><p class="sub">관리자에게 알려 주세요. (주소 끝에 ?kiosk=KIOSK-A 형식)</p></section>';
   throw new Error('unknown kiosk');
 }
-$('#stn').textContent = station + '역 분실물 접수';
+$('#stn').textContent = kiosk === 'CENTER' ? '본센터 분실물' : station + '역 분실물 접수';
+const isCenter = kiosk === 'CENTER';     // 회수는 본센터 키오스크만(11/5 결정)
+$('#tabRet').hidden = !isCenter;
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
 let step = 1;
 const CATS = ['지갑','USB','립밤','모형폰','핸드크림','보조배터리'];     // agents/contracts.py CATEGORIES 와 같게
 let lcat = '';
-function tab(lost) {
-  $('#tabFound').classList.toggle('on', !lost); $('#tabLost').classList.toggle('on', lost);
-  $('#tabFound').setAttribute('aria-selected', String(!lost)); $('#tabLost').setAttribute('aria-selected', String(lost));
-  $('#lost').classList.toggle('on', lost);
-  $('#prog').style.visibility = lost ? 'hidden' : 'visible';
-  if (lost) { stopCam(); sections.forEach(s => s.classList.remove('on')); }
+function tab(which) {
+  const lost = which === 'lost', ret = which === 'ret';
+  [['#tabFound', 'found'], ['#tabLost', 'lost'], ['#tabRet', 'ret']].forEach(([id, n]) => {
+    $(id).classList.toggle('on', n === which); $(id).setAttribute('aria-selected', String(n === which));
+  });
+  $('#lost').classList.toggle('on', lost); $('#ret').classList.toggle('on', ret);
+  $('#prog').style.visibility = which === 'found' ? 'visible' : 'hidden';
+  if (lost || ret) { stopCam(); sections.forEach(s => s.classList.remove('on')); }
   else { go(step); if (step === 1) startCam(); }
 }
-$('#tabFound').onclick = () => tab(false);
-$('#tabLost').onclick = () => tab(true);
+$('#tabFound').onclick = () => tab('found');
+$('#tabLost').onclick = () => tab('lost');
+$('#tabRet').onclick = () => tab('ret');
 CATS.forEach(c => {
   const b = document.createElement('button'); b.type = 'button'; b.textContent = c;
   b.onclick = () => { lcat = c; document.querySelectorAll('#lcat button').forEach(x => x.classList.toggle('on', x === b)); lcheck(); };
@@ -249,6 +277,32 @@ function reset() {
   $('#err').classList.remove('on'); go(1); startCam();
 }
 $('#home').onclick = reset;
+// ---- 회수(본센터만): 관문 값은 서버가 정한다. 화면은 찾기 번호와 가린 신분 번호만 보낸다 ----
+const RET_MSG = {returned: ['물건을 꺼냈어요', '바구니에서 물건을 받아 가세요.'],
+                 rejected: ['꺼낼 수 없어요', '확인이 맞지 않아 물건을 꺼내지 않았어요. 역무실에서 도와 드릴게요.'],
+                 staff_check: ['직원이 확인할게요', '자동으로 정할 수 없어 직원 확인이 필요해요. 잠시 기다리거나 역무실로 와 주세요.'],
+                 stopped: ['로봇이 멈췄어요', '안전을 위해 멈췄어요. 직원이 확인할 때까지 기다려 주세요.']};
+function rcheck() { $('#rsend').disabled = !($('#rclaim').value.trim() && $('#rid').value.trim()); }
+$('#rclaim').oninput = $('#rid').oninput = rcheck;
+function rshow(which) { ['rform', 'rwork', 'rdone'].forEach(id => $('#' + id).hidden = id !== which); }
+function rdone(title, msg) { $('#rtitle').textContent = title; $('#rmsg').textContent = msg; rshow('rdone'); }
+$('#rsend').onclick = async () => {
+  if (sending) return; sending = true;
+  $('#rerr').classList.remove('on'); rshow('rwork');
+  try {
+    const r = await fetch(API + '/api/kiosk/returns', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({machine_id: kiosk, claim_id: $('#rclaim').value.trim(), id_no_masked: $('#rid').value.trim()})});
+    if (r.ok) { const d = await r.json(); const m = RET_MSG[d.decision] || RET_MSG.staff_check; rdone(m[0], m[1]); return; }
+    let detail = ''; try { const d = await r.json(); detail = d.detail; } catch (e) {}
+    const text = (detail && typeof detail === 'object' ? detail.message : detail) || '';
+    if (r.status === 422 || r.status === 404) { rshow('rform'); $('#rerr').textContent = text || '입력을 확인해 주세요.'; $('#rerr').classList.add('on'); }
+    else if (r.status === 409) rdone('지금은 꺼낼 수 없어요', text || '역무실로 가 주세요.');
+    else rdone('잠시 후 다시 해 주세요', BUSY_MSG);
+  } catch (e) { rdone('잠시 후 다시 해 주세요', BUSY_MSG); }
+  finally { sending = false; }
+};
+$('#rstop').onclick = () => { fetch(API + '/api/robot/stop', {method:'POST'}).catch(() => {}); };   // 항상 열려 있는 정지
+$('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rcheck(); rshow('rform'); tab('found'); };
 startCam();
 </script>
 <p style="position:fixed;right:12px;bottom:8px;font-size:14px;color:#566677;margin:0">미리보기: 서버 없이 가짜 응답으로 동작해요</p>
