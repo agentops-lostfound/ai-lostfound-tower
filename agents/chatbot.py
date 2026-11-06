@@ -45,7 +45,7 @@ class Chatbot:
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
         # Process/help questions stay in guidance, even when they mention searching.
         help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
-        search = re.search(r'찾아|검색|후보|접수번호|(?:지갑|휴대폰|핸드폰|usb|립밤|보조배터리|핸드크림).*(?:있나요|있어|있나|있니|있습니까)', q)
+        search = re.search(r'찾아|검색|후보|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|usb|립밤|보조배터리|핸드크림).*(?:있나요|있어|있나|있니|있습니까)', q)
         direct_search = search_intent(q)
         if help_question and direct_search:
             return {'route': 'both'}
