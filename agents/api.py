@@ -269,7 +269,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """본센터 키오스크 회수(로그인 없음, 11/6). 본문 {machine_id: "CENTER", claim_id, id_no_masked}. 관문 값은 서버가 정한다.
         신분 번호를 3번 틀리면 잠금(409 kind=locked). 정지 버튼(/api/robot/stop)은 반환 중에도 항상 열려 있다"""
         try:
-            return svc.kiosk_return(payload)
+            d = getattr(svc, "sim", None)       # 11/7 가상 시연: 웹 신고 이야기에 키오스크 회수 단계를 이어 붙임
+            return d.kiosk_return(payload) if d is not None else svc.kiosk_return(payload)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
         except NotFound as e:
@@ -345,7 +346,14 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     @app.post("/api/admin/returns/{case_id}/verify", dependencies=admin)
     def verify_handover(case_id: str, payload: dict = Body(...)) -> dict:
         """교차 검증 결과. 본문 {"item_match": true, "id_match": true, "feature_match": true} — 셋 다 맞으면 인계 완료, 아니면 반환 보류"""
-        return _case(lambda: svc.verify_handover(case_id, payload))
+        out = _case(lambda: svc.verify_handover(case_id, payload))
+        d = getattr(svc, "sim", None)       # 11/7 가상 시연: 분실인 웹 진행 상황의 '인계 완료' 갱신
+        if d is not None:
+            try:
+                d.on_verify(case_id, out)
+            except Exception:
+                pass
+        return out
 
     @app.post("/api/admin/returns/{case_id}/restock", dependencies=admin)
     def restock(case_id: str, payload: dict = Body(...)) -> dict:
@@ -474,6 +482,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         return _page("admin")
 
     @app.get("/storage-desk", include_in_schema=False)
+    @app.get("/storage", include_in_schema=False)      # 11/7 짧은 주소(PAGES 이름과 같게)
     def storage_desk_page():
         """본센터 보관 화면(11/6): 도착한 물건을 칸에 넣고 기록 — web/storage-desk/. 관리자 화면 '보관함' 탭"""
         return _page("storage")
@@ -537,8 +546,19 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     @app.post("/sim/lost")
     def sim_lost(payload: dict = Body(...)) -> dict:
-        """가상 분실 신고: {"text": "검정 카드지갑 잃어버렸어요, 서면역"} → 찾기 번호 또는 확인 질문(pending_id)"""
-        return _sim_call(_sim().lost, _text(payload))
+        """가상 분실 신고: {"text": "검정 카드지갑 잃어버렸어요, 서면역"} → 찾기 번호 또는 확인 질문(pending_id)
+        11/7 분실인 웹: + {"visit": "kiosk", "name_masked": "변*원", "id_no_masked": "******-3******"} 이면
+        방문을 자동으로 하지 않고 본센터 키오스크 회수 탭(찾기 번호 + 같은 신분 번호)을 기다린다"""
+        opts = {}
+        if isinstance(payload, dict) and payload.get("visit") == "kiosk":
+            opts["visit"] = "kiosk"
+            for k in ("name_masked", "id_no_masked"):
+                v = payload.get(k)
+                if v is not None:
+                    if not isinstance(v, str) or "*" not in v or not 1 <= len(v) <= 32:
+                        raise HTTPException(status_code=422, detail=f"{k}: 가린 값만(예: 변*원, ******-3******)")
+                    opts[k] = v
+        return _sim_call(_sim().lost, _text(payload), opts)
 
     @app.post("/sim/lost/{pending_id}/answer")
     def sim_answer(pending_id: str, payload: dict = Body(...)) -> dict:

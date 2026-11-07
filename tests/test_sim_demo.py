@@ -4,13 +4,14 @@ import sys
 import threading
 import time
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agents.backends import check_part  # noqa: E402
 from agents.contracts import CLAIM_ID_RE, ITEM_ID_RE, MACHINE_LETTERS  # noqa: E402
 from agents.live import LiveBoard, LiveReporter  # noqa: E402
-from agents.service import RequestError  # noqa: E402
+from agents.service import NotFound, RequestError  # noqa: E402
 from agents.sim_director import build_sim_service  # noqa: E402
 from agents.sim_world import SimRobot, SimTopview, SimWorld, parse_place, query_features, sim_qwen, split_tags  # noqa: E402
 from discord_ops.reporter import Reporter  # noqa: E402
@@ -140,6 +141,53 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(self.svc.world.items[f["item_id"]]["loc"], "handed")
         titles = [m["title"] for m in self.svc.reporter.messages]
         self.assertTrue(any("등록기계 접수" in t for t in titles) and any("인계 완료" in t for t in titles))
+
+    def test_web_report_waits_for_center_kiosk_then_staff_verify(self):
+        """11/7 분실인 웹: 방문을 자동으로 하지 않고 본센터 키오스크 회수 → 로봇 → 제출보관함 → 직원 교차 검증 → 인계"""
+        f = self.found()
+        opts = {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-3******"}
+        r = self.d.lost("검정 카드지갑 잃어버렸어요 서면역에서", opts)
+        self.assertTrue(self.d.wait_idle())
+        self.assertEqual((r["item_id"], r["visit"], r["quiz_passed"]), (f["item_id"], "kiosk", True))
+        st = story_of(self.svc, r["story_id"])
+        self.assertIsNone(st["result"])                                         # 아직 방문 전 — 자동 반환 안 함
+        visit = next(s for s in st["stages"] if s["key"] == "visit")
+        self.assertEqual(visit["state"], "active")
+        self.assertIn("키오스크", visit["detail"])
+        self.assertEqual(self.d.visit_wait, {r["claim_id"]: r["story_id"]})
+        with self.assertRaises(RequestError):                                   # 다른 신분 번호 → 시작 안 함, 계속 기다림
+            self.d.kiosk_return({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-1******"})
+        self.assertIn(r["claim_id"], self.d.visit_wait)
+        out = self.d.kiosk_return({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-3******"})
+        self.assertEqual(out["decision"], "returned")
+        st = story_of(self.svc, r["story_id"])
+        self.assertTrue(st["result"]["ok"])
+        states = {s["key"]: s["state"] for s in st["stages"]}
+        self.assertEqual((states["visit"], states["deliver"], states["handover"]), ("done", "done", "todo"))
+        self.assertNotEqual(self.svc.world.items[f["item_id"]]["status"], "인계 완료")   # 인계는 직원 교차 검증이 한다
+        res = self.svc.verify_handover(out["case_id"], {"item_match": True, "id_match": True, "feature_match": True})
+        self.d.on_verify(out["case_id"], res)
+        st = story_of(self.svc, r["story_id"])
+        self.assertEqual(next(s for s in st["stages"] if s["key"] == "handover")["state"], "done")
+        self.assertIn("인계 완료", st["result"]["text"])
+        self.assertEqual(self.svc.world.items[f["item_id"]]["status"], "인계 완료")
+
+    def test_web_report_verify_mismatch_marks_hold(self):
+        f = self.found()
+        r = self.d.lost("검정 카드지갑 잃어버렸어요 서면역에서", {"visit": "kiosk", "id_no_masked": "******-4******"})
+        self.assertTrue(self.d.wait_idle())
+        out = self.d.kiosk_return({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-4******"})
+        res = self.svc.verify_handover(out["case_id"], {"item_match": True, "id_match": False, "feature_match": True})
+        self.d.on_verify(out["case_id"], res)
+        st = story_of(self.svc, r["story_id"])
+        self.assertEqual(next(s for s in st["stages"] if s["key"] == "handover")["state"], "fail")
+        self.assertFalse(st["result"]["ok"])
+        self.assertEqual(f["item_id"], r["item_id"])
+
+    def test_kiosk_return_without_web_story_is_plain(self):
+        """웹 이야기가 없는 찾기 번호는 진짜 입구 그대로(이야기 단계를 건드리지 않음)"""
+        with self.assertRaises(NotFound):
+            self.d.kiosk_return({"machine_id": "CENTER", "claim_id": "C-20261107-0999", "id_no_masked": "******-3******"})
 
     def test_quiz_question_then_wrong_answer_is_rejected(self):
         r = self.d.lost("은색 USB 잃어버렸어요")
@@ -347,3 +395,34 @@ class BotCoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LostWebApiTest(unittest.TestCase):
+    """11/7 분실인 웹이 부르는 /sim/lost(visit=kiosk) 입력 검사와 화면 약속"""
+
+    def test_sim_lost_options_and_kiosk_route(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        from agents.api import build_app
+        svc = build_sim_service(ENV)
+        c = TestClient(build_app(svc))
+        bad = c.post("/sim/lost", json={"text": "파란 모형폰 잃어버렸어요", "visit": "kiosk", "id_no_masked": "9001013234567"})
+        self.assertEqual(bad.status_code, 422)                                 # 가리지 않은 번호는 받지 않음
+        ok = c.post("/sim/lost", json={"text": "파란 모형폰 잃어버렸어요", "visit": "kiosk",
+                                       "name_masked": "홍*동", "id_no_masked": "******-3******"}).json()
+        self.assertTrue(svc.sim.wait_idle())
+        cid = ok["claim_id"]
+        self.assertIn(cid, svc.sim.visit_wait)
+        r = c.post("/api/kiosk/returns", json={"machine_id": "CENTER", "claim_id": cid, "id_no_masked": "******-3******"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["decision"], "returned")
+        self.assertNotIn(cid, svc.sim.visit_wait)
+
+    def test_lost_page_contract(self):
+        html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
+        for needle in ("visit: 'kiosk'", "maskName(", "******-${$('#gender').value}******", "/sim/stories/",
+                       "data-chatbot-open", '<script src="/chat-widget/widget.js" defer></script>', "부산역 본센터"):
+            self.assertIn(needle, html)
+        self.assertNotIn("저장되거나 역무실로 전송되지 않습니다", html)        # 예전 데모 양식 문구 제거

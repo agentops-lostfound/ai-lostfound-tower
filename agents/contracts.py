@@ -135,6 +135,17 @@ def validate_description(desc: dict) -> list[str]:
     return [f"모르는 칸: {k} (허용: {DESCRIPTION_FIELDS})" for k in desc if k not in DESCRIPTION_FIELDS]
 
 
+# 화면 표시용 한국어(저장 값은 Qwen 원문 그대로). 11/7: 직원 교차 검증 화면에 영어(rectangular · plastic)가 나와 공용으로 옮김
+SHOW_KO = {"rectangular": "직사각형", "rectangle": "직사각형", "stick": "막대형", "cylinder": "원통형", "tube": "튜브형",
+           "round": "원형", "square": "정사각형", "synthetic leather": "합성가죽", "leather": "가죽", "plastic": "플라스틱",
+           "metal": "금속", "fabric": "천", "silicone": "실리콘", "paper": "종이", "rubber": "고무"}
+
+
+def show_ko(v) -> str:
+    """'rectangular, plastic' → '직사각형, 플라스틱'(모르는 말은 그대로)"""
+    return ", ".join(SHOW_KO.get(x.strip().lower(), x.strip()) for x in str(v).split(","))
+
+
 def public_card(features: dict) -> dict:
     """후보 카드에 보여도 되는 값만 남긴다(비공개 특징 제거)."""
     return {k: v for k, v in features.items() if k not in PRIVATE_FIELDS}

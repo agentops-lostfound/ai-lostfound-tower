@@ -277,7 +277,7 @@ class ApiRoutesTest(unittest.TestCase):
                                         "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places",
                                         "/api/admin/storage", "/api/admin/storage/export", "/api/admin/storage/checks",
                                         "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo",
-                                        "/api/admin/storage/arrivals", "/storage-desk")] + \
+                                        "/api/admin/storage/arrivals", "/storage-desk", "/storage")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
                                          "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",

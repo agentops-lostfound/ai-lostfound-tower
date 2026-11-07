@@ -20,7 +20,7 @@ from typing import Callable
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
 from agents.intake import (IntakeError, IntakeStore, MemoryIntakeStore, decode_photo, parse_features, parse_intake, receipt,
                            save_photo, valid_item_id)
-from agents.contracts import (CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
+from agents.contracts import (show_ko, CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
                               DECISIONS, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, HOLD_REASONS, STAFF_STOP_REASON)
 from agents.records import MemoryRecorder, Recorder
 from agents.supervisor import Outcome, ReturnRequest, run_return
@@ -504,7 +504,7 @@ class TowerService:
             where = "station" if r.get("status") == "등록기계 보관" and r.get("machine_id") != "CENTER" else "center"
             out.append({"item_id": r["item_id"], "status": r.get("status"), "category": cat, "where": where,
                         "machine_id": r.get("machine_id"), "received_at": r.get("received_at"),
-                        "public": {k: feats[k] for k in ("color", "shape", "material") if feats.get(k)},
+                        "public": {k: show_ko(feats[k]) for k in ("color", "shape", "material") if feats.get(k)},
                         "has_photo": self.item_photo(r["item_id"]) is not None, "recommended": rec})
             if rec:   # 같은 목록 안에서 같은 칸을 두 번 추천하지 않게
                 for sec in layout["sections"]:
@@ -559,7 +559,7 @@ class TowerService:
             slot = (self.slot_of(row["item_id"]) or {}).get("slot_id")
             out.append({"case_id": row["case_id"], "item_id": row["item_id"], "claim": claim, "slot": slot,
                         "category": item.get("category") or feats.get("category"),
-                        "public": {k: feats[k] for k in ("color", "shape", "material") if feats.get(k)},
+                        "public": {k: show_ko(feats[k]) for k in ("color", "shape", "material") if feats.get(k)},
                         "has_photo": self.item_photo(row["item_id"]) is not None})
         return out
 
