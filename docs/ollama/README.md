@@ -21,9 +21,9 @@ ollama pull qwen3:4b-instruct-2507-q4_K_M
 
 ## 2-B. (기본) KT Mi:dm 2.0 Mini (MIT)
 Ollama 공식 목록에 없어서 GGUF 파일을 받아 등록 파일(`Modelfile.midm-2.0-mini`)로 올린다.
-1. 파일 받기(약 1.43GB, 저장소의 `docs/ollama` 폴더로):
+1. 파일 받기(약 1.43GB, 저장소의 `docs/ollama` 폴더로). PowerShell 5.1 에서 `curl` 은 다른 명령의 별명이라 반드시 `curl.exe`:
 ```
-curl -L -o docs\ollama\Midm-2.0-Mini-Instruct-Q4_K_M.gguf https://huggingface.co/mykor/Midm-2.0-Mini-Instruct-gguf/resolve/main/Midm-2.0-Mini-Instruct-Q4_K_M.gguf
+curl.exe -L -o docs\ollama\Midm-2.0-Mini-Instruct-Q4_K_M.gguf https://huggingface.co/mykor/Midm-2.0-Mini-Instruct-gguf/resolve/main/Midm-2.0-Mini-Instruct-Q4_K_M.gguf
 ```
 2. 등록:
 ```
@@ -32,7 +32,9 @@ ollama create midm-2.0-mini -f Modelfile.midm-2.0-mini
 cd ..\..
 ```
 3. `.env`: `LF_CHAT_RAG_MODEL=midm-2.0-mini`
+- 크기 확인: `(Get-Item docs\ollama\Midm-2.0-Mini-Instruct-Q4_K_M.gguf).Length` → `1426272640`
 - GGUF 파일은 커밋하지 않는다(`.gitignore` 의 `*.gguf`)
+- 11/7 집 PC(Ollama 0.40.15)에서 `ollama create` 성공·한국어 응답 확인
 
 ## 3. 확인
 ```
