@@ -80,10 +80,14 @@ class Chatbot:
         graph.add_node('ops_analyst', self._ops_worker)
         graph.add_node('reporter', self._reporter)
         graph.add_edge(START, 'coordinator')
-        graph.add_conditional_edges('coordinator', lambda s: 'end' if s.get('result') else 'planner',
-                                    {'end': END, 'planner': 'planner'})
+        def route_after_coordinator(s):      # 11/8: 이름 있는 함수 → Langfuse 나무에 'RunnableCallable' 대신 이 이름으로 보임
+            return 'end' if s.get('result') else 'planner'
+
+        def route_next_worker(s):
+            return s['next']
+        graph.add_conditional_edges('coordinator', route_after_coordinator, {'end': END, 'planner': 'planner'})
         graph.add_edge('planner', 'supervisor')
-        graph.add_conditional_edges('supervisor', lambda s: s['next'],
+        graph.add_conditional_edges('supervisor', route_next_worker,
                                     {'guidance': 'researcher', 'item_search': 'item_search', 'ops': 'ops_analyst',
                                      'reporter': 'reporter'})
         for worker in ('researcher', 'item_search', 'ops_analyst'):

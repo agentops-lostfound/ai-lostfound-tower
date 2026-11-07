@@ -195,7 +195,10 @@ start -> coordinator --(greeting/thanks)--> end
 | 그럼 거기 갈 때 뭐 챙겨요? | 같은 허점 + 모델 답 버림 | 안내만, 모델 답 채택("신분증을 가지고 부산역 본센터 키오스크로") |
 
 - 모델 답 버림 원인: 앞 대화가 길어지면 Mi:dm 이 `answer` 칸을 빼고 `{"mode":"answer","passage_ids":[0]}` 만 냄 → 출력 형식을 답/되묻기 두 갈래로 나눠 답 모드에서는 `answer` 필수(`agents/chat_rag.py` `_generate`)
-- 시간: CPU 라 질문당 2~35초. 집 PC(RTX 3060 Ti)에서는 모델 호출 1번 약 0.6초였으므로 칸 3개면 약 2초(추정, 집 PC 실측 TBD)
+- 시간: 클라우드 CPU 는 질문당 2~35초
+- **11/8 집 PC 실측(RTX 3060 Ti 8GB, Ollama, midm-2.0-mini, 같은 대화 6개, 관제탑 API)**: 6개 모두 위 표 "고친 뒤"와 같은 경로·결과, 안내 답 3개 모두 모델 답 채택(두 갈래 형식이 Ollama 에서도 동작)
+  - 걸린 시간: 첫 질문 5.3초(모델을 그래픽카드에 처음 올림) · 인사·주제 밖 0.17초 · 검색+안내 1.66초 · 안내 1.46~1.51초 → 목표 1~3초 안
+  - 한 질문 안: planner-llm 약 0.30초, reporter-writer(안내 답 작성) 약 1.05초
 
 ### 11-2. Langfuse 가입·설정 (처음 한 번)
 
@@ -227,6 +230,8 @@ start -> coordinator --(greeting/thanks)--> end
 - 질문 하나 = trace 하나(이름 `lost-found-chatbot`). 같은 화면 대화는 `session_id`(위젯이 만든 무작위 값)로 묶여 **Sessions** 에서 이어 볼 수 있음
 - trace 안의 나무 구조: `lost-found-chatbot` → `chatbot-graph` → `coordinator` · `planner` · `supervisor` · `researcher` · `item_search` · `reporter`(LangGraph **콜백 방식** `langfuse.langchain.CallbackHandler` 가 칸마다 입력·출력 기록) → 그 안에 모델 호출 `coordinator-llm` · `planner-llm` · `reporter-writer`(generation: 프롬프트 버전·토큰·시간)
 - 모델 호출은 Ollama 를 직접 부르므로 콜백이 못 봄 → 코드에서 직접 기록(`agents/observability.py` `step`). 콜백을 끄면(`LF_LANGFUSE_CALLBACK=0`) 칸도 직접 기록으로 바뀜(겹치지 않음)
+- 11/8 Langfuse 화면 확인: Prompts 3개(v1, production) · Traces 에서 `[전화번호]` 가림 확인 · Sessions 에 같은 대화 6개가 한 세션으로, 위젯 질문은 `s-…` 무작위 세션으로 묶임 · reporter-writer 에 `chat-guidance-answer - v1` 프롬프트 연결 확인
+- 분기 함수(coordinator 뒤·supervisor 뒤)는 `route_after_coordinator`·`route_next_worker` 이름으로 보임(이름 없는 함수면 `RunnableCallable` 로 보여 헷갈림)
 - 보내기 전에 전화번호·주민번호·이메일 모양을 가림. 본인인증 토큰은 그래프 상태에 넣지 않으므로 기록에 들어가지 않음. 기록 전송이 실패해도 답은 막히지 않음(서버 못 닿을 때 답 0.01초 확인)
 
 ### 11-4. 문제가 있을 때 고치는 순서 (프롬프트 개선 루프)
