@@ -87,7 +87,8 @@ DEFAULT_SHAPE = {"card_wallet": "rectangular", "usb": "stick", "power_bank": "re
                  "hand_cream": "tube", "phone": "rectangular"}
 DEFAULT_MATERIAL = {"card_wallet": ["synthetic leather"], "usb": ["metal", "plastic"], "power_bank": ["plastic"],
                     "lip_balm": ["plastic"], "hand_cream": ["plastic"], "phone": ["plastic"]}
-TAGS = {"#집기실패": "grasp_fail", "#보정실패": "calib_fail", "#신분증불일치": "id_mismatch", "#수동인계": "manual_handover"}
+TAGS = {"#집기실패": "grasp_fail", "#보정실패": "calib_fail", "#신분증불일치": "id_mismatch", "#수동인계": "manual_handover",
+        "#흐린촬영": "blur_once"}      # 11/8: 첫 탑뷰에서 색·글자를 못 읽음 → 매칭 애매 → 관제탑 메인 AI 가 다시 찍게 함(TOWER_BRAIN=1)
 _LATIN = re.compile(r"\b[A-Za-z][A-Za-z0-9]{1,15}\b")
 _QUOTED = re.compile(r"[\"'“”‘’]([^\"'“”‘’]{1,20})[\"'“”‘’]")
 
@@ -286,7 +287,7 @@ class SimWorld:
                     "holding": None, "stopped": False, "target": None, "joints": so101_joints(*HOME_MM, HOME_Z, HOME_GRIP)}
         self.homing: threading.Thread | None = None
         self._seq: dict[str, int] = {}                 # 접수 번호 앞부분별 마지막 순번(초기화해도 유지)    # 바구니에 내려놓은 뒤 원점으로 돌아가는 중(뒤에서)
-        self.faults = {"grasp_fail": 0, "calib_fail": False}
+        self.faults = {"grasp_fail": 0, "calib_fail": False, "blur": False}
         self.version = 0
         # 11/7 보관함 정답지와 맞추기(build_sim_service 가 연결): 칸에 넣을 때 알림 · 정답지가 예약한 칸 · 그 물건의 칸
         self.on_bin = None          # (item_id, slot_id) → None
@@ -302,9 +303,11 @@ class SimWorld:
     def _touch(self) -> None:
         self.version += 1
 
-    def inject(self, grasp_fail: int | None = None, calib_fail: bool | None = None) -> None:
+    def inject(self, grasp_fail: int | None = None, calib_fail: bool | None = None, blur: bool | None = None) -> None:
         """실패 흉내 켜기(가상 시연에서 안전 규칙을 보여 주려고)."""
         with self._lock:
+            if blur is not None:
+                self.faults["blur"] = bool(blur)
             if grasp_fail is not None:
                 self.faults["grasp_fail"] = max(0, int(grasp_fail))
             if calib_fail is not None:
@@ -553,6 +556,8 @@ class SimTopview:
                 x, y = SLOTS_MM[r["slot"]]
                 cx, cy = mm_to_px(x, y)
                 q = r.get("qwen")
+                if q and w.faults.get("blur"):         # 흐린 촬영: 색·글자·스티커를 못 읽음(품목·모양은 읽음)
+                    q = {**q, "colors": [], "logos_or_text": [], "sticker_status": "unknown", "stickers": []}
                 objs.append({"id": len(objs), "class_name": "object", "confidence": 0.88,
                              "bbox": [cx - 50, cy - 34, cx + 50, cy + 34], "center_px": [cx, cy],
                              "center_world_mm": [x, y], "calibration_valid": not w.faults["calib_fail"],
@@ -576,6 +581,7 @@ class SimTopview:
         self.last_reason = "" if report["calibration"].get("valid") else "보정 없음(가상 #보정실패) — 로봇은 움직이지 않음"
         if self.world.faults["calib_fail"]:
             self.world.faults["calib_fail"] = False          # 한 번만
+        self.world.faults["blur"] = False                    # 흐린 촬영도 한 번만(다시 찍으면 제대로 보임)
         self.world.arm["phase"] = "대기"
         self.world._touch()
         return dets

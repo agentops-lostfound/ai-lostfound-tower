@@ -142,10 +142,20 @@ def parse_visit(payload: dict) -> tuple[str, str | None, dict]:
     return cid, case, gates
 
 
+def _accepts(fn, name: str) -> bool:
+    """흐름 함수가 그 이름의 인자를 받는지(시험용 가짜 흐름은 consult 를 모를 수 있음)"""
+    import inspect
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+    return name in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 class TowerService:
     def __init__(self, backend_factory: Callable[[], object], reporter, recorder: Recorder | None = None,
                  reviewer=None, flow: Callable = run_return, claims: ClaimStore | None = None,
-                 intake: IntakeStore | None = None, gpu_lease=None, photo_dir=None, storage=None):
+                 intake: IntakeStore | None = None, gpu_lease=None, photo_dir=None, storage=None, brain=None):
         self.backend_factory = backend_factory   # 요청마다 부품 묶음을 얻는 함수(진짜 부품이면 같은 객체를 돌려줘도 됨)
         self.reporter = reporter
         self.recorder = recorder if recorder is not None else MemoryRecorder()
@@ -163,6 +173,7 @@ class TowerService:
             storage = MemoryStorageStore(item_lookup=self._storage_item, item_source=self._storage_items,
                                          status_setter=self._storage_set_status, poses=SLOT_POSES)
         self.storage = storage
+        self.brain = brain                         # 11/8 관제탑 메인 AI(agents/tower_brain.py). None = 매칭이 애매하면 바로 직원 확인
 
     def _storage_items(self) -> list[dict]:
         """메모리 보관함 도착 목록용: 등록기계 접수 기록 + 시연 부품(가짜 보관함)의 물건"""
@@ -385,7 +396,8 @@ class TowerService:
                 pass
             be = GuardedBackend(self.backend_factory(), self._stop_event, self.gpu_lease)
             try:
-                out = self.flow(req, be, self.reporter, reviewer=self.reviewer).to_dict()
+                extra = {"consult": self.brain.consult} if self.brain is not None and _accepts(self.flow, "consult") else {}
+                out = self.flow(req, be, self.reporter, reviewer=self.reviewer, **extra).to_dict()
             except Exception as e:   # 부품이 약속을 어기고 예외를 던진 경우 → 정지 시도 + 직원 확인
                 out = self._crash(req, be, e)
             finally:
@@ -623,6 +635,17 @@ class TowerService:
         except Exception:
             pass
         return {"case_id": case_id, "item_id": item_id, "status": "본센터 보관", "slot": slot}
+
+    def slot_area(self, item_id: str) -> dict | None:
+        """메인 AI 보관 칸 에이전트용: {"slot_id", "bounds_mm"(구역 작업대 좌표, 없으면 None)} 또는 None"""
+        try:
+            for sec in self.storage.layout()["sections"]:
+                for s in sec["slots"]:
+                    if s.get("item") and s["item"]["item_id"] == item_id:
+                        return {"slot_id": s["slot_id"], "bounds_mm": sec.get("bounds_mm")}
+        except Exception:
+            return None
+        return None
 
     def slot_of(self, item_id: str) -> dict | None:
         """물건이 기록된 보관 칸 {"slot_id", "pose_name"} 또는 None(기록 없음·DB 오류)"""
