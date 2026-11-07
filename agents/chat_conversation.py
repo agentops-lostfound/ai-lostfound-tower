@@ -61,6 +61,10 @@ def search_intent(question):
     return direct or implicit
 
 
+# 이어서 찾기로 바꾸면 안 되는 말(절차 질문·습득 신고). 11/7 '주웠·맡겨·어디' 추가 — "지갑 주웠는데 어디에 맡겨요?"가 검색으로 바뀌던 허점
+NOT_SEARCH = r'어떻게|방법|절차|기간|운영|인증|수령|사진|보관|개인정보|날씨|예약|맡겨|맡기|주웠|주운|어디'
+
+
 def resolve_turn(question, history, context, guidance):
     """Resolve only an elliptical follow-up; unrelated/new questions stay independent."""
     question = natural_question(question)
@@ -90,7 +94,13 @@ def resolve_turn(question, history, context, guidance):
     fragment_search = (fragment and has_attribute) or (search_intent(question) and features.get('category') == '확인 불가') or retry_search
     if inherited.get('category') and fragment_search and not warnings:
         # A fragment such as “USB는?” continues search, but a new how-to question does not.
-        if not re.search(r'어떻게|방법|절차|기간|운영|인증|수령|사진|보관|개인정보|날씨|예약', q):
+        if not re.search(NOT_SEARCH, q):
+            return question + ' 찾아줘', {**context, **inherited}, True
+    if inherited.get('category') and features.get('category') in (None, '확인 불가') and not warnings:
+        # 11/7: "파란 휴대폰 잃어버렸어" 다음 "해운대역에서 어제 잃어버렸어요"처럼 장소·날짜만 덧붙이면 앞 물건으로 이어서 찾는다
+        extra, _ = search_context(question, {})
+        if (extra.get('lost_station') or extra.get('lost_date') or extra.get('lost_line')) \
+                and not re.search(NOT_SEARCH, q):
             return question + ' 찾아줘', {**context, **inherited}, True
     referential = is_referential(q)
     if referential and previous and not has_attribute:

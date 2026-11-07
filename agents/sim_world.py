@@ -381,6 +381,13 @@ class SimWorld:
         return {"item_id": row["item_id"], "status": row["status"], "category": row.get("category"),
                 "features": copy.deepcopy(feats), "object_id": None}
 
+    def chat_items(self) -> list[dict]:
+        """11/7 챗봇 물건 검색용(읽기 전용 복사본): 공개 특징(색 등)만, 비공개 특징·연락처는 넣지 않는다"""
+        with self._lock:
+            return [{"item_id": r["item_id"], "category": r.get("category"), "status": r["status"],
+                     "machine_id": r.get("machine_id"), "received_at": r.get("received_at"),
+                     "features": {"color": (r.get("features") or {}).get("color")}} for r in self.items.values()]
+
     def db_get_item(self, item_id: str) -> dict | None:
         with self._lock:
             row = self.items.get(item_id)
