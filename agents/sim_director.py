@@ -378,7 +378,7 @@ class SimDirector:
                     return
                 if not self.auto_handover or "manual_handover" in tags:
                     self.board.stage("handover", "active", "직원 화면에서 '분실인에게 건넴'")
-                    self.board.finish(sid, f"바구니 전달 완료 — 직원 화면 /staff 에서 인계 확인({out['case_id']})", True)
+                    self.board.finish(sid, f"제출보관함 전달 완료 — 직원 화면 /staff 에서 교차 검증({out['case_id']})", True)
                     return
                 w.sleep(3.0)
                 self.svc.handover(out["case_id"], {"staff_confirmed": True})               # 진짜 직원 화면과 같은 입구
@@ -434,17 +434,37 @@ class SimDirector:
             return
 
     def reset(self) -> dict:
-        """세계를 처음 상태로(보관함 시연 물건 8개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지)."""
+        """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
+        11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
         w = self.world
+        st = getattr(self.svc, "storage", None)
+        if st is not None:                              # 정답지 칸 비우기(세계 잠금 밖 — 정답지는 세계를 읽음)
+            for sec in st.layout()["sections"]:
+                for sl in sec["slots"]:
+                    if sl.get("item"):
+                        try:
+                            st.release(slot_id=sl["slot_id"])
+                        except Exception:
+                            pass
+        hooks = (w.on_bin, w.reserved)
         with w._lock:
-            w.items.clear()
-            w.contacts.clear()
-            w.arm.update(x=w.arm["x"], phase="대기", holding=None, stopped=False, target=None)
-            w.faults.update(grasp_fail=0, calib_fail=False)
-            w.seed()
+            w.on_bin = w.reserved = None                # 잠금 안에서 정답지를 부르지 않게(교착 방지) — 아래에서 맞춤
+            try:
+                w.items.clear()
+                w.contacts.clear()
+                w.arm.update(x=w.arm["x"], phase="대기", holding=None, stopped=False, target=None)
+                w.faults.update(grasp_fail=0, calib_fail=False)
+                w.seed()
+            finally:
+                w.on_bin, w.reserved = hooks
         SimRobot(w).robot_home()
         self.pending.clear()
         self.visit_wait.clear()
+        if w.on_bin:                                    # 시연 물건 칸 → 정답지
+            for r in list(w.items.values()):
+                sid = w.slot_id_of(r["item_id"])
+                if sid:
+                    w.on_bin(r["item_id"], sid)
         self.rep.progress("SIM", "가상 세계 초기화", f"보관함 시연 물건 {len(w.items)}개 · 로봇 원점")
         return w.snapshot()
 
@@ -483,7 +503,39 @@ def build_sim_service(env: dict | None = None):
                        claims=SimClaimStore(world), intake=world, gpu_lease=lease_from_env(env))
     svc.board, svc.world = board, world
     svc.sim = SimDirector(svc, world, board, auto_handover=not flag("TOWER_SIM_MANUAL_HANDOVER"))
+    link_storage(svc, world)
     return svc
+
+
+def link_storage(svc: TowerService, world: SimWorld) -> None:
+    """11/7 가상 작업대 ↔ 보관함 정답지(svc.storage) 맞추기 — 화면(/live·/admin)과 보관 화면(/storage)이 같은 칸을 보이게.
+    - 가상 세계가 물건을 칸에 넣으면 → 정답지에도 같은 칸(품목이 다른 행이면 override)
+    - 정답지가 예약한 칸(반환 중·보류 물건의 원래 칸)은 가상 세계가 새 물건에 주지 않음
+    - 직원이 보관 화면에서 칸을 고르면 → 가상 세계도 그 칸으로"""
+    st = svc.storage
+
+    def reserved():
+        lay = st.layout()
+        return {sl["slot_id"]: (sl.get("item") or {}).get("item_id") for sec in lay["sections"] for sl in sec["slots"]
+                if sl.get("item")}
+
+    def on_bin(item_id, slot_id):
+        try:
+            st.assign(item_id, slot_id, override_category=True, by="sim", arrive=True)   # 회수 중 → 칸 도착(본센터 보관)
+        except Exception:
+            pass
+    world.reserved, world.on_bin = reserved, on_bin
+    orig_place = st.place
+
+    def place(item_id, slot_id, override_category=False):
+        out = orig_place(item_id, slot_id, override_category)
+        world.put(item_id, slot_id)
+        return out
+    st.place = place
+    for r in list(world.items.values()):              # 시작할 때 이미 칸에 있는 시연 물건
+        sid = world.slot_id_of(r["item_id"])
+        if sid:
+            on_bin(r["item_id"], sid)
 
 
 __all__ = ["SimDirector", "SimClaimStore", "build_sim_service"]

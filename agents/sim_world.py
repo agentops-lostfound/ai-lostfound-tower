@@ -30,15 +30,27 @@ from agents.intake import DEMO_PLACES, IntakeError, split_features
 from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa: F401 (RESULT_NAME: 문서용)
 
 # ---------- 작업대 좌표(가상, mm) ----------
-# 탑뷰 카메라가 보는 작업대: 가로 640 × 세로 420 mm. 보관함은 왼쪽 위 480 × 300, 바구니는 오른쪽, 로봇 받침은 아래 가운데
-BENCH_MM = (640.0, 420.0)
-BIN_MM = (0.0, 0.0, 480.0, 300.0)                     # x1, y1, x2, y2
-SLOTS_MM = [(60.0 + 120.0 * c, 60.0 + 90.0 * r) for r in range(3) for c in range(4)]   # 보관함 칸 12개
-BASKET_MM = (565.0, 330.0)
-HOME_MM = (240.0, 210.0)                   # 원점(대기) 자세의 집게 끝 — 실제 SO-101 관절 한계 안(11/4)
-ROBOT_BASE_MM = (240.0, 410.0)
-MARKERS_MM = [(10.0, 10.0), (470.0, 290.0)]          # ArUco 표식 2개(대각선, 11/4 합의)
-PX_SCALE, PX_OFFSET = 2.0, (40.0, 30.0)              # 탑뷰 사진 픽셀 = mm × 2 + 여백(가상 1360×900 사진)
+# 11/7: 실제 판(docs/design/storage_slots.md)과 같게 — 보관판 500 × 250 mm, 로봇팔은 아래쪽 긴 변, 제출보관함(H-1, 20×20cm)은
+# 반대쪽 긴 변 바깥(위). 한 행 = 로봇 쪽(1)·먼 쪽(2) 칸 2개, 행 4개가 긴 변 방향(왼→오)으로 R1 모형폰 · R2 USB·핸드크림·보조배터리 ·
+# R3 립밤 · R4 지갑. R1(모형폰 사선)은 간격이 넓다. 칸 이름·품목은 보관함 정답지(agents/storage.py LAYOUT)와 같다
+BENCH_MM = (560.0, 600.0)
+BIN_MM = (0.0, 240.0, 500.0, 490.0)                   # 보관판 x1, y1, x2, y2
+SLOT_IDS = ["R1-1", "R1-2", "R2-1", "R2-2", "R3-1", "R3-2", "R4-1", "R4-2"]
+_ROW_X = {"R1": 70.0, "R2": 205.0, "R3": 325.0, "R4": 445.0}
+_SLOT_Y = {"1": 420.0, "2": 310.0}                    # 1 = 로봇 쪽(가까움), 2 = 먼 쪽
+SLOTS_MM = [(_ROW_X[sid[:2]], _SLOT_Y[sid[3]]) for sid in SLOT_IDS]   # 보관 칸 8개(순서 = SLOT_IDS)
+HBOX_MM = (150.0, 10.0, 350.0, 210.0)                # 제출보관함 H-1 (20 × 20 cm)
+BASKET_MM = ((HBOX_MM[0] + HBOX_MM[2]) / 2, (HBOX_MM[1] + HBOX_MM[3]) / 2)   # 제출보관함 가운데(로봇이 내려놓는 곳)
+HOME_MM = (250.0, 360.0)                   # 원점(대기) 자세의 집게 끝 — 실제 SO-101 관절 한계 안
+ROBOT_BASE_MM = (250.0, 545.0)
+MARKERS_MM = [(12.0, 252.0), (488.0, 478.0)]          # ArUco 표식 2개(보관판 대각선)
+PX_SCALE, PX_OFFSET = 1.4, (40.0, 30.0)              # 탑뷰 사진 픽셀 = mm × 1.4 + 여백(가상 1360×900 사진 안)
+
+
+def slot_rows() -> dict[str, list[str]]:
+    """행 코드 → 받는 품목(빈 목록 = 제한 없음). 보관함 정답지 LAYOUT 그대로"""
+    from agents.storage import LAYOUT
+    return {code: list(allowed) for code, _label, kind, allowed, _n, _note in LAYOUT if kind == "shelf"}
 PICK_RADIUS_MM = 35.0                                 # 접근 좌표에서 이 거리 안의 물건을 집는다
 
 # ---------- 물건이 있는 곳(세계) ----------
@@ -153,15 +165,14 @@ def lost_station(text: str) -> str | None:
 #   목업폰(아이폰17 목업): 화이트·블랙·블루 구매 → 블랙은 신고용으로 비움
 #   USB: 샌디스크 울트라 듀얼드라이브 2개(같은 제품) + 액센 SK31 1개(신고용). 샌디스크 색은 은색(추정)
 #   보조배터리(스피디 슬림 듀얼) 2개 중 1개만 보관함, 색 흰색(추정). 핸드크림(부케가르니) 흰색(추정)
+#   11/7: 보관 칸이 8개(실제 판)라 8개를 다 넣으면 습득 시연 물건을 넣을 칸이 없다 → 5개만 넣고 R3(립밤) 2칸 · R4-2(지갑) 를 비워 둔다.
+#   핑크샌드 카드지갑·보조배터리·핸드크림은 습득 신고로 넣어 볼 물건(보조배터리·핸드크림은 R2 가 차 있어 다른 행 빈 칸으로 감)
 SEED_ITEMS = [
-    ("카드지갑 브라운", "브라운 카드지갑"),
-    ("카드지갑 핑크샌드", "핑크샌드 카드지갑"),
-    ("목업폰 화이트", "화이트 모형폰"),
-    ("목업폰 블루", "블루 모형폰"),
-    ("USB 샌디스크 1", "은색 USB SanDisk"),
-    ("USB 샌디스크 2", "은색 USB SanDisk"),
-    ("보조배터리 스피디", "흰색 보조배터리"),
-    ("핸드크림 부케가르니", "흰색 핸드크림"),
+    ("목업폰 화이트", "화이트 모형폰"),        # → R1-1
+    ("목업폰 블루", "블루 모형폰"),            # → R1-2
+    ("USB 샌디스크 1", "은색 USB SanDisk"),    # → R2-1 (같은 제품 2개 → '닮은 물건 → 직원 확인' 장면)
+    ("USB 샌디스크 2", "은색 USB SanDisk"),    # → R2-2
+    ("카드지갑 브라운", "브라운 카드지갑"),    # → R4-1
 ]
 
 
@@ -277,6 +288,9 @@ class SimWorld:
         self._seq: dict[str, int] = {}                 # 접수 번호 앞부분별 마지막 순번(초기화해도 유지)    # 바구니에 내려놓은 뒤 원점으로 돌아가는 중(뒤에서)
         self.faults = {"grasp_fail": 0, "calib_fail": False}
         self.version = 0
+        # 11/7 보관함 정답지와 맞추기(build_sim_service 가 연결): 칸에 넣을 때 알림 · 정답지가 예약한 칸 · 그 물건의 칸
+        self.on_bin = None          # (item_id, slot_id) → None
+        self.reserved = None        # () → {slot_id: item_id}
         if seed:
             self.seed()
 
@@ -297,7 +311,7 @@ class SimWorld:
                 self.faults["calib_fail"] = bool(calib_fail)
 
     def seed(self) -> None:
-        """보관함에 미리 있는 물건(본센터 직접 접수 H-…) — 실제 구매 목록(구매요구서_2조_AgentOps_최종, 11/3) 기준 8개.
+        """보관함에 미리 있는 물건(본센터 직접 접수 H-…) — 실제 구매 목록(구매요구서_2조_AgentOps_최종, 11/3) 기준 5개(11/7, 칸 8개).
         디스코드로 신고해 볼 물건(검정 카드지갑·목업폰 블랙·보조배터리 2번째·액센 USB·립밤)은 일부러 비워 둔다.
         같은 제품 2개(USB 샌디스크)를 넣어 '닮은 물건 → 직원 확인' 장면이 실제처럼 나오게 한다. 색·글자는 SEED_ITEMS 주석 참고."""
         for _, text in SEED_ITEMS:
@@ -305,8 +319,8 @@ class SimWorld:
                                "finder": None, "photo_path": None})
             q = sim_qwen(text)
             self.set_features(row["item_id"], to_features(q, 0.9), qwen=q)
-            self.move(row["item_id"], LOC_BIN)
             self.items[row["item_id"]]["status"] = "본센터 보관"
+            self.move(row["item_id"], LOC_BIN)
         self._touch()
 
     # ----- IntakeStore (등록기계 접수) -----
@@ -373,11 +387,19 @@ class SimWorld:
             return None if row is None else self._record(row)
 
     def db_set_status(self, item_id: str, status: str, changed_by: str = "tower") -> dict:
+        cur = self.items.get(item_id)                          # 되돌림(보류→보관)일 때만 정답지를 읽는다 — 보관 화면 '넣기'는
+        res = (self._reserved() if status == "본센터 보관" and cur and cur["loc"] in (LOC_STAFF, LOC_BASKET)
+               else {})                                        # 정답지 잠금 안에서 이 함수를 부르므로 읽으면 교착(잠금 밖)
         with self._lock:
             row = self.items.get(item_id)
             if row is None:
                 return robot_result(False, "물건 기록 없음")
             row["status"], row["changed_by"] = status, changed_by
+            if status == "본센터 보관" and row["loc"] in (LOC_STAFF, LOC_BASKET):   # 11/7 반환 보류 → 원래 칸으로 되돌림
+                sid = next((k for k, v in res.items() if v == item_id and k in SLOT_IDS), None)
+                i = SLOT_IDS.index(sid) if sid else self.free_slot(row.get("category"), item_id, res)
+                if i is not None:
+                    row["slot"], row["loc"] = i, LOC_BIN
             if status == HANDOVER_DONE and row["loc"] == LOC_BASKET:
                 row["loc"] = LOC_HANDED                # 직원이 바구니에서 꺼내 분실인에게 건넴
             elif status == HANDOVER_HOLD and row["loc"] == LOC_BASKET:
@@ -390,17 +412,59 @@ class SimWorld:
             return [self._record(r) for r in self.items.values() if r["status"] in ACTIVE_STATUSES]
 
     # ----- 물건 옮기기(회수 등, 사람이 하는 일) -----
-    def free_slot(self) -> int | None:
-        used = {r["slot"] for r in self.items.values() if r["loc"] == LOC_BIN}
-        return next((i for i in range(len(SLOTS_MM)) if i not in used), None)
+    def _reserved(self) -> dict:
+        """정답지가 예약한 칸 {slot_id: item_id}. 정답지는 자기 잠금 안에서 이 세계를 읽으므로
+        반드시 이 세계의 잠금 밖에서 부른다(두 잠금이 서로 기다리는 교착 방지)"""
+        try:
+            return dict(self.reserved()) if self.reserved else {}
+        except Exception:
+            return {}
+
+    def _taken(self, except_item: str | None, res: dict) -> set[int]:
+        used = {r["slot"] for r in self.items.values() if r["loc"] == LOC_BIN and r["slot"] is not None}
+        used |= {SLOT_IDS.index(sid) for sid, it in res.items() if sid in SLOT_IDS and it != except_item}
+        return used
+
+    def free_slot(self, category: str | None = None, item_id: str | None = None, res: dict | None = None) -> int | None:
+        """빈 칸 고르기(보관함 정답지 추천과 같은 순서): 그 품목을 받는 행 → 품목 제한 없는 행 → 아무 빈 칸.
+        정답지가 이미 예약한 칸(반환 중·보류 물건의 원래 칸)은 비어 보여도 쓰지 않는다"""
+        used = self._taken(item_id, self._reserved() if res is None else res)
+        free = [i for i in range(len(SLOTS_MM)) if i not in used]
+        if not free:
+            return None
+        rows = slot_rows()
+        for want in (lambda r: category in rows.get(r, []), lambda r: not rows.get(r)):
+            hit = [i for i in free if want(SLOT_IDS[i][:2])]
+            if category is not None and hit:
+                return hit[0]
+        return free[0]
+
+    def put(self, item_id: str, slot_id: str) -> bool:
+        """정해진 칸에 넣기(직원이 보관 화면에서 고른 칸, 반환 보류 물건을 원래 칸에)"""
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None or slot_id not in SLOT_IDS:
+                return False
+            i = SLOT_IDS.index(slot_id)
+            if any(r["loc"] == LOC_BIN and r["slot"] == i and r["item_id"] != item_id for r in self.items.values()):
+                return False
+            row["slot"], row["loc"] = i, LOC_BIN
+            self._touch()
+            return True
+
+    def slot_id_of(self, item_id: str) -> str | None:
+        r = self.items.get(item_id)
+        return SLOT_IDS[r["slot"]] if r and r["loc"] == LOC_BIN and r["slot"] is not None else None
 
     def move(self, item_id: str, loc: str) -> bool:
+        res = self._reserved() if loc == LOC_BIN else {}       # 잠금 밖에서
         with self._lock:
             row = self.items.get(item_id)
             if row is None:
                 return False
             if loc == LOC_BIN:
-                slot = self.free_slot()
+                cat = row.get("category")
+                slot = self.free_slot(cat if cat not in (None, UNKNOWN) else None, item_id, res)
                 if slot is None:
                     return False
                 row["slot"] = slot
@@ -408,7 +472,12 @@ class SimWorld:
                 row["slot"] = None
             row["loc"] = loc
             self._touch()
-            return True
+        if loc == LOC_BIN and self.on_bin:                 # 정답지(보관함 DB)에도 같은 칸으로(잠금 밖에서)
+            try:
+                self.on_bin(item_id, SLOT_IDS[row["slot"]])
+            except Exception:
+                pass
+        return True
 
     def item_at(self, x: float, y: float) -> str | None:
         """보관함에서 (x, y) mm 가까이(PICK_RADIUS_MM) 있는 물건."""
@@ -433,11 +502,13 @@ class SimWorld:
                 pos = SLOTS_MM[r["slot"]] if r["loc"] == LOC_BIN and r["slot"] is not None else None
                 items.append({"item_id": r["item_id"], "machine_id": r["machine_id"], "status": r["status"],
                               "loc": r["loc"], "category": r.get("category"), "color": r["features"].get("color"),
-                              "place_text": r["place_text"], "mm": list(pos) if pos else None})
+                              "place_text": r["place_text"], "mm": list(pos) if pos else None,
+                              "slot_id": SLOT_IDS[r["slot"]] if pos else None})
             return {"version": self.version, "arm": dict(self.arm), "items": items,
                     "bench": {"size_mm": list(BENCH_MM), "bin_mm": list(BIN_MM), "basket_mm": list(BASKET_MM),
                               "home_mm": list(HOME_MM), "base_mm": list(ROBOT_BASE_MM),
-                              "markers_mm": [list(m) for m in MARKERS_MM], "slots_mm": [list(s) for s in SLOTS_MM]},
+                              "markers_mm": [list(m) for m in MARKERS_MM], "slots_mm": [list(s) for s in SLOTS_MM],
+                              "slot_ids": list(SLOT_IDS), "rows": slot_rows(), "hbox_mm": list(HBOX_MM)},
                     "faults": dict(self.faults),
                     "robot": {"model": "SO-101", "role": "팔로워(흰색) — 학습된 정책(SmolVLA)이 움직임",
                               "leader": "리더(검정) — 텔레오퍼레이션으로 학습 에피소드 녹화용(시연 때는 쓰지 않음)",
@@ -586,9 +657,9 @@ class SimRobot:
         if (b := self._blocked()):
             return b
         w, arm = self.world, self.world.arm
-        if not self._move(BASKET_MM[0], BASKET_MM[1], HOVER_Z, None, 2.4, "바구니로 이동"):
+        if not self._move(BASKET_MM[0], BASKET_MM[1], HOVER_Z, None, 2.4, "제출보관함으로 이동"):
             return robot_result(False, STAFF_STOP_REASON)
-        if not self._move(z=DROP_Z, seconds=0.4, phase="바구니 위로 내림"):
+        if not self._move(z=DROP_Z, seconds=0.4, phase="제출보관함 위로 내림"):
             return robot_result(False, STAFF_STOP_REASON)
         if not self._move(grip=70, seconds=0.4, phase="집게 열어 내려놓음"):
             return robot_result(False, STAFF_STOP_REASON)
@@ -597,7 +668,7 @@ class SimRobot:
             if held:
                 w.move(held, LOC_BASKET)
             arm["holding"], arm["target"] = None, None
-        self._pose(phase="바구니에 내려놓음")
+        self._pose(phase="제출보관함에 내려놓음")
 
         def go_home():
             w.sleep(0.4)
@@ -633,5 +704,5 @@ class SimRobot:
                 "joints": {k: float(v) for k, v in (arm.get("joints") or {}).items()}, "source": "sim"}
 
 
-__all__ = ["SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
+__all__ = ["SLOT_IDS", "slot_rows", "SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
            "lost_station", "mm_to_px", "STATIONS", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]

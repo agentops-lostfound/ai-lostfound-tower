@@ -239,11 +239,11 @@ def deliver(c: Ctx) -> bool:
     if not d["ok"]:
         note = _stop(c)
         return c.finish(DECISION_STOPPED, f"바구니 전달 실패: {d['reason']}{note}", alert=True)
-    c.step("바구니 전달 완료")
+    c.step("제출보관함 전달 완료")
     # 11/4: 바구니에 넣은 것 ≠ 분실인이 받은 것. 인계 완료는 직원이 건넨 뒤 직원 화면에서 확인한다
     if not _set_status(c, HANDOVER_WAIT):   # 물건은 이미 전달됨 → 결정은 반환, 기록만 직원이 바로잡음
-        return c.finish(DECISION_RETURNED, "바구니 전달 완료 · 상태 기록 실패 — 직원 확인", alert=True)
-    return c.finish(DECISION_RETURNED, "바구니 전달 완료 · 직원 인계 대기")
+        return c.finish(DECISION_RETURNED, "제출보관함 전달 완료 · 상태 기록 실패 — 직원 확인", alert=True)
+    return c.finish(DECISION_RETURNED, "제출보관함 전달 완료 · 직원 인계 대기(교차 검증)")
 
 
 STAGES = [("web_gate", web_gate), ("visit_gate", visit_gate), ("locate", locate),

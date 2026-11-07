@@ -200,7 +200,7 @@ class BotCore:
         items = w.get("items") or []
         count = lambda loc: sum(1 for i in items if i.get("loc") == loc)  # noqa: E731
         return (f"📡 관제탑 {'반환 진행 중' if d.get('busy') else '대기'} · 로봇 {'정지' if arm.get('stopped') else arm.get('phase', '-')}\n"
-                f"보관함 {count('bin')}개 · 등록기계 {count('kiosk')}개 · 이동 중 {count('transit')}개 · 바구니 {count('basket')}개")
+                f"보관함 {count('bin')}개 · 등록기계 {count('kiosk')}개 · 이동 중 {count('transit')}개 · 제출보관함 {count('basket')}개")
 
     def follow(self, story_id: str, update, live_url: str = "", timeout_s: float = 240.0, every_s: float = 1.5,
                sleep=time.sleep) -> dict | None:

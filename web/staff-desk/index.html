@@ -172,7 +172,7 @@
   function handoverRow(caseId) {
     var row = el("div", undefined, "row");
     var btn = el("button", "분실인에게 건넴 → 인계 완료", "primary");
-    var msg = el("span", "바구니의 물건을 직접 건넨 뒤 누릅니다", "muted");
+    var msg = el("span", "제출보관함의 물건을 직접 건넨 뒤 누릅니다", "muted");
     // 건네지 않을 때: 이유 4개 중 하나(자유 입력 없음 — 개인정보가 기록에 들어가지 않게)
     var sel = el("select"); sel.setAttribute("aria-label", "건네지 않는 이유");
     ["본인 아님", "물건 다름", "분실인 거부", "기타"].forEach(function (t) { sel.appendChild(el("option", t)); });
@@ -187,7 +187,7 @@
     hold.addEventListener("click", async function () {
       lock(true); msg.textContent = "저장 중…";
       var h = await api("POST", "/returns/" + encodeURIComponent(caseId) + "/hold", { reason: sel.value });
-      if (h.status === 200) { msg.textContent = "반환 보류(" + h.data.reason + ") · 물건 " + h.data.item_id + " — 바구니에서 꺼내 보관"; recent(); }
+      if (h.status === 200) { msg.textContent = "반환 보류(" + h.data.reason + ") · 물건 " + h.data.item_id + " — 제출보관함에서 꺼내 보관"; recent(); }
       else { msg.textContent = "저장 안 됨: " + detail(h); lock(h.status !== 503); }
     });
     row.appendChild(btn); row.appendChild(sel); row.appendChild(hold); row.appendChild(msg);
