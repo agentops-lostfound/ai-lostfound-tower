@@ -36,6 +36,19 @@
     if (KIOSK) return null;
     try { var v = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null"); return v && Array.isArray(v.history) && Array.isArray(v.msgs) ? v : null; } catch (e) { return null; }
   }
+  // 11/7 Langfuse: 같은 화면 대화를 한 묶음(session)으로 보기 위한 무작위 번호. 개인정보 없음, "대화 지우기"를 누르면 새 번호
+  var sessionId = null;
+  function newSessionId() {
+    var r = "";
+    try { r = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); } catch (e) { r = String(Math.random()).slice(2) + Date.now(); }
+    return "s-" + r.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  }
+  function getSessionId() {
+    if (sessionId) return sessionId;
+    var saved = storeGet();
+    sessionId = (saved && typeof saved.sid === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(saved.sid)) ? saved.sid : newSessionId();
+    return sessionId;
+  }
   function storeSet(v) {
     if (KIOSK) return;
     try { if (v) sessionStorage.setItem(STORE_KEY, JSON.stringify(v)); else sessionStorage.removeItem(STORE_KEY); } catch (e) { /* 저장 못 해도 대화는 계속 */ }
@@ -358,6 +371,7 @@
     statusEl.textContent = "답변 준비 중";
     var body = { question: q, history: (retryHistory || history).slice(-MAX_HISTORY) };
     if (suggestionId) body.suggestion_id = suggestionId;
+    body.session_id = getSessionId();
     if (STAFF) body.mode = "staff";
     var request = { controller: new AbortController(), version: conversationVersion };
     activeRequest = request;
@@ -369,6 +383,7 @@
       var m = line("bot", answerText);
       var saved = storeGet() || { history: [], msgs: [] };
       saved.history = history;
+      saved.sid = getSessionId();
       saved.msgs = saved.msgs.concat([{ r: "user", t: q }, { r: "bot", t: answerText }]).slice(-MAX_MESSAGES);
       storeSet(saved);
       addExtras(m, res);
@@ -410,6 +425,7 @@
     setBusy(false);
     history = [];
     storeSet(null);
+    sessionId = null;
     input.value = "";
     input.dispatchEvent(new Event("input"));
     log.replaceChildren();

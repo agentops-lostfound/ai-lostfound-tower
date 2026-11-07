@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 
@@ -38,6 +39,7 @@ except ImportError:      # fastapi 가 없어도 관제탑 시험(가짜 fastapi
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIDGET_DIR = os.path.join(ROOT, "web", "chat-widget")
+SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 
 def build_chatbot_from_env(database=None):
@@ -56,8 +58,14 @@ def build_chatbot_from_env(database=None):
         demo = (os.environ.get("TOWER_CHAT_DEMO_DB") or "").strip()
         if demo != "0":
             database = DemoItemDatabase(demo or os.path.join(ROOT, ".cache", "chat-demo.sqlite3"))
-    rag = GroundedRag(guide, model=os.environ.get("LF_CHAT_RAG_MODEL") or None)
-    return Chatbot(guide, rag=rag, search=SearchAgent(database))
+    model = os.environ.get("LF_CHAT_RAG_MODEL") or None
+    rag = GroundedRag(guide, model=model)
+    brain = None
+    if model and (os.environ.get("LF_CHAT_AGENT_ROUTING") or "1").strip() != "0":
+        # 11/7 DeerFlow 구조: coordinator·planner 도 모델이 판단(LF_CHAT_AGENT_MODEL 로 다른 모델 지정 가능, 0 이면 규칙)
+        from agents.chat_agents import AgentBrain
+        brain = AgentBrain(os.environ.get("LF_CHAT_AGENT_MODEL") or model)
+    return Chatbot(guide, rag=rag, search=SearchAgent(database), brain=brain)
 
 
 class LazyChatbot:
@@ -137,7 +145,8 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
 
     @app.post("/chat/questions")
     def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None), request: Request = None) -> dict:
-        """AI 챗봇 질문. 본문 {question, history?(이전 질문 최대 4개), suggestion_id?, search_context?, mode?("staff": 관리자 화면)}"""
+        """AI 챗봇 질문. 본문 {question, history?(이전 질문 또는 {q,a} 최대 4개), suggestion_id?, search_context?, mode?("staff": 관리자 화면),
+        session_id?(같은 화면 대화 묶음 번호, 영문·숫자·-_ 8~64자)}"""
         t0 = time.perf_counter()
         mode = body.get("mode") if isinstance(body, dict) else None
         staff = False
@@ -156,11 +165,21 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             metrics.record("question", (time.perf_counter() - t0) * 1000, "error")
             raise
         token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
+        # 11/7 Langfuse: 같은 화면 대화를 묶는 번호(화면이 만든 무작위 값). 형식이 다르면 버림(개인정보·긴 값이 기록에 섞이지 않게)
+        sid = body.get("session_id") if isinstance(body.get("session_id"), str) and SESSION_RE.match(body.get("session_id")) else None
+        extra = {}
+        try:
+            import inspect
+            params = inspect.signature(b.ask).parameters
+            if "session_id" in params:
+                extra = {"session_id": sid, "channel": "staff" if staff else (mode or "web")}
+        except (TypeError, ValueError):
+            extra = {}
         try:
             if staff:
-                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), staff=True)
+                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), staff=True, **extra)
             else:
-                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"))
+                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), **extra)
         except ValueError as e:
             metrics.record("question", (time.perf_counter() - t0) * 1000, "rejected")
             raise HTTPException(status_code=422, detail=str(e)) from None

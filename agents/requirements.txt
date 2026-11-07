@@ -1,5 +1,7 @@
 # AI 관제탑(LF-14·16) — 아래 numpy·pyyaml 외에는 시험(unittest)에 없어도 된다
 langgraph
+# 챗봇 실행 기록·프롬프트 관리(LF-5) — 없거나 키가 없으면 기록 없이 동작
+langfuse>=3
 mcp
 # 관제탑 API(LF-14) — 화면들이 HTTP로 부르는 입구
 fastapi
