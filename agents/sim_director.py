@@ -27,7 +27,7 @@ import uuid
 from datetime import date
 
 from agents.claims import ClaimError, MemoryClaimStore, has_pii
-from agents.contracts import DECISION_RETURNED, NONE, UNKNOWN, public_card
+from agents.contracts import DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, UNKNOWN, public_card, show_ko
 from agents.live import LiveBoard
 from agents.service import Conflict, NotFound, RequestError, TowerService, Unavailable
 from agents.sim_world import (LOC_BIN, LOC_TRANSIT, MACHINE_STATION, SimRobot, SimTopview, SimWorld, lost_station,
@@ -64,12 +64,11 @@ def _same_text(a: str, b: str) -> bool:
 
 
 # 화면·메시지용 한국어(저장 값은 Qwen 원문 그대로 — 진짜 Qwen 결과와 같게)
-SHOW = {"rectangular": "직사각형", "rectangle": "직사각형", "stick": "막대형", "cylinder": "원통형", "tube": "튜브형",
-        "synthetic leather": "합성가죽", "leather": "가죽", "plastic": "플라스틱", "metal": "금속", "fabric": "천"}
+SHOW = SHOW_KO          # 11/7 contracts 로 옮김(직원 화면과 같은 표)
 
 
 def _show(v: str) -> str:
-    return ", ".join(SHOW.get(x.strip(), x.strip()) for x in str(v).split(","))
+    return show_ko(v)
 
 
 def _summary(feats: dict) -> str:
@@ -84,6 +83,7 @@ class SimDirector:
         self.auto_handover = auto_handover
         self.visit_wait_s = visit_wait_s
         self.pending: dict[str, dict] = {}          # 확인 질문 답을 기다리는 분실 신고
+        self.visit_wait: dict[str, str] = {}        # 11/7 웹 신고: 찾기 번호 → 이야기 번호(본센터 키오스크 회수를 기다림)
         self._threads: list[threading.Thread] = []
 
     @property
@@ -204,14 +204,16 @@ class SimDirector:
             return False
         return station is None if field == "place" else field not in desc
 
-    def lost(self, text: str) -> dict:
+    def lost(self, text: str, opts: dict | None = None) -> dict:
+        """opts(11/7 분실인 웹): {"visit": "kiosk"} 이면 방문을 자동으로 하지 않고 본센터 키오스크 회수를 기다린다.
+        name_masked·id_no_masked 는 웹이 가린 값(키오스크에서 같은 신분 번호를 다시 입력해야 반환 시작)"""
         clean, tags = split_tags(text)
         desc = query_features(clean)
         if "category" not in desc:
             raise RequestError("무엇을 잃어버렸는지 알 수 없어요 — 지갑·USB·립밤·모형폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
-        return self._next(desc, lost_station(clean), tags, set())
+        return self._next(desc, lost_station(clean), tags, set(), opts or {})
 
-    def _next(self, desc: dict, station: str | None, tags: set[str], asked: set[str]) -> dict:
+    def _next(self, desc: dict, station: str | None, tags: set[str], asked: set[str], opts: dict | None = None) -> dict:
         """후보 고르기 → (필요하면 질문) → 찾기 요청. 질문은 칸마다 한 번만 한다.
         11/4 무작위 시험: 색을 말하지 않으면 같은 점수 후보 중 번호순 첫 물건을 마음대로 골랐다 → 먼저 색을 물어 좁힌다"""
         cands = self.candidates(desc, station)
@@ -219,22 +221,22 @@ class SimDirector:
             raise RequestError("닮은 습득물이 아직 없어요 — 습득 신고가 먼저 들어와야 해요(또는 색·품목을 다시 확인)")
         ties = [c for c in cands if c["score"] == cands[0]["score"]]
         if len(ties) > 1 and "color" not in desc and "color" not in asked:
-            return self._ask("color", desc, station, tags, asked, cands, "후보가 여러 개예요. 물건 색이 무엇인가요?")
+            return self._ask("color", desc, station, tags, asked, cands, "후보가 여러 개예요. 물건 색이 무엇인가요?", opts)
         if len(ties) > 1 and station is None and "place" not in asked and any(c["station"] != "본센터" for c in ties):
-            return self._ask("place", desc, station, tags, asked, cands, "후보가 아직 여러 개예요. " + QUIZ_QUESTIONS["place"])
+            return self._ask("place", desc, station, tags, asked, cands, "후보가 아직 여러 개예요. " + QUIZ_QUESTIONS["place"], opts)
         if len(ties) > 1:                                   # 겉모습으로 못 가르면 비공개 특징(글자·스티커)으로 가른다
             priv = {c["item_id"]: self._quiz_field(c["item_id"]) for c in ties}
             pf = next((f for f in ("visible_text", "mark") if f in priv.values()), None)
             if pf and pf not in desc and pf not in asked:
-                return self._ask(pf, desc, station, tags, asked, cands, "후보가 아직 여러 개예요. " + QUIZ_QUESTIONS[pf])
+                return self._ask(pf, desc, station, tags, asked, cands, "후보가 아직 여러 개예요. " + QUIZ_QUESTIONS[pf], opts)
             ties = self._narrow(ties, desc, asked)
             if len(ties) > 1:                               # 그래도 못 가르면 자동으로 고르지 않는다(안전 규칙)
                 return self._staff_pick(desc, ties)
             cands = ties + [c for c in cands if c not in ties]
         field = self._quiz_field(cands[0]["item_id"])
         if self._missing(field, desc, station) and field not in asked:   # 확인 질문: 아직 말하지 않은 칸이면 먼저 묻는다
-            return self._ask(field, desc, station, tags, asked, cands, QUIZ_QUESTIONS[field])
-        return self._claim(desc, station, cands, tags)
+            return self._ask(field, desc, station, tags, asked, cands, QUIZ_QUESTIONS[field], opts)
+        return self._claim(desc, station, cands, tags, opts)
 
     def _narrow(self, ties: list[dict], desc: dict, asked: set[str]) -> list[dict]:
         """비공개 특징 답으로 동점 후보 줄이기. 글자를 말했으면 그 글자가 있는 후보, '모름·없음'이면 글자 없는 후보."""
@@ -264,10 +266,10 @@ class SimDirector:
         self.board.finish(sid, f"직원 확인(staff_check) — 후보 {len(ties)}개를 구별할 수 없어 방문 때 직원이 확인", False)
         return {"story_id": sid, "staff": True, "candidates": ties}
 
-    def _ask(self, field, desc, station, tags, asked, cands, question) -> dict:
+    def _ask(self, field, desc, station, tags, asked, cands, question, opts=None) -> dict:
         pid = uuid.uuid4().hex[:8]
         self.pending[pid] = {"desc": desc, "station": station, "tags": tags, "field": field,
-                             "asked": asked | {field}, "t": time.time()}
+                             "asked": asked | {field}, "t": time.time(), "opts": opts or {}}
         return {"pending_id": pid, "question": question, "candidates": cands}
 
     def answer(self, pending_id: str, text: str) -> dict:
@@ -287,7 +289,7 @@ class SimDirector:
                     p["desc"]["color"] = color
             else:
                 p["desc"][p["field"]] = val
-        return self._next(p["desc"], p["station"], p["tags"] | more, p["asked"])
+        return self._next(p["desc"], p["station"], p["tags"] | more, p["asked"], p.get("opts") or {})
 
     def _quiz(self, item_id: str, desc: dict, station: str | None) -> list[dict]:
         rec = self.world.db_get_item(item_id) or {}
@@ -304,14 +306,16 @@ class SimDirector:
             quiz.append({"field": "color", "passed": desc.get("color") == f.get("color")})
         return quiz
 
-    def _claim(self, desc: dict, station: str | None, cands: list[dict], tags: set[str]) -> dict:
+    def _claim(self, desc: dict, station: str | None, cands: list[dict], tags: set[str], opts: dict | None = None) -> dict:
+        opts = opts or {}
         pick = cands[0]["item_id"]
         quiz = self._quiz(pick, desc, station)
         passed = all(q["passed"] for q in quiz)
         sid = self.board.new_story("lost", f"분실 신고 · {_summary(desc)}")
         with self.board.bind(sid):
             self.board.stage("claim", "active")
-            payload = {"consent": True, "name_masked": "분*인", "id_no_masked": "9*****", "id_verified": True,
+            payload = {"consent": True, "name_masked": opts.get("name_masked") or "분*인",
+                       "id_no_masked": opts.get("id_no_masked") or "9*****", "id_verified": True,
                        "description": {k: v for k, v in desc.items() if isinstance(v, str)}, "item_id": pick,
                        "quiz": quiz, "visit_date": date.today().isoformat()}
             if station:
@@ -323,10 +327,11 @@ class SimDirector:
             self.rep.progress(cid, "찾기 요청 접수", f"후보 {len(cands)}개 중 {pick} 선택 · 확인 질문({names}) "
                               f"{'통과' if passed else '미통과'} · 오늘 방문 예약")
             self.board.stage("claim", "done" if passed else "fail", f"{pick} · 확인 질문 {'통과' if passed else '미통과'}")
-        self._spawn(self._after_lost, sid, cid, pick, tags)
-        return {"story_id": sid, "claim_id": cid, "item_id": pick, "candidates": cands, "quiz_passed": passed}
+        self._spawn(self._after_lost, sid, cid, pick, tags, opts.get("visit") == "kiosk")
+        return {"story_id": sid, "claim_id": cid, "item_id": pick, "candidates": cands, "quiz_passed": passed,
+                "visit": "kiosk" if opts.get("visit") == "kiosk" else "auto"}
 
-    def _after_lost(self, sid: str, cid: str, item_id: str, tags: set[str]) -> None:
+    def _after_lost(self, sid: str, cid: str, item_id: str, tags: set[str], wait_kiosk: bool = False) -> None:
         w = self.world
         with self.board.bind(sid):
             try:
@@ -338,6 +343,11 @@ class SimDirector:
                         self.board.finish(sid, "물건이 보관함에 없음", False)
                         return
                     time.sleep(0.3)
+                if wait_kiosk:                 # 11/7 웹 신고: 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호 입력을 기다림
+                    self.board.stage("visit", "active", "본센터 방문 대기 · 키오스크 회수 탭에서 찾기 번호 입력")
+                    self.rep.progress(cid, "본센터 방문 대기", "분실인이 부산역 본센터 키오스크에서 찾기 번호·신분 번호를 입력하면 반환 시작")
+                    self.visit_wait[cid] = sid
+                    return
                 self.board.stage("visit", "active", "분실인 도착 · 직원 확인 중")
                 w.sleep(1.0)
                 self.rep.progress(cid, "본센터 방문", "분실인 도착 · 직원이 실물 신분증·안쪽 특징 확인(가상)")
@@ -380,6 +390,49 @@ class SimDirector:
                 self.rep.alert(cid, f"가상 반환 진행 오류({type(e).__name__})", "")
                 self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
 
+    def kiosk_return(self, payload: dict) -> dict:
+        """11/7 본센터 키오스크 회수(가상 시연): 웹 신고 이야기에 단계를 이어 붙인 뒤 진짜와 같은 입구(service.kiosk_return)로.
+        반환이 끝나면 물건은 제출보관함 — 인계는 직원 교차 검증(/staff)이 한다(자동 인계 안 함)"""
+        cid = payload.get("claim_id") if isinstance(payload, dict) else None
+        sid = self.visit_wait.get(cid) if isinstance(cid, str) else None
+        if sid is None:
+            return self.svc.kiosk_return(payload)
+        with self.board.bind(sid):
+            self.board.stage("visit", "active", "본센터 키오스크 · 본인 확인 중")
+            try:
+                out = self.svc.kiosk_return(payload)
+            except RequestError as e:      # 신분 번호 틀림 등 — 계속 기다림
+                self.board.stage("visit", "active", f"본센터 방문 대기 · 다시 입력 필요({e})")
+                raise
+            except Conflict as e:
+                if e.kind == "locked":
+                    self.visit_wait.pop(cid, None)
+                    self.board.finish(sid, "신분 번호를 여러 번 틀려 역무실로 안내", False)
+                raise
+            self.visit_wait.pop(cid, None)
+            self.board.stage("visit", "done", "본센터 키오스크 본인 확인 완료")
+            self.board.set_ids(sid, case_id=out.get("case_id"))
+            if out.get("decision") != DECISION_RETURNED:
+                ko = {"rejected": "반환 안 함", "staff_check": "직원 확인", "stopped": "로봇 정지"}.get(out.get("decision"), "")
+                self.board.finish(sid, f"{ko}({out.get('decision')}) — {out.get('reason')}", False)
+                return out
+            self.board.stage("handover", "todo", "제출보관함 · 직원 교차 검증 대기(/staff)")
+            self.board.finish(sid, f"제출보관함 도착 — 직원 교차 검증 후 인계({out.get('case_id')})", True)
+            return out
+
+    def on_verify(self, case_id: str, result: dict) -> None:
+        """11/7 직원 교차 검증 결과를 그 반환 이야기의 '인계 완료' 단계에 반영(분실인 웹 진행 상황이 끝까지 보이게)"""
+        for sid, st in list(self.board.stories.items()):
+            if st.get("ids", {}).get("case_id") != case_id:
+                continue
+            if result.get("result") == HANDOVER_DONE:
+                self.board.stage("handover", "done", "직원 교차 검증 통과 · 분실인에게 건넴", story_id=sid)
+                self.board.finish(sid, f"인계 완료 — {result.get('item_id')} 를 분실인에게 건넴", True)
+            else:
+                self.board.stage("handover", "fail", "직원 교차 검증 불일치 · 반환 보류", story_id=sid)
+                self.board.finish(sid, f"반환 보류 — 교차 검증 불일치({result.get('reason') or '확인 필요'})", False)
+            return
+
     def reset(self) -> dict:
         """세계를 처음 상태로(보관함 시연 물건 8개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지)."""
         w = self.world
@@ -391,6 +444,7 @@ class SimDirector:
             w.seed()
         SimRobot(w).robot_home()
         self.pending.clear()
+        self.visit_wait.clear()
         self.rep.progress("SIM", "가상 세계 초기화", f"보관함 시연 물건 {len(w.items)}개 · 로봇 원점")
         return w.snapshot()
 
