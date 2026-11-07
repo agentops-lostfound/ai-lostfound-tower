@@ -56,6 +56,93 @@ def topic_question(topic: str) -> str:
     return {"finder_contact": "습득자 연락처는 언제 지우나요?"}.get(topic, f"{TOPIC_LABELS.get(topic, topic)} 알려줘")
 
 
+# 11/8 문장별 근거 인용: 모델이 문장마다 근거 구절(evidence)을 먼저 그대로 옮기고, 그 뜻을 자기 말로 다시 쓴다(sentence).
+# 코드는 모델의 표현을 살리되 "지어낸 말"만 거른다 — ① 구절이 실제 문단에 있는가 ② 문장이 구절과 너무 멀지 않은가(글자 2개 묶음 겹침 0.12 이상, 11/8 0.3 → 0.12: "준비물은 신분증입니다" 같은 짧은 답을 살림)
+# ③ 구절에 없는 부정어(않·없·못)를 더하지 않았는가 ④ 사람(분실인·습득자)을 바꾸지 않았는가 ⑤ 근거·질문 어디에도 없는 새 글자가 10자 이상 이어지지 않는가
+# 실측(11/8, 예전에 뜻이 어긋난 문장 5 · 맞게 바꿔 쓴 문장 8): 틀린 5개 중 3개를 거르고 맞는 8개는 모두 살림
+#   못 거르는 것: 근거 낱말을 섞어 뜻만 바꾼 문장(예: "실패하면 동의 거부로 처리") — 규칙 주제는 원문 한 줄을 함께 보여 줌
+SENTENCE_OVERLAP = 0.12
+NOVEL_RUN_LIMIT = 10
+NEGATION = re.compile(r"않|없|못\s|못하|금지|불가|말아|말고|말고|마세요|아니|아닙")
+# 누가 하는 일인지(11/8 실측: 근거는 "분실인 … 본센터로 오시면" 인데 "습득자는 … 본센터로 와야" 로 바꿈)
+ROLES = {"lost": re.compile(r"분실인|잃어버린\s*(?:사람|분)|찾는\s*(?:사람|분)"),
+         "finder": re.compile(r"습득자|주운\s*(?:사람|분)|맡긴\s*(?:사람|분)|주워\s*맡긴")}
+
+
+def role_swapped(sentence: str, evidence: str) -> bool:
+    """문장이 근거와 다른 사람을 주어로 썼는가(근거에 한쪽 사람만 나오고 문장엔 다른 쪽만 나올 때)"""
+    ev = {k for k, r in ROLES.items() if r.search(evidence)}
+    se = {k for k, r in ROLES.items() if r.search(sentence)}
+    return bool(se) and bool(ev) and not (se & ev)
+# 존댓말 끝·조사처럼 어느 문장에나 붙는 글자 묶음(새 내용으로 세지 않음)
+COMMON_BIGRAMS = set("해요 돼요 세요 니다 습니 됩니 어요 아요 에요 예요 으로 에서 하면 하고 해서 으면 셔야 오셔 하셔 시면 주세 있어 있습 있으 합니 "
+                     "입니 드려 려요 드립 립니 하시 시고 이에 이고 라고 되어 되며 거나 지만 는데 니까 가요 나요 까요 해야 야해 해주 주시 께서 에게 "
+                     "부터 까지 으며 시기 바랍 랍니".split())
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"[\s.,·()\"'~!?…:;]", "", text)
+
+
+def _bigram_list(text: str) -> list:
+    t = _squash(text)
+    return [t[i:i + 2] for i in range(len(t) - 1)]
+
+
+def sentence_overlap(sentence: str, evidence: str) -> float:
+    b = set(_bigram_list(sentence))
+    return len(b & set(_bigram_list(evidence))) / max(1, len(b))
+
+
+def novel_run(sentence: str, known_text: str) -> int:
+    """근거·질문에 없는 글자 묶음이 가장 길게 이어진 개수(10 이상이면 근거에 없는 내용을 지어냈다고 봄)"""
+    known, run, best = set(_bigram_list(known_text)), 0, 0
+    for b in _bigram_list(sentence):
+        run = 0 if (b in known or b in COMMON_BIGRAMS) else run + 1
+        best = max(best, run)
+    return best
+
+
+def _found_evidence(ev_sq: str, whole: str) -> str | None:
+    """근거 구절이 문단에 있으면 그 글(공백 뺀 것). 끝 몇 글자만 다르면(모델이 다음 문장까지 이어 씀) 앞부분 70% 이상이 맞을 때 그 앞부분"""
+    if ev_sq in whole:
+        return ev_sq
+    floor = max(12, int(len(ev_sq) * 0.7))
+    for cut in range(len(ev_sq) - 1, floor - 1, -1):
+        if ev_sq[:cut] in whole:
+            return ev_sq[:cut]
+    return None
+
+
+def grounded_sentences(items, passages_text, question: str = "") -> tuple[list[str], list[str]]:
+    """(통과한 문장들, 버린 이유들). items=[{evidence, sentence}], passages_text: 문단 목록(또는 이어 붙인 글)"""
+    kept, dropped = [], []
+    paragraphs = list(passages_text) if isinstance(passages_text, (list, tuple)) else [passages_text]
+    whole = _squash(" ".join(paragraphs))
+    for it in items:
+        ev, sen = str(it.get("evidence") or "").strip(), str(it.get("sentence") or "").strip()
+        hit = _found_evidence(_squash(ev), whole) if len(_squash(ev)) >= 6 else None
+        if hit and hit != _squash(ev):
+            ev = hit                                  # 문단에 있는 앞부분만 근거로 씀
+        if len(_squash(ev)) < 6 or len(sen) < 4:
+            dropped.append("빈 문장")
+        elif _found_evidence(_squash(ev), whole) is None:
+            dropped.append("인용이 문단에 없음")
+        elif sentence_overlap(sen, ev) < SENTENCE_OVERLAP:
+            dropped.append(f"근거와 멀어짐({sentence_overlap(sen, ev):.2f})")
+        elif NEGATION.search(sen) and not NEGATION.search(ev):
+            dropped.append("근거에 없는 부정")
+        elif role_swapped(sen, next((p for p in paragraphs if _squash(ev) in _squash(p)), ev)):   # 구절이 나온 문단 전체의 사람과 비교
+            dropped.append("사람이 바뀜")
+        elif novel_run(sen, ev + " " + question) >= NOVEL_RUN_LIMIT:
+            dropped.append(f"근거에 없는 내용({novel_run(sen, ev + ' ' + question)}자)")
+        elif sen in kept:
+            dropped.append("중복")
+        else:
+            kept.append(sen)
+    return kept, dropped
+
+
 def numbers_supported(answer: str, evidence: str) -> bool:
     """답에 나온 숫자가 모두 근거 문단에 있는지(09:00·14일·30일 같은 운영값을 지어내지 못하게)"""
     have = set(re.findall(r"\d+", evidence))
@@ -139,8 +226,9 @@ class GroundedRag:
                 quotes = [first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics]
                 answer = answer.rstrip() + '\n\n근거: ' + ' '.join(quotes)
                 method = 'retrieval_augmented_generation_with_rule_quote'
+            extra = {'generation_note': 'dropped: ' + ', '.join(parsed['dropped'])[:80]} if parsed.get('dropped') else {}
             return {**result, 'answer': answer, 'method': method, 'generation_used': True,
-                    'generation_status': 'generated', 'model': self.model}
+                    'generation_status': 'generated', 'model': self.model, **extra}
         except (OSError, ValueError, KeyError, TypeError, RecursionError) as e:
             # 진단 메모: 우리가 만든 검사 문구(ValueError)만 내용까지, 연결 오류 등은 종류 이름만(주소·내부 정보가 화면에 나가지 않게)
             note = f'ValueError: {str(e)[:60]}' if type(e) is ValueError else type(e).__name__
@@ -156,9 +244,11 @@ class GroundedRag:
         modes = ['answer', 'clarify'] if allow_clarify else ['answer']
         # 11/7 실측: 앞 대화가 길면 Mi:dm 이 answer 칸을 빼고 {"mode":"answer","passage_ids":[0]} 만 냄 → 모드별로 필수 칸을 나눔
         ids_schema = {'type': 'array', 'maxItems': len(passages), 'items': {'type': 'integer', 'enum': list(range(len(passages)))}}
-        answer_schema = {'type': 'object', 'additionalProperties': False, 'required': ['mode', 'passage_ids', 'answer'],
+        sentence_item = {'type': 'object', 'additionalProperties': False, 'required': ['evidence', 'sentence'],
+                         'properties': {'evidence': {'type': 'string', 'maxLength': 80}, 'sentence': {'type': 'string', 'maxLength': 160}}}
+        answer_schema = {'type': 'object', 'additionalProperties': False, 'required': ['mode', 'passage_ids', 'sentences'],
                          'properties': {'mode': {'type': 'string', 'enum': ['answer']}, 'passage_ids': ids_schema,
-                                        'answer': {'type': 'string', 'maxLength': 400}}}
+                                        'sentences': {'type': 'array', 'minItems': 1, 'maxItems': 3, 'items': sentence_item}}}
         clarify_schema = {'type': 'object', 'additionalProperties': False, 'required': ['mode', 'passage_ids', 'follow_up', 'choices'],
                           'properties': {'mode': {'type': 'string', 'enum': ['clarify']}, 'passage_ids': ids_schema,
                                          'follow_up': {'type': 'string', 'maxLength': 120},
@@ -175,9 +265,9 @@ class GroundedRag:
                          {'role': 'user', 'content': json.dumps({**({'previous_questions': questions} if questions else {}),
                                                                   **({'previous_turns': turns} if turns else {}),
                                                                   'question': question, 'retrieved_passages': passages}, ensure_ascii=False)}],
-            'options': {'temperature': 0, 'num_predict': 256, 'num_ctx': 4096}, 'keep_alive': '5m'}
+            'options': {'temperature': 0, 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
         with step('reporter-writer', as_type='generation', model=self.model, input=payload['messages'], prompt=prompt_obj,
-                  model_parameters={'temperature': 0, 'num_predict': 256}) as gen:
+                  model_parameters={'temperature': 0, 'num_predict': 400}) as gen:
             generated = self.request(payload)
             content = (generated.get('message') or {}).get('content') if isinstance(generated, dict) else None
             gen.update(output=content, usage_details={k: v for k, v in (('input', generated.get('prompt_eval_count')),
@@ -194,7 +284,7 @@ class GroundedRag:
             legacy = True
         else:
             legacy = False
-            if not set(parsed) <= {'mode', 'passage_ids', 'answer', 'follow_up', 'choices'} or parsed.get('mode') not in modes:
+            if not set(parsed) <= {'mode', 'passage_ids', 'answer', 'sentences', 'follow_up', 'choices'} or parsed.get('mode') not in modes:
                 raise ValueError('Unsupported generation fields')
         ids = parsed.get('passage_ids')
         if (not isinstance(ids, list) or any(type(i) is not int or not 0 <= i < len(passages) for i in ids)
@@ -213,6 +303,12 @@ class GroundedRag:
             return {'passage_ids': ids}
         answer = parsed.get('answer')
         evidence = ' '.join(passages[i]['text'] for i in ids)
+        self.last_dropped = []            # 이 답에서 버린 문장의 이유(Langfuse·진단 도구에 보임)
+        if isinstance(parsed.get('sentences'), list):        # 11/8 문장별 근거 인용 방식(모델에 보내는 형식)
+            kept, self.last_dropped = grounded_sentences(parsed['sentences'][:3], [p['text'] for p in passages], question)
+            if not kept:
+                raise ValueError('No grounded sentence: ' + ','.join(self.last_dropped)[:40])
+            answer = ' '.join(kept)
         if (not isinstance(answer, str) or not 8 <= len(answer.strip()) <= 400 or has_private_pattern(answer)
                 or re.search(r'https?://', answer) or not numbers_supported(answer, evidence)):
             raise ValueError('Unsupported answer')
@@ -221,7 +317,10 @@ class GroundedRag:
         if any(passages[i]['topic'] in DEMO_POLICY_TOPICS.values() or passages[i]['topic'] == 'arrival' for i in ids) \
                 and '시연 기준' not in answer:
             answer += DEMO_SUFFIX
-        return {'mode': 'answer', 'passage_ids': ids, 'answer': answer}
+        out = {'mode': 'answer', 'passage_ids': ids, 'answer': answer}
+        if self.last_dropped:
+            out['dropped'] = list(self.last_dropped)
+        return out
 
     def _guide(self, question, result, history=None):
         """규칙이 못 잡은 질문(유도 질문): ① 잃어버렸다는 말 → 무엇을? ② 관련 문단이 있으면 sLLM 답·되묻기
