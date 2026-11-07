@@ -1,7 +1,7 @@
 """챗봇 RAG + 로컬 sLLM (LF-5 · 11/5 정연우 → 11/6 변재원 sLLM·되묻기)
 
 한줄 설명: 질문에 맞는 안내 문단을 찾고(검색, agents/chat_retrieval.py + 규칙 agents/guidance.py),
-로컬 sLLM(Ollama, 11/7 실측 결정 Qwen3-4B-2507 또는 Mi:dm 2.0 Mini — docs/design/chatbot_sllm_rag.md §9)이 그 문단만 근거로 답하거나, 정보가 모자라면 되묻는다(유도 질문).
+로컬 sLLM(Ollama, 11/7 결정 KT Mi:dm 2.0 Mini — docs/design/chatbot_sllm_rag.md §9)이 그 문단만 근거로 답하거나, 정보가 모자라면 되묻는다(유도 질문).
 
 안전장치(모델 답이 하나라도 어기면 버리고 문서 문장 그대로 답함)
 - 문단 번호는 실제로 찾은 문단만, 답에 나온 숫자는 고른 문단에 있는 숫자만(운영값을 지어내지 못함)

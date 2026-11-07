@@ -134,7 +134,10 @@
 - Kanana-2-1.3B 는 전용 구조(`Kanana2Tiny`)라 llama.cpp·Ollama 미지원 → 제외. HyperCLOVA X SEED 1.5B 는 llama.cpp 토크나이저 등록이 없어 제외
 - **규칙 주제는 모델을 부르지 않음**(`agents/chat_rag.py` `FIXED_TEXT_TOPICS`): 습득자 연락처·신분정보 기록·동의/인증 실패·도착 시간·입력 개인정보·후보 뜻. Kanana 가 "인계 완료 뒤 30일"을 "반환 보류 30일"로, "동의 시각"을 "분실 시각"으로 바꿔 말한 것을 계기로 — 어느 모델이든 같은 위험
 
-**결정**
-- 그래픽카드 여유(관제탑 PC `nvidia-smi`, Qwen3-VL 작업자를 켠 상태)가 **3.3GB 이상 → Qwen3-4B-2507**, 모자라면 **Mi:dm 2.0 Mini**. 설치는 `docs/ollama/README.md`
+**결정(11/7 팀 결정): KT Mi:dm 2.0 Mini**
+- 정확도는 Qwen3-4B-2507 이 가장 높았지만(틀림 0), 관제탑 RTX 3050 6GB 를 Qwen3-VL-2B 사진 분석(약 2.0GiB 상주)·화면 출력과 함께 써야 해서 메모리가 적게 드는 Mi:dm(약 2.5GB, Qwen 약 3.3GB — 추정)을 쓴다
+- Mi:dm 은 보완(후보 뜻 문서 고정) 뒤 틀림 0, 국산·MIT 라이선스, Ko-IFEval(한국어 지시 따르기) 73.3 으로 EXAONE 3.5 2.4B(65.4)보다 높음(KT 발표값)
+- Qwen3-4B-2507 은 예비: 관제탑 `nvidia-smi` 여유가 3.3GB 이상으로 확인되면 바꿀 수 있음(`.env` 한 줄)
+- 설치는 `docs/ollama/README.md`
 - num_ctx 는 4096 그대로: 관제 보고 에이전트(`agents/ops_analyst.py`)도 같은 모델을 4096 으로 부르므로, 다르게 하면 Ollama 가 모델을 다시 올려 느려짐
 - 남은 확인: 관제탑 PC 실제 속도와 메모리(TBD), 사람 평가표(`--rating`)로 자연스러움 비교(선택)
