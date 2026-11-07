@@ -101,7 +101,7 @@ class GenerationGuardTest(unittest.TestCase):
         rag = GroundedRag(Guidance(), "m", request=model)
         for q, word in (("주운 사람 전화번호 며칠 보관해?", "인계 완료"), ("신분증 정보 어떻게 저장하나요?", "동의 시각"),
                         ("인증이 안 되면 받을 수 있어요?", "종료"), ("오늘 맡긴 거 바로 받을 수 있나요?", "1시간"),
-                        ("설명 칸에 전화번호 적어도 돼요?", "")):
+                        ("설명 칸에 전화번호 적어도 돼요?", ""), ("후보가 뜻하는 게 뭐야?", "확정이 아니")):
             with self.subTest(q=q):
                 r = rag.ask(q)
                 self.assertEqual(r["generation_status"], "fixed_rule_text")
