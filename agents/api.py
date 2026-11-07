@@ -479,6 +479,23 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         with open(path, encoding="utf-8") as f:
             return HTMLResponse(f.read())
 
+    @app.get("/", include_in_schema=False)
+    def home_page():
+        """11/7 첫 화면: 주소만 입력했을 때 Not Found 대신 화면 목록(발표 순서). 데이터는 보여 주지 않는다"""
+        from fastapi.responses import HTMLResponse
+        links = [("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
+                 ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"), ("④ 관리자 관제(로봇·진행 상황)", "/admin"),
+                 ("⑤ 본센터 직원 화면 — 교차 검증", "/staff"), ("⑥ 보관함 칸 관리", "/storage"),
+                 ("실시간 작업대(큰 화면)", "/live"), ("서면역 키오스크", "/kiosk?machine=KIOSK-C")]
+        items = "".join(f'<li><a href="{href}">{label}</a> <code>{href}</code></li>' for label, href in links)
+        return HTMLResponse(
+            '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>AI 분실물 관제탑</title><style>body{font-family:system-ui,"Malgun Gothic",sans-serif;max-width:720px;margin:40px auto;'
+            'padding:0 16px;color:#1f2937}h1{font-size:24px}li{margin:10px 0;font-size:17px}a{color:#0f7a4f;font-weight:600;text-decoration:none}'
+            'a:hover{text-decoration:underline}code{color:#6b7280;font-size:13px;margin-left:6px}p{color:#4b5563}</style>'
+            '<h1>AI 분실물 관제탑</h1><p>보여 줄 화면을 고르세요(발표 순서). 관리자 화면은 로그인이 켜져 있으면 비밀번호가 필요합니다.</p>'
+            f'<ol style="list-style:none;padding:0">{items}</ol></html>')
+
     @app.get("/intake", include_in_schema=False)
     def intake_page():
         """등록기계(습득 신고) 화면 — web/intake/ (김재민). 기계 번호는 주소 뒤 ?machine=KIOSK-A"""
