@@ -90,6 +90,25 @@ class GenerationGuardTest(unittest.TestCase):
                 self.assertNotIn("010-1234", r["answer"])
                 self.assertNotIn("http://evil", r["answer"])
 
+    def test_rule_topics_use_document_text_not_model_paraphrase(self):
+        """11/7 실측: 모델이 '인계 완료 뒤 30일'을 '반환 보류 30일'로 바꿔 말함 → 규칙 주제는 모델을 부르지 않고 문서 문장 그대로"""
+        called = []
+
+        def model(payload):
+            called.append(payload)
+            return {"message": {"content": json.dumps({"mode": "answer", "passage_ids": [0],
+                                                       "answer": "반환 보류 상태로 30일간 보관됩니다."})}}
+        rag = GroundedRag(Guidance(), "m", request=model)
+        for q, word in (("주운 사람 전화번호 며칠 보관해?", "인계 완료"), ("신분증 정보 어떻게 저장하나요?", "동의 시각"),
+                        ("인증이 안 되면 받을 수 있어요?", "종료"), ("오늘 맡긴 거 바로 받을 수 있나요?", "1시간"),
+                        ("설명 칸에 전화번호 적어도 돼요?", "")):
+            with self.subTest(q=q):
+                r = rag.ask(q)
+                self.assertEqual(r["generation_status"], "fixed_rule_text")
+                self.assertNotIn("반환 보류 상태로 30일간", r["answer"])
+                self.assertIn(word, r["answer"])
+        self.assertEqual(called, [])
+
     def test_policy_topic_still_fixed_text(self):
         rag = GroundedRag(Guidance(), "m", request=fake({"mode": "answer", "passage_ids": [0], "answer": "24시간 열어요"}))
         r = rag.ask("주말 운영시간은 어떻게 되나요?")
