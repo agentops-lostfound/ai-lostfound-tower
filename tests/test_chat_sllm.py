@@ -90,24 +90,47 @@ class GenerationGuardTest(unittest.TestCase):
                 self.assertNotIn("010-1234", r["answer"])
                 self.assertNotIn("http://evil", r["answer"])
 
-    def test_rule_topics_use_document_text_not_model_paraphrase(self):
-        """11/7 실측: 모델이 '인계 완료 뒤 30일'을 '반환 보류 30일'로 바꿔 말함 → 규칙 주제는 모델을 부르지 않고 문서 문장 그대로"""
-        called = []
+    def test_rule_topics_model_answer_with_quote_or_document_text(self):
+        """11/7 저녁: 규칙 주제도 모델이 답한다. 핵심어 검사를 통과하면 답 + '근거: 원문 한 문장', 못 하면 문서 문장 그대로
+        (실측: 모델이 '인계 완료 뒤 30일'을 '반환 보류 30일'로 바꿔 말한 적 있음)"""
+        def model(answer):
+            return fake({"mode": "answer", "passage_ids": [0], "answer": answer})
+        bad = GroundedRag(Guidance(), "m", request=model("반환 보류 상태로 30일간 보관됩니다.")).ask("주운 사람 전화번호 며칠 보관해?")
+        self.assertEqual((bad["generation_status"], bad["generation_note"]), ("fixed_rule_text", "rule_guard_failed"))
+        self.assertNotIn("반환 보류 상태로 30일간", bad["answer"])
+        good = GroundedRag(Guidance(), "m", request=model("주운 분의 연락처는 물건을 건네 인계 완료한 뒤 30일이 지나면 지워요.")).ask(
+            "주운 사람 전화번호 며칠 보관해?")
+        self.assertEqual(good["generation_status"], "generated")
+        self.assertTrue(good["answer"].startswith("주운 분의 연락처는"))
+        self.assertIn("\n\n근거: 프로젝트 DB 설계의 습득자 연락처 규칙은 물건이 인계 완료된 뒤 30일이 지나면 지우는 것입니다.", good["answer"])
+        for q, ans in (("오늘 맡긴 거 바로 받을 수 있나요?", "네, 1시간 정도 지나서 오시면 돼요."),       # '네'로 시작 → 뜻 반대
+                       ("설명 칸에 전화번호 적어도 돼요?", "연락처는 연락처 칸에 적으시면 돼요."),       # '적지 말라'가 빠짐
+                       ("후보가 뜻하는 게 뭐야?", "후보는 본인이 잃어버린 물건이에요.")):              # '확정 아님'이 빠짐
+            with self.subTest(q=q):
+                r = GroundedRag(Guidance(), "m", request=model(ans)).ask(q)
+                self.assertEqual(r["generation_status"], "fixed_rule_text")
+        r = GroundedRag(Guidance()).ask("주운 사람 전화번호 며칠 보관해?")                            # 모델 없음 → 문서 문장
+        self.assertEqual(r["generation_status"], "fixed_rule_text")
+
+    def test_previous_turns_with_answers_reach_model(self):
+        """11/7 대화 기억: 앞 질문과 챗봇 답을 함께(previous_turns), 답은 300자까지"""
+        seen = []
 
         def model(payload):
-            called.append(payload)
+            seen.append(json.loads(payload["messages"][1]["content"]))
             return {"message": {"content": json.dumps({"mode": "answer", "passage_ids": [0],
-                                                       "answer": "반환 보류 상태로 30일간 보관됩니다."})}}
-        rag = GroundedRag(Guidance(), "m", request=model)
-        for q, word in (("주운 사람 전화번호 며칠 보관해?", "인계 완료"), ("신분증 정보 어떻게 저장하나요?", "동의 시각"),
-                        ("인증이 안 되면 받을 수 있어요?", "종료"), ("오늘 맡긴 거 바로 받을 수 있나요?", "1시간"),
-                        ("설명 칸에 전화번호 적어도 돼요?", ""), ("후보가 뜻하는 게 뭐야?", "확정이 아니")):
-            with self.subTest(q=q):
-                r = rag.ask(q)
-                self.assertEqual(r["generation_status"], "fixed_rule_text")
-                self.assertNotIn("반환 보류 상태로 30일간", r["answer"])
-                self.assertIn(word, r["answer"])
-        self.assertEqual(called, [])
+                                                       "answer": "신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요."})}}
+        GroundedRag(Guidance(), "m", request=model).ask(
+            "그럼 거기 갈 때 뭐 챙겨요?", history=[{"question": "물건 수령 절차 알려줘", "answer": "본센터 키오스크에서 받아요." * 40}])
+        self.assertEqual(seen[0]["previous_turns"][0]["question"], "물건 수령 절차 알려줘")
+        self.assertLessEqual(len(seen[0]["previous_turns"][0]["answer"]), 300)
+        self.assertNotIn("previous_questions", seen[0])
+
+    def test_error_note_hides_connection_details(self):
+        def boom(payload):
+            raise OSError("connect to secret-host:11434 failed")
+        r = GroundedRag(Guidance(), "m", request=boom).ask("물건 수령 절차 알려줘")
+        self.assertEqual(r["generation_note"], "OSError")
 
     def test_policy_topic_still_fixed_text(self):
         rag = GroundedRag(Guidance(), "m", request=fake({"mode": "answer", "passage_ids": [0], "answer": "24시간 열어요"}))
