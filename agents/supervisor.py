@@ -77,6 +77,8 @@ class Ctx:
     item: dict | None = None
     detections: list = field(default_factory=list)
     match: dict | None = None
+    consult: Callable | None = None   # 11/8 관제탑 메인 AI(agents/tower_brain.py): 매칭이 애매할 때 근거를 더 모음. None 이면 예전 그대로
+    brain_note: str = ""              # 메인 AI 추천(직원 알림에 붙임)
 
     def step(self, name: str, detail: str = "") -> None:
         self.out.steps.append(name)
@@ -151,11 +153,24 @@ def locate(c: Ctx) -> bool:
     if not c.detections:
         return c.finish(DECISION_STAFF, "보관함에서 물건을 찾지 못함", alert=True)
     m = c.backend.match_item(c.item["features"], c.detections)
+    twin = lookalike(c, c.detections[m["index"]]["features"]) if m["status"] == MATCH_OK else ""
+    if (m["status"] != MATCH_OK or twin) and c.consult is not None:
+        # 11/8: 바로 직원을 부르기 전에 메인 AI 가 에이전트들과 근거를 더 모음. 진행 여부는 같은 기준(확실 + 닮은 물건 없음)을 코드가 다시 확인
+        try:
+            got = c.consult(c, m, twin)
+        except Exception as e:
+            got, c.brain_note = None, f"메인 AI 오류({type(e).__name__})"
+        if got is not None:
+            dets, m2 = got
+            if (isinstance(m2, dict) and m2.get("status") == MATCH_OK and isinstance(m2.get("index"), int)
+                    and 0 <= m2["index"] < len(dets) and not lookalike(c, dets[m2["index"]]["features"])):
+                c.detections, m, twin = dets, m2, ""
+                c.step("메인 AI 재확인", c.brain_note)
+    note = f" · {c.brain_note}" if c.brain_note else ""
     if m["status"] != MATCH_OK:
-        return c.finish(DECISION_STAFF, f"매칭 불확실({m['status']}) — 자동 반환 안 함", alert=True)
-    twin = lookalike(c, c.detections[m["index"]]["features"])
+        return c.finish(DECISION_STAFF, f"매칭 불확실({m['status']}) — 자동 반환 안 함{note}", alert=True)
     if twin:
-        return c.finish(DECISION_STAFF, twin, alert=True)
+        return c.finish(DECISION_STAFF, twin + note, alert=True)
     c.match = m
     c.out.matched_index = m["index"]
     c.out.matched_object = c.detections[m["index"]].get("object_id")
@@ -250,13 +265,17 @@ STAGES = [("web_gate", web_gate), ("visit_gate", visit_gate), ("locate", locate)
           ("approach", approach), ("grasp", grasp), ("deliver", deliver)]
 
 
-def new_ctx(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None) -> Ctx:
-    return Ctx(req, backend, reporter, reviewer, Outcome(req.case_id, DECISION_STAFF, ""), time.perf_counter())
+def new_ctx(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None, consult: Callable | None = None) -> Ctx:
+    c = Ctx(req, backend, reporter, reviewer, Outcome(req.case_id, DECISION_STAFF, ""), time.perf_counter())
+    c.consult = consult
+    return c
 
 
-def run_return(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None) -> Outcome:
-    """단계를 순서대로 실행(LangGraph 없이). 그래프판은 agents/graph.py — 같은 단계 함수를 쓴다."""
-    c = new_ctx(req, backend, reporter, reviewer)
+def run_return(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None,
+               consult: Callable | None = None) -> Outcome:
+    """단계를 순서대로 실행(LangGraph 없이). 그래프판은 agents/graph.py — 같은 단계 함수를 쓴다.
+    consult: 관제탑 메인 AI(agents/tower_brain.py TowerBrain.consult). None 이면 매칭이 애매할 때 바로 직원 확인"""
+    c = new_ctx(req, backend, reporter, reviewer, consult)
     for _, stage in STAGES:
         if stage(c):
             break

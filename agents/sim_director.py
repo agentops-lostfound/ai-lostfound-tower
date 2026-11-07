@@ -13,7 +13,7 @@
       ⑤ 방문 확인 → 반환     service.start_return  ← 진짜: 직원 화면 "반환 시작"
       ⑥ 인계 완료           service.handover      ← 진짜: 직원 화면 "분실인에게 건넴"
 
-- 메시지 끝 꼬리표로 안전 규칙을 보여 줄 수 있다: #집기실패(1번 실패 후 재시도) · #보정실패(로봇 안 움직임)
+- 메시지 끝 꼬리표로 안전 규칙을 보여 줄 수 있다: #집기실패(1번 실패 후 재시도) · #보정실패(로봇 안 움직임) · #흐린촬영(첫 촬영 매칭 애매 → 메인 AI)
   · #신분증불일치(반환 거부) · #수동인계(직원 화면 버튼으로 인계)
 - 개인정보: 메시지 원문은 저장·전송하지 않는다. 장소 글과 물건 특징만 쓴다(디스코드 보고기의 개인정보 검사도 그대로)
 """
@@ -414,6 +414,8 @@ class SimDirector:
                     w.inject(grasp_fail=1)
                 if "calib_fail" in tags:
                     w.inject(calib_fail=True)
+                if "blur_once" in tags:
+                    w.inject(blur=True)
                 payload = {"claim_id": cid, "visitor_id_match": "id_mismatch" not in tags,
                            "inner_feature_ok": True, "staff_confirmed": True}
                 out = None
@@ -514,7 +516,7 @@ class SimDirector:
                 w.items.clear()
                 w.contacts.clear()
                 w.arm.update(x=w.arm["x"], phase="대기", holding=None, stopped=False, target=None)
-                w.faults.update(grasp_fail=0, calib_fail=False)
+                w.faults.update(grasp_fail=0, calib_fail=False, blur=False)
                 w.seed()
             finally:
                 w.on_bin, w.reserved = hooks
@@ -566,7 +568,23 @@ def build_sim_service(env: dict | None = None):
     svc.sim = SimDirector(svc, world, board, auto_handover=not flag("TOWER_SIM_MANUAL_HANDOVER"),
                           qwen_wait_s=num("TOWER_SIM_QWEN_WAIT", 180))
     link_storage(svc, world)
+    from agents.tower_brain import build_from_env     # 11/8 관제탑 메인 AI(.env TOWER_BRAIN=1 일 때만)
+    svc.brain = build_from_env(slot_lookup=lambda item_id: sim_slot_area(svc, world, item_id))
     return svc
+
+
+def sim_slot_area(svc: TowerService, world: SimWorld, item_id: str) -> dict | None:
+    """메인 AI 보관 칸 에이전트용(가상): 정답지의 칸 번호 + 가상 작업대에서 그 칸의 위치(±45mm)를 구역 좌표로.
+    실제 보관함은 /storage 화면에서 구역 좌표(bounds_mm)를 넣어야 위치로 후보를 가릴 수 있다"""
+    from agents.sim_world import SLOT_IDS, SLOTS_MM
+    area = svc.slot_area(item_id) or {}
+    sid = area.get("slot_id") or world.slot_id_of(item_id)
+    if not sid:
+        return None
+    if not area.get("bounds_mm") and sid in SLOT_IDS:
+        x, y = SLOTS_MM[SLOT_IDS.index(sid)]
+        area = {"slot_id": sid, "bounds_mm": [x - 45, y - 45, x + 45, y + 45]}
+    return {"slot_id": sid, "bounds_mm": area.get("bounds_mm")}
 
 
 def link_storage(svc: TowerService, world: SimWorld) -> None:

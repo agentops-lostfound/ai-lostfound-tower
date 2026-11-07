@@ -86,6 +86,11 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .log li.team{border-color:var(--team);background:var(--team-soft)} .log li.result{border-color:var(--ok);background:var(--ok-soft)}
 .log li .t{color:var(--sub);font-size:11px;font-family:ui-monospace,Consolas,monospace;margin-right:6px}
 .log li .b{color:var(--sub);display:block}
+/* 11/8 메인 AI 대화(🤖 로 시작하는 관제 메시지) */
+.chat{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:40vh;overflow:auto}
+.chat li{padding:6px 10px;border-radius:10px;background:var(--soft);font-size:13px;overflow-wrap:anywhere;max-width:92%}
+.chat li.main{background:var(--team-soft);justify-self:start} .chat li.agent{background:var(--ok-soft);justify-self:end}
+.chat li .who{display:block;font-weight:700;font-size:11.5px;color:var(--sub)}
 /* 시험 입력 */
 .try textarea{width:100%;min-height:56px;resize:vertical;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel);color:var(--ink)}
 .try .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -175,6 +180,10 @@ svg{display:block;width:100%;height:auto;max-width:100%}
         <svg id="side" viewBox="-190 -330 610 350" role="img" aria-label="SO-101 팔로워 옆모습"></svg></div>
       <div class="joints" id="joints"></div>
       <div class="robot-note" id="robotNote"></div>
+    </div>
+    <div class="card" id="brainCard" hidden>
+      <h2>🤖 관제탑 메인 AI · 에이전트 대화</h2>
+      <ul class="chat" id="brain"></ul>
     </div>
     <div class="card">
       <h2>관제 메시지 (디스코드 관제 채널과 같은 내용)</h2>
@@ -419,6 +428,16 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       const t = `${p2(dt.getHours())}:${p2(dt.getMinutes())}:${p2(dt.getSeconds())}`;
       li.innerHTML = `<span class="t">${t}${e.story ? " " + esc(e.story) : ""}</span>${esc(e.title)}${e.body && e.channel !== "result" ? `<span class="b">${esc(e.body)}</span>` : ""}`;
       log.prepend(li);
+      const m = /🤖\s*(.+)$/.exec(e.title || "");
+      if (m) {                                   // 메인 AI·에이전트 대화는 따로 말풍선으로(위에서부터 순서대로)
+        const box = $("brain"), c = document.createElement("li");
+        c.className = m[1].startsWith("메인 AI") ? "main" : "agent";
+        c.innerHTML = `<span class="who">${esc(m[1])} · ${t}</span>${esc(e.body)}`;
+        box.append(c);
+        while (box.children.length > 60) box.firstChild.remove();
+        box.scrollTop = box.scrollHeight;
+        $("brainCard").hidden = false;
+      }
     }
     while (log.children.length > 200) log.lastChild.remove();
   }

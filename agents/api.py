@@ -124,6 +124,8 @@ def build_service(backend_factory=None) -> TowerService:
                        recorder=recorder, reviewer=reviewer, claims=claims, intake=intake,
                        gpu_lease=lease_from_env(), storage=storage)
     svc.board = board
+    from agents.tower_brain import build_from_env     # 11/8 관제탑 메인 AI(.env TOWER_BRAIN=1 일 때만)
+    svc.brain = build_from_env(slot_lookup=svc.slot_area)
     return svc
 
 
