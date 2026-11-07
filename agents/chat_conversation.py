@@ -45,11 +45,25 @@ def natural_question(question):
 
 
 def checked_history(history):
+    """이전 대화 → 질문 글 목록(이어받기 판단용). 항목은 "질문" 또는 {"q": 질문, "a": 챗봇 답}(11/7 대화 기억)"""
     if history is None:
         return []
     if not isinstance(history, list) or len(history) > 4:
         raise ValueError('이전 질문은 최대 4개의 글 목록으로 보내주세요')
-    return [checked_text(q, '이전 질문', 500) for q in history]
+    return [checked_text(h.get('q') if isinstance(h, dict) else h, '이전 질문', 500) for h in history]
+
+
+def checked_turns(history):
+    """이전 대화 → 모델에 넘길 [{question, answer}] (답이 있는 항목만). 답은 300자까지, 개인정보 모양이면 답을 비운다.
+    서버는 저장하지 않는다(브라우저가 매번 보냄) — 여러 사람 대화가 섞이지 않게"""
+    from agents.support_security import has_private_pattern
+    out = []
+    for h in history or []:
+        if isinstance(h, dict) and isinstance(h.get('a'), str):
+            q = checked_text(h.get('q'), '이전 질문', 500)
+            a = h['a'].strip()[:300]
+            out.append({'question': q, 'answer': '' if has_private_pattern(a) else a})
+    return out
 
 
 def search_intent(question):

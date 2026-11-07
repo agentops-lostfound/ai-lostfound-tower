@@ -28,7 +28,18 @@
   var KIOSK = opt("mode", "web") === "kiosk";
   var IDLE_S = Math.max(0, Math.min(3600, parseInt(opt("idle-reset", KIOSK ? "90" : "0"), 10) || 0));
   var idleTimer = null;
-  var MAX_LEN = 500, MAX_HISTORY = 4, MAX_MESSAGES = 40;
+  var MAX_LEN = 500, MAX_HISTORY = 4, MAX_MESSAGES = 40, MAX_ANSWER = 300;
+  // 11/7 대화 기억: 웹·관리자 화면은 같은 브라우저 탭을 닫기 전까지(sessionStorage) 대화를 기억한다. 서버에는 저장하지 않는다.
+  // 키오스크는 여러 사람이 쓰므로 저장하지 않는다(기존처럼 창을 닫거나 조작이 없으면 지움)
+  var STORE_KEY = "lf-chat:" + location.pathname;
+  function storeGet() {
+    if (KIOSK) return null;
+    try { var v = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null"); return v && Array.isArray(v.history) && Array.isArray(v.msgs) ? v : null; } catch (e) { return null; }
+  }
+  function storeSet(v) {
+    if (KIOSK) return;
+    try { if (v) sessionStorage.setItem(STORE_KEY, JSON.stringify(v)); else sessionStorage.removeItem(STORE_KEY); } catch (e) { /* 저장 못 해도 대화는 계속 */ }
+  }
 
   var CSS = [
     ":host{all:initial}",
@@ -184,6 +195,17 @@
     // 공용 기기: 창 안에서 무엇이든 조작하면 무입력 시계를 다시 잰다
     ["pointerdown", "keydown", "input", "wheel"].forEach(function (t) { panel.addEventListener(t, touchIdle, { passive: true }); });
     showWelcome();
+    restoreChat();
+  }
+
+  function restoreChat() {
+    // 새로고침 전 대화 다시 그리기(글만 — 후보 카드·근거 펼치기는 다시 그리지 않음)
+    var saved = storeGet();
+    if (!saved || !saved.msgs.length) return;
+    var welcome = log.querySelector(".welcome");
+    if (welcome) welcome.remove();
+    saved.msgs.forEach(function (x) { if (x && (x.r === "user" || x.r === "bot") && typeof x.t === "string") line(x.r, x.t); });
+    history = saved.history.filter(function (h) { return h && typeof h.q === "string"; }).slice(-MAX_HISTORY);
   }
 
   function showWelcome() {
@@ -341,9 +363,14 @@
     activeRequest = request;
     api("/chat/questions", body, request.controller).then(function (res) {
       if (activeRequest !== request) return;
-      history = body.history.concat([q]).slice(-MAX_HISTORY);
+      var answerText = res.answer || "답변을 만들지 못했어요. 질문을 조금 바꿔 다시 물어봐 주세요.";
+      history = body.history.concat([{ q: q, a: String(res.answer || "").slice(0, MAX_ANSWER) }]).slice(-MAX_HISTORY);
       pending.remove();
-      var m = line("bot", res.answer || "답변을 만들지 못했어요. 질문을 조금 바꿔 다시 물어봐 주세요.");
+      var m = line("bot", answerText);
+      var saved = storeGet() || { history: [], msgs: [] };
+      saved.history = history;
+      saved.msgs = saved.msgs.concat([{ r: "user", t: q }, { r: "bot", t: answerText }]).slice(-MAX_MESSAGES);
+      storeSet(saved);
       addExtras(m, res);
       statusEl.textContent = res.agent === "ops" ? "관제 기록 기준 · 직원 전용" :
         res.agent === "search" || res.agent === "both" ? "후보는 본인 물건 확정이 아니에요" : "안내 완료 · 근거를 펼쳐 볼 수 있어요";
@@ -382,6 +409,7 @@
     if (previous) previous.controller.abort();
     setBusy(false);
     history = [];
+    storeSet(null);
     input.value = "";
     input.dispatchEvent(new Event("input"));
     log.replaceChildren();

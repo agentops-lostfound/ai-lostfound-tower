@@ -12,7 +12,7 @@ from agents.lost_input import checked_text
 from agents.chat_rag import GroundedRag
 from agents.chat_search import SearchAgent
 from agents.search_context import checked_context
-from agents.chat_conversation import checked_history, natural_question, resolve_turn, search_intent
+from agents.chat_conversation import checked_history, checked_turns, natural_question, resolve_turn, search_intent
 from langsmith import tracing_context
 
 _search_access = ContextVar('lf_chat_search_access', default=None)
@@ -123,6 +123,7 @@ class Chatbot:
     def ask(self, question, access_token=None, context=None, history=None, staff=False):
         question = checked_text(question, '질문', 500)
         context = checked_context(context)
+        turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
         history = checked_history(history)
         ops_turn = bool(staff and self.ops is not None and is_ops_question(question))
         if ops_turn:            # 관제 질문은 앞 대화와 합치지 않고 그대로 분석한다
@@ -138,7 +139,7 @@ class Chatbot:
         try:
             with tracing_context(enabled=False, parent=False):
                 state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn,
-                                           'history': history},
+                                           'history': turns if turns else history},
                                           config={'callbacks': []})
         finally:
             _search_access.reset(context_token)
