@@ -139,5 +139,8 @@
 - Mi:dm 은 보완(후보 뜻 문서 고정) 뒤 틀림 0, 국산·MIT 라이선스, Ko-IFEval(한국어 지시 따르기) 73.3 으로 EXAONE 3.5 2.4B(65.4)보다 높음(KT 발표값)
 - Qwen3-4B-2507 은 예비: 관제탑 `nvidia-smi` 여유가 3.3GB 이상으로 확인되면 바꿀 수 있음(`.env` 한 줄)
 - 설치는 `docs/ollama/README.md`
+- **11/7 집 PC 실측(RTX 3060 Ti 8GB, Ollama 0.40.15, 등록 파일 그대로)**: `ollama create` 성공 · 86문항 상태 일치 86/86 · 모델 사용 23/23(대체 0) · 응답 평균 0.56초, p95 0.74초 · 그래픽카드 Mi:dm 몫 약 2377MiB(`ollama ps` 2.3GB, 100% GPU, num_ctx 4096)
+  - 관제탑 6GB 계산: Mi:dm 약 2.32GiB + Qwen3-VL-2B 약 2.03GiB(+CUDA 기본 약 0.3GiB, 추정) + 화면 약 0.7~1.3GiB(추정) = 약 5.4~6.0GiB → 들어가지만 여유가 거의 없음. 관제탑 `nvidia-smi` 로 최종 확인(TBD), 모자라면 `OLLAMA_FLASH_ATTENTION=1`·`OLLAMA_KV_CACHE_TYPE=q8_0`(약 0.4GB 절약, 추정)
+  - 분실 웹 챗봇 대화 5종(물건 찾기·이어받기·본센터 수령·습득자 연락처·지시 무시 공격) 모두 기대대로
 - num_ctx 는 4096 그대로: 관제 보고 에이전트(`agents/ops_analyst.py`)도 같은 모델을 4096 으로 부르므로, 다르게 하면 Ollama 가 모델을 다시 올려 느려짐
 - 남은 확인: 관제탑 PC 실제 속도와 메모리(TBD), 사람 평가표(`--rating`)로 자연스러움 비교(선택)

@@ -435,6 +435,18 @@ class LostWebApiTest(unittest.TestCase):
         self.assertEqual(r.json()["decision"], "returned")
         self.assertNotIn(cid, svc.sim.visit_wait)
 
+    def test_home_page_lists_screens(self):
+        """11/7 주소만 입력하면 Not Found 대신 화면 목록"""
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        from agents.api import build_app
+        r = TestClient(build_app(build_sim_service(ENV))).get("/")
+        self.assertEqual(r.status_code, 200)
+        for href in ("/lost", "/kiosk?machine=CENTER", "/admin", "/staff", "/storage", "/live"):
+            self.assertIn(f'href="{href}"', r.text)
+
     def test_lost_page_contract(self):
         html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
         for needle in ("visit: 'kiosk'", "maskName(", "******-${$('#gender').value}******", "/sim/stories/",
