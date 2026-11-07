@@ -156,3 +156,84 @@
 - **실측(클라우드 CPU, 진짜 Mi:dm Q4_K_M, 38문항)**: 모델 답 채택 36/38(이전 24) · 핵심어 검사로 문서 문장 2(입력 개인정보·후보 뜻) · 측정 도구 기준 38/38
   - 사람 대조: 규칙 주제 모델 답 13개 중 뜻이 어긋난 문장 3개(신분증 원본 "저장 안 함"으로 단정, 수령 절차 주어를 습득자로, 인증 실패를 동의 거부로 섞음) — 모두 바로 아래 "근거:" 원문은 정확
   - 판단: 화면에서 원문이 함께 보이므로 사용자 결정대로 유지. 더 줄이려면 해당 주제를 `RULE_MUST` 에 금지어로 추가하거나 문서 문장 고정으로 되돌림(TBD, 발표 전 결정)
+
+## 11. 11/7 DeerFlow(LangManus) 구조 + Langfuse 프롬프트 관리·실행 기록
+
+한줄 설명: 챗봇을 "접수(coordinator) → 계획(planner) → 감독(supervisor) ⇄ 일꾼들 → 보고(reporter)" 구조로 나누고, 각 에이전트가 무엇을 했는지 Langfuse 화면에서 에이전트별로 보며 문제 있는 에이전트의 프롬프트를 고친다.
+
+### 11-1. 구조 (agents/chatbot.py · agents/chat_agents.py)
+
+```
+start -> coordinator --(greeting/thanks)--> end
+              |
+           planner -> supervisor <-> researcher   (안내 문서 검색 + Mi:dm 답 작성)
+                          |      <-> item_search  (물건 후보 검색, 읽기 전용)
+                          |      <-> ops_analyst  (관리자 화면 관제 질문만, 규칙으로만 열림)
+                          v
+                       reporter -> end
+```
+
+| 칸 | 하는 일 | 모델? |
+|---|---|---|
+| coordinator | 인사·감사·주제 밖·서비스 질문 구분. 인사·감사는 짧은 정해진 답으로 끝 | Mi:dm(서비스 낱말이 있으면 모델 없이 service) |
+| planner | 어떤 일꾼을 어떤 순서로 부를지 | Mi:dm(규칙이 찾은 일꾼은 지울 수 없음, 물건 낱말 없으면 item_search 뺌) |
+| supervisor | 계획에서 아직 안 한 일꾼을 고름 → 다 끝나면 reporter | 규칙 |
+| researcher / item_search / ops_analyst | 기존 안내 RAG · 물건 검색 · 관제 분석 | 안내 답 작성만 Mi:dm |
+| reporter | 결과 합치기(검색 → 안내 순) | 규칙 |
+
+- 모델이 꺼져 있거나 이상한 답을 내면 전부 기존 규칙으로(답이 멈추지 않음). `LF_CHAT_AGENT_ROUTING=0` 으로 규칙만 쓰게 할 수 있음
+- 응답에 `agent_path`(지나간 칸 순서)·`routing`(model/rule)이 붙음
+
+**실측(11/7, 클라우드 CPU, 진짜 Mi:dm Q4_K_M, 대화 6개 이어서)** — 처음 돌렸을 때 허점 3개를 찾아 고친 뒤 다시 확인
+
+| 질문 | 처음 | 고친 뒤 |
+|---|---|---|
+| 안녕하세요 / 고마워요 | coordinator 에서 끝 | 같음 |
+| 오늘 날씨 어때? | 물건 검색까지 붙고 "물건 종류를 알려주세요"가 섞임 | 주제 밖 → 안내 메뉴 답만(planner 모델 안 부름) |
+| 검정 지갑 찾고 본센터 가는 법도 알려줘 | 검색+안내 | 같음, `generation_status` 가 비던 것 → 안내 쪽 값 유지 |
+| 물건 수령 절차 알려줘 | planner 모델이 물건 검색을 덧붙임 | 안내만(물건 낱말 없으면 검색 뺌 + 프롬프트 예시 추가) |
+| 그럼 거기 갈 때 뭐 챙겨요? | 같은 허점 + 모델 답 버림 | 안내만, 모델 답 채택("신분증을 가지고 부산역 본센터 키오스크로") |
+
+- 모델 답 버림 원인: 앞 대화가 길어지면 Mi:dm 이 `answer` 칸을 빼고 `{"mode":"answer","passage_ids":[0]}` 만 냄 → 출력 형식을 답/되묻기 두 갈래로 나눠 답 모드에서는 `answer` 필수(`agents/chat_rag.py` `_generate`)
+- 시간: CPU 라 질문당 2~35초. 집 PC(RTX 3060 Ti)에서는 모델 호출 1번 약 0.6초였으므로 칸 3개면 약 2초(추정, 집 PC 실측 TBD)
+
+### 11-2. Langfuse 가입·설정 (처음 한 번)
+
+한줄 설명: Langfuse = LLM 앱의 실행 기록(trace)·프롬프트 버전을 웹 화면에서 보는 도구. 무료(Hobby) 요금제로 충분하다.
+
+1. https://us.cloud.langfuse.com 접속 → **Sign up** → 이메일 또는 Google/GitHub 로 가입(미국 서버. 유럽 서버 cloud.langfuse.com 과 계정이 따로)
+2. 첫 화면에서 **New Organization** → 이름(예: `agentops-2jo`) → 요금제 **Hobby** → **Create**
+3. **New Project** → 이름 `ai-lostfound-chatbot` → **Create**
+4. 왼쪽 아래 **Settings → API Keys → + Create new API keys** → 나온 `Public Key`(pk-lf-…)·`Secret Key`(sk-lf-…)를 바로 `.env` 에 붙여 넣기(Secret Key 는 이 창을 닫으면 다시 볼 수 없음). 키는 채팅·디스코드·문서에 올리지 않는다
+   ```
+   LANGFUSE_PUBLIC_KEY=pk-lf-...
+   LANGFUSE_SECRET_KEY=sk-lf-...
+   LANGFUSE_BASE_URL=https://us.cloud.langfuse.com
+   ```
+5. 팀원을 부르려면 **Settings → Members → Invite**(각자 키를 따로 만들어도 같은 프로젝트에 기록이 모임)
+6. 저장소 폴더(.venv)에서
+   ```
+   pip install langfuse
+   python tools/langfuse_setup.py --check
+   python tools/langfuse_setup.py --push-prompts
+   python tools/langfuse_setup.py --test-trace
+   ```
+   - `--check`: "키 확인: OK" 가 나오면 성공(키 값은 출력하지 않음)
+   - `--push-prompts`: 왼쪽 **Prompts** 에 `chat-coordinator` · `chat-planner` · `chat-guidance-answer` 가 라벨 `production` 으로 생김
+   - `--test-trace`: 왼쪽 **Tracing → Traces** 에 `langfuse-setup-check` 가 보이고 전화번호가 `[전화번호]` 로 가려져 있으면 정상
+
+### 11-3. 기록(trace) 보는 법
+
+- 질문 하나 = trace 하나(이름 `lost-found-chatbot`). 같은 화면 대화는 `session_id`(위젯이 만든 무작위 값)로 묶여 **Sessions** 에서 이어 볼 수 있음
+- trace 안의 나무 구조: `lost-found-chatbot` → `chatbot-graph` → `coordinator` · `planner` · `supervisor` · `researcher` · `item_search` · `reporter`(LangGraph **콜백 방식** `langfuse.langchain.CallbackHandler` 가 칸마다 입력·출력 기록) → 그 안에 모델 호출 `coordinator-llm` · `planner-llm` · `reporter-writer`(generation: 프롬프트 버전·토큰·시간)
+- 모델 호출은 Ollama 를 직접 부르므로 콜백이 못 봄 → 코드에서 직접 기록(`agents/observability.py` `step`). 콜백을 끄면(`LF_LANGFUSE_CALLBACK=0`) 칸도 직접 기록으로 바뀜(겹치지 않음)
+- 보내기 전에 전화번호·주민번호·이메일 모양을 가림. 본인인증 토큰은 그래프 상태에 넣지 않으므로 기록에 들어가지 않음. 기록 전송이 실패해도 답은 막히지 않음(서버 못 닿을 때 답 0.01초 확인)
+
+### 11-4. 문제가 있을 때 고치는 순서 (프롬프트 개선 루프)
+
+1. 화면에서 이상한 답이 나오면 Langfuse **Traces** 에서 그 질문을 찾음
+2. 나무에서 어느 칸이 잘못 판단했는지 봄(예: `planner` 출력에 필요 없는 `item_search`)
+3. 그 칸의 generation(`planner-llm`)을 열어 입력 프롬프트와 모델 출력을 복사 → AI 에게 "이 출력이 왜 틀렸고 프롬프트를 어떻게 고칠지" 물음
+4. **Prompts → chat-planner → New version** 에 고친 글을 넣고 라벨 `production` 지정 → 챗봇이 1분 안에 새 버전 사용(재시작 불필요, 캐시 60초)
+5. 같은 질문을 다시 보내 새 trace 의 generation 에 붙은 프롬프트 버전이 바뀌었는지 확인. 좋아지면 코드 기본값(`agents/prompts.py`)에도 옮겨 PR(Langfuse 에 못 닿을 때 쓰는 값)
+- 주의: `--push-prompts --force` 는 코드 기본값으로 새 버전을 덮어 올림(화면에서 고친 내용 위에)

@@ -25,6 +25,14 @@ class ChatState(TypedDict, total=False):
     ops_turn: bool
     route: str
     result: dict
+    # 11/7 DeerFlow 구조: coordinator → planner → supervisor ⇄ 일꾼 → reporter
+    intent: str          # coordinator 판단(service·greeting·thanks·off_topic)
+    plan: list           # planner 가 고른 일꾼 순서(guidance·item_search·ops)
+    results: dict        # 일꾼별 결과
+    path: list           # 지나간 에이전트(trace·화면 확인용)
+    questions: list      # 앞 질문 글만(coordinator·planner 모델 맥락)
+    routing: str         # model(모델이 판단) · rule(규칙으로 대체)
+    next: str            # supervisor 가 고른 다음 칸
 
 
 # 직원 관제 질문: 기록을 세고 원인을 찾는 말(STRONG)이 있거나, 문제 낱말 + 기간 낱말이 같이 있을 때만.
@@ -55,27 +63,128 @@ def chat_text(report):
 
 
 class Chatbot:
-    def __init__(self, guidance, rag=None, search=None, ops=None):
+    def __init__(self, guidance, rag=None, search=None, ops=None, brain=None):
+        """brain: coordinator·planner 를 맡을 모델(agents/chat_agents.AgentBrain). 없으면 같은 칸을 규칙으로 처리"""
         from langgraph.graph import StateGraph, START, END
         self.guidance = guidance
         self.rag = rag or GroundedRag(guidance)
         self.search = search or SearchAgent()
         self.ops = ops          # 관제 분석 에이전트(run(question) → {"report", ...}). 없으면 직원 관제 길은 닫힘
+        self.brain = brain
         graph = StateGraph(ChatState)
-        graph.add_node('route_question', self._route)
-        graph.add_node('document_guidance', lambda s: {'result': self._rag_ask(s)})
-        graph.add_node('item_search', lambda s: {'result': self.search.ask(s['question'], _search_access.get(), s.get('search_context'))})
-        graph.add_node('combined_help', self._both)
-        graph.add_node('ops_report', self._ops)
-        graph.add_edge(START, 'route_question')
-        graph.add_conditional_edges('route_question', lambda s: s['route'],
-                                    {'guidance': 'document_guidance', 'search': 'item_search', 'both': 'combined_help',
-                                     'ops': 'ops_report'})
-        graph.add_edge('ops_report', END)
-        graph.add_edge('document_guidance', END)
-        graph.add_edge('item_search', END)
-        graph.add_edge('combined_help', END)
+        graph.add_node('coordinator', self._coordinator)
+        graph.add_node('planner', self._planner)
+        graph.add_node('supervisor', self._supervisor)
+        graph.add_node('researcher', self._researcher)
+        graph.add_node('item_search', self._item_search)
+        graph.add_node('ops_analyst', self._ops_worker)
+        graph.add_node('reporter', self._reporter)
+        graph.add_edge(START, 'coordinator')
+        graph.add_conditional_edges('coordinator', lambda s: 'end' if s.get('result') else 'planner',
+                                    {'end': END, 'planner': 'planner'})
+        graph.add_edge('planner', 'supervisor')
+        graph.add_conditional_edges('supervisor', lambda s: s['next'],
+                                    {'guidance': 'researcher', 'item_search': 'item_search', 'ops': 'ops_analyst',
+                                     'reporter': 'reporter'})
+        for worker in ('researcher', 'item_search', 'ops_analyst'):
+            graph.add_edge(worker, 'supervisor')
+        graph.add_edge('reporter', END)
         self.graph = graph.compile()
+
+    # ---------- 11/7 DeerFlow 구조의 칸들 ----------
+    def _coordinator(self, state):
+        """인사·감사는 정해진 짧은 답으로 끝내고, 나머지는 planner 로. 관제 질문(관리자 확인됨)은 바로 넘김"""
+        from agents.chat_agents import GREETING_REPLY, THANKS_REPLY
+        from agents.observability import node_step
+        with node_step('coordinator', as_type='agent', input={'question': state['question']}) as obs:
+            intent, routing = 'service', 'rule'
+            if not state.get('ops_turn') and self.brain is not None:
+                got = self.brain.coordinate(state['question'], state.get('questions'))
+                if got is not None:
+                    intent, routing = got[0], ('model' if got[1] else 'rule')
+            out = {'intent': intent, 'routing': routing, 'path': ['coordinator']}
+            if intent in ('greeting', 'thanks'):
+                out['result'] = {**self.guidance._response('answered', GREETING_REPLY if intent == 'greeting' else THANKS_REPLY, []),
+                                 'generation_used': False, 'generation_status': 'coordinator_reply'}
+                out['route'] = 'coordinator'
+            obs.update(output={'intent': intent, 'routing': routing})
+            return out
+
+    @staticmethod
+    def _signals(state):
+        """규칙이 분명하게 찾은 일꾼(planner 가 지울 수 없음)"""
+        q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
+        q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정)', q)
+        search = re.search(r'찾아|검색|후보|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|usb|립밤|보조배터리|핸드크림).*(?:있나요|있어|있나|있니|있습니까)', q)
+        return {'guidance': bool(help_question), 'item_search': bool((search or search_intent(q)) and not help_question) or bool(help_question and search_intent(q))}
+
+    def _planner(self, state):
+        from agents.observability import node_step
+        with node_step('planner', as_type='agent', input={'question': state['question']}) as obs:
+            if state.get('ops_turn'):
+                plan, routing = ['ops'], 'rule'
+            elif state.get('intent') == 'off_topic':
+                plan, routing = ['guidance'], 'model'        # 주제 밖: 안내 길(메뉴 버튼 답)로만 — 물건 검색 안내를 붙이지 않음
+            else:
+                rule = {'guidance': ['guidance'], 'search': ['item_search'], 'both': ['item_search', 'guidance']}[self._route(state)['route']]
+                plan, routing = rule, 'rule'
+                if self.brain is not None:
+                    sig = self._signals(state)
+                    must = [w for w in ('item_search', 'guidance') if sig[w]]
+                    got = self.brain.plan(state['question'], state.get('questions'), must)
+                    if got:
+                        plan, routing = got, 'model'
+            obs.update(output={'plan': plan, 'routing': routing})
+            return {'plan': plan, 'results': {}, 'path': state.get('path', []) + ['planner'],
+                    'routing': 'model' if routing == 'model' or state.get('routing') == 'model' else 'rule'}
+
+    @staticmethod
+    def _supervisor(state):
+        done = state.get('results') or {}
+        nxt = next((w for w in state.get('plan', []) if w not in done), 'reporter')
+        return {'next': nxt, 'path': state.get('path', []) + ['supervisor']}
+
+    def _researcher(self, state):
+        from agents.observability import node_step
+        with node_step('researcher', as_type='retriever', input={'question': state['question']}) as obs:
+            res = self._rag_ask(state)
+            obs.update(output={'status': res.get('status'), 'generation_status': res.get('generation_status'),
+                               'topics': [x.get('topic') for x in res.get('sources', [])], 'answer': res.get('answer', '')[:500]})
+        return {'results': {**(state.get('results') or {}), 'guidance': res}, 'path': state.get('path', []) + ['researcher']}
+
+    def _item_search(self, state):
+        from agents.observability import node_step
+        with node_step('item_search', as_type='tool', input={'question': state['question']}) as obs:
+            res = self.search.ask(state['question'], _search_access.get(), state.get('search_context'))
+            obs.update(output={'status': res.get('status'), 'candidates': len(res.get('candidates') or [])})
+        return {'results': {**(state.get('results') or {}), 'item_search': res}, 'path': state.get('path', []) + ['item_search']}
+
+    def _ops_worker(self, state):
+        from agents.observability import node_step
+        with node_step('ops_analyst', as_type='agent', input={'question': state['question']}) as obs:
+            res = self._ops(state)['result']
+            obs.update(output={'focus': res.get('ops_focus')})
+        return {'results': {**(state.get('results') or {}), 'ops': res}, 'path': state.get('path', []) + ['ops_analyst']}
+
+    def _reporter(self, state):
+        """일꾼 결과를 화면에 낼 답 하나로(두 개면 기존 combined 방식: 안내 → 검색 순)"""
+        r = state.get('results') or {}
+        if 'ops' in r:
+            return {'result': r['ops'], 'route': 'ops', 'path': state.get('path', []) + ['reporter']}
+        if 'guidance' in r and 'item_search' in r:
+            guide, search = r['guidance'], r['item_search']
+            result = {**search, 'answer': guide['answer'] + '\n\n' + search['answer'],
+                      'sources': guide['sources'], 'generation_used': guide.get('generation_used', False),
+                      'generation_status': guide.get('generation_status'), 'generation_note': guide.get('generation_note'),
+                      'status': 'answered' if guide['status'] == 'answered' and search['item_search_performed'] else 'partial',
+                      'method': 'document_guidance_and_read_only_item_search'}
+            route = 'both'
+        elif 'item_search' in r:
+            result, route = r['item_search'], 'search'
+        else:
+            result, route = r.get('guidance') or self._rag_ask(state), 'guidance'
+        return {'result': result, 'route': route, 'path': state.get('path', []) + ['reporter']}
 
     @staticmethod
     def _route(state):
@@ -120,7 +229,18 @@ class Chatbot:
                            'generation_status': 'ops_report',
                            'item_search_performed': False}}
 
-    def ask(self, question, access_token=None, context=None, history=None, staff=False):
+    def ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, channel='web'):
+        """session_id: 같은 화면 대화를 Langfuse 에서 묶는 번호(화면이 만든 무작위 값, 개인정보 아님). channel: web·kiosk·staff"""
+        from agents.observability import conversation, step
+        with conversation(session_id=session_id, tags=[channel]):
+            with step('lost-found-chatbot', as_type='chain', input={'question': question}) as root:
+                out = self._ask(question, access_token, context, history, staff)
+                root.update(output={'answer': out.get('answer', '')[:800], 'agent': out.get('agent'),
+                                    'path': out.get('agent_path'), 'routing': out.get('routing'),
+                                    'generation_status': out.get('generation_status')})
+                return out
+
+    def _ask(self, question, access_token=None, context=None, history=None, staff=False):
         question = checked_text(question, '질문', 500)
         context = checked_context(context)
         turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
@@ -130,6 +250,8 @@ class Chatbot:
             resolved = False
         else:
             question, context, resolved = resolve_turn(question, history, context, self.guidance)
+        if resolved is None and self.brain is not None:
+            resolved = False        # 11/7: 무엇을 가리키는지 규칙이 못 정하면 모델(planner·안내 작성)이 앞 대화를 보고 판단
         if resolved is None:
             return {**self.guidance._response('clarification_needed',
                 '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 지갑 찾아줘 / 본인인증에 실패하면?', []),
@@ -137,14 +259,18 @@ class Chatbot:
         # Bearer credentials must never enter graph state, checkpoints or tracing.
         context_token = _search_access.set(access_token)
         try:
-            with tracing_context(enabled=False, parent=False):
+            from agents.observability import callbacks_active, graph_callbacks
+            handlers = graph_callbacks()     # 11/7 Langfuse callback 방식: 그래프 칸별 기록(키 없으면 빈 목록 = 기록 안 함)
+            # 접속 토큰은 contextvar 에만 있어 그래프 상태·기록에 들어가지 않는다(LangSmith 기록은 계속 끔)
+            with tracing_context(enabled=False, parent=False), callbacks_active(bool(handlers)):
                 state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn,
-                                           'history': turns if turns else history},
-                                          config={'callbacks': []})
+                                           'history': turns if turns else history, 'questions': history},
+                                          config={'callbacks': handlers, 'run_name': 'chatbot-graph'})
         finally:
             _search_access.reset(context_token)
         return {**state['result'], 'agent': state['route'],
-                'context_used': resolved,
+                'agent_path': state.get('path', []), 'routing': state.get('routing', 'rule'),
+                'context_used': bool(resolved),
                 'orchestration': 'langgraph_guidance_item_search_and_staff_ops' if self.ops is not None
                                  else 'langgraph_guidance_and_item_search'}
 
