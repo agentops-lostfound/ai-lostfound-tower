@@ -175,7 +175,7 @@ class LangfuseHooksTest(unittest.TestCase):
         with mock.patch.object(observability, "client", lambda: FakeClient()), \
                 mock.patch.object(observability, "graph_callbacks", lambda: [handler]):
             bot(brain_with(coord="service", plan=["guidance"])).ask("운영시간 알려줘", access_token="secret-token-xyz")
-        for node in ("coordinator", "planner", "supervisor", "researcher", "reporter"):
+        for node in ("coordinator", "planner", "supervisor", "researcher", "reporter", "route_next_worker"):
             self.assertIn(node, seen)
         self.assertIn("generation:planner-llm", names)
         self.assertNotIn("agent:coordinator", names)
