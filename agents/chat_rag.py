@@ -1,7 +1,7 @@
 """챗봇 RAG + 로컬 sLLM (LF-5 · 11/5 정연우 → 11/6 변재원 sLLM·되묻기)
 
 한줄 설명: 질문에 맞는 안내 문단을 찾고(검색, agents/chat_retrieval.py + 규칙 agents/guidance.py),
-로컬 sLLM(Ollama, 기본 EXAONE 3.5 2.4B)이 그 문단만 근거로 답하거나, 정보가 모자라면 되묻는다(유도 질문).
+로컬 sLLM(Ollama, 11/7 실측 결정 Qwen3-4B-2507 또는 Mi:dm 2.0 Mini — docs/design/chatbot_sllm_rag.md §9)이 그 문단만 근거로 답하거나, 정보가 모자라면 되묻는다(유도 질문).
 
 안전장치(모델 답이 하나라도 어기면 버리고 문서 문장 그대로 답함)
 - 문단 번호는 실제로 찾은 문단만, 답에 나온 숫자는 고른 문단에 있는 숫자만(운영값을 지어내지 못함)
@@ -21,6 +21,9 @@ MENU = ["물건을 잃어버렸어요", "물건을 주웠어요", "물건 받는
 # 잃어버림 → 무엇을? (품목 버튼을 누르면 물건 검색으로 이어짐)
 LOST_RE = re.compile(r"잃어버|분실|두고내렸|놓고내렸|놓고왔|두고왔|없어졌|잃었")
 LOST_CHOICES = ["지갑 잃어버렸어요", "휴대폰 잃어버렸어요", "USB 잃어버렸어요", "찾을 수 있는 물건 종류"]
+# 11/7 규칙 문장 그대로 쓰는 주제: 모델이 바꿔 말하면 뜻이 틀어지는 규칙(실측: 4개 모델 38문항 비교, docs/design/chatbot_sllm_rag.md §9)
+# 예) 습득자 연락처 "인계 완료 뒤 30일"을 "반환 보류 30일"로, "동의 시각"을 "분실 시각"으로, "전화번호 적지 마세요"를 "안 적어도 돼요"로
+FIXED_TEXT_TOPICS = {"finder_contact", "masked_identity", "consent", "arrival", "privacy_input", "candidate_scope"}
 
 
 def topic_question(topic: str) -> str:
@@ -77,6 +80,8 @@ class GroundedRag:
         from agents.guidance import DEMO_POLICY_TOPICS
         if any(s['topic'] in DEMO_POLICY_TOPICS.values() for s in result['sources']):
             return {**result, 'generation_status': 'fixed_policy_text'}
+        if any(s['topic'] in FIXED_TEXT_TOPICS for s in result['sources']):
+            return {**result, 'generation_status': 'fixed_rule_text'}
         if not self.model:
             return {**result, 'generation_status': 'model_not_configured'}
         if not self._lock.acquire(blocking=False):
