@@ -201,22 +201,40 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         finder {name, phone}(둘 다 선택 — 비우면 저장 안 함), photo(선택, data:image/jpeg;base64,… 5MB 이하) 또는 photo_path.
         연락처는 응답에 나오지 않음"""
         try:
-            return svc.create_item(payload)
+            rec = svc.create_item(payload)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
+        d = getattr(svc, "sim", None)       # 11/7 가상 시연: 진짜 키오스크 사진 접수 → Qwen 특징 대기 → 회수·보관 장면
+        if d is not None and isinstance(payload, dict) and payload.get("photo"):
+            d.kiosk_found(rec)
+        return rec
 
     @app.post("/items/{item_id}/features")
     @app.post("/api/kiosk/items/{item_id}/features")
     def set_item_features(item_id: str, payload: dict = Body(...)) -> dict:
         """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
         try:
-            return svc.set_item_features(item_id, payload)
+            out = svc.set_item_features(item_id, payload)
+            d = getattr(svc, "sim", None)   # 11/7 가상 시연: Qwen 원본을 기억(가상 탑뷰가 같은 물건을 다시 찍을 때) + 기다리던 이야기 진행
+            if d is not None:
+                d.on_features(item_id, payload.get("qwen"))
+            return out
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
         except NotFound as e:
             raise HTTPException(status_code=404, detail=str(e))
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+    @app.get("/api/admin/intake/pending-photos", dependencies=admin)
+    def pending_photos(limit: int = 10) -> list[dict]:
+        """11/7 사진 분석 대기 물건 — 관제탑 PC 의 Qwen 작업자(tools/intake_qwen_worker.py)가 가져가 특징을 채운다"""
+        try:
+            return svc.pending_photos(limit)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 

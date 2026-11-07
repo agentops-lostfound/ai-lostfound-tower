@@ -276,7 +276,7 @@ class ApiRoutesTest(unittest.TestCase):
         new_api = [("GET", "/admin")] + [("GET", p) for p in ("/api/admin/claims/{claim_id}", "/api/admin/live/state", "/api/admin/me", "/api/admin/returns",
                                         "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places",
                                         "/api/admin/storage", "/api/admin/storage/export", "/api/admin/storage/checks",
-                                        "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo",
+                                        "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo", "/api/admin/intake/pending-photos",
                                         "/api/admin/storage/arrivals", "/storage-desk", "/storage")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
