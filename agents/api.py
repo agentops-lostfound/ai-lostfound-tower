@@ -614,6 +614,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def ops_source() -> dict:                          # 관제 분석 에이전트 조사자: /returns·/live/state 와 같은 자료를 안에서 바로
         return {"returns": svc.recent(100), "live": live_state(0, None)}
 
+    if chatbot is None and getattr(svc, "sim", None) is not None and os.environ.get("TOWER_CHAT_SIM_SEARCH", "1") != "0":
+        # 11/7 가상 시연: 챗봇 물건 검색이 화면 작업대와 같은 가상 물건 목록을 보게(연습용 별도 목록과 어긋나던 허점)
+        from agents.chat_api import LazyChatbot, build_chatbot_from_env
+        from agents.chat_search import SimTowerItemSearch
+        chatbot = LazyChatbot(lambda: build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items)))
     add_chat_routes(app, chatbot, staff_allowed=staff_allowed, ops_source=ops_source)
     return app
 

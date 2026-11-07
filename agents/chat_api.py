@@ -40,15 +40,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIDGET_DIR = os.path.join(ROOT, "web", "chat-widget")
 
 
-def build_chatbot_from_env():
-    """환경값으로 챗봇을 만든다. 실제 DB 설정이 있으면 가상 DB 로 바꿔 대신하지 않는다(정연우 원칙 유지)."""
+def build_chatbot_from_env(database=None):
+    """환경값으로 챗봇을 만든다. 실제 DB 설정이 있으면 가상 DB 로 바꿔 대신하지 않는다(정연우 원칙 유지).
+    database 를 주면 그 검색 부품을 쓴다(11/7 가상 시연: 관제탑 가상 물건 목록 SimTowerItemSearch)."""
     from agents.chat_rag import GroundedRag
     from agents.chat_search import DemoItemDatabase, PostgresItemSearch, SearchAgent
     from agents.chatbot import Chatbot
     from agents.guidance import Guidance
     guide = Guidance()
-    database = None
-    if os.environ.get("LF_CHAT_DATABASE_URL"):
+    if database is not None:
+        pass
+    elif os.environ.get("LF_CHAT_DATABASE_URL"):
         database = PostgresItemSearch(os.environ["LF_CHAT_DATABASE_URL"])
     else:
         demo = (os.environ.get("TOWER_CHAT_DEMO_DB") or "").strip()
