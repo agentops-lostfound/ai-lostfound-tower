@@ -126,6 +126,7 @@ python tools/storage_export.py --out data/storage.json
 - 반환 한 번의 로봇 동작: **칸 자세(pose_N)** → 집기·들어 올리기(SmolVLA) → **배출구 순서** `outlet_return_1 → close → open → outlet_return_1 → home`(`agents/storage.py` `OUTLET_SEQUENCE`)
 - 자세 값(관절 6개)의 원본은 김건태 PC `outputs/robot_panel_live/poses.json`(Studio normalized 단위 -100~100, 각도·mm 아님). DB 에는 **이름만** 둔다. 다른 팔·다른 보정이면 그 값을 그대로 쓰지 않고 다시 티칭한다
 - 013 은 **비어 있는 칸만** 채운다(보관함 화면에서 직접 바꾼 이름은 그대로). 관제탑이 켜져 있지 않을 때(메모리 보관함·가상 시연)도 같은 연결표(`SLOT_POSES`)를 쓴다
+- 11/7 가상 시연(`TOWER_SIM=1`)의 작업대 그림(`/live`·`/admin`)도 이 4행×2칸 + H-1 배치로 그린다. 가상 물건이 칸에 놓이면 정답지에도 같은 칸이 기록되고(로봇이 넣는 순간 '회수 중'이어도 도착 처리), 직원이 칸을 고르면 그림도 따라간다 — `agents/sim_director.py` `link_storage`
 - 반환을 시작하면 관제 기록에 "보관 칸 R4-2 · 자세 pose_8" 처럼 남는다(로봇에 자세 이름을 실제로 보내는 연결은 로봇 계약 변경 뒤 — `docs/contracts/robot_api.md`, 팀 확인 필요)
 - Studio 쪽 자세 이동 통로(김건태 11/6, 설치 전): 같은 런타임 WebSocket 에 `{"event":"move_saved_pose","data":{"pose":"pose_1",...}}` + 200ms 마다 heartbeat, `saved_pose_status=arrived` 가 도착 확인. 집기 성공 자동 판정·배출구 연속 실행은 아직 없음
 

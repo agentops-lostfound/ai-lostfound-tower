@@ -20,12 +20,12 @@ FOUND_STAGES = [("intake", "등록기계 접수"), ("features", "Qwen 특징 분
                 ("stored", "보관함 배치")]
 LOST_STAGES = [("claim", "찾기 요청·확인 질문"), ("approve", "메인 AI 승인"), ("visit", "방문·직원 확인"),
                ("topview", "탑뷰 촬영"), ("match", "매칭"), ("approach", "사전 접근"), ("grasp", "집기"),
-               ("deliver", "바구니 전달"), ("handover", "인계 완료")]
+               ("deliver", "제출보관함 전달"), ("handover", "인계 완료")]
 
 # 반환 흐름(supervisor)·서비스가 보내는 단계 이름 → 이야기 단계
 STEP_STAGE = {"메인 AI 승인 · 수령 예약": "approve", "직원 확인 완료": "visit", "탑뷰 촬영": "topview",
               "매칭 완료": "match", "GPU 사용권 받음": "approach", "사전 접근 완료": "approach", "집기 성공": "grasp",
-              "집기 실패": "grasp", "바구니 전달 완료": "deliver", "인계 완료": "handover"}
+              "집기 실패": "grasp", "제출보관함 전달 완료": "deliver", "바구니 전달 완료": "deliver", "인계 완료": "handover"}
 
 
 # 경보 내용 → 실패로 칠할 단계(11/4 무작위 시험: '지금 진행 중인 단계'만 보면 확인 질문 미통과가 '방문'에 칠해졌다)

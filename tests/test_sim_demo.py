@@ -52,7 +52,7 @@ class SimPartsTest(unittest.TestCase):
     def test_topview_goes_through_real_adapter_with_calibration_gate(self):
         w = SimWorld(speed=0)
         dets = SimTopview(w).vision_topview()
-        self.assertEqual(len(dets), 8)
+        self.assertEqual(len(dets), 5)                                     # 11/7 시연 물건 5개(칸 8개 중 3칸 비움)
         self.assertTrue(all("center_mm" in d for d in dets))
         w.inject(calib_fail=True)
         dets = SimTopview(w).vision_topview()
@@ -80,7 +80,7 @@ class SimPartsTest(unittest.TestCase):
         self.assertTrue(all("range" in j for j in snap["robot"]["joints"]))
 
     def test_so101_real_kinematics_reach_every_spot(self):
-        """실제 SO-101 치수(공식 모델)로 푼 관절: 보관함 12칸·바구니·원점에서 관절 한계 안, 되돌려 계산한 집게 끝이 1mm 안"""
+        """실제 SO-101 치수(공식 모델)로 푼 관절: 보관 칸 8개·제출보관함·원점에서 관절 한계 안, 되돌려 계산한 집게 끝이 1mm 안"""
         import math
         from agents.sim_world import (ARM_SCALE, BASKET_MM, DROP_Z, HOME_MM, HOME_Z, HOVER_Z, PICK_Z, SLOTS_MM, SO101_LIMITS,
                                       so101_joints, so101_reach, so101_tip)
@@ -92,7 +92,8 @@ class SimPartsTest(unittest.TestCase):
                 lo, hi = SO101_LIMITS[k]
                 self.assertTrue(lo <= v <= hi, (x, y, z, k, v))
             self.assertLess(math.dist(so101_tip(j), (x, y, z)), 1.0, (x, y, z, j))
-        far = max(math.hypot(x - 240, 410 - y) for x, y in SLOTS_MM)
+        from agents.sim_world import ROBOT_BASE_MM
+        far = max(math.hypot(x - ROBOT_BASE_MM[0], ROBOT_BASE_MM[1] - y) for x, y in SLOTS_MM + [BASKET_MM])
         self.assertLess(so101_reach(PICK_Z, 1.0), far)      # 실제 크기 팔로는 보관함 끝 칸에 못 닿음(배율을 쓰는 이유)
         self.assertGreater(so101_reach(PICK_Z, ARM_SCALE), far)   # 화면 배율 팔은 닿음
 
@@ -199,7 +200,7 @@ class DirectorTest(unittest.TestCase):
         self.assertFalse(st["result"]["ok"])
         self.assertIn("rejected", st["result"]["text"])
         self.assertEqual(self.svc.world.arm["holding"], None)
-        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 8)   # 로봇 안 움직임
+        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 5)   # 로봇 안 움직임
 
     def test_calibration_fail_tag_sends_to_staff(self):
         self.found()
@@ -233,12 +234,12 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(self.svc.world.items[r["item_id"]]["loc"], "handed")
 
     def test_purchased_items_scenes(self):
-        """실제 구매 목록 기준(11/4): 핑크샌드 지갑은 분홍으로 구별, 같은 제품 USB 2개는 직원 확인"""
+        """실제 구매 목록 기준(11/4, 11/7 5개): 갈색 지갑은 색으로 바로 찾고, 같은 제품 USB 2개는 직원 확인"""
         from agents.sim_world import SEED_ITEMS
-        self.assertEqual(len(SEED_ITEMS), 8)
-        r = self.lost("분홍 카드지갑 잃어버렸어요")
+        self.assertEqual(len(SEED_ITEMS), 5)
+        r = self.lost("갈색 카드지갑 잃어버렸어요")
         self.assertTrue(story_of(self.svc, r["story_id"])["result"]["ok"])
-        self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "분홍")
+        self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "갈색")
         p = self.d.lost("은색 USB 잃어버렸어요")
         out = self.d.answer(p["pending_id"], "SanDisk")
         self.assertTrue(out.get("staff"))                               # 똑같은 USB 2개 → 고르지 않고 직원 확인
@@ -250,7 +251,9 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["category"] == "USB" and i["loc"] == "bin"), 2)
 
     def test_lookalike_ignores_other_categories(self):
-        """11/4 무작위 시험 발견: 흰색 목업폰을 찾을 때 흰색 보조배터리·핸드크림을 '닮은 물건'으로 세면 안 됨"""
+        """11/4 무작위 시험 발견: 흰색 목업폰을 찾을 때 흰색 보조배터리·핸드크림을 '닮은 물건'으로 세면 안 됨
+        (11/7 시연 물건에서 빠져 습득 신고로 넣고 확인)"""
+        self.found("서면역 5번 출구 앞에서 흰색 보조배터리 주웠어요")
         r = self.lost("흰색 모형폰 잃어버렸어요")
         st = story_of(self.svc, r["story_id"])
         self.assertTrue(st["result"]["ok"], st["result"])
@@ -290,11 +293,23 @@ class DirectorTest(unittest.TestCase):
             self.d.lost("립밤 잃어버렸어요")                    # 후보 없음
         self.assertEqual(self.svc.board.stories, {})            # 실패한 신고는 이야기를 만들지 않음
 
+    def test_found_item_lands_in_same_slot_on_answer_sheet(self):
+        """11/7 습득 물건이 가상 작업대 칸에 놓이면 보관함 정답지(/storage)에도 같은 칸 — '회수 중'이어도 도착 처리"""
+        f = self.found()
+        sid = self.svc.world.slot_id_of(f["item_id"])
+        self.assertIsNotNone(sid)
+        lay = self.svc.storage.layout()
+        held = {sl["slot_id"]: (sl.get("item") or {}).get("item_id") for sec in lay["sections"] for sl in sec["slots"]}
+        self.assertEqual(held[sid], f["item_id"])
+        self.assertEqual(sid, "R4-2")                                      # 지갑 행(R4)의 빈 칸
+
     def test_reset_restores_seed_and_keeps_claim_numbers(self):
         self.found()
         r1 = self.lost("검정 카드지갑 잃어버렸어요 서면역")
         self.d.reset()
-        self.assertEqual(len(self.svc.world.items), 8)
+        self.assertEqual(len(self.svc.world.items), 5)
+        lay = self.svc.storage.layout()                                    # 정답지 칸도 시연 물건 5개로 다시
+        self.assertEqual(sum(1 for sec in lay["sections"] for sl in sec["slots"] if sl.get("item")), 5)
         self.found()
         r2 = self.lost("검정 카드지갑 잃어버렸어요 서면역")
         self.assertNotEqual(r1["claim_id"], r2["claim_id"])
