@@ -381,6 +381,13 @@ class SimWorld:
         return {"item_id": row["item_id"], "status": row["status"], "category": row.get("category"),
                 "features": copy.deepcopy(feats), "object_id": None}
 
+    def pending_photos(self, limit: int = 10) -> list[dict]:
+        """11/7 사진 분석 대기(진짜 키오스크 사진 → 관제탑 PC Qwen 작업자 tools/intake_qwen_worker.py)"""
+        from agents.intake import is_pending_photo, pending_row
+        with self._lock:
+            rows = [r for r in self.items.values() if is_pending_photo(r)]
+        return [pending_row(r) for r in sorted(rows, key=lambda r: (r["received_at"], r["item_id"]))[:limit]]
+
     def chat_items(self) -> list[dict]:
         """11/7 챗봇 물건 검색용(읽기 전용 복사본): 공개 특징(색 등)만, 비공개 특징·연락처는 넣지 않는다"""
         with self._lock:

@@ -78,8 +78,10 @@ def _summary(feats: dict) -> str:
 
 class SimDirector:
     def __init__(self, service: TowerService, world: SimWorld, board: LiveBoard, auto_handover: bool = True,
-                 visit_wait_s: float = 120.0):
+                 visit_wait_s: float = 120.0, qwen_wait_s: float = 180.0):
         self.svc, self.world, self.board = service, world, board
+        self.qwen_wait_s = qwen_wait_s                  # 11/7 키오스크 사진 → 진짜 Qwen 특징을 기다리는 최대 시간(초)
+        self.qwen_wait: dict[str, threading.Event] = {}  # 접수 번호 → 특징이 들어오면 깨움
         self.auto_handover = auto_handover
         self.visit_wait_s = visit_wait_s
         self.pending: dict[str, dict] = {}          # 확인 질문 답을 기다리는 분실 신고
@@ -142,25 +144,81 @@ class SimDirector:
                 row = w.db_get_item(item_id) or {}
                 self.rep.progress(item_id, "Qwen 특징 분석", f"{_summary(row.get('features', {}))} · 비공개 특징은 확인 질문용으로만 저장")
                 self.board.stage("features", "done", _summary(row.get("features", {})))
-
-                self.board.stage("collect", "active", "등록기계 → 본센터")
-                w.sleep(1.5)
-                w.db_set_status(item_id, "회수 중", changed_by="staff")
-                w.move(item_id, LOC_TRANSIT)
-                self.rep.progress(item_id, "회수 시작", "등록기계 → 본센터(가상 이동)")
-                w.sleep(3.0)
-                self.board.stage("collect", "done")
-                if not w.move(item_id, LOC_BIN):
-                    self.rep.alert(item_id, "보관함 칸이 꽉 참 — 직원이 자리 정리", "")
-                    self.board.finish(sid, "보관함 칸 부족", False)
-                    return
-                w.db_set_status(item_id, "본센터 보관", changed_by="staff")
-                slot = w.items[item_id]["slot"] + 1
-                self.rep.progress(item_id, "보관함 배치", f"공용 보관함 {slot}번 칸 · 탑뷰 카메라 감시 시작")
-                self.board.stage("stored", "done", f"{slot}번 칸")
-                self.board.finish(sid, f"{item_id} 보관 완료 — 분실 신고가 오면 반환할 수 있음", True)
+                self._collect_store(sid, item_id)
             except Exception as e:      # 연출 오류는 경보로 보이고 관제탑은 계속 돈다
                 self.rep.alert(item_id, f"가상 습득 진행 오류({type(e).__name__})", "")
+                self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
+
+    def _collect_store(self, sid: str, item_id: str) -> None:
+        """특징이 채워진 물건: 등록기계 → 본센터 회수 → 보관함 칸(가상 습득·키오스크 습득 공통). 이야기에 묶인 상태에서 부른다"""
+        w = self.world
+        self.board.stage("collect", "active", "등록기계 → 본센터")
+        w.sleep(1.5)
+        w.db_set_status(item_id, "회수 중", changed_by="staff")
+        w.move(item_id, LOC_TRANSIT)
+        self.rep.progress(item_id, "회수 시작", "등록기계 → 본센터(가상 이동)")
+        w.sleep(3.0)
+        self.board.stage("collect", "done")
+        if not w.move(item_id, LOC_BIN):
+            self.rep.alert(item_id, "보관함 칸이 꽉 참 — 직원이 자리 정리", "")
+            self.board.finish(sid, "보관함 칸 부족", False)
+            return
+        w.db_set_status(item_id, "본센터 보관", changed_by="staff")
+        slot = w.items[item_id]["slot"] + 1
+        self.rep.progress(item_id, "보관함 배치", f"공용 보관함 {slot}번 칸 · 탑뷰 카메라 감시 시작")
+        self.board.stage("stored", "done", f"{slot}번 칸")
+        self.board.finish(sid, f"{item_id} 보관 완료 — 분실 신고가 오면 반환할 수 있음", True)
+
+    # ================= 11/7 진짜 키오스크 사진 습득(사진 분석만 진짜 Qwen) =================
+    def kiosk_found(self, rec: dict) -> str:
+        """키오스크 화면에서 사진과 함께 접수된 물건 → 이야기를 열고, 관제탑 PC Qwen 작업자가 특징을 채우면 회수·보관으로 잇는다.
+        작업자(tools/intake_qwen_worker.py)가 꺼져 있으면 qwen_wait_s 뒤 '직원 확인' 경보로 끝난다(가짜 특징을 만들지 않음)"""
+        item_id = rec["item_id"]
+        sid = self.board.new_story("found", f"습득 신고(키오스크) · {rec.get('place_text', '')}"[:60])
+        self.qwen_wait[item_id] = threading.Event()
+        with self.board.bind(sid):
+            self.board.set_ids(sid, item_id=item_id)
+            self.board.stage("intake", "done", item_id)
+            machine = rec.get("machine_id") or item_id[:1]
+            self.rep.progress(item_id, "등록기계 접수", f"{machine}({MACHINE_STATION.get(machine, '')}역) · 사진 촬영 접수")
+            self.board.stage("features", "active", "Qwen3-VL 사진 분석 중(관제탑 PC)")
+        self._spawn(self._after_kiosk, sid, item_id)
+        return sid
+
+    def on_features(self, item_id: str, qwen: dict | None) -> None:
+        """특징 저장 주소(/api/kiosk/items/{id}/features)가 불림 → Qwen 원본 기억 + 기다리던 이야기 깨우기"""
+        if isinstance(qwen, dict):
+            self.world.remember_qwen(item_id, qwen)
+        ev = self.qwen_wait.get(item_id)
+        if ev is not None:
+            ev.set()
+
+    def _after_kiosk(self, sid: str, item_id: str) -> None:
+        ev = self.qwen_wait.get(item_id)
+        with self.board.bind(sid):
+            try:
+                got = ev.wait(self.qwen_wait_s) if ev is not None else False
+                self.qwen_wait.pop(item_id, None)
+                if item_id not in self.world.items:          # 기다리는 동안 가상 세계 초기화
+                    self.board.finish(sid, "가상 세계 초기화로 중단", False)
+                    return
+                row = self.world.db_get_item(item_id) or {}
+                feats = row.get("features") or {}
+                if not got:
+                    self.board.stage("features", "fail", "Qwen 분석 결과 없음 — 작업자(intake_qwen_worker) 확인")
+                    self.rep.alert(item_id, "사진 분석 결과가 오지 않음 — 직원이 /admin 에서 확인", "")
+                    self.board.finish(sid, f"{item_id} 사진 분석 대기 시간 초과 — 등록기계에 보관 중(직원 확인)", False)
+                    return
+                if feats.get("category") in (None, UNKNOWN):
+                    self.board.stage("features", "fail", "사진으로 물건 종류를 알 수 없음")
+                    self.rep.alert(item_id, "물건 종류 확인 불가 — 직원 확인 필요", "")
+                    self.board.finish(sid, f"{item_id} 물건 종류 확인 불가 — 등록기계에 보관 중(직원 확인)", False)
+                    return
+                self.rep.progress(item_id, "Qwen 특징 분석", f"{_summary(feats)} · 비공개 특징은 확인 질문용으로만 저장")
+                self.board.stage("features", "done", _summary(feats))
+                self._collect_store(sid, item_id)
+            except Exception as e:
+                self.rep.alert(item_id, f"키오스크 습득 진행 오류({type(e).__name__})", "")
                 self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
 
     # ================= 분실 신고 =================
@@ -437,6 +495,9 @@ class SimDirector:
         """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
         11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
         w = self.world
+        waiting, self.qwen_wait = self.qwen_wait, {}    # 11/7 사진 분석을 기다리던 키오스크 이야기는 깨워서 '초기화로 중단'
+        for ev in waiting.values():
+            ev.set()
         st = getattr(self.svc, "storage", None)
         if st is not None:                              # 정답지 칸 비우기(세계 잠금 밖 — 정답지는 세계를 읽음)
             for sec in st.layout()["sections"]:
@@ -502,7 +563,8 @@ def build_sim_service(env: dict | None = None):
     svc = TowerService(factory, LiveReporter(Reporter(dry_run=not flag("TOWER_SEND")), board), reviewer=reviewer,
                        claims=SimClaimStore(world), intake=world, gpu_lease=lease_from_env(env))
     svc.board, svc.world = board, world
-    svc.sim = SimDirector(svc, world, board, auto_handover=not flag("TOWER_SIM_MANUAL_HANDOVER"))
+    svc.sim = SimDirector(svc, world, board, auto_handover=not flag("TOWER_SIM_MANUAL_HANDOVER"),
+                          qwen_wait_s=num("TOWER_SIM_QWEN_WAIT", 180))
     link_storage(svc, world)
     return svc
 

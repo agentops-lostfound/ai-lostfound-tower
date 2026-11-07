@@ -225,6 +225,12 @@ class MemoryIntakeStore:
             row.update(category=cat, features=pub, private_features=priv)
             return True
 
+    def pending_photos(self, limit: int = 10) -> list[dict]:
+        """11/7 사진 분석 대기: 사진은 있는데 Qwen 특징이 아직 없는 등록기계 보관 물건(오래된 것부터)"""
+        with self._lock:
+            rows = [r for r in self.items.values() if is_pending_photo(r)]
+        return [pending_row(r) for r in sorted(rows, key=lambda r: (r["received_at"], r["item_id"]))[:limit]]
+
     def photo_path(self, item_id: str) -> str | None:
         """11/6 인계 교차 검증: 직원이 실물과 비교할 등록 사진의 상대 경로(없으면 None)"""
         with self._lock:
@@ -253,6 +259,9 @@ SQL_INSERT_ITEM = ("INSERT INTO item (item_id, machine_id, place_id, place_text,
 SQL_INSERT_CONTACT = "INSERT INTO finder_contact (item_id, name, phone) VALUES (%s, %s, %s)"
 SQL_LOG_FIRST = ("INSERT INTO item_status_log (item_id, from_status, to_status, changed_by) "
                  "VALUES (%s, NULL, %s, 'kiosk')")
+SQL_PENDING_PHOTOS = ("SELECT item_id, machine_id, photo_path, received_at FROM item "
+                      "WHERE photo_path IS NOT NULL AND category = %s AND features = '{}'::jsonb AND status = %s "
+                      "ORDER BY received_at, item_id LIMIT %s")
 SQL_SET_FEATURES = ("UPDATE item SET category = %s, features = %s::jsonb, private_features = %s::jsonb, "
                     "updated_at = now() WHERE item_id = %s")
 
@@ -320,6 +329,13 @@ class PostgresIntakeStore:
                                            json.dumps(priv, ensure_ascii=False), item_id))
             return cur.rowcount == 1
 
+    def pending_photos(self, limit: int = 10) -> list[dict]:
+        """11/7 사진 분석 대기(MemoryIntakeStore.pending_photos 와 같은 조건)"""
+        with self._connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(SQL_PENDING_PHOTOS, (UNKNOWN, FIRST_STATUS, int(limit)))
+            return [{"item_id": r[0], "machine_id": r[1], "photo_path": r[2], "received_at": _iso(r[3])}
+                    for r in cur.fetchall()]
+
     def photo_path(self, item_id: str) -> str | None:
         """11/6 인계 교차 검증: 직원이 실물과 비교할 등록 사진의 상대 경로(없으면 None)"""
         with self._connect(self._dsn) as conn, conn.cursor() as cur:
@@ -328,9 +344,20 @@ class PostgresIntakeStore:
             return row[0] if row else None
 
 
+def is_pending_photo(row: dict) -> bool:
+    """사진 분석 대기 조건: 사진 있음 · 품목 확인 불가 · 특징 비어 있음 · 등록기계 보관"""
+    return (bool(row.get("photo_path")) and row.get("category") in (None, UNKNOWN) and not row.get("features")
+            and row.get("status") == FIRST_STATUS)
+
+
+def pending_row(row: dict) -> dict:
+    return {"item_id": row["item_id"], "machine_id": row.get("machine_id"), "photo_path": row["photo_path"],
+            "received_at": row.get("received_at")}
+
+
 def valid_item_id(item_id: str) -> bool:
     return bool(ITEM_ID_RE.match(item_id or ""))
 
 
-__all__ = ["IntakeError", "parse_intake", "parse_features", "receipt", "split_features", "IntakeStore",
+__all__ = ["is_pending_photo", "pending_row", "IntakeError", "parse_intake", "parse_features", "receipt", "split_features", "IntakeStore",
            "MemoryIntakeStore", "PostgresIntakeStore", "DEMO_PLACES", "valid_item_id"]

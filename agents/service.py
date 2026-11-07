@@ -251,6 +251,18 @@ class TowerService:
             except OSError:
                 pass
 
+    def pending_photos(self, limit: int = 10) -> list[dict]:
+        """11/7 사진 분석 대기 물건(접수 번호·등록기계·사진 상대 경로·접수 시각) — 연락처·특징은 없음"""
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 50:
+            raise RequestError("limit: 1~50")
+        fn = getattr(self.intake, "pending_photos", None)
+        if fn is None:
+            return []
+        try:
+            return fn(limit)
+        except Exception as e:
+            raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
+
     def set_item_features(self, item_id: str, payload: object) -> dict:
         """뒤에서 도는 Qwen 작업: 특징 채우기. 돌려주는 값은 공개 특징만(비공개 특징 = 확인 질문 정답)."""
         from agents.contracts import public_card
