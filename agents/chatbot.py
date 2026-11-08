@@ -10,6 +10,7 @@ from contextvars import ContextVar
 from typing import TypedDict
 from agents.lost_input import checked_text
 from agents.chat_rag import GroundedRag
+from agents.chat_progress import notify
 from agents.chat_search import SearchAgent
 from agents.search_context import checked_context
 from agents.chat_conversation import checked_history, checked_turns, natural_question, resolve_turn, search_intent
@@ -160,11 +161,13 @@ class Chatbot:
     def _item_search(self, state):
         from agents.observability import node_step
         with node_step('item_search', as_type='tool', input={'question': state['question']}) as obs:
+            notify('search')
             res = self.search.ask(state['question'], _search_access.get(), state.get('search_context'))
             obs.update(output={'status': res.get('status'), 'candidates': len(res.get('candidates') or [])})
         return {'results': {**(state.get('results') or {}), 'item_search': res}, 'path': state.get('path', []) + ['item_search']}
 
     def _ops_worker(self, state):
+        notify('analyze')
         from agents.observability import node_step
         with node_step('ops_analyst', as_type='agent', input={'question': state['question']}) as obs:
             res = self._ops(state)['result']
@@ -206,6 +209,7 @@ class Chatbot:
 
     def _both(self, state):
         guide = self._rag_ask(state)
+        notify('search')
         search = self.search.ask(state['question'], _search_access.get(), state.get('search_context'))
         return {'result': {**search, 'answer': guide['answer'] + '\n\n' + search['answer'],
                            'sources': guide['sources'], 'generation_used': guide.get('generation_used', False),

@@ -59,7 +59,7 @@ class ProgressNotifyTest(unittest.TestCase):
             notify("write")      # 알림 실패가 챗봇을 멈추면 안 됨
 
     def test_stage_percents_increase(self):
-        order = ["received", "route", "retrieve", "write", "check", "rewrite", "recheck"]
+        order = ["received", "route", "retrieve", "search", "analyze", "write", "check", "rewrite", "recheck"]   # 11/8 물건 찾기·관제 분석 단계 추가
         self.assertEqual(list(STAGES), order)
         self.assertEqual([STAGES[s] for s in order], sorted(STAGES[s] for s in order))
         self.assertLess(max(STAGES.values()), 100)

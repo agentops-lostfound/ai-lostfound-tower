@@ -40,9 +40,9 @@
   var MIN_W = KIOSK ? 380 : 300, MIN_H = KIOSK ? 420 : 340;
   var WIN_KEY = "lf-chat-win:" + location.pathname;
   // 11/8 진행률: 서버 단계(agents/chat_progress.py STAGES 와 같은 값)와 화면 글
-  var STAGE_PCT = { received: 5, route: 12, retrieve: 22, write: 35, check: 80, rewrite: 84, recheck: 92 };
+  var STAGE_PCT = { received: 5, route: 12, retrieve: 22, search: 28, analyze: 30, write: 35, check: 80, rewrite: 84, recheck: 92 };
   var STAGE_NEXT = { write: "check", rewrite: "recheck" };   // 반드시 뒤따르는 단계 — 그 전까지는 시간으로 채워도 다음 단계 값을 넘지 않음
-  var STAGE_TEXT = { received: "질문 받음", route: "질문 이해", retrieve: "안내 자료 찾기", write: "답 쓰기", check: "근거 확인", rewrite: "다시 쓰기", recheck: "다시 확인" };
+  var STAGE_TEXT = { received: "질문 받음", route: "질문 이해", retrieve: "안내 자료 찾기", search: "물건 찾기", analyze: "관제 기록 분석", write: "답 쓰기", check: "근거 확인", rewrite: "다시 쓰기", recheck: "다시 확인" };
   var SHOW_AFTER_MS = 300, DEFAULT_EST_MS = 3000;
   var SPACER = opt("spacer", "auto") !== "off";   // data-spacer="off" 면 페이지 끝 빈 칸을 만들지 않음
   var MAX_LEN = 500, MAX_HISTORY = 4, MAX_MESSAGES = 40, MAX_ANSWER = 300;
@@ -789,6 +789,17 @@
       if (!b.width || !b.height) continue;
       var ox = Math.min(b.right, r.x + r.w) - Math.max(b.left, r.x), oy = Math.min(b.bottom, r.y + r.h) - Math.max(b.top, r.y);
       if (ox > 0 && oy > 0) n += 1 + (ox * oy) / (b.width * b.height);   // 가려지는 요소 수 + 가려지는 비율
+    }
+    // 11/8: 제목·글도 약하게 센다(버튼이 적은 구석이 페이지 제목 위로 골라지던 것)
+    var texts;
+    try { texts = document.querySelectorAll("h1,h2,h3,p,label,li,td"); } catch (e2) { texts = []; }
+    for (var k = 0; k < texts.length && k < 600; k++) {
+      var t = texts[k];
+      if (!t.getBoundingClientRect || (host && host.contains && host.contains(t))) continue;
+      var tb = t.getBoundingClientRect();
+      if (!tb.width || !tb.height) continue;
+      var tx = Math.min(tb.right, r.x + r.w) - Math.max(tb.left, r.x), ty = Math.min(tb.bottom, r.y + r.h) - Math.max(tb.top, r.y);
+      if (tx > 0 && ty > 0) n += (/^H\d$/.test(t.tagName) ? 1.2 : 0.3) * (tx * ty) / (tb.width * tb.height);
     }
     return n;
   }
