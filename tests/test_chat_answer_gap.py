@@ -81,9 +81,11 @@ class AnswerGapTest(unittest.TestCase):
         self.assertIn("not_addressed:yesno", r["generation_note"])
 
     def test_model_says_not_in_passages(self):
-        req = model(say(FINDER_EV, FINDER_SEN), say(FINDER_EV, FINDER_SEN, answerable=False))
+        req = model(say(FINDER_EV, FINDER_SEN),
+                    say("주운 물건은 가까운 역 키오스크", "주운 물건은 가까운 역 키오스크에서 신고해 주세요.", answerable=False))
         r = GroundedRag(Guidance(), "m", request=req).ask(FINDER_Q)
         self.assertTrue(r["answer"].startswith(GAP_LEAD), r["answer"])
+        self.assertNotIn("신고", r["answer"])                             # 11/8 실측: 다시 쓴 답의 관련 없는 문장은 안 씀(첫 답 사용)
         self.assertIn("30일", r["answer"])                                # 관련 근거는 그대로 알려 줌
         self.assertIn("not_addressed:yesno", r["generation_note"])
 
