@@ -43,7 +43,12 @@ input[type=password]:focus{border-color:var(--accent);background:var(--ui-surfac
 #app{flex:1;display:none;flex-direction:column;min-height:0}
 #app.on{display:flex}
 iframe{flex:1;width:100%;border:0;background:var(--bg)}
-@media (max-width:600px){header{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+/* 11/8 그림 안내: 탭 아이콘·로그인 자물쇠(선 그림, currentColor) */
+button.tab{display:inline-flex;align-items:center;gap:6px}
+button.tab svg{width:18px;height:18px;flex:none}
+#login .lock{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--ui-primary-soft);color:var(--accent);margin-bottom:14px}
+#login .lock svg{width:28px;height:28px}
+@media (max-width:600px){button.tab svg{width:16px;height:16px} header{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
   header h1{font-size:18px} [data-theme-slot]{order:1} #who{order:2;flex-basis:100%;gap:4px}
   #who button{font-size:13.5px;padding:0 10px;min-height:38px} #logout{margin-left:auto}}
 </style>
@@ -52,17 +57,18 @@ iframe{flex:1;width:100%;border:0;background:var(--bg)}
 <header>
   <h1>관리자 관제</h1>
   <span id="who" hidden>
-    <button class="tab ghost on" data-tab="live">관제 모니터링</button>
-    <button class="tab ghost" data-tab="staff">반환·직원</button>
-    <button class="tab ghost" data-tab="storage">보관함</button>
+    <button class="tab ghost on" data-tab="live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M6.5 11l3-3 2.5 2.5L17 7"/></svg>관제 모니터링</button>
+    <button class="tab ghost" data-tab="staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.8-3.3 3-5 5.5-5s4.7 1.7 5.5 5"/><path d="m15 11 2 2 4-4"/></svg>반환·직원</button>
+    <button class="tab ghost" data-tab="storage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/></svg>보관함</button>
     <button class="ghost" id="logout">로그아웃</button>
   </span>
   <span data-theme-slot></span>
 </header>
 
 <form id="login" autocomplete="off">
+  <div class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="잠금: 관리자 전용"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.3"/></svg></div>
   <h2>관리자 로그인</h2>
-  <p>관리자 비밀번호를 입력하세요.</p>
+  <p>비밀번호를 입력하세요.</p>
   <p id="err" role="alert"></p>
   <input type="password" id="pw" placeholder="비밀번호" autocomplete="current-password" required>
   <button type="submit" style="width:100%">로그인</button>

@@ -86,7 +86,25 @@
   .seg button.on.no { background: var(--bad); color: #fff; }
   .xphoto { max-width: min(220px, 100%); max-height: 160px; border-radius: 12px; }
   .secret { padding: 8px 12px; border-radius: 10px; background: var(--ui-warn-soft); color: var(--fg); font-weight: 700; }
+  /* 11/8 글 줄이기: 긴 설명은 "ⓘ 자세히"로 접고, 교차 검증 3가지는 선 그림으로 */
+  details.more { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+  details.more summary { width: fit-content; list-style: none; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--chip); }
+  details.more summary::-webkit-details-marker { display: none; }
+  details.more[open] summary { margin-bottom: 8px; }
+  .ico { width: 22px; height: 22px; flex: none; vertical-align: -5px; color: var(--accent); }
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+  .flow .chk { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: 999px; background: var(--soft); font-weight: 600; font-size: 14px; }
+  .flow .arrow { width: 22px; height: 22px; color: var(--ui-text-3); flex: none; }
+  .flow .out { display: inline-flex; flex-direction: column; gap: 2px; font-size: 13px; font-weight: 600; }
+  .flow .out span { display: inline-flex; align-items: center; gap: 4px; }
+  .flow .out svg { width: 16px; height: 16px; }
+  .xstep h3 { display: flex; gap: 8px; align-items: flex-start; }
+  label.check .ico { margin-top: 0; }
+  #queue { max-height: min(46vh, 420px); overflow: auto; }
+  .table-wrap { max-height: min(60vh, 520px); overflow: auto; }
+  thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
   @media (max-width: 600px) {
+    .flow .arrow.mid { display: none; }
     body { padding-top: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
     h1 { font-size: 21px; } section { padding: 18px; }
     .kv { grid-template-columns: 1fr; gap: 0; } .kv b { font-size: 13px; margin-top: 6px; } .kv b:first-child { margin-top: 0; }
@@ -104,27 +122,33 @@
     <button id="robotStop" class="stop">🛑 정지</button>
     <button id="robotHome">원점 복귀</button>
     <button id="robotHomeOk" class="primary" hidden>주변 확인함 · 복귀</button>
-    <span class="muted" id="robotMsg">정지는 반환 중에도 바로 누릅니다. 원점 복귀는 로봇 주변을 확인한 뒤에만.</span>
+    <span class="muted" id="robotMsg">정지: 언제든 · 원점 복귀: 주변 확인 후</span>
   </div>
 
   <section id="xcheck">
     <h2>제출보관함 교차 검증</h2>
-    <p class="muted">로봇이 제출보관함에 둔 물건을 건네기 전에, AI 판단과 따로 직원이 세 가지를 확인합니다. 하나라도 다르면 건네지 않습니다(반환 보류 → 원래 칸으로).</p>
-    <div id="queue"><p class="muted">불러오는 중…</p></div>
+    <div class="flow" role="group" aria-label="교차 검증: 물건, 신분증, 비공개 특징 세 가지가 모두 맞으면 건넴, 하나라도 다르면 반환 보류">
+      <span class="chk"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="물건 대조"><path d="M3.5 8 12 3.5 20.5 8v8L12 20.5 3.5 16z"/><path d="M3.5 8 12 12.5 20.5 8M12 12.5v8"/></svg>물건</span>
+      <span class="chk"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="신분증 대조"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14 10h4.5M14 13.5h3"/></svg>신분증</span>
+      <span class="chk"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="비공개 특징 확인"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5.5 5.5"/><path d="M8 10.5h5M10.5 8v5"/></svg>안쪽 특징</span>
+      <svg class="arrow mid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="그러면"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      <span class="out"><span class="ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg> 모두 맞음 → 건넴</span><span class="bad"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg> 하나라도 다름 → 보류</span></span>
+    </div>
+    <details class="more"><summary>ⓘ 자세히</summary>로봇이 제출보관함에 둔 물건을 건네기 전에, AI 판단과 따로 직원이 세 가지를 확인합니다. 하나라도 다르면 건네지 않고 반환 보류 → 원래 칸으로 되돌립니다.</details>
+    <div id="queue" data-scroll-hint="아래에 더 있음"><p class="muted">불러오는 중…</p></div>
     <div id="xbox" hidden>
       <div class="kv" id="xkv"></div>
       <div class="xstep" data-k="item_match">
-        <h3>① 물건 대조 — 제출보관함의 실물이 등록 사진·특징과 같은 물건인가요?</h3>
+        <h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="물건"><path d="M3.5 8 12 3.5 20.5 8v8L12 20.5 3.5 16z"/><path d="M3.5 8 12 12.5 20.5 8M12 12.5v8"/></svg><span>① 실물이 등록 사진·특징과 같나요?</span></h3>
         <div class="row"><img id="xphoto" class="xphoto" alt="등록 사진" hidden><span class="muted" id="xpub"></span></div>
         <div class="seg"><button class="yes">같음</button><button class="no">다름</button></div>
       </div>
       <div class="xstep" data-k="id_match">
-        <h3>② 신분증 대조 — 실물 신분증 이름·사진이 가린 이름·방문자와 맞나요?</h3>
-        <span class="muted">신분증 번호는 입력하지 않습니다(맞는지만 고름)</span>
+        <h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="신분증"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14 10h4.5M14 13.5h3"/></svg><span>② 신분증 이름·사진이 방문자와 맞나요? <span class="muted">(번호 입력 안 함)</span></span></h3>
         <div class="seg"><button class="yes">맞음</button><button class="no">다름</button></div>
       </div>
       <div class="xstep" data-k="feature_match">
-        <h3>③ 비공개 특징 — 분실인에게 <b>먼저</b> 물건만의 특징(스티커·글자 등)을 말해 달라고 하세요</h3>
+        <h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="비공개 특징"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5.5 5.5"/><path d="M8 10.5h5M10.5 8v5"/></svg><span>③ 분실인이 <b>먼저</b> 특징(스티커·글자 등)을 말하게 하세요</span></h3>
         <div class="row"><button id="xreveal">들었음 → 답 보기</button><span class="secret" id="xsecret" hidden></span></div>
         <div class="seg"><button class="yes" disabled>일치</button><button class="no" disabled>불일치</button></div>
       </div>
@@ -134,25 +158,25 @@
   </section>
 
   <section>
-    <h2>키오스크를 못 쓸 때: 직원이 반환 시작 — 1. 찾기 번호 조회</h2>
+    <h2>키오스크를 못 쓸 때 · 1. 찾기 번호 조회</h2>
     <div class="row">
       <input type="text" id="claimId" placeholder="C-20261103-0001" autocomplete="off" aria-label="찾기 번호">
       <button id="lookup" class="primary">조회</button>
     </div>
-    <p class="muted" id="lookupMsg">분실인이 웹에서 받은 찾기 번호를 입력합니다.</p>
+    <p class="muted" id="lookupMsg">웹에서 받은 찾기 번호</p>
   </section>
 
   <section id="claimBox" hidden>
     <h2>2. 찾기 요청 확인</h2>
     <div class="kv" id="claimKv"></div>
-    <div class="muted">웹에서 끝낸 확인(저장된 값 — 여기서 바꿀 수 없음)</div>
+    <div class="muted">웹 확인 결과 (바꿀 수 없음)</div>
     <div class="gates" id="webGates"></div>
 
     <h2>3. 현장 확인</h2>
-    <label class="check"><input type="checkbox" id="g1"><span><b>실물 신분증 대조</b> — 신분증 이름이 위의 가린 이름과 맞고, 사진이 방문자 본인입니다</span></label>
-    <label class="check"><input type="checkbox" id="g2"><span><b>안쪽 특징 확인</b> — 물건 안쪽 특징(카드 종류 등)을 방문자 설명과 맞춰 봤습니다</span></label>
-    <label class="check"><input type="checkbox" id="g3"><span><b>직원 최종 확인</b> — 이 물건을 이 방문자에게 돌려줘도 됩니다</span></label>
-    <p class="muted">하나라도 맞지 않으면 체크하지 말고 반환을 시작하세요. 관제탑이 <b>반환 안 함</b>으로 기록하고 로봇을 움직이지 않습니다.</p>
+    <label class="check"><input type="checkbox" id="g1"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="신분증"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14 10h4.5M14 13.5h3"/></svg><span><b>신분증</b> — 이름·사진이 방문자와 맞음</span></label>
+    <label class="check"><input type="checkbox" id="g2"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="안쪽 특징"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5.5 5.5"/><path d="M8 10.5h5M10.5 8v5"/></svg><span><b>안쪽 특징</b> — 방문자 설명과 맞음</span></label>
+    <label class="check"><input type="checkbox" id="g3"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="직원 최종 확인"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-3.6 3.7-5.5 7-5.5s6 1.9 7 5.5"/><path d="m15.5 4.5 1.5 1.5 3-3"/></svg><span><b>직원 최종 확인</b> — 돌려줘도 됨</span></label>
+    <p class="muted">맞지 않으면 체크하지 않고 반환 시작 → <b>반환 안 함</b> 기록, 로봇 안 움직임</p>
     <div class="row">
       <button id="start" class="primary" disabled>반환 시작</button>
       <span class="muted" id="startMsg"></span>
@@ -162,7 +186,7 @@
 
   <section>
     <h2>최근 반환 기록</h2>
-    <div class="table-wrap"><table>
+    <div class="table-wrap" data-scroll-hint="아래에 더 있음"><table>
       <thead><tr><th>사례</th><th>찾기</th><th>물건</th><th>결과</th><th>이유</th><th>시각</th></tr></thead>
       <tbody id="recent"><tr><td colspan="6" class="muted">불러오는 중…</td></tr></tbody>
     </table></div>
@@ -171,7 +195,7 @@
   <section>
     <details>
       <summary>시연용 찾기 요청 만들기 (웹이 연결되기 전 연습용)</summary>
-      <p class="muted">웹 화면 대신 가짜 찾기 요청을 만듭니다. 가린 이름·가린 번호만 쓰고 실제 개인정보는 넣지 않습니다.</p>
+      <p class="muted">가짜 찾기 요청(가린 이름·번호만, 개인정보 없음)</p>
       <div class="row">
         <select id="demoItem" aria-label="시연 물건">
           <option>A-W01</option><option>A-W02</option><option>A-W03</option><option>A-W04</option>

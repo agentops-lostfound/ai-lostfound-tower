@@ -67,6 +67,16 @@
   input[type=text]:focus { border-color:var(--accent); background:var(--panel); }
   .hd-right { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
   [hidden] { display:none !important; }
+  /* 11/8 글 줄이기: 칸 범례는 작은 칸 그림으로, 긴 설명은 "ⓘ 자세히"로 접음 */
+  .legend { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin:12px 0 0; color:var(--muted); font-size:13px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .legend svg { width:26px; height:20px; flex:none; }
+  details.more { margin:8px 0 0; padding:0; border:0; font-size:13px; color:var(--muted); }
+  details.more summary { width:fit-content; list-style:none; font-size:13px; padding:2px 10px; border-radius:999px; background:var(--chip); }
+  details.more summary::-webkit-details-marker { display:none; }
+  details.more[open] summary { margin-bottom:6px; }
+  section > details.more { margin:0 0 14px; }
+  #arrivals { max-height:min(66vh, 640px); overflow:auto; }
   @media (max-width:600px) { .boardwrap { grid-template-columns:1fr; } .row { grid-template-columns:56px 1fr 1fr; }   /* 11/8 휴대폰 폭: 제출보관함이 R2-2 칸을 덮던 것 */
     body { padding-top:16px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
     h1 { font-size:21px; } section { padding:18px; } .board { padding:8px; } }
@@ -80,9 +90,9 @@
   </header>
 
   <section aria-labelledby="h-arr">
-    <h2 id="h-arr">1. 도착 대기 (칸이 정해지지 않은 물건)</h2>
-    <p class="muted">회수해 온 물건을 고르면 품목에 맞는 빈 칸을 추천합니다. 품목을 모르면 사진을 보고 칸을 직접 고르세요.</p>
-    <div id="arrivals"><p class="muted">불러오는 중…</p></div>
+    <h2 id="h-arr">1. 도착 대기</h2>
+    <p class="muted">물건을 고르면 빈 칸을 추천합니다.</p>
+    <div id="arrivals" data-scroll-hint="아래에 더 있음"><p class="muted">불러오는 중…</p></div>
   </section>
 
   <section aria-labelledby="h-board">
@@ -91,7 +101,14 @@
       <div class="board" id="board"></div>
       <div id="hbox"></div>
     </div>
-    <p class="muted">왼쪽 굵은 선 = 로봇팔 쪽 · 1행 모형폰은 사선으로, 칸 간격이 넓음 · 노란 바구니는 가림막(칸 아님)</p>
+    <div class="legend">
+      <span><svg viewBox="0 0 26 20" role="img" aria-label="점선 칸: 빈 칸"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--panel)" stroke="var(--line)" stroke-width="2" stroke-dasharray="3 2.5"/></svg>빈 칸</span>
+      <span><svg viewBox="0 0 26 20" role="img" aria-label="파란 칸: 사용 중"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--slot)"/><path d="M7 10h12" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>사용 중</span>
+      <span><svg viewBox="0 0 26 20" role="img" aria-label="파란 점선 테두리: 추천 칸"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--panel)" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 2.5"/></svg>추천</span>
+      <span><svg viewBox="0 0 26 20" role="img" aria-label="주황 테두리: 고른 칸"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--pick)" stroke="var(--warn)" stroke-width="2"/></svg>고른 칸</span>
+      <span><svg viewBox="0 0 26 20" role="img" aria-label="왼쪽 굵은 선: 로봇팔 쪽"><rect x="3" y="2" width="4" height="16" rx="2" fill="var(--ui-text-3)"/><path d="M11 10h11M18 6l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>로봇팔 쪽</span>
+    </div>
+    <details class="more"><summary>ⓘ 자세히</summary>1행 모형폰은 사선으로 놓고 칸 간격이 넓습니다 · 노란 바구니는 가림막(칸 아님)</details>
     <div class="actions">
       <span id="pickInfo" class="muted">물건을 먼저 고르세요</span>
     </div>
@@ -102,7 +119,7 @@
     </div>
     <details>
       <summary>칸 관리(비우기·저장 자세) — 로봇 티칭 담당용</summary>
-      <p class="muted">칸을 누르면 아래에서 그 칸을 비우거나 저장 자세 이름(예: pose_1)을 연결합니다.</p>
+      <p class="muted">칸을 누른 뒤 비우거나 자세 이름(예: pose_1)을 연결</p>
       <div class="actions"><b id="mgSlot">칸 없음</b><input type="text" id="pose" placeholder="pose_1" aria-label="저장 자세 이름">
         <button id="savePose" disabled>자세 저장</button><button id="release" disabled>칸 비우기</button><span class="msg" id="mgMsg"></span></div>
     </details>
