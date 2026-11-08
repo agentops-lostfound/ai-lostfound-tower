@@ -4,9 +4,10 @@ const test=require('node:test'),assert=require('node:assert/strict'),vm=require(
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const SRC=fs.readFileSync(path.join(__dirname,'../web/chat-widget/widget.js'),'utf8');
 
-function setup({questionFetch,storage,width=1280,height=900}={}){
+function setup({questionFetch,storage,width=1280,height=900,pageTheme=null}={}){
  const timers=new Map(),calls=[];let timerId=0;const clock={t:0};
  const doc={readyState:'complete',activeElement:null,addEventListener(){}};
+ if(pageTheme!==null)doc.documentElement={getAttribute:k=>k==='data-theme'?pageTheme:null};
  class Element{
   constructor(tag){this.tag=tag;this.children=[];this.attributes={};this.events={};this.style={};this.className='';this.value='';this.textContent='';this.hidden=false;this.disabled=false;this.classList={add:n=>{if(!this.className.split(' ').includes(n))this.className+=' '+n;},remove:n=>{this.className=this.className.split(' ').filter(c=>c!==n).join(' ');}};}
   set innerHTML(v){this._html=v;} get innerHTML(){return this._html||'';}
@@ -166,4 +167,39 @@ test('broken localStorage does not stop the window',async()=>{
  const bad={getItem(){throw Error('blocked');},setItem(){throw Error('blocked');},removeItem(){throw Error('blocked');}};
  const s=setup({storage:bad});s.open();s.button('창 크게').dispatchEvent({type:'click'});assert.equal(s.get('.panel').style.width,'480px');
  s.window.LostFoundChat.close();assert.equal(s.get('.panel').hidden,true);
+});
+
+// ── 11/9 창 밝기 단추 ──
+const wrapOf=s=>s.root.children.find(n=>(n.className||'').split(' ').includes('wrap'));
+test('theme button toggles only the chat window and is remembered in the window key',()=>{
+ const store=memoryStorage();
+ const s=setup({storage:store,pageTheme:'light'});s.open();
+ assert.equal(wrapOf(s).getAttribute('data-theme'),'light','기본은 화면 테마를 따름');
+ const btn=s.button('챗봇 창 어둡게');
+ assert.ok(btn,'밝기 단추에 aria-label');
+ btn.dispatchEvent({type:'click'});
+ assert.equal(wrapOf(s).getAttribute('data-theme'),'dark');
+ assert.ok(s.button('챗봇 창 밝게'),'누른 뒤 반대 동작 이름으로 바뀜');
+ assert.deepEqual([...store.m.keys()],['lf-chat-win:/lost'],'창 설정 칸 하나만(대화는 넣지 않음)');
+ const saved=JSON.parse(store.m.get('lf-chat-win:/lost'));
+ assert.equal(saved.theme,'dark');
+ assert.ok(!('history' in saved)&&!('msgs' in saved));
+ // 새로 고침: 같은 저장소로 다시 띄우면 창만 다크
+ const again=setup({storage:store,pageTheme:'light'});again.open();
+ assert.equal(wrapOf(again).getAttribute('data-theme'),'dark');
+ // 화면과 같은 밝기로 다시 누르면 기억을 지우고 화면을 따름
+ again.button('챗봇 창 밝게').dispatchEvent({type:'click'});
+ assert.equal(wrapOf(again).getAttribute('data-theme'),'light');
+ assert.equal(store.m.has('lf-chat-win:/lost'),false,'창 자리를 옮긴 적이 없으면 칸을 비움');
+});
+test('without a chosen value the window follows the page theme',()=>{
+ const s=setup({storage:memoryStorage(),pageTheme:'dark'});s.open();
+ assert.equal(wrapOf(s).getAttribute('data-theme'),'dark');
+ assert.ok(s.button('챗봇 창 밝게'));
+ const t=setup({storage:memoryStorage()});t.open();
+ assert.equal(wrapOf(t).getAttribute('data-theme'),'auto','화면 값이 없으면 OS 설정(auto)');
+});
+test('header buttons are at least 44px (kiosk 56px)',()=>{
+ assert.match(SRC,/\.icon\{[^}]*width:44px;height:44px/);
+ assert.match(SRC,/\.wrap\.kiosk \.icon\{width:56px;height:56px/);
 });

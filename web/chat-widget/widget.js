@@ -16,6 +16,8 @@
  * 코드에서: window.LostFoundChat.open() / close() / toggle()
  * 대화 내용은 이 화면에만 있고 저장하지 않는다(새로 고침하면 사라짐). 스타일은 Shadow DOM 안에 가둬 화면 디자인을 건드리지 않는다.
  * 11/8 디자인 개편: 색·글꼴은 공통 토큰(/ui/theme.css 의 --ui-*)을 따른다(없는 화면은 대체값). 화면이 라이트/다크를 바꾸면(html data-theme) 위젯도 같이 바뀐다.
+ * 11/9 창 밝기 단추(머리줄 ☀/🌙 그림): 이 창만 라이트·다크를 바꾼다. 고른 값은 창 자리와 같은 localStorage 칸(winKey)의 theme 에 기억하고,
+ *   직접 고른 값이 있으면 화면 테마보다 우선한다. 화면과 같은 밝기로 다시 누르면 기억을 지우고 다시 화면을 따른다.
  */
 (function () {
   "use strict";
@@ -71,6 +73,12 @@
     try { if (v) sessionStorage.setItem(STORE_KEY, JSON.stringify(v)); else sessionStorage.removeItem(STORE_KEY); } catch (e) { /* 저장 못 해도 대화는 계속 */ }
   }
 
+  // 11/9 창에서 직접 고른 밝기: 화면의 공통 토큰(--ui-*)은 화면 테마 값이라, 창만 반대 밝기를 고르면 .wrap 안에서 공통 토큰을
+  // /ui/theme.css 와 같은 값으로 다시 정한다(아래 .wrap[data-own=…]). 값을 바꾸면 theme.css 와 함께 바꾼다
+  var OWN_TOKENS = {
+    light: "--ui-surface:#ffffff;--ui-text:#191f28;--ui-text-2:#4e5968;--ui-text-3:#8b95a1;--ui-line:#e5e8eb;--ui-fill:#f2f4f6;--ui-fill-hover:#e8ebed;--ui-primary:#3182f6;--ui-primary-hover:#1b64da;--ui-primary-soft:#e8f3ff;--ui-on-primary:#ffffff;--ui-ok:#03b26c;--ui-warn:#e58a00;--ui-warn-soft:#fff4e0;--ui-err:#f04452",
+    dark: "--ui-surface:#1c1c21;--ui-text:#f2f3f5;--ui-text-2:#b0b4bc;--ui-text-3:#7e838c;--ui-line:#2e2e36;--ui-fill:#2a2a32;--ui-fill-hover:#33333c;--ui-primary:#4593fc;--ui-primary-hover:#6aa8fd;--ui-primary-soft:#1b2a40;--ui-on-primary:#ffffff;--ui-ok:#20c47f;--ui-warn:#f0a33a;--ui-warn-soft:#362a14;--ui-err:#ff5f6d"
+  };
   var CSS = [
     ":host{all:initial}",
     "*{box-sizing:border-box;font-family:var(--ui-font,'Pretendard Variable','Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,sans-serif);letter-spacing:-.01em}",
@@ -79,6 +87,8 @@
     "/* 다크: 화면이 data-theme=dark 를 고른 경우 + data-theme 없이 OS 가 다크인 경우(.wrap[data-theme] 는 화면의 html 값을 그대로 옮긴 것) */",
     "@media (prefers-color-scheme:dark){.wrap:not([data-theme=light]){color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}}",
     ".wrap[data-theme=dark]{color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}",
+    ".wrap[data-own=light]{" + OWN_TOKENS.light + "}",
+    ".wrap[data-own=dark]{" + OWN_TOKENS.dark + "}",
     "/* 11/8 가림 줄이기: 닫힌 단추는 내릴 때 잠깐 숨고(.tuck) 페이지 끝에 단추만큼 빈 칸(host 높이)을 둔다.",
     "   연 창은 작은 떠 있는 창(left/top/width/height 는 스크립트가 정함). 어두운 막이 없어 창 밖 화면은 그대로 누를 수 있다 */",
     ".launcher{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:2147483000;width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);box-shadow:var(--ring),var(--shadow);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;font-size:11.5px;font-weight:700;line-height:1.1;transition:background-color .15s,transform .2s,opacity .2s}",
@@ -121,21 +131,22 @@
     ".wrap.kiosk header h2{font-size:21px}",
     ".wrap.kiosk header .mode{font-size:15px}",
     ".wrap.kiosk .badge,.wrap.kiosk details,.wrap.kiosk .retry{font-size:15px}",
-    ".wrap.kiosk .icon{width:52px;height:52px;font-size:22px}",
+    ".wrap.kiosk .icon{width:56px;height:56px;font-size:22px}",
     ".wrap.kiosk .icon svg{width:24px;height:24px}",
     ".wrap.kiosk .prog .ptxt{font-size:15px}",
     "@media (max-width:480px){.launcher{width:52px;height:52px;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px))}.launcher .txt{display:none}.launcher svg{width:24px;height:24px}.wrap.kiosk .launcher{width:72px;height:72px}}",
     "/* 휴대폰 폭: 손잡이는 숨기고(손가락으로 잡기 어려움) 작게·크게 단추로 높이를 바꾼다 */",
     "@media (max-width:600px){.grip{display:none}.panel{border-radius:18px}.wrap.kiosk .icon{width:44px;height:44px;font-size:18px}}",
-    "header{display:flex;align-items:center;gap:6px;padding:12px 10px 10px 20px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;flex:none}",
+    "header{display:flex;align-items:center;gap:6px;padding:10px 8px 8px 20px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;flex:none}",
     ".wrap.dragging header{cursor:grabbing}",
-    "header .tools{display:flex;gap:4px;flex:none}",
+    "header .tools{display:flex;gap:2px;flex:none}",
     "header .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 18%,transparent);flex:none}",
     "header .dot.off{background:var(--faint);box-shadow:none}",
     "header .dot{margin-right:6px}",
     "header h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;color:var(--fg)}",
-    "header .mode{display:block;font-size:12.5px;font-weight:500;color:var(--faint);letter-spacing:0;margin-top:1px}",
-    ".icon{border:0;background:transparent;color:var(--muted);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:15px;flex:none;display:grid;place-items:center;padding:0;transition:background-color .15s}",
+    "header .mode{display:block;font-size:12.5px;font-weight:500;color:var(--faint);letter-spacing:0;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    "/* 11/9 머리줄 단추는 손가락으로 누르기 쉽게 44px(키오스크 56px) */",
+    ".icon{border:0;background:transparent;color:var(--muted);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:15px;flex:none;display:grid;place-items:center;padding:0;transition:background-color .15s}",
     ".icon svg{width:18px;height:18px}",
     ".icon.close{background:var(--soft)}",
     ".icon:hover{background:var(--soft-hover);color:var(--fg)}",
@@ -193,12 +204,15 @@
   ].join("\n");
 
   var host, root, wrap, panel, launcher, log, form, input, sendBtn, countEl, modeEl, dotEl, statusEl;
-  var header, grip, pill, pillText, minBtn, sizeBtn;
+  var header, grip, pill, pillText, minBtn, sizeBtn, themeBtn;
+  var userTheme = null;   // 11/9 이 창에서 직접 고른 밝기("light"|"dark"), 없으면 null = 화면 테마를 따름
   var lastY = 0, tuckTimer = null;
   var win = null, cur = null, minimized = false, winPhone = null;   // 창 자리: win = 기억하는 값(붙은 구석 + 거리 + 크기), cur = 지금 그린 사각형
   var durations = [], metricsP50 = null, metricsP95 = null;          // 진행률 예상 시간(최근 응답 시간)
   var SVG_MIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 17h12"/></svg>';
   var SVG_BIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>';
+  var SVG_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>';
+  var SVG_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
   var SVG_SMALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7"/></svg>';
   var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 1 3.3 6.5L4 19.5l1-3.4A7.9 7.9 0 0 1 4 12z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>';
   var busy = false, history = [], suggestions = [], lastFocus = null, loadedOnce = false;
@@ -241,6 +255,9 @@
     modeEl = el("span", "mode", "연결 확인 중…");
     h2.appendChild(modeEl);
     var tools = el("div", "tools");
+    themeBtn = el("button", "icon theme");
+    themeBtn.type = "button";
+    themeBtn.addEventListener("click", function () { toggleTheme(); });
     minBtn = el("button", "icon min");
     minBtn.type = "button";
     minBtn.innerHTML = SVG_MIN;
@@ -258,7 +275,7 @@
     close.setAttribute("aria-label", "챗봇 닫기");
     close.title = "닫기";
     close.addEventListener("click", function () { closePanel(); });
-    tools.append(minBtn, sizeBtn, close);
+    tools.append(themeBtn, minBtn, sizeBtn, close);
     header.append(dotEl, h2, tools);
     header.addEventListener("pointerdown", function (e) {
       if (e.button > 0 || (e.target && e.target.closest && e.target.closest("button"))) return;
@@ -333,16 +350,45 @@
 
   // 11/8 디자인 개편: 화면 <html data-theme="light|dark">(/ui/theme.js 전환 버튼)를 위젯 안쪽(.wrap)에도 옮겨 적는다.
   // Shadow DOM 안 CSS 는 바깥 html 속성을 직접 볼 수 없어서다. 값이 없으면 "auto" → OS 밝기 설정을 따른다
-  function syncTheme() {
+  // 11/9 창 밝기 단추: 이 창에서 고른 값(userTheme)이 있으면 그 값, 없으면 화면 값. 우선순위 = 창에서 고른 값 > 화면 data-theme > OS 설정
+  function pageThemeAttr() {
     var de = document.documentElement;
     var t = de && de.getAttribute ? de.getAttribute("data-theme") : null;
-    wrap.setAttribute("data-theme", t === "light" || t === "dark" ? t : "auto");
+    return t === "light" || t === "dark" ? t : null;
+  }
+  function osDark() {
+    try { return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches); } catch (e) { return false; }
+  }
+  function pageTheme() { return pageThemeAttr() || (osDark() ? "dark" : "light"); }
+  function effectiveTheme() { return userTheme || pageTheme(); }
+  function paintThemeBtn() {
+    if (!themeBtn) return;
+    var dark = effectiveTheme() === "dark";
+    themeBtn.innerHTML = dark ? SVG_SUN : SVG_MOON;      // 누르면 바뀔 모습: 다크일 때 해(밝게), 라이트일 때 달(어둡게)
+    themeBtn.setAttribute("aria-label", dark ? "챗봇 창 밝게" : "챗봇 창 어둡게");
+    themeBtn.title = dark ? "창 밝게" : "창 어둡게";
+  }
+  function syncTheme() {
+    wrap.setAttribute("data-theme", userTheme || pageThemeAttr() || "auto");
+    if (userTheme) wrap.setAttribute("data-own", userTheme); else if (wrap.removeAttribute) wrap.removeAttribute("data-own"); else wrap.setAttribute("data-own", "");
+    paintThemeBtn();
+  }
+  function toggleTheme() {
+    var next = effectiveTheme() === "dark" ? "light" : "dark";
+    userTheme = next === pageTheme() ? null : next;     // 화면과 같은 값으로 돌아오면 기억을 지우고 다시 화면을 따른다
+    writeStore();
+    syncTheme();
   }
   function watchTheme() {
+    userTheme = loadTheme();
     syncTheme();
     if (typeof MutationObserver === "function" && document.documentElement) {
       new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     }
+    try {
+      var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+      if (mq && mq.addEventListener) mq.addEventListener("change", paintThemeBtn); else if (mq && mq.addListener) mq.addListener(paintThemeBtn);
+    } catch (e) { /* 오래된 브라우저: 단추 그림만 늦게 바뀜 */ }
   }
 
   function restoreChat() {
@@ -461,6 +507,7 @@
   function badgeText(res) {
     if (res.agent === "ops") return res.ops_used_llm && res.ops_used_llm.length ? "관제 분석 · AI 보고" : "관제 분석 · 계산 보고";
     if (res.agent === "search" || res.agent === "both") return res.database_mode === "demo_sqlite" ? "가상 DB 시연" : "물건 검색 안내";
+    if (res.generation_status === "off_topic") return "분실물 서비스 안내만 해요";   // 11/9 날씨·맛집 같은 서비스 밖 질문
     if (res.generation_used) return "문서 검색 + AI 답변";
     if (res.status === "answered") return res.sources && res.sources.length ? "문서 근거 안내" : "대화 안내";
     if (res.status === "partial" || res.status === "policy_pending") return "확정 안내가 필요한 내용";
@@ -740,10 +787,31 @@
     return SIZES[name] || SIZES.small;
   }
   function winKey() { return WIN_KEY + (isPhone() ? ":phone" : ""); }
-  function loadWin() {
+  // 창 설정 한 칸(winKey): 창 자리·크기 + 11/9 창 밝기(theme). 대화·질문은 넣지 않는다
+  function readStore() {
     try {
       if (typeof localStorage === "undefined") return null;
       var v = JSON.parse(localStorage.getItem(winKey()) || "null");
+      return v && typeof v === "object" && !Array.isArray(v) ? v : null;
+    } catch (e) { return null; }
+  }
+  function loadTheme() {
+    var v = readStore();
+    return v && (v.theme === "light" || v.theme === "dark") ? v.theme : null;
+  }
+  function writeStore() {
+    var o = {};
+    if (win && win.saved) { o.ax = win.ax; o.ay = win.ay; o.dx = Math.round(win.dx); o.dy = Math.round(win.dy); o.w = Math.round(win.w); o.h = Math.round(win.h); o.size = win.size; }
+    if (userTheme) o.theme = userTheme;
+    try {
+      if (typeof localStorage === "undefined") return;
+      if (Object.keys(o).length) localStorage.setItem(winKey(), JSON.stringify(o));
+      else localStorage.removeItem(winKey());
+    } catch (e) { /* 저장 못 해도 창은 그대로 동작 */ }
+  }
+  function loadWin() {
+    try {
+      var v = readStore();
       if (v && (v.ax === "l" || v.ax === "r") && (v.ay === "t" || v.ay === "b") &&
           [v.dx, v.dy, v.w, v.h].every(function (n) { return typeof n === "number" && isFinite(n) && n >= 0 && n < 10000; })) {
         return { ax: v.ax, ay: v.ay, dx: v.dx, dy: v.dy, w: v.w, h: v.h, size: v.size === "large" ? "large" : v.size === "custom" ? "custom" : "small", saved: true };
@@ -754,10 +822,7 @@
   function saveWin() {
     if (!win) return;
     win.saved = true;
-    try {
-      if (typeof localStorage === "undefined") return;
-      localStorage.setItem(winKey(), JSON.stringify({ ax: win.ax, ay: win.ay, dx: Math.round(win.dx), dy: Math.round(win.dy), w: Math.round(win.w), h: Math.round(win.h), size: win.size }));
-    } catch (e) { /* 저장 못 해도 창은 그대로 동작 */ }
+    writeStore();
   }
   // 창 크기·자리를 화면 안으로(가장자리 여백 gap)
   function clampRect(r) {
@@ -841,6 +906,8 @@
   function placeWindow() {
     winPhone = isPhone();
     win = loadWin() || pickWin();
+    userTheme = loadTheme();      // 휴대폰 폭 ↔ 넓은 화면은 칸이 따로라 그 칸의 밝기로
+    syncTheme();
     applyRect(rectFromWin(win));
     updateSizeBtn();
   }
