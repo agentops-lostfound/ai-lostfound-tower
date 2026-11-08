@@ -82,10 +82,14 @@ class Tower:
 def qwen_analyzer(max_edge: int = 512):
     """진짜 Qwen 분석 함수(첫 호출 때 모델을 올리고 계속 재사용 — qwen/src/model_loader.py lru_cache)"""
     from dataclasses import replace
-    sys.path.insert(0, str(ROOT / "qwen"))
-    sys.path.insert(0, str(ROOT / "vision"))
+    # 11/8 집 PC 첫 실행: vision 폴더를 맨 앞에 두면 vision/config.py(파일)가 qwen/config(폴더)를 가려
+    # "No module named 'config.settings'" → qwen 폴더만 앞에 두고 vision 은 패키지 이름으로 부른다
+    for p in (str(ROOT), str(ROOT / "qwen")):
+        if p in sys.path:
+            sys.path.remove(p)
+        sys.path.insert(0, p)
     from config.settings import Settings
-    from item_features import extract_item_features
+    from vision.item_features import extract_item_features
     settings = replace(Settings(), max_edge=max_edge, log_dir=ROOT / "qwen" / "logs" / "intake")
 
     def analyze(path: Path) -> dict:
