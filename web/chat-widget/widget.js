@@ -4,8 +4,10 @@
  * 스크립트 태그 옵션
  *   data-launcher="auto"(기본: 열기 버튼이 없을 때만 동그란 버튼) | "always" | "off"
  *   data-spacer="off"     동그란 버튼이 보일 때 페이지 끝에 버튼만큼 빈 칸을 두는 것을 끔(기본: 둠)
- *   11/8 가림 줄이기: 넓은 화면(1024px 이상)은 오른쪽 옆 패널로 열고 body 오른쪽 여백으로 본문을 밀어냄(닫으면 원래 값으로),
- *   좁은 화면은 아래 시트 + 어두운 막(밖을 누르거나 Esc = 닫기). 동그란 버튼은 아래로 내리는 동안 잠깐 숨고, 휴대폰 폭에서는 아이콘만
+ *   11/8 작은 떠 있는 창: 기본 오른쪽 아래 360×520(키오스크 460×640, 휴대폰 폭 600px 이하는 92vw×60vh 아래쪽).
+ *   머리줄을 끌어 옮김(마우스·터치, 화면 밖으로 못 나감) · 접기(알약 모양, 새 답이 오면 점) · 구석 손잡이/작게·크게 단추로 크기 조절 · 닫기.
+ *   위치·크기는 localStorage 에 기억(화면 주소별). 처음 열 때는 버튼·입력칸이 가장 적게 가려지는 구석을 고르고, 창 밖 화면은 그대로 누를 수 있다(어두운 막 없음).
+ *   11/8 진행률: 답을 기다리는 동안 말풍선 자리에 0~100% 막대(서버 단계 알림 + 최근 응답 시간으로 채운 예상치). 0.3초 안에 끝나면 보이지 않음
  *   data-api="http://…"  챗봇 API 주소(기본: 이 스크립트를 내려준 서버 = 관제탑)
  *   data-title="AI 안내 도우미"
  *   data-mode="kiosk"     공용 키오스크용(11/6): 글자·버튼을 크게, 창을 닫으면 대화를 바로 지움
@@ -32,8 +34,16 @@
   var KIOSK = opt("mode", "web") === "kiosk";
   var IDLE_S = Math.max(0, Math.min(3600, parseInt(opt("idle-reset", KIOSK ? "90" : "0"), 10) || 0));
   var idleTimer = null;
-  // 11/8 가림 줄이기: 넓은 화면(1024px 이상)에서는 오른쪽 옆 패널로 열고 본문을 그 폭만큼 밀어낸다
-  var DOCK_QUERY = "(min-width:1024px)", DOCK_W = KIOSK ? 480 : 400;
+  // 11/8 작은 떠 있는 창: 크기 두 단계(작게·크게). 휴대폰 폭(600px 이하)은 폭 92vw, 높이 60vh·85vh
+  var PHONE_MAX = 600;
+  var SIZES = KIOSK ? { small: [460, 640], large: [620, 860] } : { small: [360, 520], large: [480, 720] };
+  var MIN_W = KIOSK ? 380 : 300, MIN_H = KIOSK ? 420 : 340;
+  var WIN_KEY = "lf-chat-win:" + location.pathname;
+  // 11/8 진행률: 서버 단계(agents/chat_progress.py STAGES 와 같은 값)와 화면 글
+  var STAGE_PCT = { received: 5, route: 12, retrieve: 22, write: 35, check: 80, rewrite: 84, recheck: 92 };
+  var STAGE_NEXT = { write: "check", rewrite: "recheck" };   // 반드시 뒤따르는 단계 — 그 전까지는 시간으로 채워도 다음 단계 값을 넘지 않음
+  var STAGE_TEXT = { received: "질문 받음", route: "질문 이해", retrieve: "안내 자료 찾기", write: "답 쓰기", check: "근거 확인", rewrite: "다시 쓰기", recheck: "다시 확인" };
+  var SHOW_AFTER_MS = 300, DEFAULT_EST_MS = 3000;
   var SPACER = opt("spacer", "auto") !== "off";   // data-spacer="off" 면 페이지 끝 빈 칸을 만들지 않음
   var MAX_LEN = 500, MAX_HISTORY = 4, MAX_MESSAGES = 40, MAX_ANSWER = 300;
   // 11/7 대화 기억: 웹·관리자 화면은 같은 브라우저 탭을 닫기 전까지(sessionStorage) 대화를 기억한다. 서버에는 저장하지 않는다.
@@ -70,7 +80,7 @@
     "@media (prefers-color-scheme:dark){.wrap:not([data-theme=light]){color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}}",
     ".wrap[data-theme=dark]{color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}",
     "/* 11/8 가림 줄이기: 닫힌 단추는 내릴 때 잠깐 숨고(.tuck) 페이지 끝에 단추만큼 빈 칸(host 높이)을 둔다.",
-    "   연 창은 좁은 화면(1023px 이하)에서 아래 시트 + 뒤 어둡게(밖을 누르면 닫힘), 넓은 화면(1024px 이상)에서 오른쪽 옆 패널(본문을 패널 폭만큼 밀어냄) */",
+    "   연 창은 작은 떠 있는 창(left/top/width/height 는 스크립트가 정함). 어두운 막이 없어 창 밖 화면은 그대로 누를 수 있다 */",
     ".launcher{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:2147483000;width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);box-shadow:var(--ring),var(--shadow);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;font-size:11.5px;font-weight:700;line-height:1.1;transition:background-color .15s,transform .2s,opacity .2s}",
     ".launcher svg{width:22px;height:22px;flex:none}",
     ".launcher:hover{background:var(--accent-hover)}",
@@ -78,12 +88,29 @@
     ".launcher.tuck{transform:translateY(calc(100% + 32px));opacity:0;pointer-events:none}",
     ".wrap.open .launcher{display:none}",
     ".launcher:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}",
-    ".scrim{position:fixed;inset:0;z-index:2147483000;background:var(--ui-scrim,rgba(0,0,0,.36));display:none}",
-    ".wrap.open .scrim{display:block}",
-    ".panel{position:fixed;left:0;right:0;bottom:0;margin:0 auto;z-index:2147483001;width:min(640px,100%);height:min(85vh,680px);max-height:calc(100% - 24px);display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:0;border-radius:24px 24px 0 0;box-shadow:var(--ring),var(--shadow);overflow:hidden;font-size:15px;line-height:1.55;padding-bottom:env(safe-area-inset-bottom,0px)}",
-    ".panel::before{content:'';flex:none;align-self:center;width:40px;height:4px;border-radius:999px;background:var(--line);margin-top:10px}",
+    ".panel{position:fixed;left:0;top:0;z-index:2147483001;width:360px;height:520px;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:0;border-radius:20px;box-shadow:var(--ring),var(--shadow);overflow:hidden;font-size:15px;line-height:1.55;transition:opacity .15s}",
     ".panel[hidden],.launcher[hidden]{display:none}",
-    ".wrap.kiosk .panel{width:min(760px,100%);height:min(88vh,880px);font-size:19px}",
+    "/* 끄는 동안 반투명: 창 아래 화면을 보면서 놓을 자리를 고른다 */",
+    ".wrap.dragging .panel,.wrap.resizing .panel{opacity:.55;transition:none;user-select:none;-webkit-user-select:none}",
+    ".wrap.min .panel{display:none}",
+    ".grip{position:absolute;width:20px;height:20px;z-index:2;touch-action:none;opacity:.55;background:linear-gradient(135deg,transparent 0 46%,var(--faint) 46% 54%,transparent 54% 66%,var(--faint) 66% 74%,transparent 74%)}",
+    ".grip:hover{opacity:1}",
+    ".grip.tl{left:2px;top:2px;cursor:nwse-resize;transform:rotate(180deg)}",
+    ".grip.tr{right:2px;top:2px;cursor:nesw-resize;transform:rotate(-90deg)}",
+    ".grip.bl{left:2px;bottom:2px;cursor:nesw-resize;transform:rotate(90deg)}",
+    ".grip.br{right:2px;bottom:2px;cursor:nwse-resize}",
+    "/* 접은 창: 작은 알약. 새 답이 오면 점 */",
+    ".pill{position:fixed;z-index:2147483001;display:none;align-items:center;gap:8px;height:48px;max-width:min(320px,calc(100vw - 24px));padding:0 16px 0 10px;border-radius:999px;border:0;background:var(--bg);color:var(--fg);box-shadow:var(--ring),var(--shadow);font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}",
+    ".pill .ic{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-fg);flex:none}",
+    ".pill .ic svg{width:17px;height:17px}",
+    ".pill .pt{overflow:hidden;text-overflow:ellipsis}",
+    ".pill .nd{display:none;width:9px;height:9px;border-radius:50%;background:var(--err);flex:none}",
+    ".pill.unread .nd{display:block}",
+    ".pill:hover{background:var(--soft)}",
+    ".wrap.min .pill{display:flex}",
+    ".wrap.kiosk .panel{font-size:19px}",
+    ".wrap.kiosk .pill{height:64px;font-size:17px;padding:0 22px 0 12px}",
+    ".wrap.kiosk .pill .ic{width:40px;height:40px}",
     ".wrap.kiosk .launcher{width:96px;height:96px;font-size:16px}",
     ".wrap.kiosk .launcher svg{width:34px;height:34px}",
     ".wrap.kiosk .chip{font-size:18px;padding:16px 18px}",
@@ -95,16 +122,22 @@
     ".wrap.kiosk header .mode{font-size:15px}",
     ".wrap.kiosk .badge,.wrap.kiosk details,.wrap.kiosk .retry{font-size:15px}",
     ".wrap.kiosk .icon{width:52px;height:52px;font-size:22px}",
-    "@media (max-width:480px){.launcher{width:52px;height:52px;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px))}.launcher .txt{display:none}.launcher svg{width:24px;height:24px}.wrap.kiosk .launcher{width:72px;height:72px}.panel{height:min(88vh,640px)}}",
-    "@media (min-width:1024px){.wrap.open .scrim{display:none}.panel,.wrap.kiosk .panel{left:auto;right:0;top:0;bottom:0;margin:0;width:" + DOCK_W + "px;height:auto;max-height:none;border-radius:0;padding-bottom:0;box-shadow:-1px 0 0 var(--line),-16px 0 40px rgba(0,0,0,.06)}.panel::before{display:none}}",
-    ".icon.close{width:44px;height:44px;font-size:17px}",
-    ".wrap.kiosk .icon.close{width:56px;height:56px;font-size:22px}",
-    "header{display:flex;align-items:center;gap:12px;padding:18px 14px 12px 20px}",
+    ".wrap.kiosk .icon svg{width:24px;height:24px}",
+    ".wrap.kiosk .prog .ptxt{font-size:15px}",
+    "@media (max-width:480px){.launcher{width:52px;height:52px;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px))}.launcher .txt{display:none}.launcher svg{width:24px;height:24px}.wrap.kiosk .launcher{width:72px;height:72px}}",
+    "/* 휴대폰 폭: 손잡이는 숨기고(손가락으로 잡기 어려움) 작게·크게 단추로 높이를 바꾼다 */",
+    "@media (max-width:600px){.grip{display:none}.panel{border-radius:18px}.wrap.kiosk .icon{width:44px;height:44px;font-size:18px}}",
+    "header{display:flex;align-items:center;gap:6px;padding:12px 10px 10px 20px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;flex:none}",
+    ".wrap.dragging header{cursor:grabbing}",
+    "header .tools{display:flex;gap:4px;flex:none}",
     "header .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 18%,transparent);flex:none}",
     "header .dot.off{background:var(--faint);box-shadow:none}",
+    "header .dot{margin-right:6px}",
     "header h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;color:var(--fg)}",
     "header .mode{display:block;font-size:12.5px;font-weight:500;color:var(--faint);letter-spacing:0;margin-top:1px}",
-    ".icon{border:0;background:var(--soft);color:var(--muted);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:15px;flex:none;display:grid;place-items:center;transition:background-color .15s}",
+    ".icon{border:0;background:transparent;color:var(--muted);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:15px;flex:none;display:grid;place-items:center;padding:0;transition:background-color .15s}",
+    ".icon svg{width:18px;height:18px}",
+    ".icon.close{background:var(--soft)}",
     ".icon:hover{background:var(--soft-hover);color:var(--fg)}",
     ".log{flex:1;overflow-y:auto;padding:8px 16px 16px;display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain}",
     ".welcome{background:var(--soft);border-radius:20px;padding:18px;font-size:15px;color:var(--fg);line-height:1.6}",
@@ -146,6 +179,15 @@
     ".send:disabled{opacity:.4;cursor:default}",
     ".foot{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--faint);padding:0 4px}",
     ".foot button{border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}",
+    "/* 11/8 진행률: 답 말풍선 자리의 얇은 막대 + 글. 퍼센트는 예상치라 '예상'을 작게 붙인다 */",
+    ".prog{display:flex;flex-direction:column;gap:7px;min-width:min(220px,60vw)}",
+    ".prog .track{height:4px;border-radius:999px;background:var(--line);overflow:hidden}",
+    ".prog .fill{height:100%;width:0;background:var(--accent);border-radius:inherit;transition:width .25s linear}",
+    ".prog .ptxt{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);white-space:nowrap}",
+    ".prog .ptxt b{font-weight:600;font-variant-numeric:tabular-nums}",
+    ".prog .est{font-size:11px;color:var(--faint);font-weight:500}",
+    ".prog.done{transition:opacity .4s;opacity:0}",
+    ".msg>.prog{width:100%;max-width:240px}",
     ".sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}",
     "@media (prefers-reduced-motion:reduce){*{transition:none!important}}"
   ].join("\n");

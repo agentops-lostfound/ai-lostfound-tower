@@ -76,8 +76,8 @@
     "title": "키오스크 카메라를 쓸 수 없을 때 — 서비스 안내(습득 신고)",
     "path": "docs/guidance/service-guide.md",
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
-    "evidence": "키오스크 카메라를 쓸 수 없으면 화면의 '사진 파일로 접수' 버튼으로 사진 파일을 골라 접수하거나 역무실에 알린다.",
-    "answer": "키오스크 카메라를 쓸 수 없으면 화면의 '사진 파일로 접수' 버튼을 눌러 사진 파일을 골라 접수하거나, 역무실에 알려 주세요."
+    "evidence": "키오스크 카메라를 쓸 수 없으면 화면에 '카메라 점검 중 · 역무실에 알려 주세요' 안내가 뜬다. 이때는 역무실에 알리면 직원이 확인한다.",
+    "answer": "키오스크 카메라를 쓸 수 없으면 화면에 '카메라 점검 중 · 역무실에 알려 주세요' 안내가 떠요. 역무실에 알려 주시면 직원이 확인해 드려요. 사진 파일로는 접수하지 않고, 분실접수·회수 메뉴는 그대로 쓸 수 있어요."
   },
   {
     "topic": "categories",
