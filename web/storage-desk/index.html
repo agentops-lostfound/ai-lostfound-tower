@@ -48,6 +48,7 @@
   details summary { cursor:pointer; color:var(--muted); }
   input[type=text] { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); width:120px; }
   [hidden] { display:none !important; }
+  @media (max-width:600px) { .boardwrap { grid-template-columns:1fr; } .row { grid-template-columns:56px 1fr 1fr; } }   /* 11/8 휴대폰 폭: 제출보관함이 R2-2 칸을 덮던 것 */
 </style>
 </head>
 <body>

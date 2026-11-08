@@ -9,8 +9,10 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--ink);font:500 16px/1.5 "Noto Sans KR","Malgun Gothic",system-ui,sans-serif;display:flex;flex-direction:column}
-header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line)}
-header h1{font-size:18px;margin:0;flex:1}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap}
+#who{display:flex;flex-wrap:wrap;gap:8px}
+#who[hidden]{display:none}
 button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;background:var(--accent);color:#fff}
 button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
 button.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}

@@ -259,9 +259,9 @@ async function post(url, body) {
 $('#form').addEventListener('submit', async e => {
   e.preventDefault(); err($('#err1'), '');
   const feat = $('#feat').value.trim();
-  if (/\d{2,4}-\d{3,4}-\d{4}|\d{6}-?\d{7}/.test(feat)) { err($('#err1'), '특징에 전화번호·주민번호 같은 개인정보는 적지 마세요.'); return; }
+  if (/\d{2,4}-?\d{3,4}-?\d{4}|\d{6}-?\d{7}|\S+@\S+/.test(feat)) { err($('#err1'), '특징에 전화번호·주민번호 같은 개인정보는 적지 마세요.'); return; }
   const station = $('#station').value;
-  const color = state.color && state.color !== '기타' ? state.color : (state.color === '기타' ? '보라' : '');
+  const color = state.color !== '기타' ? state.color : '';   // 11/8: '기타'를 '보라'로 바꿔 보내 주황 립밤을 못 찾던 것 → 색 없이 보내고 특징 글로 판단
   const text = [color, state.cat, feat, '잃어버렸어요', station ? station + '에서' : ''].filter(Boolean).join(' ');
   state.idMasked = `******-${$('#gender').value}******`;
   $('#send').disabled = true; $('#send').textContent = '찾는 중…';
