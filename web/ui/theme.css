@@ -28,6 +28,7 @@
   --ui-err: #f04452;
   --ui-err-soft: #ffeeee;
   --ui-shadow: 0 2px 8px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .04);
+  --ui-scrim: rgba(0, 0, 0, .36);   /* 시트·창 뒤 어두운 막 */
   --ui-radius: 16px;
   --ui-radius-lg: 24px;
   --ui-radius-sm: 10px;
@@ -41,7 +42,7 @@
     --ui-text: #f2f3f5; --ui-text-2: #b0b4bc; --ui-text-3: #7e838c; --ui-line: #2e2e36;
     --ui-primary: #4593fc; --ui-primary-hover: #6aa8fd; --ui-primary-soft: #1b2a40; --ui-on-primary: #ffffff;
     --ui-ok: #20c47f; --ui-ok-soft: #12302a; --ui-warn: #f0a33a; --ui-warn-soft: #362a14; --ui-err: #ff5f6d; --ui-err-soft: #3a1c20;
-    --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+    --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35); --ui-scrim: rgba(0, 0, 0, .6);
     color-scheme: dark;
   }
 }
@@ -50,7 +51,7 @@
   --ui-text: #f2f3f5; --ui-text-2: #b0b4bc; --ui-text-3: #7e838c; --ui-line: #2e2e36;
   --ui-primary: #4593fc; --ui-primary-hover: #6aa8fd; --ui-primary-soft: #1b2a40; --ui-on-primary: #ffffff;
   --ui-ok: #20c47f; --ui-ok-soft: #12302a; --ui-warn: #f0a33a; --ui-warn-soft: #362a14; --ui-err: #ff5f6d; --ui-err-soft: #3a1c20;
-  --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35); --ui-scrim: rgba(0, 0, 0, .6);
   color-scheme: dark;
 }
 
