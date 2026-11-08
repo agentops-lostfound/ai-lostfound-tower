@@ -10,7 +10,8 @@
        관제탑과 같은 주소에서 열고(/lost), 가상 시연(TOWER_SIM=1)에서는 /sim/lost 로 신고해 본센터 키오스크 회수를 기다린다.
        이름·신분 번호는 이 화면에서 가린 값만 보낸다(원문은 보내지 않음). 진행 상황은 /sim/stories/{번호} 로 실시간 표시
        11/8 디자인 개편: 흰 바탕 + 미니멀, 휴대폰 우선. 색은 공통 토큰(/ui/theme.css 의 --ui-*)만 쓰고, 라이트·다크 전환은 /ui/theme.js.
-       동작(id, JS 가 쓰는 class, 스크립트)은 바꾸지 않았다 — 바뀐 것은 스타일과 꾸미기용 감싸는 요소뿐 -->
+       동작(id, JS 가 쓰는 class, 스크립트)은 바꾸지 않았다 — 바뀐 것은 스타일과 꾸미기용 감싸는 요소뿐
+       11/8 글 줄이기: 안내 문장을 짧게 하고 진행 단계·물건 종류·본센터에서 받는 순서·가져갈 것을 선 그림(인라인 SVG)으로 바꿨다 -->
   <link rel="stylesheet" href="/ui/theme.css">
   <script src="/ui/theme.js"></script>
   <style>
@@ -34,8 +35,17 @@
     .chatbtn:hover{box-shadow:inset 0 0 0 1.5px var(--ui-primary)}
     .chatbtn:active{transform:scale(.98)}
 
-    .steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:32px 0 0;padding:0;list-style:none}
-    .steps li{display:flex;flex-direction:column;gap:10px;font-size:13px;font-weight:600;line-height:1.35;color:var(--ui-text-3);min-width:0}
+    .chatbtn .ic{width:20px;height:20px;flex:none}
+    /* 11/8 글 줄이기: 선 그림(아이콘) 공통 — 색은 글자색(currentColor)을 따른다 */
+    svg.ic,svg.ci,.si svg,.bring svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .si{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--ui-fill);flex:none;transition:background-color .2s,color .2s}
+    .si svg{width:24px;height:24px}
+
+    .steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:28px 0 0;padding:0;list-style:none}
+    .steps li{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;font-size:13px;font-weight:600;line-height:1.35;color:var(--ui-text-3);min-width:0;word-break:keep-all}
+    .steps li::before{align-self:stretch}
+    .steps li.on .si{background:var(--ui-primary-soft);color:var(--ui-primary)}
+    .steps li.done .si{color:var(--ui-primary)}
     .steps li::before{content:"";height:4px;border-radius:999px;background:var(--ui-line);transition:background-color .2s}
     .steps li.on{color:var(--ui-primary);font-weight:700}
     .steps li.on::before{background:var(--ui-primary)}
@@ -60,6 +70,7 @@
     .chip:hover{background:var(--ui-fill-hover)}
     .chip:active{transform:scale(.97)}
     .chip[aria-pressed="true"]{background:var(--ui-primary);color:var(--ui-on-primary)}
+    .chip .ci{width:18px;height:18px;flex:none;margin-right:6px}
     .chip .sw{display:inline-block;flex:none;width:14px;height:14px;border-radius:50%;margin-right:8px;border:1px solid var(--ui-line)}
     .chip[aria-pressed="true"] .sw{border-color:var(--ui-on-primary)}
     input,select,textarea{width:100%;min-width:0;font:500 16px/1.4 var(--ui-font);border:1.5px solid transparent;border-radius:var(--ui-radius);
@@ -77,6 +88,7 @@
     .agree{display:flex;gap:12px;align-items:flex-start;background:var(--ui-fill);border-radius:var(--ui-radius);padding:16px;
            font-size:14px;line-height:1.6;color:var(--ui-text-2);cursor:pointer}
     .agree b{color:var(--ui-text)}
+    .agree small{display:block;margin-top:4px;font-size:13px;color:var(--ui-text-3)}
     .agree input{width:22px;height:22px;min-height:22px;flex:none;padding:0;margin:1px 0 0;accent-color:var(--ui-primary);cursor:pointer}
 
     /* 버튼 */
@@ -109,10 +121,16 @@
     .cand{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;background:var(--ui-surface);border-radius:var(--ui-radius);padding:14px 16px;margin-top:16px}
     .cand b{font-size:16px}.cand span{color:var(--ui-text-3);font-size:14px}
     .two{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
-    .visit ol{margin:14px 0 0;padding-left:22px;line-height:1.75;font-size:15px;color:var(--ui-text-2)}
-    .visit li{margin-bottom:8px;padding-left:2px}
-    .visit li::marker{color:var(--ui-primary);font-weight:700}
-    .visit li b{color:var(--ui-text)}
+    .howto{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:14px;counter-reset:how}
+    .howto li{display:flex;align-items:center;gap:14px;font-size:15px;line-height:1.5;color:var(--ui-text-2);min-width:0;counter-increment:how}
+    .howto .si{position:relative;background:var(--ui-primary-soft);color:var(--ui-primary)}
+    .howto .si::after{content:counter(how);position:absolute;top:-4px;left:-4px;min-width:18px;height:18px;border-radius:999px;background:var(--ui-primary);
+                      color:var(--ui-on-primary);font-size:11px;font-weight:700;line-height:18px;text-align:center}
+    .howto li b{color:var(--ui-text)}
+    .bring{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--ui-line)}
+    .bring-t{font-size:14px;font-weight:700;color:var(--ui-text);margin-right:4px}
+    .bring figure{display:inline-flex;align-items:center;gap:8px;margin:0;padding:8px 14px 8px 10px;border-radius:999px;background:var(--ui-fill);font-size:14px;font-weight:600}
+    .bring svg{width:22px;height:22px;color:var(--ui-primary)}
     .mono{font-family:var(--ui-mono);background:var(--ui-fill);color:var(--ui-text);border-radius:8px;padding:2px 8px;font-weight:700;white-space:nowrap}
     .prog{list-style:none;margin:10px 0 0;padding:0}
     .prog li{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--ui-line);font-size:15px;min-width:0}
@@ -141,7 +159,6 @@
       .top{flex-direction:row;justify-content:space-between;align-items:flex-end;gap:24px}
       .two{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr)}
     }
-    .lead br{display:none}
   </style>
 </head>
 <body>
@@ -154,13 +171,16 @@
   <div class="top">
     <div>
       <h1>잃어버린 물건 찾기</h1>
-      <p class="lead">해운대역·서면역·부산역에서 잃어버린 물건을 신고하세요. 맞는 습득물이 있으면 찾기 번호를 드리고,<br>
-        <b>부산역 본센터</b> 키오스크에서 본인 확인 후 로봇이 물건을 꺼내 드려요.</p>
+      <p class="lead">신고하면 찾기 번호를 드려요.<br>물건은 <b>부산역 본센터</b>에서 받아요.</p>
     </div>
-    <button type="button" class="chatbtn" data-chatbot-open>💬 AI 안내에게 물어보기</button>
+    <button type="button" class="chatbtn" data-chatbot-open><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 3.3 6.5L4 19.5l1-3.4A7.9 7.9 0 0 1 4 12z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>AI에게 묻기</button>
   </div>
-  <ol class="steps" id="steps">
-    <li data-s="1" class="on">1. 분실 신고</li><li data-s="2">2. 확인 질문</li><li data-s="3">3. 찾기 번호</li><li data-s="4">4. 본센터 방문</li>
+  <!-- 11/8 글 줄이기: 진행 단계를 그림으로(그림 + 짧은 이름). 아래 막대·글자색은 JS 가 li class(on/done)로 바꾼다 -->
+  <ol class="steps" id="steps" aria-label="진행 단계">
+    <li data-s="1" class="on"><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="신고서 그림"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h3"/></svg></span>신고</li>
+    <li data-s="2"><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="물음표 말풍선 그림"><path d="M5 4.5h14a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-7l-4 3.5V16H5a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1z"/><path d="M10 8.8a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.3M12 13.6h.01"/></svg></span>확인 질문</li>
+    <li data-s="3"><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="번호표 그림"><path d="M4 7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4z"/><path d="M10.5 9.5l-1 5M14.5 9.5l-1 5M8.5 11h7M8 13h7"/></svg></span>찾기 번호</li>
+    <li data-s="4"><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="본센터 위치 그림"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg></span>본센터 방문</li>
   </ol>
 </header>
 
@@ -168,29 +188,29 @@
   <!-- 1. 분실 신고 -->
   <section id="s-form">
     <h2>무엇을 잃어버리셨나요?</h2>
-    <p class="desc">아는 만큼만 고르세요. 모르는 칸은 비워 두면 됩니다.</p>
+    <p class="desc">아는 것만 고르세요.</p>
     <form id="form" novalidate>
       <div class="stack">
       <div class="grid group">
         <div class="field full">
           <span class="label">물건 종류 *</span>
           <div class="chips" id="cats" role="group" aria-label="물건 종류">
-            <button type="button" class="chip" data-v="지갑">지갑</button>
-            <button type="button" class="chip" data-v="모형폰">휴대폰(모형폰)</button>
-            <button type="button" class="chip" data-v="USB">USB</button>
-            <button type="button" class="chip" data-v="립밤">립밤</button>
-            <button type="button" class="chip" data-v="핸드크림">핸드크림</button>
-            <button type="button" class="chip" data-v="보조배터리">보조배터리</button>
+            <button type="button" class="chip" data-v="지갑"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M15 10.5h6v5h-6a2.5 2.5 0 0 1 0-5zM16.5 13h.01"/></svg>지갑</button>
+            <button type="button" class="chip" data-v="모형폰"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.2"/><path d="M11 18h2"/></svg>휴대폰</button>
+            <button type="button" class="chip" data-v="USB"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="10" width="8" height="11" rx="1.5"/><path d="M9.5 10V4h5v6M11 6.5h.01M13 6.5h.01"/></svg>USB</button>
+            <button type="button" class="chip" data-v="립밤"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="12" width="8" height="9" rx="1.5"/><path d="M9.5 12V7l5-3v8"/></svg>립밤</button>
+            <button type="button" class="chip" data-v="핸드크림"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 3h9l-1.5 13.5h-6z"/><path d="M10 16.5h4V20a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1z"/></svg>핸드크림</button>
+            <button type="button" class="chip" data-v="보조배터리"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10.5v3M11.5 9l-2 3h3l-2 3"/></svg>보조배터리</button>
           </div>
         </div>
         <div class="field full">
-          <span class="label">색상 <small>(가장 넓게 보이는 색 하나)</small></span>
+          <span class="label">색상 <small>(가장 넓은 색)</small></span>
           <div class="chips" id="colors" role="group" aria-label="색상"></div>
         </div>
         <div class="field full">
-          <label class="label" for="feat">눈에 띄는 특징 <small>(선택 — 글자·스티커·키링 등)</small></label>
-          <textarea id="feat" maxlength="120" placeholder="예: 뒷면에 별 모양 스티커, VOVA 글자"></textarea>
-          <p class="hint">적은 특징은 본인 확인 질문에도 쓰여요. 이름·전화번호 같은 개인정보는 적지 마세요.</p>
+          <label class="label" for="feat">눈에 띄는 특징 <small>(선택)</small></label>
+          <textarea id="feat" maxlength="120" placeholder="예: 별 스티커, VOVA 글자, 키링"></textarea>
+          <p class="hint">확인 질문에 쓰여요. 이름·전화번호는 빼 주세요.</p>
         </div>
       </div>
       <div class="grid cols group">
@@ -210,7 +230,7 @@
       </div>
       <div class="grid group">
         <div class="field full">
-          <span class="label">본인 확인 <small>(시연용 가상 신분증 기준)</small></span>
+          <span class="label">본인 확인 <small>(시연용 가상 신분증)</small></span>
           <div class="idrow">
             <input type="text" id="name" maxlength="10" placeholder="이름 (예: 홍길동)" autocomplete="off">
             <span class="select"><select id="gender">
@@ -218,10 +238,10 @@
               <option>1</option><option>2</option><option>3</option><option>4</option>
             </select></span>
           </div>
-          <p class="hint">이름과 번호는 이 화면에서 가려서(예: <span class="mono">홍*동</span>, <span class="mono">******-3******</span>) 보냅니다. 본센터 키오스크에서 같은 값을 다시 입력해야 물건을 받을 수 있어요.</p>
+          <p class="hint">가려서 보내요: <span class="mono">홍*동</span> <span class="mono">******-3******</span><br>본센터에서 같은 값을 다시 넣어요.</p>
         </div>
         <label class="agree full"><input type="checkbox" id="agree">
-          <span>분실물 확인과 반환 안내를 위해 <b>가린 이름·가린 신분 번호·물건 설명</b>을 저장하는 데 동의합니다. 반환이 끝나면 찾기 기록만 남고, 원문 개인정보는 저장하지 않습니다.</span></label>
+          <span><b>가린 이름·가린 번호·물건 설명</b> 저장에 동의해요.<small>반환 뒤엔 찾기 기록만 남기고 지워요. 원문은 저장 안 해요.</small></span></label>
       </div>
       </div>
       <div class="actions">
@@ -235,7 +255,7 @@
   <!-- 2. 확인 질문 -->
   <section id="s-ask" hidden>
     <h2>확인 질문</h2>
-    <p class="desc">비슷한 습득물이 있어요. 본인 물건인지 확인하려고 하나만 더 여쭤볼게요.</p>
+    <p class="desc">비슷한 물건이 있어요. 하나만 확인할게요.</p>
     <div class="card">
       <p class="q" id="question"></p>
       <form class="qrow" id="askform">
@@ -255,13 +275,23 @@
     </div>
     <div class="two">
       <div class="card visit" id="visit">
-        <b>부산역 본센터에서 받는 방법</b>
-        <ol>
-          <li>부산역 본센터 키오스크에서 <b>「물건 찾으러 왔어요(회수)」</b>를 누릅니다</li>
-          <li>찾기 번호 <span class="mono" id="vcode">-</span> 를 입력합니다</li>
-          <li>가린 신분 번호 <span class="mono" id="vid">-</span> 를 입력합니다</li>
-          <li>로봇이 보관함에서 꺼내 <b>제출보관함</b>에 두면, 직원이 신분증·물건을 확인하고 건네 드려요</li>
+        <b>부산역 본센터에서 받기</b>
+        <!-- 11/8 글 줄이기: 받는 순서를 그림 4칸으로. id(vcode·vid)는 JS 가 채운다 -->
+        <ol class="howto" aria-label="받는 순서">
+          <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="키오스크 그림"><rect x="6" y="3" width="12" height="13" rx="2"/><path d="M12 16v4M9 20.5h6M9 7.5h6M9 10.5h4"/></svg></span>
+            <span>키오스크에서<br><b>「물건 찾으러 왔어요」</b></span></li>
+          <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="번호 입력 그림"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9.5h.01M12 9.5h.01M16 9.5h.01M8 13h.01M12 13h.01M16 13h.01M10 16.2h4"/></svg></span>
+            <span>찾기 번호<br><span class="mono" id="vcode">-</span></span></li>
+          <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="가린 신분 번호 그림"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M7 12h.01M10 12h.01M13 12h.01M16 12h1.5"/></svg></span>
+            <span>가린 번호<br><span class="mono" id="vid">-</span></span></li>
+          <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="로봇이 꺼낸 상자 그림"><path d="M4 8.5l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8.5l8 4 8-4M12 12.5v8"/></svg></span>
+            <span>로봇이 <b>제출보관함</b>에<br>직원 확인 후 받기</span></li>
         </ol>
+        <div class="bring" role="group" aria-label="가져갈 것">
+          <span class="bring-t">가져갈 것</span>
+          <figure><svg viewBox="0 0 24 24" role="img" aria-label="찾기 번호표 그림"><path d="M4 7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4z"/><path d="M10.5 9.5l-1 5M14.5 9.5l-1 5M8.5 11h7M8 13h7"/></svg><figcaption>찾기 번호</figcaption></figure>
+          <figure><svg viewBox="0 0 24 24" role="img" aria-label="신분증 그림"><rect x="3" y="5.5" width="18" height="13" rx="2"/><circle cx="8.5" cy="11" r="2"/><path d="M5.8 15.5c.6-1.3 1.6-2 2.7-2s2.1.7 2.7 2M14 10h4M14 13h3"/></svg><figcaption>신분증</figcaption></figure>
+        </div>
       </div>
       <div class="card">
         <b>진행 상황</b> <span class="hint" id="progwhen"></span>
@@ -271,8 +301,7 @@
     <div class="actions"><button class="btn secondary" type="button" id="again">새로 신고하기</button></div>
   </section>
 
-  <p class="notice">교육용 시연 화면입니다. 실제 운영에서는 본인 확인·개인정보 처리방침·보관 기간 정책이 따로 필요합니다.
-    현금·신분증·위험물은 역무실로 문의하세요.</p>
+  <p class="notice">교육용 시연 화면이에요. 현금·신분증·위험물은 역무실로 문의하세요.</p>
 </main>
 </div>
 <footer>AgentOps 2팀 · AI 분실물 관제탑</footer>
@@ -375,17 +404,17 @@ function done(res) {
   state.story = res.story_id || null; state.claim = res.claim_id || null; state.after = 0;
   if (res.staff) {
     card.className = 'card warn';
-    head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">겉모습만으로는 어느 것이 본인 물건인지 가릴 수 없어요. 부산역 본센터 역무실에 오시면 직원이 직접 확인해 드립니다.</p>`;
+    head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">부산역 본센터 역무실에서<br>직원이 직접 확인해 드려요.</p>`;
     $('#cand').innerHTML = ''; $('#visit').hidden = true;
   } else if (res.claim_id && res.quiz_passed) {
     card.className = 'card ok';
     head.innerHTML = `<div class="hint" style="margin:0">찾기 번호</div><div class="code">${esc(res.claim_id)}</div>
-      <p class="desc" style="margin:4px 0 0">맞는 습득물을 찾았고 본인 확인 질문도 통과했어요. 오늘 부산역 본센터로 방문 예약을 해 두었어요.</p>`;
+      <p class="desc" style="margin:4px 0 0">확인 질문 통과!<br>오늘 부산역 본센터 방문으로 예약했어요.</p>`;
     $('#visit').hidden = false;
   } else if (res.claim_id) {
     card.className = 'card warn';
     head.innerHTML = `<div class="hint" style="margin:0">찾기 번호</div><div class="code">${esc(res.claim_id)}</div>
-      <p class="desc" style="margin:4px 0 0">비슷한 습득물은 있지만 확인 질문 답이 맞지 않았어요. 키오스크에서는 받을 수 없고, 부산역 본센터 역무실에서 직원이 확인해야 해요.</p>`;
+      <p class="desc" style="margin:4px 0 0">확인 답이 달라요.<br>부산역 본센터 역무실에서 직원이 확인해요.</p>`;
     $('#visit').hidden = true;
   }
   const top = (res.candidates || [])[0];
@@ -398,7 +427,7 @@ function done(res) {
 
 const LABEL = {todo: '대기', active: '진행 중', done: '완료', fail: '실패', skip: '건너뜀'};
 async function pollOnce() {
-  if (!state.story) { $('#prog').innerHTML = '<li><span class="dot"></span>직원 확인이 필요해 자동 진행은 하지 않아요</li>'; return; }
+  if (!state.story) { $('#prog').innerHTML = '<li><span class="dot"></span>직원 확인 뒤 진행돼요</li>'; return; }
   try {
     const r = await fetch(`/sim/stories/${encodeURIComponent(state.story)}`);
     if (!r.ok) return;

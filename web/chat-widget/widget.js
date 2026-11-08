@@ -3,6 +3,9 @@
  * 열기: data-chatbot-open 속성이 있는 버튼을 누르거나, 그런 버튼이 없으면 오른쪽 아래 동그란 버튼이 자동으로 생긴다.
  * 스크립트 태그 옵션
  *   data-launcher="auto"(기본: 열기 버튼이 없을 때만 동그란 버튼) | "always" | "off"
+ *   data-spacer="off"     동그란 버튼이 보일 때 페이지 끝에 버튼만큼 빈 칸을 두는 것을 끔(기본: 둠)
+ *   11/8 가림 줄이기: 넓은 화면(1024px 이상)은 오른쪽 옆 패널로 열고 body 오른쪽 여백으로 본문을 밀어냄(닫으면 원래 값으로),
+ *   좁은 화면은 아래 시트 + 어두운 막(밖을 누르거나 Esc = 닫기). 동그란 버튼은 아래로 내리는 동안 잠깐 숨고, 휴대폰 폭에서는 아이콘만
  *   data-api="http://…"  챗봇 API 주소(기본: 이 스크립트를 내려준 서버 = 관제탑)
  *   data-title="AI 안내 도우미"
  *   data-mode="kiosk"     공용 키오스크용(11/6): 글자·버튼을 크게, 창을 닫으면 대화를 바로 지움
@@ -29,6 +32,9 @@
   var KIOSK = opt("mode", "web") === "kiosk";
   var IDLE_S = Math.max(0, Math.min(3600, parseInt(opt("idle-reset", KIOSK ? "90" : "0"), 10) || 0));
   var idleTimer = null;
+  // 11/8 가림 줄이기: 넓은 화면(1024px 이상)에서는 오른쪽 옆 패널로 열고 본문을 그 폭만큼 밀어낸다
+  var DOCK_QUERY = "(min-width:1024px)", DOCK_W = KIOSK ? 480 : 400;
+  var SPACER = opt("spacer", "auto") !== "off";   // data-spacer="off" 면 페이지 끝 빈 칸을 만들지 않음
   var MAX_LEN = 500, MAX_HISTORY = 4, MAX_MESSAGES = 40, MAX_ANSWER = 300;
   // 11/7 대화 기억: 웹·관리자 화면은 같은 브라우저 탭을 닫기 전까지(sessionStorage) 대화를 기억한다. 서버에는 저장하지 않는다.
   // 키오스크는 여러 사람이 쓰므로 저장하지 않는다(기존처럼 창을 닫거나 조작이 없으면 지움)
@@ -63,14 +69,23 @@
     "/* 다크: 화면이 data-theme=dark 를 고른 경우 + data-theme 없이 OS 가 다크인 경우(.wrap[data-theme] 는 화면의 html 값을 그대로 옮긴 것) */",
     "@media (prefers-color-scheme:dark){.wrap:not([data-theme=light]){color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}}",
     ".wrap[data-theme=dark]{color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}",
-    ".launcher{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:2147483000;width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);box-shadow:var(--ring),var(--shadow);cursor:pointer;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1.15;transition:background-color .15s,transform .1s}",
+    "/* 11/8 가림 줄이기: 닫힌 단추는 내릴 때 잠깐 숨고(.tuck) 페이지 끝에 단추만큼 빈 칸(host 높이)을 둔다.",
+    "   연 창은 좁은 화면(1023px 이하)에서 아래 시트 + 뒤 어둡게(밖을 누르면 닫힘), 넓은 화면(1024px 이상)에서 오른쪽 옆 패널(본문을 패널 폭만큼 밀어냄) */",
+    ".launcher{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:2147483000;width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);box-shadow:var(--ring),var(--shadow);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;font-size:11.5px;font-weight:700;line-height:1.1;transition:background-color .15s,transform .2s,opacity .2s}",
+    ".launcher svg{width:22px;height:22px;flex:none}",
     ".launcher:hover{background:var(--accent-hover)}",
     ".launcher:active{transform:scale(.96)}",
+    ".launcher.tuck{transform:translateY(calc(100% + 32px));opacity:0;pointer-events:none}",
+    ".wrap.open .launcher{display:none}",
     ".launcher:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}",
-    ".panel{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(92px,calc(env(safe-area-inset-bottom,0px) + 92px));z-index:2147483001;width:384px;max-width:calc(100vw - 32px);height:min(620px,calc(100vh - 120px));display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:0;border-radius:24px;box-shadow:var(--ring),var(--shadow);overflow:hidden;font-size:15px;line-height:1.55}",
+    ".scrim{position:fixed;inset:0;z-index:2147483000;background:var(--ui-scrim,rgba(0,0,0,.36));display:none}",
+    ".wrap.open .scrim{display:block}",
+    ".panel{position:fixed;left:0;right:0;bottom:0;margin:0 auto;z-index:2147483001;width:min(640px,100%);height:min(85vh,680px);max-height:calc(100% - 24px);display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:0;border-radius:24px 24px 0 0;box-shadow:var(--ring),var(--shadow);overflow:hidden;font-size:15px;line-height:1.55;padding-bottom:env(safe-area-inset-bottom,0px)}",
+    ".panel::before{content:'';flex:none;align-self:center;width:40px;height:4px;border-radius:999px;background:var(--line);margin-top:10px}",
     ".panel[hidden],.launcher[hidden]{display:none}",
-    ".wrap.kiosk .panel{width:min(560px,calc(100vw - 32px));height:min(760px,calc(100vh - 120px));font-size:19px}",
-    ".wrap.kiosk .launcher{width:96px;height:96px;font-size:18px}",
+    ".wrap.kiosk .panel{width:min(760px,100%);height:min(88vh,880px);font-size:19px}",
+    ".wrap.kiosk .launcher{width:96px;height:96px;font-size:16px}",
+    ".wrap.kiosk .launcher svg{width:34px;height:34px}",
     ".wrap.kiosk .chip{font-size:18px;padding:16px 18px}",
     ".wrap.kiosk textarea{font-size:19px}",
     ".wrap.kiosk .send{font-size:18px;padding:0 24px;height:56px}",
@@ -80,7 +95,10 @@
     ".wrap.kiosk header .mode{font-size:15px}",
     ".wrap.kiosk .badge,.wrap.kiosk details,.wrap.kiosk .retry{font-size:15px}",
     ".wrap.kiosk .icon{width:52px;height:52px;font-size:22px}",
-    "@media (max-width:480px){.wrap.open .launcher{display:none}.panel{right:0;left:0;bottom:0;width:100%;max-width:100%;height:min(88vh,640px);border-radius:24px 24px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}}",
+    "@media (max-width:480px){.launcher{width:52px;height:52px;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px))}.launcher .txt{display:none}.launcher svg{width:24px;height:24px}.wrap.kiosk .launcher{width:72px;height:72px}.panel{height:min(88vh,640px)}}",
+    "@media (min-width:1024px){.wrap.open .scrim{display:none}.panel,.wrap.kiosk .panel{left:auto;right:0;top:0;bottom:0;margin:0;width:" + DOCK_W + "px;height:auto;max-height:none;border-radius:0;padding-bottom:0;box-shadow:-1px 0 0 var(--line),-16px 0 40px rgba(0,0,0,.06)}.panel::before{display:none}}",
+    ".icon.close{width:44px;height:44px;font-size:17px}",
+    ".wrap.kiosk .icon.close{width:56px;height:56px;font-size:22px}",
     "header{display:flex;align-items:center;gap:12px;padding:18px 14px 12px 20px}",
     "header .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 18%,transparent);flex:none}",
     "header .dot.off{background:var(--faint);box-shadow:none}",
@@ -132,7 +150,9 @@
     "@media (prefers-reduced-motion:reduce){*{transition:none!important}}"
   ].join("\n");
 
-  var host, root, wrap, panel, launcher, log, form, input, sendBtn, countEl, modeEl, dotEl, statusEl;
+  var host, root, wrap, panel, launcher, scrim, log, form, input, sendBtn, countEl, modeEl, dotEl, statusEl;
+  var mqDock = null, pushed = null, lastY = 0, tuckTimer = null;
+  var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 1 3.3 6.5L4 19.5l1-3.4A7.9 7.9 0 0 1 4 12z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>';
   var busy = false, history = [], suggestions = [], lastFocus = null, loadedOnce = false;
   var activeRequest = null, conversationVersion = 0, statusLoading = false;
 
@@ -151,12 +171,18 @@
     style.textContent = CSS;
     wrap = el("div", KIOSK ? "wrap kiosk" : "wrap");
 
-    launcher = el("button", "launcher", "AI\n챗봇");
+    launcher = el("button", "launcher");
     launcher.type = "button";
-    launcher.style.whiteSpace = "pre-line";
+    launcher.innerHTML = ICON;
+    launcher.append(el("span", "txt", "AI 챗봇"));   // 휴대폰 폭에서는 글자 없이 아이콘만
     launcher.setAttribute("aria-label", TITLE + " 열기");
     launcher.hidden = true;
     launcher.addEventListener("click", function () { toggle(); });
+
+    // 좁은 화면 시트 뒤 어두운 막 — 누르면 닫힘(넓은 화면 옆 패널에서는 안 보임)
+    scrim = el("div", "scrim");
+    scrim.setAttribute("aria-hidden", "true");
+    scrim.addEventListener("click", function () { closePanel(); });
 
     panel = el("section", "panel");
     panel.hidden = true;
@@ -169,7 +195,7 @@
     var h2 = el("h2", null, TITLE);
     modeEl = el("span", "mode", "연결 확인 중…");
     h2.appendChild(modeEl);
-    var close = el("button", "icon", "✕");
+    var close = el("button", "icon close", "✕");
     close.type = "button";
     close.setAttribute("aria-label", "챗봇 닫기");
     close.addEventListener("click", function () { closePanel(); });
@@ -202,7 +228,7 @@
     form.append(row, foot);
 
     panel.append(header, log, form);
-    wrap.append(launcher, panel);
+    wrap.append(launcher, scrim, panel);
     root.append(style, wrap);
     document.body.appendChild(host);
     watchTheme();
@@ -217,7 +243,8 @@
       if (e.isComposing || e.keyCode === 229) return; // 한글 조합 중 Enter 는 글자 확정용
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input.value); }
     });
-    panel.addEventListener("keydown", function (e) { if (e.key === "Escape") closePanel(); });
+    // Esc = 닫기: 창 안에 초점이 없어도(시트 밖을 본 뒤) 닫히도록 문서 전체에서 받는다
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && panel && !panel.hidden) closePanel(); });
     // 공용 기기: 창 안에서 무엇이든 조작하면 무입력 시계를 다시 잰다
     ["pointerdown", "keydown", "input", "wheel"].forEach(function (t) { panel.addEventListener(t, touchIdle, { passive: true }); });
     showWelcome();
@@ -473,12 +500,58 @@
       .finally(function () { statusLoading = false; });
   }
 
+  // ── 11/8 가림 줄이기 ─────────────────────────────────────────
+  function isDocked() { return !!(mqDock && mqDock.matches); }
+  // 넓은 화면에서 창이 열려 있으면 body 오른쪽 여백을 패널 폭만큼 준다. 원래 인라인 값을 기억했다가 그대로 되돌린다
+  function layout() {
+    var b = document.body;
+    if (!b || !b.style) return;
+    var want = !!panel && !panel.hidden && isDocked();
+    if (want && !pushed) { pushed = { mr: b.style.marginRight || "" }; b.style.marginRight = DOCK_W + "px"; }
+    else if (!want && pushed) { b.style.marginRight = pushed.mr; pushed = null; }
+  }
+  // 떠 있는 단추가 보이는 화면: 위젯 자리(host)를 페이지 맨 끝의 빈 칸으로 써서, 끝까지 내리면 마지막 버튼·글이 단추에 가리지 않게
+  function updateSpacer() {
+    if (!host || !host.style) return;
+    var need = SPACER && launcher && !launcher.hidden;
+    if (!need) { host.style.display = ""; host.style.height = ""; host.style.flex = ""; return; }
+    var h = 92;
+    try {
+      var cs = getComputedStyle(launcher);
+      h = Math.ceil((launcher.offsetHeight || 60) + (parseFloat(cs.bottom) || 20) + 12);
+    } catch (e) { /* 계산 못 하면 기본 92px */ }
+    host.style.display = "block"; host.style.height = h + "px"; host.style.flex = "none";
+  }
+  // 아래로 내리는 동안 단추를 잠깐 숨기고, 멈추거나 위로 올리거나 맨 끝에 닿으면 다시 보인다
+  function onScroll() {
+    if (!launcher || launcher.hidden) return;
+    var y = window.pageYOffset || 0;
+    var de = document.documentElement;
+    var atEnd = de && y + window.innerHeight >= de.scrollHeight - 4;
+    if (y > lastY + 4 && !atEnd) launcher.classList.add("tuck");
+    else if (y < lastY - 4 || atEnd) launcher.classList.remove("tuck");
+    lastY = y;
+    clearTimeout(tuckTimer);
+    tuckTimer = setTimeout(function () { launcher.classList.remove("tuck"); }, 1200);
+  }
+  function watchLayout() {
+    if (typeof window.matchMedia === "function") {
+      mqDock = window.matchMedia(DOCK_QUERY);
+      if (mqDock.addEventListener) mqDock.addEventListener("change", layout); else if (mqDock.addListener) mqDock.addListener(layout);
+    }
+    if (typeof window.addEventListener === "function") {
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", updateSpacer);
+    }
+  }
+
   function openPanel() {
     if (!panel) build();
     if (!panel.hidden) return;
     lastFocus = document.activeElement;
     panel.hidden = false;
-    wrap.classList.add("open"); // 휴대폰 폭에서는 창이 화면을 덮으므로 동그란 버튼을 숨긴다(창의 ✕ 로 닫음)
+    wrap.classList.add("open"); // 창이 열리면 동그란 버튼은 숨긴다(창의 ✕·시트 밖 누르기·Esc 로 닫음)
+    layout();
     launcher.setAttribute("aria-expanded", "true");
     if (!loadedOnce) { loadedOnce = true; loadStatus(); }
     touchIdle();
@@ -489,6 +562,7 @@
     if (!panel || panel.hidden) return;
     panel.hidden = true;
     wrap.classList.remove("open");
+    layout();
     launcher.setAttribute("aria-expanded", "false");
     if (KIOSK) { clearTimeout(idleTimer); if (log && log.querySelector(".msg")) resetChat(true); }  // 공용 기기는 닫으면 바로 지움
     if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
@@ -500,6 +574,8 @@
     build();
     var hasOpener = !!document.querySelector("[data-chatbot-open]");
     launcher.hidden = LAUNCHER === "off" || (LAUNCHER === "auto" && hasOpener);
+    watchLayout();
+    updateSpacer();
     // 화면이 나중에 만든 버튼도 동작하도록 문서 전체에서 클릭을 받는다
     document.addEventListener("click", function (e) {
       var t = e.target && e.target.closest && e.target.closest("[data-chatbot-open]");

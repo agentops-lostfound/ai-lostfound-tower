@@ -27,6 +27,7 @@
     .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
     .section-head small{display:block;color:var(--ui-text-3);font-weight:600;font-size:13px}
     h2{font-size:22px;margin:4px 0 0;font-weight:700;letter-spacing:-.02em}
+    .form-err{margin:0 0 10px;padding:12px 14px;border-radius:12px;background:var(--ui-err-soft);color:var(--ui-err);font-weight:700}
     .required{display:inline-flex;align-items:center;background:var(--ui-err-soft);color:var(--ui-err);border-radius:99px;padding:4px 10px;font-size:12px;font-weight:700;white-space:nowrap}
     .field-group{margin:24px 0}.field-group label{display:block;font-weight:700;font-size:15px;margin-bottom:10px}
     .field-group label > span:not(.required):not(.upload-content){color:var(--ui-text-3);font-weight:600;font-size:13px}
@@ -65,6 +66,21 @@
     .actions{display:flex;gap:9px;flex-wrap:wrap}.actions button{flex:1}
     .notice{font-size:13px;color:var(--ui-text-2);background:var(--ui-fill);border-radius:var(--ui-radius-sm);padding:14px;line-height:1.65;margin-top:14px}
     .footer{text-align:center;margin:24px 0 0}
+    /* 11/8 디자인 개편 2: 글 대신 그림 안내(인라인 SVG 선 그림, 글자색 currentColor + 파랑 var(--ui-primary)). 화면 읽기 프로그램은 <title> 을 읽는다 */
+    .pic{display:block;flex:none;color:var(--ui-text-2);fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+    .pic .p{stroke:var(--ui-primary)}.pic .pf{fill:var(--ui-primary);stroke:none}.pic text{font-family:var(--ui-font);font-weight:800}
+    .flow{display:flex;align-items:center;gap:8px;margin:0 0 28px;padding:0;list-style:none}
+    .flow li{flex:1;display:flex;align-items:center;gap:12px;background:var(--ui-surface);border-radius:var(--ui-radius);padding:12px 16px;box-shadow:var(--ui-shadow);font-weight:700;font-size:17px;min-width:0}
+    .flow li.arrow{flex:none;background:none;box-shadow:none;padding:0;color:var(--ui-text-3)}
+    .flow .pic{width:44px;height:44px}
+    .flow .arrow .pic{width:20px;height:20px;color:var(--ui-text-3)}
+    .flow small{display:block;font-size:13px;font-weight:600;color:var(--ui-text-3)}
+    .upload-content .pic{width:64px;height:64px;margin:0 auto 4px;color:var(--ui-primary)}
+    .device-icon{width:72px;height:72px;margin:0 auto 4px}
+    .done-icon{width:28px;height:28px;display:inline-block;vertical-align:-6px;margin-right:6px}
+    .topbar .ui-theme-toggle{width:56px;height:56px}
+    .quick button{min-height:56px;padding:0 18px}
+    @media(max-width:720px){.flow{gap:4px}.flow li{flex-direction:column;gap:4px;padding:10px 4px;text-align:center;font-size:14px}.flow .pic{width:36px;height:36px}.flow small{font-size:11px}.flow .arrow .pic{width:14px;height:14px}}
     @media(max-width:720px){body{padding:16px 12px 32px}.layout{grid-template-columns:1fr}.preview-card{position:static;grid-row:1}form{padding:20px}.device{height:200px}}
     @media(max-width:420px){.two{grid-template-columns:1fr}.section-head{align-items:flex-start}}
   </style>
@@ -73,58 +89,63 @@
 <main class="wrap">
   <div class="topbar"><div class="eyebrow"><span class="step">1</span> 습득물 등록기계 · 무인</div><span data-theme-slot></span></div>
   <h1>장소만 고르고, 넣으면 끝</h1>
-  <p class="intro">주운 물건 사진과 발견 장소를 등록해 주세요. 연락처는 선택 사항입니다.</p>
+  <ol class="flow" aria-label="접수 순서">
+    <li><svg class="pic" viewBox="0 0 48 48" role="img"><title>사진 찍기</title><rect x="5" y="13" width="38" height="28" rx="5"/><path d="M17 13l3-5h8l3 5"/><circle class="p" cx="24" cy="27" r="7"/></svg><span>사진<small>찍기·고르기</small></span></li>
+    <li class="arrow" aria-hidden="true"><svg class="pic" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></li>
+    <li><svg class="pic" viewBox="0 0 48 48" role="img"><title>장소 고르기</title><path d="M24 44S10 31 10 20a14 14 0 0 1 28 0c0 11-14 24-14 24z"/><circle class="p" cx="24" cy="20" r="5"/></svg><span>장소<small>누르거나 쓰기</small></span></li>
+    <li class="arrow" aria-hidden="true"><svg class="pic" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></li>
+    <li><svg class="pic" viewBox="0 0 48 48" role="img"><title>접수 번호 받기</title><path d="M4 12h40v8a4 4 0 0 0 0 8v8H4v-8a4 4 0 0 0 0-8z"/><path class="p" d="M13 24h14M33 12v24" /></svg><span>접수 번호<small>받으면 끝</small></span></li>
+  </ol>
 
   <div class="layout">
-    <form id="intake-form">
+    <form id="intake-form" novalidate>
       <div class="section-head">
-        <div><small>습득물 등록 · 신규 접수</small><h2>어디에서 주우셨나요?</h2></div>
-        <span class="required">사진·장소 필수</span>
+        <div><h2>습득물 등록</h2></div>
       </div>
 
       <div class="field-group">
-        <label for="photo">① 주운 물건 사진 <span class="required">필수</span></label>
+        <label for="photo">① 사진 <span class="required">필수</span></label>
         <label class="upload" for="photo">
-          <span class="upload-content" id="upload-prompt"><span class="camera">📷</span><br><strong>사진 촬영 또는 이미지 업로드</strong><br><span class="hint">휴대전화 카메라로 촬영하거나 파일을 선택하세요.</span></span>
+          <span class="upload-content" id="upload-prompt"><svg class="pic" viewBox="0 0 48 48" role="img"><title>사진 찍기</title><rect x="5" y="13" width="38" height="28" rx="5"/><path d="M17 13l3-5h8l3 5"/><circle cx="24" cy="27" r="7"/><path d="M38 6v8M34 10h8"/></svg><strong>눌러서 사진 찍기</strong><br><span class="hint">또는 파일 고르기</span></span>
           <img id="photo-preview" alt="선택한 습득물 사진 미리보기" hidden>
         </label>
-        <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required hidden>
+        <input id="photo" name="photo" type="file" accept="image/*" capture="environment" hidden>
         <p class="hint" id="photo-name">사진 파일 1장을 선택해 주세요.</p>
       </div>
 
       <div class="field-group">
-        <label for="location">③ 발견 장소 <span class="required">필수</span></label>
+        <label for="location">② 발견 장소 <span class="required">필수</span></label>
         <input id="location" name="location" maxlength="200" placeholder="예: 2호선 해운대역 남자 화장실 안" required>
         <div class="quick" aria-label="관제탑 추천 장소"></div>
       </div>
 
       <div class="field-group">
-        <label>⑤ 습득자 연락처 <span>선택</span></label>
+        <label>③ 연락처 <span>선택</span></label>
         <div class="two">
           <div><label for="finder-name">이름</label><input id="finder-name" name="finder_name" maxlength="40" autocomplete="name" placeholder="이름 입력"></div>
           <div><label for="finder-phone">전화번호</label><input id="finder-phone" name="finder_phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="010-0000-0000"></div>
         </div>
-        <p class="hint">연락처 입력은 선택 사항입니다. 입력하지 않고도 접수할 수 있습니다.</p>
+        <p class="hint">안 적어도 접수돼요.</p>
       </div>
 
-      <label class="consent"><input id="consent" type="checkbox" required><span>접수 및 분실물 반환 안내를 위한 개인정보 수집·이용 안내를 확인했습니다. 실제 서비스 운영 시에는 수집 항목·보유 기간·처리 주체를 명시한 정식 동의문으로 교체해야 합니다.</span></label>
+      <label class="consent"><input id="consent" type="checkbox" required><span>반환 안내용 개인정보 이용에 동의해요.<br>(시연용 문구 · 운영 때 정식 동의문으로 교체)</span></label>
       <button class="submit" type="submit">습득물 접수하기 →</button>
     </form>
 
     <aside class="preview-card" aria-label="접수 상태 미리보기">
       <div class="device" id="device-preview">
-        <div id="device-placeholder"><div class="placeholder">📦</div><strong>습득물 등록 안내</strong><br><small>사진을 등록하면 여기에 표시됩니다.</small></div>
+        <div id="device-placeholder"><svg class="pic device-icon" viewBox="0 0 48 48" role="img"><title>사진 미리보기 자리</title><rect x="6" y="9" width="36" height="30" rx="4"/><circle class="p" cx="17" cy="19" r="3.5"/><path class="p" d="M6 33l11-10 9 8 6-5 10 9"/></svg><strong>사진이 여기 보여요</strong></div>
       </div>
       <span class="status" id="status">접수 대기 중</span>
-      <p>사진과 장소를 등록하면<br>관제탑이 접수 번호를 발급합니다.</p>
+      <p>사진·장소를 넣으면 접수 번호가 나와요</p>
     </aside>
   </div>
 
   <section class="success" id="success" aria-live="polite" hidden>
-    <h2>✅ 습득물 접수가 완료되었습니다.</h2>
-    <div class="ticket"><span class="hint">습득물 접수 번호</span><strong id="receipt-number">#A-0000</strong></div>
+    <h2><svg class="pic done-icon" viewBox="0 0 28 28" role="img"><title>완료</title><circle class="p" cx="14" cy="14" r="12"/><path class="p" stroke-width="3" d="M8 14.5l4 4 8-9"/></svg>습득물 접수 완료</h2>
+    <div class="ticket"><span class="hint">접수 번호</span><strong id="receipt-number">#A-0000</strong></div>
     <div id="receipt-summary"></div>
-    <p class="notice">접수가 완료되었습니다. 접수 번호를 확인해 주세요. 10초 뒤 처음 화면으로 자동 이동합니다.</p>
+    <p class="notice">번호를 확인해 주세요 · 10초 뒤 처음으로</p>
   </section>
   <p class="hint footer">AI LOST &amp; FOUND · 습득물 등록 서비스</p>
 </main>
@@ -155,10 +176,11 @@
   $('photo').addEventListener('change', () => {
     const file=$('photo').files && $('photo').files[0]; if(!file)return;
     if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){
-      alert('JPG, PNG 또는 WEBP 사진을 5MB 이하로 선택해 주세요.'); $('photo').value=''; selectedPhotoData=null; return;
+      formErr('JPG·PNG·WEBP 사진, 5MB 이하만 돼요.'); $('photo').value=''; selectedPhotoData=null; return;
     }
     const reader=new FileReader();
     reader.onload=()=>{
+      formErr('');
       selectedPhotoData=reader.result; $('photo-preview').src=selectedPhotoData; $('photo-preview').hidden=false;
       $('upload-prompt').hidden=true; $('device-placeholder').hidden=true;
       const img=document.createElement('img'); img.src=selectedPhotoData; img.alt='등록할 습득물';
@@ -179,11 +201,16 @@
     $('success').hidden=true; $('status').textContent='접수 대기 중'; $('receipt-summary').replaceChildren();
     $('receipt-number').textContent=''; window.scrollTo({top:0,behavior:'smooth'}); loadPlaces();
   }
+  function formErr(msg){let e=$('form-err');if(!e){e=document.createElement('p');e.id='form-err';e.className='form-err';e.setAttribute('role','alert');
+    const sub=form.querySelector('.submit');sub.parentNode.insertBefore(e,sub);}e.textContent=msg;e.hidden=!msg;}
   form.addEventListener('submit',async event=>{
-    event.preventDefault(); if(!form.reportValidity())return;
-    if(!selectedPhotoData){alert('습득물 사진을 먼저 등록해 주세요.');$('photo').focus();return;}
+    event.preventDefault(); formErr('');
+    // 11/8 무작위 시험: 숨긴 사진 칸이 required 라 사진 없이 누르면 안내 없이 막혔고, 나머지 안내는 alert 창이었다 → 화면 안 문구
+    if(!selectedPhotoData){formErr('사진을 먼저 올려 주세요.');document.querySelector('label[for=photo]').scrollIntoView({behavior:'smooth',block:'center'});return;}
     const placeText=$('location').value.trim();
-    if(!placeText){alert('발견 장소를 입력하거나 추천 장소를 선택해 주세요.');$('location').focus();return;}
+    if(!placeText){formErr('발견 장소를 고르거나 적어 주세요.');$('location').focus();return;}
+    if(!$('consent').checked){formErr('개인정보 이용에 동의해 주세요.');$('consent').focus();return;}
+    if(!form.checkValidity()){formErr('입력한 내용을 다시 확인해 주세요.');return;}
     const body={machine_id:machine,place_text:placeText,photo:selectedPhotoData};
     if(chosenPlaceId!==null&&chosenPlaceId!==undefined)body.place_id=chosenPlaceId;
     const name=$('finder-name').value.trim(),phone=$('finder-phone').value.trim();
@@ -198,7 +225,7 @@
       $('receipt-summary').textContent='발견 장소: '+(data.place_text||placeText);
       $('status').textContent='접수 완료 · '+data.item_id; $('success').hidden=false;
       $('success').scrollIntoView({behavior:'smooth',block:'nearest'}); resetTimer=setTimeout(resetScreen,10000);
-    }catch(error){alert(error.message||'접수 중 오류가 발생했습니다.');}
+    }catch(error){formErr(error.message||'접수하지 못했어요. 다시 눌러 주세요.');}
     finally{submit.disabled=false;submit.textContent='습득물 접수하기 →';}
   });
   loadPlaces();

@@ -52,3 +52,74 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
 })();
+
+/* "아래에 더 있음" 표시(11/8). 안쪽에서 스크롤되는 상자에 data-scroll-hint 를 붙이면,
+   내용이 넘칠 때만 아래쪽이 흐려지고 "아래에 더 있음 ↓" 단추가 뜬다(누르면 한 화면 내려감). 끝까지 내리면 사라진다.
+   상자 크기·내용이 바뀌어도 다시 계산한다(ResizeObserver·MutationObserver). 페이지 전체 스크롤에는 쓰지 않는다 */
+(function () {
+  var seen = typeof WeakSet === 'function' ? new WeakSet() : null;
+  function attach(box) {
+    if (!seen || seen.has(box)) return;
+    seen.add(box);
+    var label = box.getAttribute('data-scroll-hint') || '아래에 더 있음';
+    var hint = document.createElement('button');
+    hint.type = 'button';
+    hint.className = 'ui-scroll-hint';
+    hint.setAttribute('aria-label', label + ' — 아래로 내리기');
+    hint.innerHTML = '<span>' + label + '</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+    hint.hidden = true;
+    hint.addEventListener('click', function () { box.scrollBy({ top: Math.max(120, box.clientHeight * 0.8), behavior: 'smooth' }); });
+    var host = box.parentElement;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    host.appendChild(hint);
+    // 11/8 무작위 시험: 단추가 상자 안 마지막 입력칸·단추를 덮어 바로 누를 수 없었다 →
+    // ① 상자 아래 테두리에 반쯤 걸치게 두고 ② 사용자가 한 번 내려 보면 숨긴다(내용이 새로 바뀌면 다시)
+    var seenScroll = false;
+    function update() {
+      var visible = box.offsetParent !== null;
+      var more = visible && box.scrollHeight - box.clientHeight - box.scrollTop > 16;
+      box.classList.toggle('ui-has-more', more);
+      hint.hidden = !more || seenScroll;
+      if (!hint.hidden) {
+        hint.classList.remove('compact');
+        place(false);
+        if (coversControl()) { hint.classList.add('compact'); place(true); }   // 11/8 2차: 맨 아래 단추를 덮으면 오른쪽 구석 작은 ↓ 로
+      }
+    }
+    function place(corner) {
+      var h = hint.offsetHeight || 40, w = hint.offsetWidth || 40;
+      hint.style.top = (box.offsetTop + box.clientHeight - h / 2) + 'px';
+      hint.style.left = (corner ? box.offsetLeft + box.clientWidth - w / 2 - 12 : box.offsetLeft + box.clientWidth / 2) + 'px';
+    }
+    function coversControl() {   // 단추 아래(상자 안)에 누를 수 있는 것이 있는가 — 잠깐 숨기고 세 점을 찍어 본다
+      var r = hint.getBoundingClientRect(), hit = false;
+      hint.style.visibility = 'hidden';
+      [r.left + 6, r.left + r.width / 2, r.right - 6].forEach(function (x) {
+        var e = document.elementFromPoint(x, r.top + r.height / 2);
+        var c = e && e.closest && e.closest('button, a[href], input, select, textarea, label, [role=button], [tabindex]');
+        if (c && box.contains(c)) hit = true;
+      });
+      hint.style.visibility = '';
+      return hit;
+    }
+    box.addEventListener('scroll', function () { if (box.scrollTop > 24) seenScroll = true; update(); }, { passive: true });
+    box.addEventListener('focusin', function (e) { if (e.target !== box) { seenScroll = true; update(); } });
+    window.addEventListener('resize', update);
+    if (window.ResizeObserver) new ResizeObserver(update).observe(box);
+    if (window.MutationObserver) new MutationObserver(function (list) {
+      if (list.some(function (m) { return m.type === 'childList' && m.target === box; })) seenScroll = false;   // 내용이 새로 바뀜
+      setTimeout(update, 0);
+    }).observe(box, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    var section = box.closest('section') || box;      // 키오스크처럼 같은 상자를 다른 단계로 다시 보여 줄 때 다시 띄움
+    if (window.MutationObserver) new MutationObserver(function () { if (!section.classList.contains('on')) seenScroll = false; setTimeout(update, 0); })
+      .observe(section, { attributes: true, attributeFilter: ['class'] });
+    setTimeout(update, 50);
+  }
+  function scan() { document.querySelectorAll('[data-scroll-hint]').forEach(attach); }
+  window.lfScrollHint = { scan: scan };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan); else scan();
+  if (window.MutationObserver) {
+    var start = function () { new MutationObserver(scan).observe(document.body, { childList: true, subtree: true }); };
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  }
+})();

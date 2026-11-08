@@ -2,8 +2,10 @@
    한줄 설명: 모든 화면이 같은 색·글자·간격·부품(버튼·카드·입력칸)을 쓰도록 모아 둔 파일. 화면은 <link rel="stylesheet" href="/ui/theme.css"> 한 줄로 쓴다.
    - 색은 아래 토큰(--ui-*)으로만 쓴다. 다크 모드는 토큰 값만 바뀐다(OS 설정을 따르고, theme.js 버튼으로 바꾸면 그 선택이 이김)
    - 부품: .ui-btn(.secondary/.ghost/.danger) · .ui-card · .ui-input · .ui-chip · .ui-badge(.ok/.warn/.err) · .ui-list · .ui-title/.ui-sub
-   - 글꼴: Pretendard(인터넷이 없으면 맑은 고딕 등 시스템 글꼴) */
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+   - 글꼴: Pretendard(관제탑이 /ui/fonts 로 직접 제공, 못 읽으면 맑은 고딕 등 시스템 글꼴) */
+/* 글꼴: Pretendard(SIL Open Font License 1.1, web/ui/fonts/Pretendard-LICENSE.txt)를 관제탑이 직접 제공 — 인터넷이 없어도 같은 글꼴 */
+@font-face { font-family: "Pretendard Variable"; font-weight: 45 920; font-style: normal; font-display: swap;
+             src: url("/ui/fonts/PretendardVariable.woff2") format("woff2-variations"), url("/ui/fonts/PretendardVariable.woff2") format("woff2"); }
 
 :root {
   --ui-bg: #f2f4f6;          /* 화면 바탕 */
@@ -26,6 +28,7 @@
   --ui-err: #f04452;
   --ui-err-soft: #ffeeee;
   --ui-shadow: 0 2px 8px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .04);
+  --ui-scrim: rgba(0, 0, 0, .36);   /* 시트·창 뒤 어두운 막 */
   --ui-radius: 16px;
   --ui-radius-lg: 24px;
   --ui-radius-sm: 10px;
@@ -39,7 +42,7 @@
     --ui-text: #f2f3f5; --ui-text-2: #b0b4bc; --ui-text-3: #7e838c; --ui-line: #2e2e36;
     --ui-primary: #4593fc; --ui-primary-hover: #6aa8fd; --ui-primary-soft: #1b2a40; --ui-on-primary: #ffffff;
     --ui-ok: #20c47f; --ui-ok-soft: #12302a; --ui-warn: #f0a33a; --ui-warn-soft: #362a14; --ui-err: #ff5f6d; --ui-err-soft: #3a1c20;
-    --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+    --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35); --ui-scrim: rgba(0, 0, 0, .6);
     color-scheme: dark;
   }
 }
@@ -48,7 +51,7 @@
   --ui-text: #f2f3f5; --ui-text-2: #b0b4bc; --ui-text-3: #7e838c; --ui-line: #2e2e36;
   --ui-primary: #4593fc; --ui-primary-hover: #6aa8fd; --ui-primary-soft: #1b2a40; --ui-on-primary: #ffffff;
   --ui-ok: #20c47f; --ui-ok-soft: #12302a; --ui-warn: #f0a33a; --ui-warn-soft: #362a14; --ui-err: #ff5f6d; --ui-err-soft: #3a1c20;
-  --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35); --ui-scrim: rgba(0, 0, 0, .6);
   color-scheme: dark;
 }
 
@@ -112,3 +115,18 @@ body { background: var(--ui-bg); color: var(--ui-text); font-family: var(--ui-fo
 .ui-theme-toggle svg { width: 20px; height: 20px; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: .01ms !important; } }
+
+/* "아래에 더 있음" 표시(theme.js 가 data-scroll-hint 상자에 붙임) */
+.ui-has-more { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+               mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
+.ui-scroll-hint { position: absolute; z-index: 1;   /* 고정 머리말(z-index 2 이상)보다 아래 */ translate: -50% 0;   /* transform 대신 translate — 화면별 button:active{transform} 과 부딪히지 않게 */ display: inline-flex; align-items: center; gap: 6px;
+                  min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--ui-text); color: var(--ui-surface);
+                  font: 600 14px var(--ui-font); box-shadow: var(--ui-shadow); cursor: pointer; opacity: .92;
+                  animation: ui-hint-bob 1.8s ease-in-out infinite; }
+.ui-scroll-hint svg { width: 18px; height: 18px; }
+/* 화면별 button:hover·:active 규칙이 색을 덮지 않게(11/8 2차: 다크에서 누른 뒤 어두운 글자+어두운 바탕) */
+button.ui-scroll-hint, button.ui-scroll-hint:hover, button.ui-scroll-hint:active, button.ui-scroll-hint:focus { background: var(--ui-text); color: var(--ui-surface); }
+button.ui-scroll-hint.compact { padding: 0; width: 40px; justify-content: center; }
+button.ui-scroll-hint.compact span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.ui-scroll-hint[hidden] { display: none; }
+@keyframes ui-hint-bob { 0%, 100% { margin-top: 0; } 50% { margin-top: 4px; } }

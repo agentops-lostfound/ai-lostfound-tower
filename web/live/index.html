@@ -150,6 +150,19 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .joint .val{text-align:right;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .robot-note{color:var(--sub2);font-size:12px;margin-top:14px;line-height:1.6}
 .story .time{margin-left:auto;color:var(--ink);font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+/* 11/8 글 줄이기: 긴 설명은 "ⓘ 자세히"로 접고, 범례는 작은 선 그림으로 */
+details.more{margin-top:10px;color:var(--sub2);font-size:12px;line-height:1.6}
+details.more summary{cursor:pointer;width:fit-content;list-style:none;color:var(--sub);font-weight:600;font-size:12px;padding:2px 10px;border-radius:999px;background:var(--soft)}
+details.more summary::-webkit-details-marker{display:none}
+details.more[open] summary{margin-bottom:6px}
+details.more .robot-note{margin-top:0}
+.icons{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;color:var(--sub);font-size:12px}
+.icons span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.icons svg{width:18px;height:18px;flex:none;display:inline-block}
+.card h2 .icons{display:inline-flex;font-weight:500;margin-left:6px;vertical-align:middle}
+#stories,.log{scrollbar-gutter:stable}
+#stories{max-height:min(78vh,1100px);overflow:auto}
+.c-ok{color:var(--ok)} .c-acc{color:var(--accent)} .c-bad{color:var(--bad)} .c-warn{color:var(--warn)} .c-team{color:var(--team)}
 </style>
 </head>
 <body>
@@ -169,16 +182,22 @@ svg{display:block;width:100%;height:auto;max-width:100%}
   <section class="col col-left">
     <div class="card">
       <h2>진행 중인 이야기</h2>
-      <div id="stories"><p class="empty">아직 신고가 없습니다. 디스코드 분실물 채널이나 아래 시험 입력으로 시작하세요.</p></div>
+      <div class="icons" style="margin:-4px 0 12px">
+        <span><svg viewBox="0 0 16 16" role="img" aria-label="초록 점: 끝난 단계" class="c-ok"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg>끝남</span>
+        <span><svg viewBox="0 0 16 16" role="img" aria-label="파란 테두리 점: 진행 중인 단계" class="c-acc"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1" opacity=".35"/></svg>진행</span>
+        <span><svg viewBox="0 0 16 16" role="img" aria-label="빨간 점: 실패한 단계" class="c-bad"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg>실패</span>
+        <span><svg viewBox="0 0 16 16" role="img" aria-label="빈 점: 아직 안 한 단계"><circle cx="8" cy="8" r="4.5" fill="none" stroke="var(--line)" stroke-width="2"/></svg>대기</span>
+      </div>
+      <div id="stories" data-scroll-hint="아래에 더 있음"><p class="empty">아직 신고가 없습니다.</p></div>
     </div>
     <div class="card try" id="tryCard" hidden>
-      <h2>시험 입력 (디스코드 없이)</h2>
+      <h2>시험 입력</h2>
       <textarea id="tryText" placeholder="예) 서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"></textarea>
       <div class="btns">
         <button class="primary" data-kind="found">습득 신고</button>
         <button data-kind="lost">분실 신고</button>
       </div>
-      <div class="hint">꼬리표: #집기실패 · #보정실패 · #신분증불일치 · #수동인계 · #흐린촬영(메인 AI)</div>
+      <details class="more"><summary>ⓘ 꼬리표</summary>메시지 끝에 붙이면 그 상황을 연습합니다: #집기실패 · #보정실패 · #신분증불일치 · #수동인계 · #흐린촬영(메인 AI)</details>
       <div class="msg" id="tryMsg"></div>
       <div class="q" id="tryQ" hidden><b id="tryQText"></b><input id="tryAns" placeholder="답 (모르면 모름)"><div class="btns"><button id="tryAnsBtn" class="primary">답하기</button></div></div>
     </div>
@@ -189,27 +208,40 @@ svg{display:block;width:100%;height:auto;max-width:100%}
       <h2>본센터 작업대 (탑뷰, mm)</h2>
       <div class="phase" id="phase">대기</div>
       <svg id="bench" viewBox="-20 -20 680 455" role="img" aria-label="보관함과 로봇팔 탑뷰"></svg>
-      <div class="legend"><span>■ 표식(ArUco) 2개 — 보정 기준</span><span>점선 칸 = 보관 칸 8개(R1-1~R4-2, 보관함 정답지와 같은 이름)</span><span>흰 부품·검정 모터 = SO-101 팔로워(공식 모델 모양, 위에서 본 모습) · 옅은 원 = 집게 높이</span><span id="scaleNote"></span></div>
+      <div class="legend icons">
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="검은 네모: 보정 표식"><rect x="2" y="2" width="14" height="14" fill="currentColor"/><rect x="5" y="5" width="4" height="4" fill="var(--panel)"/><rect x="9" y="9" width="4" height="4" fill="var(--panel)"/></svg>표식</span>
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="점선 네모: 보관 칸"><rect x="1.5" y="3.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2.5"/></svg>보관 칸</span>
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="파란 둥근 네모: 제출보관함" class="c-acc"><rect x="2" y="3" width="14" height="12" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>제출보관함</span>
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="흰 부품과 검정 모터: 로봇팔"><rect x="2" y="6" width="11" height="6" rx="1.5" fill="var(--part)" stroke="var(--part-line)"/><rect x="11" y="4.5" width="5" height="9" rx="1" fill="var(--motor)" stroke="var(--motor-line)"/></svg>로봇팔</span>
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="옅은 원: 집게 높이, 클수록 높음"><circle cx="6" cy="10" r="3" fill="var(--arm)" opacity=".25"/><circle cx="12.5" cy="9" r="5" fill="var(--arm)" opacity=".18"/></svg>집게 높이</span>
+      </div>
+      <details class="more"><summary>ⓘ 자세히</summary>표식(ArUco) 2개 = 보정 기준 · 칸 이름 R1-1~R4-2 = 보관함 정답지와 같음 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
       <div class="places" id="places"></div>
     </div>
   </section>
 
   <section class="col col-right">
     <div class="card" id="robotCard" hidden>
-      <h2>로봇팔 SO-101 · 팔로워(흰색)</h2>
+      <h2>로봇팔 SO-101</h2>
       <div class="robot-meta" id="robotMeta"></div>
-      <div class="side-wrap"><div class="side-cap"><span>옆모습(팔 평면) · 실제 크기 눈금 mm</span><span id="sideTip"></span></div>
+      <div class="side-wrap"><div class="side-cap"><span>옆모습 · mm</span><span id="sideTip"></span></div>
         <svg id="side" viewBox="-190 -330 610 350" role="img" aria-label="SO-101 팔로워 옆모습"></svg></div>
       <div class="joints" id="joints"></div>
-      <div class="robot-note" id="robotNote"></div>
+      <details class="more"><summary>ⓘ 자세히</summary><div class="robot-note" id="robotNote"></div></details>
     </div>
     <div class="card" id="brainCard" hidden>
       <h2>🤖 관제탑 메인 AI · 에이전트 대화</h2>
-      <ul class="chat" id="brain"></ul>
+      <ul class="chat" id="brain" data-scroll-hint="새 대화 아래에"></ul>
     </div>
     <div class="card">
-      <h2>관제 메시지 (디스코드 관제 채널과 같은 내용)</h2>
-      <ul class="log" id="log"></ul>
+      <h2>관제 메시지 <span class="icons" title="디스코드 관제 채널과 같은 내용">= 디스코드</span></h2>
+      <div class="icons" style="margin:-4px 0 10px">
+        <span><svg viewBox="0 0 8 18" role="img" aria-label="파란 막대: 진행" class="c-acc"><rect x="2" y="2" width="4" height="14" rx="2" fill="currentColor"/></svg>진행</span>
+        <span><svg viewBox="0 0 8 18" role="img" aria-label="빨간 막대: 경보" class="c-bad"><rect x="2" y="2" width="4" height="14" rx="2" fill="currentColor"/></svg>경보</span>
+        <span><svg viewBox="0 0 8 18" role="img" aria-label="보라 막대: 팀 대화" class="c-team"><rect x="2" y="2" width="4" height="14" rx="2" fill="currentColor"/></svg>팀</span>
+        <span><svg viewBox="0 0 8 18" role="img" aria-label="초록 막대: 결과" class="c-ok"><rect x="2" y="2" width="4" height="14" rx="2" fill="currentColor"/></svg>결과</span>
+      </div>
+      <ul class="log" id="log" data-scroll-hint="이전 메시지 더 있음"></ul>
     </div>
   </section>
 </main>
