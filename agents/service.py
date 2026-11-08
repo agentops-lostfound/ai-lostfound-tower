@@ -100,6 +100,10 @@ class NotFound(LookupError):
     """없는 찾기 번호(HTTP 404)."""
 
 
+# 11/8 반환을 시작할 수 있는 물건 상태(보관함 안). 인계 대기·인계 완료·반환 중·등록기계 보관·회수 중은 거절
+START_OK = ("본센터 보관", "확인 중", "승인·수령 예약", "반환 보류")
+
+
 class Conflict(RuntimeError):
     """중복 사례 번호 또는 다른 반환 진행 중(HTTP 409). kind: duplicate | busy | state(인계할 수 없는 상태)"""
 
@@ -298,11 +302,22 @@ class TowerService:
             {k: v for k, v in feats.items() if k != "category"})}
 
     # ---------- 찾기 요청(웹) ----------
-    def create_claim(self, payload: object) -> dict:
+    def create_claim(self, payload: object, trusted: bool = True) -> dict:
         try:
             claim = parse_claim(payload)
         except ClaimError as e:
             raise RequestError(str(e)) from e
+        if not trusted:          # 11/8: 확인 결과를 스스로 신고한 요청은 '미확인'으로 → 키오스크는 직원 확인으로 보냄
+            claim["id_verified"] = False
+            claim["quiz"] = [{**q, "passed": False} for q in claim["quiz"]]
+        # 11/8 무작위 시험: 같은 물건에 찾기 요청 두 건 → 두 번 반환. 이미 진행 중(booked·visited)인 요청이 있으면 거절
+        try:
+            busy = getattr(self.claims, "active_for_item", None)
+            taken = busy(claim["item_id"]) if callable(busy) else None
+        except Exception:
+            taken = None
+        if taken:
+            raise Conflict("claim_exists", "이 물건에는 이미 진행 중인 찾기 요청이 있어요 — 본센터 역무실에서 직원이 확인합니다")
         try:
             row = self.claims.create(claim)
         except ClaimError as e:          # 없는 물건 등
@@ -392,7 +407,12 @@ class TowerService:
             if where in ("등록기계 보관", "회수 중"):
                 raise Conflict("not_arrived", f"물건 {req.item_id} 은 아직 본센터에 도착하지 않았습니다({where}) — "
                                               "회수해 온 뒤 다시 와 주세요(찾기 요청은 그대로 유지)")
-            self._stop_event.clear()
+            # 11/8 무작위 시험: 인계 대기·인계 완료·반환 중인 물건에 새 반환을 시작하면 두 번 전달되거나 상태가 꼬였다 → 보관함에 있는 상태만
+            if where is not None and where not in START_OK:
+                raise Conflict("not_in_bin", f"물건 {req.item_id} 은 지금 반환을 시작할 수 없는 상태입니다({where}) — 직원 확인")
+            # 11/8: 정지 신호는 직원이 '원점 복귀'를 눌러 성공했을 때만 지운다(전에는 새 반환이 시작될 때마다 지워 정지가 풀렸다)
+            if self._stop_event.is_set():
+                raise Conflict("stopped", "로봇이 정지 상태입니다 — 직원이 주변을 확인하고 '원점 복귀'를 누른 뒤 다시 시작하세요")
             slot = self.slot_of(req.item_id)        # 11/6 보관함 정답지: 로봇이 갈 칸·저장 자세를 관제 기록에 남김
             try:
                 self.reporter.progress(req.case_id, "보관 칸",
@@ -723,6 +743,8 @@ class TowerService:
             except Exception as e:
                 r = {"ok": False, "reason": f"원점 복귀 오류({type(e).__name__})"}
             ok = bool(r.get("ok"))
+            if ok:
+                self._stop_event.clear()           # 11/8: 정지는 원점 복귀에 성공해야 풀린다
             try:
                 if ok:
                     self.reporter.progress("STAFF", "원점 복귀 완료", "직원 화면 버튼")

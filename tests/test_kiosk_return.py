@@ -66,7 +66,7 @@ class KioskReturnTest(unittest.TestCase):
         self.assertEqual(self.svc.kiosk_return(body(self.cid))["decision"], DECISION_RETURNED)
 
     def test_web_quiz_failure_blocks(self):
-        cid = self.svc.create_claim(web_payload(quiz=[{"field": "mark", "passed": False}]))["claim_id"]
+        cid = self.svc.create_claim(web_payload(item_id="A-W02", quiz=[{"field": "mark", "passed": False}]))["claim_id"]
         with self.assertRaises(Conflict):
             self.svc.kiosk_return(body(cid))
 

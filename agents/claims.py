@@ -133,6 +133,11 @@ class MemoryClaimStore:
             row = self._rows.get(claim_id)
             return copy.deepcopy(row) if row else None
 
+    def active_for_item(self, item_id: str) -> str | None:
+        """같은 물건의 진행 중(booked·visited) 찾기 번호(11/8 두 번 반환 막기)"""
+        with self._lock:
+            return next((k for k, r in self._rows.items() if r["item_id"] == item_id and r["status"] in ("booked", "visited")), None)
+
     def mark_visited(self, claim_id: str) -> None:
         with self._lock:
             if claim_id in self._rows:
@@ -154,6 +159,7 @@ SQL_GET = (
     "c.created_at FROM claim c JOIN reservation r ON r.claim_id = c.claim_id WHERE c.claim_id = %s"
 )
 SQL_GET_QUIZ = "SELECT field, passed FROM quiz_attempt WHERE claim_id = %s ORDER BY id"
+SQL_ACTIVE_FOR_ITEM = "SELECT claim_id FROM reservation WHERE item_id = %s AND status IN ('booked', 'visited') LIMIT 1"
 SQL_VISITED = "UPDATE reservation SET status = 'visited' WHERE claim_id = %s"
 
 
@@ -194,6 +200,13 @@ class PostgresClaimStore:
                 cur.execute(SQL_INSERT_QUIZ, (cid, claim["item_id"], q["field"], q["passed"]))
             cur.execute(SQL_INSERT_RESERVATION, (cid, claim["item_id"], claim["visit_date"]))
         return self.get(cid)
+
+    def active_for_item(self, item_id: str) -> str | None:
+        """같은 물건의 진행 중(booked·visited) 찾기 번호(11/8 두 번 반환 막기)"""
+        with self._connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(SQL_ACTIVE_FOR_ITEM, (item_id,))
+            row = cur.fetchone()
+            return row[0] if row else None
 
     def get(self, claim_id: str) -> dict | None:
         if not CLAIM_ID_RE.match(claim_id or ""):

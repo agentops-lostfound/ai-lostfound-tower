@@ -72,8 +72,8 @@ class ServiceTest(unittest.TestCase):
 
     def test_each_request_gets_fresh_backend(self):
         svc = service()
-        for i in range(3):   # 가짜 부품의 집기 횟수가 다음 요청에 남으면 2번째부터 실패함
-            self.assertEqual(svc.start_return(ok_payload(case=f"R{i}"))["decision"], DECISION_RETURNED)
+        for i in range(3):   # 가짜 부품의 집기 횟수가 다음 요청에 남으면 2번째부터 실패함(11/8: 같은 물건은 두 번 반환 안 되므로 물건을 바꿈)
+            self.assertEqual(svc.start_return(ok_payload(case=f"R{i}", item=f"A-W0{i + 1}"))["decision"], DECISION_RETURNED)
 
     def test_duplicate_case_never_runs_twice(self):
         calls = []
@@ -151,7 +151,7 @@ class TeamChannelTest(unittest.TestCase):
         rep = Reporter()
         svc = TowerService(demo_backend_factory(), rep)
         svc.start_return(ok_payload(case="T1"))
-        svc.start_return(ok_payload(case="T2", quiz_passed=False))
+        svc.start_return(ok_payload(case="T2", item="A-W02", quiz_passed=False))
         team = [m for m in rep.messages if m["channel"] == "team"]
         self.assertEqual(len(team), 2)
         self.assertIn("[T1] 물건 A-W01 · ✅ 반환 완료", team[0]["title"])
@@ -416,8 +416,11 @@ class RobotButtonsTest(unittest.TestCase):
         self.assertIn("직원 정지 버튼", out["reason"])
         self.assertNotIn("robot_grasp", self.mock.calls)       # 정지 뒤 집기 명령은 부품에 가지 않음
         self.assertTrue(any(m["channel"] == "alert" and "직원 정지 버튼" in m["title"] for m in self.rep.messages))
-        svc.backend_factory = base                              # 다음 반환은 정지 표시가 지워진 채로 시작
-        self.assertEqual(svc.start_return(ok_payload(case="S2", item="A-W02"))["decision"], DECISION_RETURNED)
+        svc.backend_factory = base
+        with self.assertRaises(Conflict):                       # 11/8: 정지는 원점 복귀 전에는 풀리지 않음
+            svc.start_return(ok_payload(case="S2", item="A-W02"))
+        self.assertTrue(svc.robot_home({"staff_confirmed": True})["ok"])
+        self.assertEqual(svc.start_return(ok_payload(case="S3", item="A-W02"))["decision"], DECISION_RETURNED)
 
     def test_stop_when_idle_and_fail(self):
         holder = self.make()

@@ -95,7 +95,7 @@ class RobotCoordinateTest(unittest.TestCase):
             self.assertEqual(out.decision, DECISION_STAFF, mm)
             self.assertIn("작업대 좌표 없음", out.reason)
             self.assertFalse(be.robot_moved(), mm)
-            self.assertEqual(be.db["A-1"]["status"], "승인·수령 예약", mm)   # 반환 중으로 바꾸지 않음
+            self.assertEqual(be.db["A-1"]["status"], "본센터 보관", mm)   # 반환 중으로 바꾸지 않고, 11/8부터 보관 상태로 되돌림
             self.assertTrue(any(m["channel"] == "alert" for m in rep.messages))
 
     def test_valid_point_mm(self):

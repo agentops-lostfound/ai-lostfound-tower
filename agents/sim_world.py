@@ -364,6 +364,8 @@ class SimWorld:
             row = self.items.get(item_id)
             if row is None:
                 return False
+            if row.get("features") and row.get("status") != "등록기계 보관":   # 11/8 보관 중인 물건 특징 덮어쓰기 금지
+                raise IntakeError("이미 특징이 채워진 물건입니다(덮어쓰지 않음)")
             row.update(category=cat, features=pub, private_features=priv)
             if qwen is not None:
                 row["qwen"] = copy.deepcopy(qwen)

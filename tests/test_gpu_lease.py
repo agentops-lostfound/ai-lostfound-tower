@@ -145,7 +145,7 @@ class TowerGpuTest(unittest.TestCase):
         self.assertIn("GPU 사용권 없음", out["reason"])
         self.assertIn("qwen", out["reason"])
         self.assertNotIn("사전 접근 완료", out["steps"])
-        self.assertEqual(self.svc.backend_factory().db_get_item("A-W01")["status"], "승인·수령 예약")   # 반환 중으로 안 바뀜
+        self.assertEqual(self.svc.backend_factory().db_get_item("A-W01")["status"], "본센터 보관")   # 반환 중으로 안 바뀌고, 11/8부터 로봇이 안 움직였으면 보관 상태로 되돌림
 
     def test_free_gpu_used_and_returned(self):
         out = self.svc.start_return(self.payload("G2"))

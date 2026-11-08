@@ -172,6 +172,8 @@ class FakePg:
                     db.contacts[params[0]] = params[1:]
                 elif sql == ik.SQL_LOG_FIRST:
                     db.log.append(params)
+                elif sql == "SELECT 1 FROM item WHERE item_id = %s":
+                    self.rows = [(1,)] if params[0] in db.items else []
                 elif sql == ik.SQL_SET_FEATURES:
                     self.rowcount = 1 if params[3] in db.items else 0
                     if self.rowcount:

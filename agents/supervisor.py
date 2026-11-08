@@ -79,6 +79,8 @@ class Ctx:
     match: dict | None = None
     consult: Callable | None = None   # 11/8 관제탑 메인 AI(agents/tower_brain.py): 매칭이 애매할 때 근거를 더 모음. None 이면 예전 그대로
     brain_note: str = ""              # 메인 AI 추천(직원 알림에 붙임)
+    last_status: str = ""             # 이 흐름이 마지막으로 바꾼 물건 상태
+    grasp_started: bool = False       # 로봇이 물건을 집으려고 했는지(했으면 물건 위치를 직원이 확인해야 함)
 
     def step(self, name: str, detail: str = "") -> None:
         self.out.steps.append(name)
@@ -86,6 +88,14 @@ class Ctx:
 
     def finish(self, decision: str, reason: str, alert: bool = False) -> bool:
         self.out.decision, self.out.reason = decision, reason
+        # 11/8 무작위 시험: 직원 확인·정지로 끝났는데 물건 상태가 '승인·수령 예약'·'반환 중'에 남아(되돌릴 API 없음) 다음 처리가 꼬였다.
+        # 로봇이 물건을 건드리기 전에 끝났으면 물건은 보관함 그대로 → '본센터 보관'으로 되돌린다(집기를 시도했으면 직원 확인 위해 그대로)
+        if (decision in (DECISION_STAFF, DECISION_STOPPED) and self.last_status in ("승인·수령 예약", "반환 중")
+                and not self.grasp_started and "직원 최종 확인 대기" not in reason):
+            try:
+                self.backend.db_set_status(self.req.item_id, "본센터 보관")
+            except Exception:
+                pass
         if alert:
             self.reporter.alert(self.req.case_id, reason, f"물건 {self.req.item_id}")
         self.out.seconds = round(time.perf_counter() - self.t0, 4)
@@ -103,7 +113,10 @@ def _stop(c: Ctx) -> str:
 def _set_status(c: Ctx, status: str) -> bool:
     """상태 변경. 실패하면 False(약속: 상태 변경 실패 → 로봇을 움직이지 않음)."""
     r = c.backend.db_set_status(c.req.item_id, status)
-    return isinstance(r, dict) and bool(r.get("ok"))
+    ok = isinstance(r, dict) and bool(r.get("ok"))
+    if ok:
+        c.last_status = status
+    return ok
 
 
 # 각 단계는 끝났으면 True, 다음 단계로 가면 False 를 돌려준다
@@ -234,6 +247,7 @@ def approach(c: Ctx) -> bool:
 
 def grasp(c: Ctx) -> bool:
     """5. 근거리 집기(SmolVLA) — 실패하면 1번만 다시"""
+    c.grasp_started = True
     for attempt in range(1, MAX_GRASP_ATTEMPTS + 1):
         g = c.backend.robot_grasp()
         v = c.backend.robot_verify_grasp() if g["ok"] else g

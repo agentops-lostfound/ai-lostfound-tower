@@ -213,9 +213,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             d.kiosk_found(rec)
         return rec
 
-    @app.post("/items/{item_id}/features")
-    @app.post("/api/kiosk/items/{item_id}/features")
+    @app.post("/items/{item_id}/features", dependencies=admin)
+    @app.post("/api/kiosk/items/{item_id}/features", dependencies=admin)
     def set_item_features(item_id: str, payload: dict = Body(...)) -> dict:
+        # 11/8 무작위 시험: 로그인 없이 본센터 보관 물건의 특징(확인 질문 정답 포함)을 덮어쓸 수 있었다 →
+        # 관리자 잠금이 켜져 있으면 관리자 키(Qwen 작업자 LF_ADMIN_API_KEY) 필요, 이미 특징이 있으면 409
         """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
         try:
             out = svc.set_item_features(item_id, payload)
@@ -227,6 +229,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             raise HTTPException(status_code=422, detail=str(e))
         except NotFound as e:
             raise HTTPException(status_code=404, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
@@ -243,13 +247,18 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     @app.post("/claims")
     @app.post("/api/kiosk/claims")
     @app.post("/api/lost/claims")
-    def create_claim(payload: dict = Body(...)) -> dict:
+    def create_claim(request: Request, payload: dict = Body(...)) -> dict:
         """웹(1단계): 찾기 요청 저장. 본문: consent, name_masked, id_no_masked(가린 값), id_verified, description,
-        item_id(고른 후보), quiz[{field, passed}], visit_date (+ lost_line·lost_station·lost_date). 결과: claim_id·웹 관문"""
+        item_id(고른 후보), quiz[{field, passed}], visit_date (+ lost_line·lost_station·lost_date). 결과: claim_id·웹 관문
+        11/8 무작위 시험: 로그인 없는 요청이 id_verified·quiz passed=true 를 스스로 보내 키오스크 반환까지 갔다 →
+        관리자 잠금이 켜져 있으면, 직원 로그인·관리자 키가 있는 요청(직원 화면·웹 서버)만 그 값을 믿고 나머지는 '미확인'으로 저장"""
+        trusted = auth.allowed(request.cookies.get(COOKIE, ""), request.headers.get("x-admin-key", ""))
         try:
-            return svc.create_claim(payload)
+            return svc.create_claim(payload, trusted=trusted)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
@@ -611,9 +620,9 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             raise HTTPException(status_code=404, detail="없는 이야기 번호")
         return {**st, "events": board.since(after, story_id), "seq": board.last_seq}
 
-    @app.post("/sim/reset")
+    @app.post("/sim/reset", dependencies=admin)     # 11/8 무작위 시험: 로그인 없이 시연 전체를 지울 수 있었다
     def sim_reset() -> dict:
-        """가상 세계 초기화(보관함 시연 물건 8개·로봇 원점). 반환 진행 중이면 409"""
+        """가상 세계 초기화(보관함 시연 물건 5개·로봇 원점). 반환 진행 중이면 409. 관리자 잠금이 켜져 있으면 로그인 필요"""
         d = _sim()
         if svc.health()["busy"]:
             raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
