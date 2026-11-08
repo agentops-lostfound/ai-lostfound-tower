@@ -11,7 +11,9 @@
   * { box-sizing:border-box; }
   body { margin:0; background:var(--ui-bg, #f2f4f6); color:var(--ui-text, #191f28); line-height:1.6;
          font-family:var(--ui-font, 'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,sans-serif); }
-  @media (prefers-color-scheme: dark) { body { background:var(--ui-bg, #101013); color:var(--ui-text, #f2f3f5); } }
+  @media (prefers-color-scheme: dark) { body { background:var(--ui-bg, #101013); color:var(--ui-text, #f2f3f5); }
+    .card { background:var(--ui-surface, #1c1c21); } p, ol { color:var(--ui-text-2, #b0b4bc); }
+    code { background:var(--ui-fill, #2a2a32); color:var(--ui-text, #f2f3f5); } }
   main { max-width:720px; margin:0 auto; padding:24px max(16px, env(safe-area-inset-left,0px)) 140px; }
   .appbar { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; }
   .tag { display:inline-flex; align-items:center; min-height:28px; font-size:12px; font-weight:700; color:var(--ui-primary, #3182f6);

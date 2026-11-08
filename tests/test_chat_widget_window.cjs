@@ -153,6 +153,9 @@ test('size and position are remembered in localStorage and clamped on reopen',as
  const store=memoryStorage();const a=setup({storage:store});a.open();a.button('창 크게').dispatchEvent({type:'click'});
  assert.equal(a.get('.panel').style.width,'480px');const saved=JSON.parse(store.getItem('lf-chat-win:/lost'));
  assert.equal(saved.size,'large');assert.equal(saved.ax,'r');assert.equal(saved.ay,'b');
+ const q=setup({storage:store,questionFetch:()=>Promise.resolve(ok('안내'))});q.open();q.send('검정 지갑 찾아줘');await tick();
+ assert.deepEqual([...store.m.keys()],['lf-chat-win:/lost'],'localStorage 에는 창 자리만(대화는 넣지 않음)');
+ assert.ok(!store.getItem('lf-chat-win:/lost').includes('지갑'));
  const b=setup({storage:store});b.open();assert.equal(b.get('.panel').style.width,'480px');assert.equal(b.get('.panel').style.height,'720px');
  store.setItem('lf-chat-win:/lost',JSON.stringify({ax:'l',ay:'t',dx:5000,dy:4000,w:480,h:720,size:'large'}));
  const c=setup({storage:store,width:1024,height:700});c.open();const st=c.get('.panel').style;

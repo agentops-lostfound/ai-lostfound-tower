@@ -259,9 +259,15 @@ def generation_note(parsed: dict) -> dict:
 
 
 def numbers_supported(answer: str, evidence: str) -> bool:
-    """답에 나온 숫자가 모두 근거 문단에 있는지(09:00·14일·30일 같은 운영값을 지어내지 못하게)"""
-    have = set(re.findall(r"\d+", evidence))
-    return all(n in have for n in re.findall(r"\d+", answer))
+    """답에 나온 숫자가 모두 근거 문단에 있는지(09:00·14일·30일 같은 운영값을 지어내지 못하게).
+    11/8: 숫자 뒤 단위 글자(초·개·일·시간 등)까지 같아야 한다 — 근거 '3초'로 지어낸 '3개'가 통과하던 것"""
+    unit = r"\s*(초|분|시간|시|일|개월|개|번|명|층|원|cm|mm|kg|%)?"
+    have = {(n, u or "") for n, u in re.findall(r"(\d+)" + unit, evidence)}
+    nums = {n for n, _u in have}
+    for n, u in re.findall(r"(\d+)" + unit, answer):
+        if n not in nums or (u and (n, u) not in have):
+            return False
+    return True
 
 
 class GroundedRag:

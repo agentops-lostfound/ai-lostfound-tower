@@ -153,7 +153,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .demo-items button{background:var(--ui-fill);color:var(--ui-text)}
 .demo-items button.on{background:var(--ui-primary);color:var(--ui-on-primary)}
 /* 오래 손대지 않을 때 묻는 창 */
-.idle{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:var(--ui-scrim)}
+.idle{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:16px;background:var(--ui-scrim)}
 .idle[hidden]{display:none}
 .idle-card{display:grid;gap:18px;width:min(560px,100%);padding:32px;background:var(--ui-surface);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow);text-align:center}
 .idle-card h2{margin:0;font-size:36px}
@@ -238,7 +238,9 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
 .big{width:72px;height:72px}
 #app .ui-scroll-hint{font-size:16px;padding:0 18px}
 #morePlaces{min-height:56px;font-size:17px}
-body.demo #stn{flex:1 1 auto}
+body.demo-mode #stn{flex:1 1 auto}
+.demo{position:static}
+.demo-menu{position:fixed;top:72px;left:16px;right:16px;width:auto}
 .camchip{font-size:14px;padding:4px 10px}
 .phases li{font-size:14px;padding:6px 2px}
 .hint{font-size:15px}
@@ -516,7 +518,7 @@ function tick() {
   const left = AUTO.stillMs - (now - stillSince);
   if (left > 0) {
     setPhase('count'); ring(left);
-    camSay(now < againUntil ? `다시 세는 중 · ${Math.ceil(left / 1000)}` : `그대로 두세요 · ${Math.ceil(left / 1000)}초 뒤 찍어요`, 'still');
+    camSay(now < againUntil ? `다시 세는 중 · ${Math.ceil(left / 1000)}초 뒤 찍어요` : `그대로 두세요 · ${Math.ceil(left / 1000)}초 뒤 찍어요`, 'still');
     return;
   }
   stillSince = 0; capture();
@@ -675,7 +677,7 @@ function demoItem(g, c, x, y, tok) {                        // 6종을 단순한
   const T = tok('--ui-text'), T2 = tok('--ui-text-2'), T3 = tok('--ui-text-3'), S = tok('--ui-surface');
   g.font = `800 44px ${tok('--ui-font') || 'sans-serif'}`; g.textAlign = 'center'; g.textBaseline = 'middle';
   if (c === '지갑') { rr(g, -170, -110, 340, 220, 24, T); g.fillStyle = T2; g.fillRect(-170, -20, 340, 8); rr(g, 110, -40, 40, 50, 8, T3); }
-  else if (c === 'USB') { rr(g, -200, -60, 300, 120, 16, tok('--ui-primary')); rr(g, 100, -48, 100, 96, 12, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('USB', -50, 2); }
+  else if (c === 'USB') { rr(g, -220, -72, 330, 144, 18, tok('--ui-primary')); rr(g, 110, -56, 110, 112, 14, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('USB', -55, 2); }
   else if (c === '립밤') { rr(g, -210, -66, 290, 132, 66, tok('--ui-err')); rr(g, 70, -66, 140, 132, 30, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('LIP', -70, 2); }
   else if (c === '모형폰') { rr(g, -115, -190, 230, 380, 34, T2); rr(g, -90, -165, 90, 100, 20, T); g.fillStyle = T3; g.beginPath(); g.arc(-45, -140, 16, 0, 7); g.arc(-45, -92, 16, 0, 7); g.fill(); }
   else if (c === '핸드크림') { rr(g, -220, -80, 360, 160, 22, tok('--ui-ok')); rr(g, 140, -50, 80, 100, 12, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('CREAM', -40, 2); }
@@ -702,7 +704,7 @@ function demoMenuPaint() {
   });
 }
 if (DEMO) {
-  $('#demo').hidden = false; document.body.classList.add('demo'); demoMenuPaint();
+  $('#demo').hidden = false; document.body.classList.add('demo-mode'); demoMenuPaint();
   $('#demoBadge').onclick = e => { e.stopPropagation(); const m = $('#demoMenu'); m.hidden = !m.hidden; $('#demoBadge').setAttribute('aria-expanded', String(!m.hidden)); };
   $('#demoMenu').onclick = e => e.stopPropagation();
   document.addEventListener('click', () => { $('#demoMenu').hidden = true; $('#demoBadge').setAttribute('aria-expanded', 'false'); });
