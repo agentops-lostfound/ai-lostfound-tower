@@ -102,6 +102,38 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 #morePlaces{min-height:64px;font-size:22px;align-self:flex-start}
 #camSel{font-size:20px;min-height:60px;padding:0 16px}
 @media (prefers-reduced-motion:no-preference){button:active{transform:scale(.98)}}
+/* 11/8 디자인 개편 2: 글 대신 그림 안내(인라인 SVG, 선 그림 2색 — 글자색 currentColor + 파랑 var(--ui-primary)).
+   한줄 설명: 문장을 읽지 않아도 그림만 보고 따라 할 수 있게, 그림 + 짧은 이름표(캡션)로 안내한다. 화면 읽기 프로그램은 <title> 을 읽는다 */
+.pic{display:block;flex:none;color:var(--ui-text-2);fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.pic .p{stroke:var(--ui-primary)}
+.pic .pf{fill:var(--ui-primary);stroke:none}
+.pic text{font-family:var(--ui-font);font-weight:800}
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}
+.steps li{display:grid;justify-items:center;gap:6px;background:var(--ui-fill);border-radius:var(--ui-radius);padding:12px 6px 10px;text-align:center;font-size:20px;font-weight:700;line-height:1.3;color:var(--ui-text)}
+.steps .pic{width:76px;height:54px}
+.num{display:inline-grid;place-items:center;width:26px;height:26px;margin-right:6px;border-radius:50%;background:var(--ui-primary);color:var(--ui-on-primary);font-size:15px;font-weight:800;vertical-align:2px}
+.guide h3{margin:4px 0 0;font-size:21px;font-weight:700;display:flex;align-items:center;gap:8px}
+.guide h3 .pic{width:22px;height:22px;stroke-width:3}
+.cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{display:grid;justify-items:center;align-content:start;gap:2px;text-align:center;padding:10px 6px 12px}
+.card .pic{width:76px;height:52px;margin-bottom:2px}
+.card b{font-size:20px;margin:0}
+.note{display:flex;align-items:center;gap:10px}
+.note .pic,.legal .pic{width:28px;height:28px;color:currentColor}
+.legal.ico{display:flex;align-items:center;gap:12px}
+.prep{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0;padding:0;list-style:none}
+.prep li{display:grid;justify-items:center;gap:6px;background:var(--ui-fill);border-radius:var(--ui-radius);padding:14px 8px;text-align:center;font-size:21px;font-weight:700;line-height:1.3}
+.prep li small{display:block;font-size:17px;font-weight:600;color:var(--ui-text-2)}
+.prep .pic{width:88px;height:62px}
+.uses{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.uses li{display:flex;align-items:center;gap:14px;background:var(--ui-fill);border-radius:var(--ui-radius);padding:12px 18px;font-size:21px;line-height:1.4;color:var(--ui-text-2)}
+.uses li b{color:var(--ui-text)}
+.uses .pic{width:36px;height:36px}
+.big{width:96px;height:96px;margin:0 auto}
+@media (max-height:760px){#s4 .big{display:none}#rwork .big{width:64px;height:64px}}   /* 낮은 화면: 접수 번호·처음으로 단추가 먼저 보이게 */
+/* "아래에 더 있음" 단추(theme.js 가 붙임): 키오스크는 손가락으로 누르니 56px, 화면 버튼 규칙(button:hover·active)이 덮지 않게 */
+#app .ui-scroll-hint,#app .ui-scroll-hint:hover,#app .ui-scroll-hint:active{min-height:56px;padding:0 24px;font-size:20px;border-radius:999px;background:var(--ui-text);color:var(--ui-surface);transform:translateX(-50%);translate:0 -10px}
+#app .ui-scroll-hint svg{width:22px;height:22px}
 /* 11/8 휴대폰 세로 화면(폭 600px 이하): 태블릿용 큰 글자·여백 때문에 버튼 글자가 한 글자씩 줄바꿈되던 것 — 글자·여백만 줄이고 탭·버튼은 세로로 쌓음.
    디자인 개편: 손가락으로 누르기 쉽게 버튼·탭·칩은 휴대폰에서도 높이 56px 이상 */
 @media (max-width:600px){
@@ -127,8 +159,23 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
 .status{font-size:16px;padding:12px 14px}
 .guide h2{font-size:18px}
 .rules{font-size:15px;padding-left:20px}
-.cards{grid-template-columns:1fr}
-.card{font-size:14px;padding:12px 14px}.card b{font-size:16px}
+.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.card{font-size:14px;padding:10px 6px}.card b{font-size:16px}
+.card .pic{width:64px;height:44px}
+.steps{gap:6px}
+.steps li{font-size:15px;padding:10px 4px 8px}
+.steps .pic{width:60px;height:42px}
+.num{width:20px;height:20px;font-size:12px;margin-right:3px;vertical-align:1px}
+.guide h3{font-size:17px}
+.prep{gap:6px}
+.prep li{font-size:15px;padding:10px 4px}
+.prep li small{font-size:13px}
+.prep .pic{width:64px;height:46px}
+.uses li{font-size:15px;padding:10px 12px;gap:10px}
+.uses .pic{width:28px;height:28px}
+.note .pic,.legal .pic{width:22px;height:22px}
+.big{width:72px;height:72px}
+#app .ui-scroll-hint{font-size:16px;padding:0 18px}
 #manual,#morePlaces{min-height:56px;font-size:17px}
 #camSel{font-size:16px;min-height:56px}
 .note,.err{font-size:16px;padding:12px 14px}
@@ -146,41 +193,42 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
     <button type="button" id="tabLost" role="tab" aria-selected="false">물건 잃어버렸어요<br>(분실접수)</button>
     <button type="button" id="tabRet" role="tab" aria-selected="false">물건 찾으러 왔어요<br>(회수)</button>
   </nav>
-  <section id="lost" class="lostsec">
+  <section id="lost" class="lostsec" data-scroll-hint>
     <h1>잃어버린 물건을 알려 주세요</h1>
     <div class="chips" id="lcat"></div>
     <input type="text" id="lcolor" maxlength="40" placeholder="색상 (예: 검정)" autocomplete="off">
-    <textarea id="lfeat" maxlength="200" placeholder="특징 (예: 별 모양 스티커, 햄스터 키링)"></textarea>
-    <input type="text" id="lplace" maxlength="40" placeholder="잃어버린 장소 (예: 서면역 5번 출구)" autocomplete="off">
-    <input type="text" id="ldate" maxlength="10" placeholder="잃어버린 때 (예: 어제 저녁, 11월 5일)" autocomplete="off">
-    <p class="legal">이름·전화번호·주민번호는 적지 마세요.</p>
+    <textarea id="lfeat" maxlength="200" placeholder="특징 (예: 별 스티커, 키링)"></textarea>
+    <input type="text" id="lplace" maxlength="40" placeholder="장소 (예: 서면역 5번 출구)" autocomplete="off">
+    <input type="text" id="ldate" maxlength="10" placeholder="때 (예: 어제 저녁)" autocomplete="off">
+    <p class="legal ico"><svg class="pic" viewBox="0 0 32 32" role="img"><title>개인정보 쓰지 않기</title><rect x="4" y="7" width="24" height="18" rx="3"/><path d="M9 20c1-3 3-4 4-4s3 1 4 4M18 13h6M18 18h4"/><circle cx="13" cy="12.5" r="2.5"/><path class="p" d="M3 29L29 3"/></svg><span>이름·전화번호·주민번호는 <b>적지 마세요</b></span></p>
     <p class="err" id="lerr" role="alert"></p>
-    <p class="legal" id="lnote" hidden>입력은 확인됐어요. 분실물 후보를 찾아 주는 서버 기능은 준비 중이라 아직 저장·접수되지 않아요. 역무실에서 도와 드릴게요.</p>
+    <p class="legal" id="lnote" hidden>확인했어요. 아직 저장은 안 돼요(준비 중). 역무실에서 도와 드릴게요.</p>
     <button id="lsend" disabled>확인하기</button>
   </section>
-  <section id="ret" class="lostsec">
+  <section id="ret" class="lostsec" data-scroll-hint>
     <div id="raway" hidden>
       <h1>물건은 부산역 본센터에서 받아요</h1>
-      <p class="sub">이 역 키오스크에서는 물건을 꺼내 드릴 수 없어요. 아래를 챙겨 <b>부산역 본센터 키오스크</b>로 가 주세요.</p>
-      <ol class="rules">
-        <li><b>찾기 번호</b> (분실인 웹에서 분실 신고하고 받은 C-로 시작하는 번호)</li>
-        <li><b>신분증</b> (주민등록증·운전면허증·여권)</li>
-        <li>평일 09:00~18:00 방문 (시연 기준)</li>
-      </ol>
-      <p class="legal">아직 찾기 번호가 없으면 휴대폰으로 <b>분실인 웹</b>에서 분실 신고를 하거나 역무실에 문의해 주세요. 궁금한 점은 <b>AI 안내</b>에 물어보세요.</p>
+      <p class="sub">이것을 챙겨 오세요</p>
+      <ul class="prep">
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>찾기 번호</title><path d="M8 10h64v11a7 7 0 0 0 0 14v11H8V35a7 7 0 0 0 0-14z"/><text class="pf" x="18" y="33" font-size="12">C-0001</text></svg>찾기 번호<small>C-로 시작</small></li>
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>신분증</title><rect x="8" y="8" width="64" height="40" rx="5"/><circle class="p" cx="26" cy="23" r="6"/><path class="p" d="M16 40c2-6 6-8 10-8s8 2 10 8"/><path d="M44 21h20M44 29h16M44 37h12"/></svg>신분증<small>주민증·면허증·여권</small></li>
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>방문 시간</title><circle cx="40" cy="28" r="21"/><path class="p" d="M40 15v13l9 6"/></svg>평일 9~18시<small>시연 기준</small></li>
+      </ul>
+      <p class="legal">번호가 없으면? <b>분실인 웹</b>에서 신고하거나 <b>AI 안내</b>에 물어보세요.</p>
       <button class="ghost" id="rawayHome">처음으로</button>
     </div>
     <div id="rform">
       <h1>예약한 물건을 찾아가세요</h1>
-      <p class="sub">분실 신고 때 받은 찾기 번호와 신분증 번호(가린 값)를 입력해 주세요.</p>
+      <p class="sub">찾기 번호와 신분증 번호를 넣어 주세요</p>
       <input type="text" id="rclaim" maxlength="20" placeholder="찾기 번호 (예: C-20261106-0001)" autocomplete="off">
       <input type="text" id="rid" maxlength="32" placeholder="가린 신분증 번호 (예: ******-3******)" autocomplete="off">
       <p class="err" id="rerr" role="alert"></p>
       <button id="rsend" disabled>물건 꺼내기</button>
     </div>
     <div id="rwork" hidden>
-      <h1>로봇이 물건을 꺼내고 있어요</h1>
-      <p class="sub">로봇팔이 움직이는 동안 손을 넣지 말고 기다려 주세요.</p>
+      <svg class="pic big" viewBox="0 0 56 56" role="img"><title>손 넣지 않기</title><path d="M20 40V22a3 3 0 0 1 6 0v-6a3 3 0 0 1 6 0v3a3 3 0 0 1 6 0v13c0 7-4 11-10 11h-1c-4 0-6-2-9-6l-5-7a3 3 0 0 1 5-3l2 3"/><circle class="p" cx="28" cy="28" r="25"/><path class="p" d="M10 46L46 10"/></svg>
+      <h1 class="center">로봇이 물건을 꺼내고 있어요</h1>
+      <p class="sub center">손을 넣지 말고 기다려 주세요</p>
       <button class="stop" id="rstop">🛑 정지</button>
     </div>
     <div id="rdone" hidden>
@@ -189,8 +237,8 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
       <button class="ghost" id="rhome">처음으로</button>
     </div>
   </section>
-  <section id="s1" class="on">
-    <h1>안내대로 물건을 상자 가운데에 두면<br>자동으로 촬영해요</h1>
+  <section id="s1" class="on" data-scroll-hint>
+    <h1>가운데에 두면 자동으로 찍어요</h1>
     <div class="shoot">
       <div class="camwrap">
         <video id="cam" playsinline muted hidden></video>
@@ -198,27 +246,28 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
         <div class="bar" aria-hidden="true"><i id="camBar"></i></div>
         <select id="camSel" hidden aria-label="카메라 고르기(직원용)"></select>
         <button class="ghost" id="manual" hidden>카메라가 안 돼요 → 사진 파일로 접수</button>
-        <p class="note">현금·위험물은 역무실로</p>
+        <p class="note"><svg class="pic" viewBox="0 0 32 32" role="img"><title>주의</title><path d="M16 4L30 28H2z"/><path d="M16 13v7M16 24v.5"/></svg>현금·위험물은 역무실로</p>
       </div>
       <div class="guide" aria-label="보관 가이드">
-        <h2>놓는 법 (꼭 지켜 주세요)</h2>
-        <ol class="rules">
-          <li>한 번에 <b>한 개</b>만, 상자 <b>가운데</b>에</li>
-          <li>세우지 말고 <b>눕혀서</b>, <b>특징이 있는 면이 위로</b></li>
-          <li>놓은 뒤 <b>손을 빼고</b> 2초 기다리기</li>
+        <h2>놓는 법</h2>
+        <ol class="steps">
+          <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>한 번에 한 개만</title><rect x="14" y="4" width="52" height="48" rx="4"/><rect class="p" x="30" y="19" width="20" height="18" rx="3"/></svg><span><span class="num">1</span>한 개만</span></li>
+          <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>상자 가운데에</title><rect x="14" y="4" width="52" height="48" rx="4"/><path d="M40 8v40M18 28h44" stroke-dasharray="3 4" opacity=".5"/><rect class="p" x="32" y="21" width="16" height="14" rx="3"/></svg><span><span class="num">2</span>가운데에</span></li>
+          <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>손을 빼고 2초 기다리기</title><rect x="4" y="16" width="44" height="36" rx="4"/><rect x="18" y="31" width="16" height="12" rx="3"/><path class="p" d="M26 25V4M20 10l6-6 6 6"/><circle class="p" cx="64" cy="36" r="12"/><path class="p" d="M64 29v7l5 3"/></svg><span><span class="num">3</span>손 빼고 2초</span></li>
         </ol>
+        <h3><svg class="pic" viewBox="0 0 24 24" aria-hidden="true"><path class="p" d="M12 20V4M5 11l7-7 7 7"/></svg>눕혀서, 이 면이 위로</h3>
         <div class="cards">
-          <div class="card"><b>모형폰·휴대폰</b>케이스(뒷면)가 위로, 화면은 아래로</div>
-          <div class="card"><b>지갑</b>펼치지 말고 로고·특징 있는 앞면이 위로</div>
-          <div class="card"><b>USB</b>뚜껑 닫고 글자·로고 면이 위로</div>
-          <div class="card"><b>립밤</b>눕혀서 글자 면이 위로</div>
-          <div class="card"><b>핸드크림</b>눕혀서 글자 면이 위로</div>
-          <div class="card"><b>보조배터리</b>케이블은 빼고 글자·로고 면이 위로</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>모형폰: 뒷면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="3"/><path class="p" stroke-width="4" d="M19 40h42"/><rect class="p" x="21" y="35" width="10" height="5" rx="1.5"/><path class="p" d="M44 32V10M37 17l7-7 7 7"/></svg><b>모형폰</b>뒷면(카메라)</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>지갑: 접은 채 앞면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="38" width="52" height="12" rx="4"/><path d="M14 44h52" opacity=".45"/><path class="p" stroke-width="4" d="M18 38h44"/><path class="p" d="M40 32V10M33 17l7-7 7 7"/></svg><b>지갑</b>접은 채 앞면</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>USB: 뚜껑 닫고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="18" y="43" width="32" height="7" rx="2"/><rect x="50" y="42" width="12" height="8" rx="2"/><path class="p" stroke-width="4" d="M21 43h26"/><path class="p" d="M34 36V10M27 17l7-7 7 7"/></svg><b>USB</b>뚜껑 닫고 글자</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>립밤: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="5"/><path d="M46 40v10"/><path class="p" stroke-width="4" d="M22 40h20"/><path class="p" d="M32 33V10M25 17l7-7 7 7"/></svg><b>립밤</b>눕혀서 글자</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>핸드크림: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="10" y="42" width="11" height="8" rx="2"/><path d="M21 44l7-5h34v11H28l-7-3"/><path d="M62 39h5v11h-5"/><path class="p" stroke-width="4" d="M31 39h28"/><path class="p" d="M45 32V10M38 17l7-7 7 7"/></svg><b>핸드크림</b>눕혀서 글자</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>보조배터리: 케이블 빼고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="37" width="52" height="13" rx="3"/><path d="M21 44h.5M26 44h.5M31 44h.5"/><path class="p" stroke-width="4" d="M18 37h44"/><path class="p" d="M40 30V8M33 15l7-7 7 7"/></svg><b>보조배터리</b>케이블 빼고 글자</div>
         </div>
       </div>
     </div>
   </section>
-  <section id="s2">
+  <section id="s2" data-scroll-hint>
     <h1>어디에서 발견하셨나요?</h1>
     <div class="chips" id="chips"></div>
     <button type="button" class="ghost" id="morePlaces" hidden>↻ 다른 장소 보기</button>
@@ -227,20 +276,25 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
     <p class="err" id="perr" role="alert"></p>
     <button id="next2" disabled>다음</button>
   </section>
-  <section id="s3">
+  <section id="s3" data-scroll-hint>
     <h1>연락처를 남기시겠어요?</h1>
-    <p class="sub">이름과 전화번호 모두 선택 사항이에요.</p>
+    <p class="sub">안 남겨도 접수돼요 (선택)</p>
     <input type="text" id="cname" maxlength="20" placeholder="이름" autocomplete="off">
     <input type="tel" id="cphone" inputmode="numeric" maxlength="13" placeholder="전화번호" autocomplete="off">
-    <p class="legal">입력하지 않아도 접수돼요. 남기면 주인이 물건을 찾아갔을 때 <b>감사 연락에만</b> 쓰고, <b>다른 목적으로 쓰거나 다른 곳에 주지 않아요</b>. 물건을 건넨 뒤 30일이 지나면 자동으로 지워요.</p>
+    <ul class="uses" aria-label="연락처 이용 안내">
+      <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>감사 연락</title><rect x="5" y="3" width="14" height="26" rx="3"/><path d="M10 25h4"/><path class="p" d="M24 23s-6-3.5-6-7.5a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.5-6 7.5z"/></svg><span>주인이 찾아가면 <b>감사 연락에만</b> 써요</span></li>
+      <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>보호</title><path d="M16 3l11 4v8c0 7-5 12-11 14C10 27 5 22 5 15V7z"/><path class="p" d="M11 16l4 4 7-8"/></svg><span><b>다른 목적으로 쓰거나 다른 곳에 주지 않아요</b></span></li>
+      <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>30일 뒤 삭제</title><rect x="4" y="6" width="24" height="22" rx="3"/><path d="M4 12h24M10 3v6M22 3v6"/><text class="pf" x="9" y="25" font-size="10">30</text></svg><span>건넨 뒤 <b>30일</b>이면 지워요</span></li>
+    </ul>
     <p class="err" id="err" role="alert"></p>
     <div class="row"><button class="ghost" id="skip">건너뛰기</button><button id="send">보내기</button></div>
   </section>
-  <section id="s4">
+  <section id="s4" data-scroll-hint>
+    <svg class="pic big" viewBox="0 0 56 56" role="img"><title>접수 완료</title><circle class="p" cx="28" cy="28" r="25"/><path class="p" stroke-width="3.5" d="M16 29l8 8 16-17"/></svg>
     <h1 class="center">접수되었습니다</h1>
     <p class="sub center">접수 번호</p>
     <div class="receipt" id="rno"></div>
-    <p class="sub center"><span id="count">10</span>초 뒤 처음 화면으로 돌아갑니다</p>
+    <p class="sub center"><span id="count">10</span>초 뒤 처음 화면으로</p>
     <button class="ghost" id="home">처음으로</button>
   </section>
 </div>
