@@ -490,6 +490,15 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         with open(path, encoding="utf-8") as f:
             return HTMLResponse(f.read())
 
+    @app.get("/ui/{name}", include_in_schema=False)
+    def ui_asset(name: str):
+        """11/8 디자인 개편 공통 파일(web/ui/theme.css·theme.js) — 모든 화면이 같은 색·부품·라이트/다크 전환을 쓴다"""
+        from fastapi.responses import FileResponse
+        types = {"theme.css": "text/css", "theme.js": "application/javascript"}
+        if name not in types:
+            raise HTTPException(status_code=404, detail="없는 파일")
+        return FileResponse(os.path.join(WEB_DIR, "ui", name), media_type=types[name], headers={"Cache-Control": "no-cache"})
+
     @app.get("/", include_in_schema=False)
     def home_page():
         """11/7 첫 화면: 주소만 입력했을 때 Not Found 대신 화면 목록(발표 순서). 데이터는 보여 주지 않는다"""
@@ -498,14 +507,17 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                  ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"), ("④ 관리자 관제(로봇·진행 상황)", "/admin"),
                  ("⑤ 본센터 직원 화면 — 교차 검증", "/staff"), ("⑥ 보관함 칸 관리", "/storage"),
                  ("실시간 작업대(큰 화면)", "/live"), ("서면역 키오스크", "/kiosk?machine=KIOSK-C")]
-        items = "".join(f'<li><a href="{href}">{label}</a> <code>{href}</code></li>' for label, href in links)
+        items = "".join(f'<li><a href="{href}"><span>{label}</span><code>{href}</code></a></li>' for label, href in links)
         return HTMLResponse(
-            '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<title>AI 분실물 관제탑</title><style>body{font-family:system-ui,"Malgun Gothic",sans-serif;max-width:720px;margin:40px auto;'
-            'padding:0 16px;color:#1f2937}h1{font-size:24px}li{margin:10px 0;font-size:17px}a{color:#0f7a4f;font-weight:600;text-decoration:none}'
-            'a:hover{text-decoration:underline}code{color:#6b7280;font-size:13px;margin-left:6px}p{color:#4b5563}</style>'
-            '<h1>AI 분실물 관제탑</h1><p>보여 줄 화면을 고르세요(발표 순서). 관리자 화면은 로그인이 켜져 있으면 비밀번호가 필요합니다.</p>'
-            f'<ol style="list-style:none;padding:0">{items}</ol></html>')
+            '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+            '<title>AI 분실물 관제탑</title><link rel="stylesheet" href="/ui/theme.css"><script src="/ui/theme.js"></script>'
+            '<style>body{margin:0}main{max-width:640px;margin:0 auto;padding:48px max(16px,env(safe-area-inset-right,0px)) 96px max(16px,env(safe-area-inset-left,0px))}'
+            'header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:24px}'
+            '.ui-card{padding:8px 20px}.ui-list a{display:flex;flex-direction:column;gap:4px;width:100%;color:var(--ui-text);text-decoration:none;font-size:17px;font-weight:600}'
+            '.ui-list a:hover span{color:var(--ui-primary)}.ui-list code{font:500 13px var(--ui-mono);color:var(--ui-text-3)}</style></head><body><main>'
+            '<header><div><h1 class="ui-title">AI 분실물 관제탑</h1><p class="ui-sub">보여 줄 화면을 고르세요(발표 순서). 관리자 화면은 로그인이 켜져 있으면 비밀번호가 필요합니다.</p></div>'
+            '<div data-theme-slot></div></header>'
+            f'<div class="ui-card"><ul class="ui-list">{items}</ul></div></main></body></html>')
 
     @app.get("/intake", include_in_schema=False)
     def intake_page():
