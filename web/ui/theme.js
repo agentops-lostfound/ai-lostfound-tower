@@ -81,9 +81,26 @@
       box.classList.toggle('ui-has-more', more);
       hint.hidden = !more || seenScroll;
       if (!hint.hidden) {
-        hint.style.top = (box.offsetTop + box.clientHeight - (hint.offsetHeight || 40) / 2) + 'px';
-        hint.style.left = (box.offsetLeft + box.clientWidth / 2) + 'px';
+        hint.classList.remove('compact');
+        place(false);
+        if (coversControl()) { hint.classList.add('compact'); place(true); }   // 11/8 2차: 맨 아래 단추를 덮으면 오른쪽 구석 작은 ↓ 로
       }
+    }
+    function place(corner) {
+      var h = hint.offsetHeight || 40, w = hint.offsetWidth || 40;
+      hint.style.top = (box.offsetTop + box.clientHeight - h / 2) + 'px';
+      hint.style.left = (corner ? box.offsetLeft + box.clientWidth - w / 2 - 12 : box.offsetLeft + box.clientWidth / 2) + 'px';
+    }
+    function coversControl() {   // 단추 아래(상자 안)에 누를 수 있는 것이 있는가 — 잠깐 숨기고 세 점을 찍어 본다
+      var r = hint.getBoundingClientRect(), hit = false;
+      hint.style.visibility = 'hidden';
+      [r.left + 6, r.left + r.width / 2, r.right - 6].forEach(function (x) {
+        var e = document.elementFromPoint(x, r.top + r.height / 2);
+        var c = e && e.closest && e.closest('button, a[href], input, select, textarea, label, [role=button], [tabindex]');
+        if (c && box.contains(c)) hit = true;
+      });
+      hint.style.visibility = '';
+      return hit;
     }
     box.addEventListener('scroll', function () { if (box.scrollTop > 24) seenScroll = true; update(); }, { passive: true });
     box.addEventListener('focusin', function (e) { if (e.target !== box) { seenScroll = true; update(); } });

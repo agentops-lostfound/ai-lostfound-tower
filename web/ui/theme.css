@@ -124,5 +124,9 @@ body { background: var(--ui-bg); color: var(--ui-text); font-family: var(--ui-fo
                   font: 600 14px var(--ui-font); box-shadow: var(--ui-shadow); cursor: pointer; opacity: .92;
                   animation: ui-hint-bob 1.8s ease-in-out infinite; }
 .ui-scroll-hint svg { width: 18px; height: 18px; }
+/* 화면별 button:hover·:active 규칙이 색을 덮지 않게(11/8 2차: 다크에서 누른 뒤 어두운 글자+어두운 바탕) */
+button.ui-scroll-hint, button.ui-scroll-hint:hover, button.ui-scroll-hint:active, button.ui-scroll-hint:focus { background: var(--ui-text); color: var(--ui-surface); }
+button.ui-scroll-hint.compact { padding: 0; width: 40px; justify-content: center; }
+button.ui-scroll-hint.compact span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .ui-scroll-hint[hidden] { display: none; }
 @keyframes ui-hint-bob { 0%, 100% { margin-top: 0; } 50% { margin-top: 4px; } }

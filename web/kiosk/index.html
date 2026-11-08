@@ -134,6 +134,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 /* "아래에 더 있음" 단추(theme.js 가 붙임): 키오스크는 손가락으로 누르니 56px, 화면 버튼 규칙(button:hover·active)이 덮지 않게 */
 #app .ui-scroll-hint,#app .ui-scroll-hint:hover,#app .ui-scroll-hint:active{min-height:56px;padding:0 24px;font-size:20px;border-radius:999px;background:var(--ui-text);color:var(--ui-surface);transform:translateX(-50%);translate:0 -10px}
 #app .ui-scroll-hint svg{width:22px;height:22px}
+#app .ui-scroll-hint.compact{padding:0;width:56px;justify-content:center}
 /* 11/8 휴대폰 세로 화면(폭 600px 이하): 태블릿용 큰 글자·여백 때문에 버튼 글자가 한 글자씩 줄바꿈되던 것 — 글자·여백만 줄이고 탭·버튼은 세로로 쌓음.
    디자인 개편: 손가락으로 누르기 쉽게 버튼·탭·칩은 휴대폰에서도 높이 56px 이상 */
 @media (max-width:600px){
