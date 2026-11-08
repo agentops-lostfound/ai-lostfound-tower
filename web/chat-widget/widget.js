@@ -10,6 +10,7 @@
  *   data-idle-reset="90"  아무 조작이 없으면 N초 뒤 대화를 지우고 창을 닫음(다음 사람에게 앞사람 대화가 보이지 않게). kiosk 기본 90, 웹은 0(끔)
  * 코드에서: window.LostFoundChat.open() / close() / toggle()
  * 대화 내용은 이 화면에만 있고 저장하지 않는다(새로 고침하면 사라짐). 스타일은 Shadow DOM 안에 가둬 화면 디자인을 건드리지 않는다.
+ * 11/8 디자인 개편: 색·글꼴은 공통 토큰(/ui/theme.css 의 --ui-*)을 따른다(없는 화면은 대체값). 화면이 라이트/다크를 바꾸면(html data-theme) 위젯도 같이 바뀐다.
  */
 (function () {
   "use strict";
@@ -56,68 +57,79 @@
 
   var CSS = [
     ":host{all:initial}",
-    "*{box-sizing:border-box;font-family:'Pretendard','Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif}",
-    ".wrap{--bg:#ffffff;--fg:#1d2433;--muted:#5d6678;--line:#dfe3ea;--soft:#f3f5f9;--accent:#1f5eff;--accent-fg:#fff;--user:#1f5eff;--user-fg:#fff;--bot:#f1f3f7;--warn:#9a5b00;--warn-bg:#fff4e0;--err:#b42318;--shadow:0 18px 48px rgba(20,32,60,.22)}",
-    "@media (prefers-color-scheme:dark){.wrap{--bg:#171b24;--fg:#e8ebf2;--muted:#a3abbb;--line:#2c3344;--soft:#202634;--accent:#6e95ff;--accent-fg:#0d1220;--user:#3d6cf0;--user-fg:#fff;--bot:#232a3a;--warn:#ffcf85;--warn-bg:#3a2c12;--err:#ff8a80;--shadow:0 18px 48px rgba(0,0,0,.5)}}",
-    ".launcher{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:2147483000;width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);box-shadow:var(--shadow);cursor:pointer;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1.1}",
-    ".launcher:focus-visible,button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}",
-    ".panel{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(92px,calc(env(safe-area-inset-bottom,0px) + 92px));z-index:2147483001;width:380px;max-width:calc(100vw - 32px);height:min(600px,calc(100vh - 120px));display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;font-size:15px;line-height:1.55}",
+    "*{box-sizing:border-box;font-family:var(--ui-font,'Pretendard Variable','Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,sans-serif);letter-spacing:-.01em}",
+    "/* 11/8 디자인 개편: 위젯 토큰은 공통 토큰(--ui-*)을 따른다. 공통 파일이 없는 화면은 괄호 안 대체값을 쓴다 */",
+    ".wrap{color-scheme:light;--bg:var(--ui-surface,#ffffff);--fg:var(--ui-text,#191f28);--muted:var(--ui-text-2,#4e5968);--faint:var(--ui-text-3,#8b95a1);--line:var(--ui-line,#e5e8eb);--soft:var(--ui-fill,#f2f4f6);--soft-hover:var(--ui-fill-hover,#e8ebed);--accent:var(--ui-primary,#3182f6);--accent-hover:var(--ui-primary-hover,#1b64da);--accent-soft:var(--ui-primary-soft,#e8f3ff);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#3182f6);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#f2f4f6);--ok:var(--ui-ok,#03b26c);--warn:var(--ui-warn,#e58a00);--warn-bg:var(--ui-warn-soft,#fff4e0);--err:var(--ui-err,#f04452);--ring:0 0 0 0 transparent;--shadow:0 16px 48px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.06)}",
+    "/* 다크: 화면이 data-theme=dark 를 고른 경우 + data-theme 없이 OS 가 다크인 경우(.wrap[data-theme] 는 화면의 html 값을 그대로 옮긴 것) */",
+    "@media (prefers-color-scheme:dark){.wrap:not([data-theme=light]){color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}}",
+    ".wrap[data-theme=dark]{color-scheme:dark;--bg:var(--ui-surface,#1c1c21);--fg:var(--ui-text,#f2f3f5);--muted:var(--ui-text-2,#b0b4bc);--faint:var(--ui-text-3,#7e838c);--line:var(--ui-line,#2e2e36);--soft:var(--ui-fill,#2a2a32);--soft-hover:var(--ui-fill-hover,#33333c);--accent:var(--ui-primary,#4593fc);--accent-hover:var(--ui-primary-hover,#6aa8fd);--accent-soft:var(--ui-primary-soft,#1b2a40);--accent-fg:var(--ui-on-primary,#ffffff);--user:var(--ui-primary,#4593fc);--user-fg:var(--ui-on-primary,#ffffff);--bot:var(--ui-fill,#2a2a32);--ok:var(--ui-ok,#20c47f);--warn:var(--ui-warn,#f0a33a);--warn-bg:var(--ui-warn-soft,#362a14);--err:var(--ui-err,#ff5f6d);--ring:0 0 0 1px rgba(255,255,255,.07);--shadow:0 16px 48px rgba(0,0,0,.55)}",
+    ".launcher{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:2147483000;width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);box-shadow:var(--ring),var(--shadow);cursor:pointer;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1.15;transition:background-color .15s,transform .1s}",
+    ".launcher:hover{background:var(--accent-hover)}",
+    ".launcher:active{transform:scale(.96)}",
+    ".launcher:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}",
+    ".panel{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(92px,calc(env(safe-area-inset-bottom,0px) + 92px));z-index:2147483001;width:384px;max-width:calc(100vw - 32px);height:min(620px,calc(100vh - 120px));display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:0;border-radius:24px;box-shadow:var(--ring),var(--shadow);overflow:hidden;font-size:15px;line-height:1.55}",
     ".panel[hidden],.launcher[hidden]{display:none}",
     ".wrap.kiosk .panel{width:min(560px,calc(100vw - 32px));height:min(760px,calc(100vh - 120px));font-size:19px}",
     ".wrap.kiosk .launcher{width:96px;height:96px;font-size:18px}",
-    ".wrap.kiosk .chip{font-size:18px;padding:14px 16px}",
+    ".wrap.kiosk .chip{font-size:18px;padding:16px 18px}",
     ".wrap.kiosk textarea{font-size:19px}",
-    ".wrap.kiosk .send{font-size:18px;padding:0 22px}",
+    ".wrap.kiosk .send{font-size:18px;padding:0 24px;height:56px}",
     ".wrap.kiosk .foot,.wrap.kiosk .foot button{font-size:15px}",
     ".wrap.kiosk .welcome,.wrap.kiosk .card{font-size:18px}",
     ".wrap.kiosk header h2{font-size:21px}",
     ".wrap.kiosk header .mode{font-size:15px}",
     ".wrap.kiosk .badge,.wrap.kiosk details,.wrap.kiosk .retry{font-size:15px}",
-    ".wrap.kiosk .icon{width:52px;height:52px;font-size:24px}",
-    "@media (max-width:480px){.wrap.open .launcher{display:none}.panel{right:0;left:0;bottom:0;width:100%;max-width:100%;height:min(88vh,640px);border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}}",
-    "header{display:flex;align-items:center;gap:10px;padding:14px 14px 12px 18px;border-bottom:1px solid var(--line)}",
-    "header .dot{width:10px;height:10px;border-radius:50%;background:#22a06b;flex:none}",
-    "header .dot.off{background:#c9ccd3}",
-    "header h2{margin:0;font-size:16px;font-weight:700;flex:1;min-width:0}",
-    "header .mode{display:block;font-size:12px;font-weight:500;color:var(--muted)}",
-    ".icon{border:0;background:transparent;color:var(--muted);width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:18px;flex:none}",
-    ".icon:hover{background:var(--soft);color:var(--fg)}",
-    ".log{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}",
-    ".welcome{background:var(--soft);border-radius:14px;padding:14px;font-size:14px;color:var(--fg)}",
-    ".welcome p{margin:0 0 10px}",
-    ".chips{display:flex;flex-direction:column;gap:6px}",
-    ".choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}",
-    ".choice{font:inherit;font-size:.9em;padding:6px 10px;border-radius:999px;border:1px solid var(--accent,#1f6f50);background:transparent;color:inherit;cursor:pointer}",
-    ".chip{text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:10px;padding:9px 12px;font-size:14px;cursor:pointer}",
-    ".chip:hover{border-color:var(--accent)}",
-    ".msg{display:flex;flex-direction:column;max-width:88%;gap:6px}",
+    ".wrap.kiosk .icon{width:52px;height:52px;font-size:22px}",
+    "@media (max-width:480px){.wrap.open .launcher{display:none}.panel{right:0;left:0;bottom:0;width:100%;max-width:100%;height:min(88vh,640px);border-radius:24px 24px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}}",
+    "header{display:flex;align-items:center;gap:12px;padding:18px 14px 12px 20px}",
+    "header .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 18%,transparent);flex:none}",
+    "header .dot.off{background:var(--faint);box-shadow:none}",
+    "header h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;color:var(--fg)}",
+    "header .mode{display:block;font-size:12.5px;font-weight:500;color:var(--faint);letter-spacing:0;margin-top:1px}",
+    ".icon{border:0;background:var(--soft);color:var(--muted);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:15px;flex:none;display:grid;place-items:center;transition:background-color .15s}",
+    ".icon:hover{background:var(--soft-hover);color:var(--fg)}",
+    ".log{flex:1;overflow-y:auto;padding:8px 16px 16px;display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain}",
+    ".welcome{background:var(--soft);border-radius:20px;padding:18px;font-size:15px;color:var(--fg);line-height:1.6}",
+    ".welcome p{margin:0 0 14px}",
+    ".chips{display:flex;flex-direction:column;gap:8px}",
+    ".choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}",
+    ".choice{font:inherit;font-size:.9em;font-weight:600;padding:8px 14px;border-radius:999px;border:0;background:var(--accent-soft);color:var(--accent);cursor:pointer;transition:background-color .15s,color .15s}",
+    ".choice:hover{background:var(--accent);color:var(--accent-fg)}",
+    ".chip{text-align:left;border:0;background:var(--bg);color:var(--fg);border-radius:14px;padding:12px 14px;font-size:14.5px;font-weight:600;line-height:1.4;cursor:pointer;transition:background-color .15s,color .15s}",
+    ".chip:hover{background:var(--accent-soft);color:var(--accent)}",
+    ".msg{display:flex;flex-direction:column;max-width:88%;gap:8px}",
     ".msg.user{align-self:flex-end;align-items:flex-end}",
-    ".bubble{padding:10px 13px;border-radius:14px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}",
-    ".user .bubble{background:var(--user);color:var(--user-fg);border-bottom-right-radius:4px}",
-    ".bot .bubble{background:var(--bot);color:var(--fg);border-bottom-left-radius:4px}",
-    ".bot.pending .bubble{color:var(--muted)}",
+    ".bubble{padding:11px 15px;border-radius:20px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}",
+    ".user .bubble{background:var(--user);color:var(--user-fg);border-bottom-right-radius:6px}",
+    ".bot .bubble{background:var(--bot);color:var(--fg);border-bottom-left-radius:6px}",
+    ".bot.pending .bubble{color:var(--faint)}",
     ".bot.error .bubble{color:var(--err)}",
     ".badges{display:flex;flex-wrap:wrap;gap:6px}",
-    ".badge{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--muted);border:1px solid var(--line)}",
-    ".badge.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}",
+    ".badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--soft);color:var(--muted);border:0}",
+    ".badge.warn{background:var(--warn-bg);color:var(--warn)}",
     ".cards{display:grid;gap:6px;width:100%}",
-    ".card{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 11px;background:var(--bg);font-size:14px}",
-    ".card span{color:var(--muted);font-size:13px}",
+    ".card{display:flex;justify-content:space-between;align-items:center;gap:8px;border:0;border-radius:14px;padding:11px 14px;background:var(--soft);font-size:14px}",
+    ".card span{color:var(--faint);font-size:13px}",
     "details{font-size:13px;color:var(--muted);width:100%}",
-    "summary{cursor:pointer}",
-    "details ul{margin:6px 0 0;padding-left:18px}",
-    "details li{margin-bottom:6px}",
-    "blockquote{margin:4px 0 0;padding-left:8px;border-left:3px solid var(--line);color:var(--muted)}",
+    "summary{cursor:pointer;color:var(--accent);font-weight:600}",
+    "details ul{margin:8px 0 0;padding-left:18px}",
+    "details li{margin-bottom:8px}",
+    "blockquote{margin:4px 0 0;padding-left:10px;border-left:3px solid var(--line);color:var(--faint)}",
     "a{color:var(--accent)}",
-    ".retry{align-self:flex-start;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer}",
-    "form{border-top:1px solid var(--line);padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px}",
+    ".retry{align-self:flex-start;border:0;background:var(--soft);color:var(--fg);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}",
+    ".retry:hover{background:var(--soft-hover)}",
+    "form{padding:10px 14px 14px;display:flex;flex-direction:column;gap:8px}",
     ".row{display:flex;gap:8px;align-items:flex-end}",
-    "textarea{flex:1;min-width:0;resize:none;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:15px;line-height:1.45;max-height:120px;background:var(--bg);color:var(--fg)}",
-    ".send{border:0;border-radius:12px;background:var(--accent);color:var(--accent-fg);font-weight:700;padding:0 16px;height:44px;cursor:pointer;flex:none}",
-    ".send:disabled{opacity:.5;cursor:default}",
-    ".foot{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}",
-    ".foot button{border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer;padding:0;text-decoration:underline}",
-    ".sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}"
+    "textarea{flex:1;min-width:0;resize:none;border:1.5px solid transparent;border-radius:16px;padding:12px 14px;font-size:15px;line-height:1.45;max-height:120px;min-height:48px;background:var(--soft);color:var(--fg);outline:none;transition:border-color .15s,background-color .15s}",
+    "textarea::placeholder{color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    "textarea:focus{border-color:var(--accent);background:var(--bg)}",
+    ".send{border:0;border-radius:16px;background:var(--accent);color:var(--accent-fg);font-size:15px;font-weight:700;padding:0 18px;height:48px;cursor:pointer;flex:none;transition:background-color .15s,opacity .15s}",
+    ".send:hover{background:var(--accent-hover)}",
+    ".send:disabled{opacity:.4;cursor:default}",
+    ".foot{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--faint);padding:0 4px}",
+    ".foot button{border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}",
+    ".sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}",
+    "@media (prefers-reduced-motion:reduce){*{transition:none!important}}"
   ].join("\n");
 
   var host, root, wrap, panel, launcher, log, form, input, sendBtn, countEl, modeEl, dotEl, statusEl;
@@ -193,6 +205,7 @@
     wrap.append(launcher, panel);
     root.append(style, wrap);
     document.body.appendChild(host);
+    watchTheme();
 
     form.addEventListener("submit", function (e) { e.preventDefault(); send(input.value); });
     input.addEventListener("input", function () {
@@ -209,6 +222,20 @@
     ["pointerdown", "keydown", "input", "wheel"].forEach(function (t) { panel.addEventListener(t, touchIdle, { passive: true }); });
     showWelcome();
     restoreChat();
+  }
+
+  // 11/8 디자인 개편: 화면 <html data-theme="light|dark">(/ui/theme.js 전환 버튼)를 위젯 안쪽(.wrap)에도 옮겨 적는다.
+  // Shadow DOM 안 CSS 는 바깥 html 속성을 직접 볼 수 없어서다. 값이 없으면 "auto" → OS 밝기 설정을 따른다
+  function syncTheme() {
+    var de = document.documentElement;
+    var t = de && de.getAttribute ? de.getAttribute("data-theme") : null;
+    wrap.setAttribute("data-theme", t === "light" || t === "dark" ? t : "auto");
+  }
+  function watchTheme() {
+    syncTheme();
+    if (typeof MutationObserver === "function" && document.documentElement) {
+      new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    }
   }
 
   function restoreChat() {

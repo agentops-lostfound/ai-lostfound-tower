@@ -105,6 +105,7 @@ body { background: var(--ui-bg); color: var(--ui-text); font-family: var(--ui-fo
 .ui-theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0;
                    border: 0; border-radius: 999px; background: var(--ui-fill); color: var(--ui-text); cursor: pointer; font-size: 18px; line-height: 1; }
 .ui-theme-toggle:hover { background: var(--ui-fill-hover); }
+[data-theme-slot] .ui-theme-toggle { background: var(--ui-surface); box-shadow: var(--ui-shadow); }   /* 회색 바탕 머리말에서도 보이게 */
 .ui-theme-toggle.floating { position: fixed; z-index: 2147483000; left: max(16px, env(safe-area-inset-left, 0px));
                             bottom: max(16px, env(safe-area-inset-bottom, 0px)); box-shadow: var(--ui-shadow); background: var(--ui-surface); }
 .ui-theme-toggle svg { width: 20px; height: 20px; }
