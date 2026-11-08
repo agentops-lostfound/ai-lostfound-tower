@@ -72,6 +72,14 @@
     "answer": "주운 물건은 가까운 역 키오스크(습득물 등록기계)에서 신고해 주세요. 화면 안내대로 물건을 상자 가운데에 두고 손을 빼면 자동으로 사진을 찍어요. 이어서 주운 장소를 고르면 접수 번호가 나와요. 연락처는 남기지 않아도 되고, 물건 종류·색은 사진을 보고 시스템이 채워요. 현금이나 위험물은 역무실로 가져가 주세요."
   },
   {
+    "topic": "kiosk_camera",
+    "title": "키오스크 카메라를 쓸 수 없을 때 — 서비스 안내(습득 신고)",
+    "path": "docs/guidance/service-guide.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
+    "evidence": "키오스크 카메라를 쓸 수 없으면 화면의 '사진 파일로 접수' 버튼으로 사진 파일을 골라 접수하거나 역무실에 알린다.",
+    "answer": "키오스크 카메라를 쓸 수 없으면 화면의 '사진 파일로 접수' 버튼을 눌러 사진 파일을 골라 접수하거나, 역무실에 알려 주세요."
+  },
+  {
     "topic": "categories",
     "title": "다루는 물건 6종 — 팀 공통 품목",
     "path": "docs/guidance/service-guide.md",
