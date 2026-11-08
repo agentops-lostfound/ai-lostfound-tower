@@ -384,7 +384,8 @@ class GroundedRag:
             except ValueError:
                 answer, note = GAP_LEAD + answer + GAP_TAIL, f'not_addressed:{gap}(retry_failed)'
         elif feedback is not None and (gap or parsed.get('answerable') is False):
-            answer, note = GAP_LEAD + answer + GAP_TAIL, f'not_addressed:{gap or "model"}'
+            # 11/8 집 PC 실측: 다시 쓴 답은 관련 없는 문장(신고 방법 등)을 덧붙이는 일이 있어, 질문에 더 가까웠던 첫 답을 관련 안내로 씀
+            answer, note = GAP_LEAD + feedback['previous_answer'] + GAP_TAIL, f'not_addressed:{gap or "model"}'
         from agents.guidance import DEMO_POLICY_TOPICS
         if any(passages[i]['topic'] in DEMO_POLICY_TOPICS.values() or passages[i]['topic'] == 'arrival' for i in ids) \
                 and '시연 기준' not in answer:
