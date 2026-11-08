@@ -75,6 +75,7 @@ body { background: var(--ui-bg); color: var(--ui-text); font-family: var(--ui-fo
 .ui-btn.ghost { background: var(--ui-fill); color: var(--ui-text); }
 .ui-btn.ghost:hover { background: var(--ui-fill-hover); }
 .ui-btn.danger { background: var(--ui-err); color: #fff; }
+.ui-btn.danger:hover { background: var(--ui-err); filter: brightness(1.07); }   /* 정지 버튼이 마우스를 올리면 파랗게 바뀌지 않게 */
 .ui-btn.block { width: 100%; }
 
 /* 입력칸 */

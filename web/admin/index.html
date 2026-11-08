@@ -44,7 +44,8 @@ input[type=password]:focus{border-color:var(--accent);background:var(--ui-surfac
 #app.on{display:flex}
 iframe{flex:1;width:100%;border:0;background:var(--bg)}
 @media (max-width:600px){header{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-  header h1{font-size:18px} button{font-size:14px;padding:0 12px}}
+  header h1{font-size:18px} [data-theme-slot]{order:1} #who{order:2;flex-basis:100%;gap:4px}
+  #who button{font-size:13.5px;padding:0 10px;min-height:38px} #logout{margin-left:auto}}
 </style>
 </head>
 <body>
