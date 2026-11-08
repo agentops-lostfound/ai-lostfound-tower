@@ -157,6 +157,10 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .idle[hidden]{display:none}
 .idle-card{display:grid;gap:18px;width:min(560px,100%);padding:32px;background:var(--ui-surface);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow);text-align:center}
 .idle-card h2{margin:0;font-size:36px}
+/* 11/9 남은 초(10 → 9 …)가 바뀌어도 글 폭·줄바꿈·창 크기가 그대로이게: 숫자 칸 고정 폭(2자리, 오른쪽 맞춤이라 "9초"도 붙어 보임) + 고른 폭 숫자, 문장은 줄마다 나눔 */
+.cdnum{display:inline-block;min-width:2ch;text-align:right;font-variant-numeric:tabular-nums}
+.idle-msg{margin:0}
+.idle-msg .line{display:block}
 #s4 .bar{max-width:520px;width:100%;margin:-8px auto 0}
 #s4 .bar i{background:var(--ui-text-3);transition:width 1s linear}
 #morePlaces{min-height:64px;font-size:22px;align-self:flex-start}
@@ -388,7 +392,7 @@ body.demo-mode #stn{flex:1 1 auto}
     <h1 class="center">접수되었습니다</h1>
     <p class="sub center">접수 번호</p>
     <div class="receipt" id="rno"></div>
-    <p class="sub center"><span id="count">10</span>초 뒤 처음 화면으로</p>
+    <p class="sub center"><span class="cdnum" id="count">10</span>초 뒤 처음 화면으로</p>
     <div class="bar" aria-hidden="true"><i id="homeBar"></i></div>
     <button class="ghost" id="home">지금 처음으로</button>
   </section>
@@ -397,7 +401,7 @@ body.demo-mode #stn{flex:1 1 auto}
 <div class="idle" id="idle" role="alertdialog" aria-labelledby="idleTitle" hidden>
   <div class="idle-card">
     <h2 id="idleTitle">계속하시겠어요?</h2>
-    <p class="sub"><b id="idleCount">10</b>초 뒤 처음 화면으로 돌아가요. 적은 내용은 지워져요.</p>
+    <p class="sub idle-msg"><span class="line"><b class="cdnum" id="idleCount">10</b>초 뒤 처음 화면으로 돌아가요.</span> <span class="line">적은 내용은 지워져요.</span></p>
     <button id="idleKeep">계속할게요</button>
   </div>
 </div>

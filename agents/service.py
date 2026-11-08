@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import re
 import threading
-from dataclasses import fields
+from dataclasses import fields, replace
 from typing import Callable
 
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
@@ -77,7 +77,8 @@ class GuardedBackend:
                 return {"ok": False, "reason": STAFF_STOP_REASON}
             return attr(*a, **k)
         return guarded
-GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id", "item_id")]
+# staff_shelf(11/9)는 화면이 보내는 관문이 아니라 서버가 보관함 정답지로 정하는 칸 → 요청 본문에서 받지 않는다
+GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id", "item_id", "staff_shelf")]
 ALLOWED = {"case_id", "item_id", *GATE_FIELDS}
 VISIT_GATES = ["visitor_id_match", "inner_feature_ok", "staff_confirmed"]   # 본센터 방문 때 직원 화면이 채움
 # 11/6 인계 교차 검증 3가지(키 → 화면 이름). docs/design/handover_cross_check.md
@@ -298,6 +299,12 @@ class TowerService:
             raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
         if not ok:
             raise NotFound(f"없는 접수 번호: {item_id}")
+        if getattr(self, "sim", None) is None:       # 11/9 품목을 알게 된 때 칸 확인(가상 시연은 연출기가 회수 직전에 같은 일을 함)
+            try:
+                if any(w["item_id"] == item_id for w in self.storage_status()["waiting"]):
+                    self.notify_slot_wait(item_id)
+            except Exception:
+                pass
         return {"item_id": item_id, "category": feats.get("category"), "features": public_card(
             {k: v for k, v in feats.items() if k != "category"})}
 
@@ -410,13 +417,18 @@ class TowerService:
             # 11/8 무작위 시험: 인계 대기·인계 완료·반환 중인 물건에 새 반환을 시작하면 두 번 전달되거나 상태가 꼬였다 → 보관함에 있는 상태만
             if where is not None and where not in START_OK:
                 raise Conflict("not_in_bin", f"물건 {req.item_id} 은 지금 반환을 시작할 수 없는 상태입니다({where}) — 직원 확인")
-            # 11/8: 정지 신호는 직원이 '원점 복귀'를 눌러 성공했을 때만 지운다(전에는 새 반환이 시작될 때마다 지워 정지가 풀렸다)
-            if self._stop_event.is_set():
-                raise Conflict("stopped", "로봇이 정지 상태입니다 — 직원이 주변을 확인하고 '원점 복귀'를 누른 뒤 다시 시작하세요")
             slot = self.slot_of(req.item_id)        # 11/6 보관함 정답지: 로봇이 갈 칸·저장 자세를 관제 기록에 남김
+            shelf = bool(slot and slot.get("staff_shelf"))
+            if shelf:                               # 11/9 직원 보관 선반 물건 → 로봇 단계를 건너뛰고 직원이 건넴
+                req = replace(req, staff_shelf=True)
+            # 11/8: 정지 신호는 직원이 '원점 복귀'를 눌러 성공했을 때만 지운다(전에는 새 반환이 시작될 때마다 지워 정지가 풀렸다)
+            # 11/9: 선반 물건은 로봇을 움직이지 않으므로 정지 중에도 직원 인계는 할 수 있다
+            if self._stop_event.is_set() and not shelf:
+                raise Conflict("stopped", "로봇이 정지 상태입니다 — 직원이 주변을 확인하고 '원점 복귀'를 누른 뒤 다시 시작하세요")
             try:
                 self.reporter.progress(req.case_id, "보관 칸",
-                                       f"물건 {req.item_id} · {slot['slot_id']} · 자세 {slot['pose_name'] or '없음(티칭 필요)'}" if slot
+                                       f"물건 {req.item_id} · {slot['slot_id']} 직원 보관 선반 — 로봇 안 씀, 직원이 가져다 드림" if shelf
+                                       else f"물건 {req.item_id} · {slot['slot_id']} · 자세 {slot['pose_name'] or '없음(티칭 필요)'}" if slot
                                        else f"물건 {req.item_id} · 보관 칸 기록 없음 — 탑뷰로만 찾음(보관함 탭에서 칸 기록 필요)")
             except Exception:
                 pass
@@ -537,31 +549,135 @@ class TowerService:
         return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_HOLD, "reason": payload["reason"]}
 
     # ---------- 본센터 도착·보관(11/6, docs/design/storage_slots.md 7장) ----------
+    @staticmethod
+    def _where(r: dict) -> str:
+        """center = 본센터에 있음(본센터 접수·회수 중·본센터 보관) / station = 아직 역 키오스크 상자 안(회수해 와야 넣을 수 있음)"""
+        return "station" if r.get("status") == "등록기계 보관" and r.get("machine_id") != "CENTER" else "center"
+
+    def storage_status(self, limit: int = 200) -> dict:
+        """11/9 보관함 꽉 참 현황(직원 화면·관제 /live·디스코드 문구 공통).
+        - groups: 묶음별 사용(휴대폰 x/2 · 그 밖 y/6)과 그 묶음의 칸 대기 수
+        - waiting: 칸 대기 = 역 키오스크에 있는 물건 중 맞는 빈 칸이 없어 회수하지 않는 물건(먼저 접수된 순서).
+          본센터에 이미 와 있는 물건이 빈 칸을 먼저 쓰고, 남는 칸을 역 물건이 접수 순서대로 쓴다고 보고 센다
+        - shelf: 직원 보관 선반 물건 · suggest: 칸 대기가 있는 묶음에서 가장 오래 보관된 물건(선반으로 옮기기 제안)"""
+        from agents.storage import group_of, shelf_items, slot_groups
+        try:
+            layout = self.storage.layout()
+            rows = self.storage.unplaced(limit)
+        except Exception as e:
+            raise Unavailable(f"보관함 DB 사용 불가({type(e).__name__})") from e
+        groups = slot_groups(layout)
+        free = {g["key"]: g["total"] - g["used"] for g in groups}
+        waiting, ordered = [], sorted(rows, key=lambda r: self._where(r) != "center")   # 본센터 물건 먼저(접수 순서 유지)
+        for r in ordered:
+            g = group_of(groups, r.get("category") or (r.get("features") or {}).get("category"))
+            if g is None:
+                continue
+            if free[g["key"]] > 0:
+                free[g["key"]] -= 1
+            elif self._where(r) == "station":
+                waiting.append({"item_id": r["item_id"], "category": r.get("category"), "group": g["key"],
+                                "machine_id": r.get("machine_id"), "received_at": r.get("received_at")})
+        queue = list(getattr(getattr(self, "world", None), "wait_queue", None) or [])
+        if queue:       # 가상 시연: 접수 시각이 초 단위라 같을 수 있음 → 연출기의 실제 대기 줄 순서를 따른다
+            waiting.sort(key=lambda w: queue.index(w["item_id"]) if w["item_id"] in queue else len(queue))
+        for g in groups:
+            g["waiting"] = sum(1 for w in waiting if w["group"] == g["key"])
+            g["busy"] = g["total"] - free[g["key"]]     # 칸에 있음 + 본센터에 와서 칸을 기다리는 물건(회수 중 등)
+        suggest = None
+        busy = {g["key"] for g in groups if g["waiting"]}
+        for sec in layout["sections"]:
+            if sec["kind"] != "shelf":
+                continue
+            g = group_of(groups, (sec["allowed_categories"] or [None])[0]) if sec["allowed_categories"] else None
+            if g is None or g["key"] not in busy:
+                continue
+            for sl in sec["slots"]:
+                it = sl.get("item")
+                if it and it.get("status") == "본센터 보관" and (suggest is None or str(it.get("assigned_at") or "") < str(suggest["assigned_at"] or "")):
+                    suggest = {"item_id": it["item_id"], "slot_id": sl["slot_id"], "category": it.get("category"),
+                               "assigned_at": it.get("assigned_at"), "group": g["key"]}
+        full = [g["key"] for g in groups if g["used"] >= g["total"]]
+        msg = f"보관 칸이 다 찼어요 · 대기 {len(waiting)}건" if waiting else ("보관 칸이 다 찼어요" if full else "")
+        return {"groups": groups, "waiting": waiting, "shelf": shelf_items(layout), "full": full, "suggest": suggest,
+                "message": msg, "summary": " · ".join(f"{g['label']} {g['used']}/{g['total']}" for g in groups)
+                + f" · 대기 {len(waiting)} · 선반 {layout['summary'].get('staff_shelf', 0)}"}
+
+    def notify_slot_wait(self, item_id: str, position: int | None = None) -> None:
+        """칸 대기 직원 알림(디스코드 관제 채널·/live 경보). 물건 번호와 칸 수만(개인정보 없음)"""
+        try:
+            st = self.storage_status()
+            w = next((x for x in st["waiting"] if x["item_id"] == item_id), None)
+            g = next((g for g in st["groups"] if w and g["key"] == w["group"]), None)
+            head = f"보관 칸 없음({g['label']} {g['busy']}/{g['total']})" if g else "보관 칸 없음"
+            no = position or (st["waiting"].index(w) + 1 if w else None)
+            self.reporter.alert(item_id, f"{head} — 회수 대기",
+                                f"등록기계에 둔 채 칸 대기{f' {no}번째' if no else ''} · 칸이 비면 먼저 온 순서로 회수 · "
+                                "급하면 보관함 화면에서 직원 보관 선반으로")
+        except Exception:
+            pass
+
+    def move_to_shelf(self, payload: object) -> dict:
+        """직원 보관 화면: 물건을 직원 보관 선반으로(보관 칸 → 선반, 칸 대기 물건 → 바로 선반). 본문 {"item_id": "..."}"""
+        from agents.storage import StorageConflict, StorageError
+        if not isinstance(payload, dict) or set(payload) != {"item_id"} or not isinstance(payload["item_id"], str):
+            raise RequestError('본문은 {"item_id": "물건 번호"} 만 보냅니다')
+        item_id = payload["item_id"]
+        try:
+            out = self.storage.move_to_shelf(item_id)
+        except StorageError as e:
+            raise (NotFound(str(e)) if e.not_found else RequestError(str(e))) from e
+        except StorageConflict as e:
+            raise Conflict("state", str(e)) from e
+        except Exception as e:
+            raise Unavailable(f"보관함 DB 사용 불가({type(e).__name__})") from e
+        try:
+            self.reporter.progress("STORAGE", "직원 보관 선반",
+                                   f"물건 {item_id} → {out['slot_id']}{' (' + out['from'] + ' 비움)' if out.get('from') else ''}"
+                                   " · 반환은 로봇 없이 직원이 건넴")
+        except Exception:
+            pass
+        return out
+
     def storage_arrivals(self, limit: int = 50) -> list[dict]:
-        """직원 보관 화면: 칸이 정해지지 않은 물건 + 품목에 맞는 추천 칸. 공개 특징만(비공개 특징·연락처 없음)"""
-        from agents.storage import recommend_slot
+        """직원 보관 화면: 칸이 정해지지 않은 물건 + 품목에 맞는 추천 칸. 공개 특징만(비공개 특징·연락처 없음)
+        11/9: 맞는 빈 칸이 없으면 직원 보관 선반을 추천(recommended.shelf), 역 키오스크 물건이면 칸 대기(slot_wait, 회수하지 않음)"""
+        from agents.storage import recommend_slot, shelf_suggestion
         try:
             rows = self.storage.unplaced(limit)
             layout = self.storage.layout()
         except Exception as e:
             raise Unavailable(f"보관함 DB 사용 불가({type(e).__name__})") from e
+        rows = sorted(rows, key=lambda r: self._where(r) != "center")   # 본센터 물건이 빈 칸을 먼저 받는다
+        try:                                                            # 칸 대기 순서는 현황(storage_status)과 같은 규칙으로
+            seen: dict[str, int] = {}
+            waits = {}
+            for w in self.storage_status()["waiting"]:                  # 묶음(휴대폰·그 밖)마다 1번부터
+                seen[w["group"]] = seen.get(w["group"], 0) + 1
+                waits[w["item_id"]] = seen[w["group"]]
+        except Unavailable:
+            waits = {}
         out = []
         for r in rows:
             feats = r.get("features") or {}
             cat = r.get("category") or feats.get("category")
             rec = recommend_slot(layout, cat)
-            # where: center = 본센터에 있음(본센터 접수·회수 중·본센터 보관) / station = 아직 역 키오스크 상자 안(회수해 와야 넣을 수 있음)
-            where = "station" if r.get("status") == "등록기계 보관" and r.get("machine_id") != "CENTER" else "center"
+            where = self._where(r)
+            known = bool(cat) and cat != "확인 불가"
+            slot_wait = r["item_id"] in waits
             out.append({"item_id": r["item_id"], "status": r.get("status"), "category": cat, "where": where,
                         "machine_id": r.get("machine_id"), "received_at": r.get("received_at"),
                         "public": {k: show_ko(feats[k]) for k in ("color", "shape", "material") if feats.get(k)},
-                        "has_photo": self.item_photo(r["item_id"]) is not None, "recommended": rec})
-            if rec:   # 같은 목록 안에서 같은 칸을 두 번 추천하지 않게
+                        "has_photo": self.item_photo(r["item_id"]) is not None,
+                        "recommended": rec if rec or not known else shelf_suggestion(),
+                        "slot_wait": slot_wait, "wait_no": waits.get(r["item_id"])})
+            if rec and rec.get("slot_id"):   # 같은 목록 안에서 같은 칸을 두 번 추천하지 않게
                 for sec in layout["sections"]:
                     for slot in sec["slots"]:
                         if slot["slot_id"] == rec["slot_id"]:
                             slot["item"] = {"item_id": r["item_id"]}
-        out.sort(key=lambda a: a["where"] != "center")      # 본센터에 있는 물건 먼저(접수 순서는 유지)
+        # 본센터에 있는 물건 먼저(접수 순서는 유지), 역 물건은 회수할 수 있는 것 → 칸 대기(대기 순서)
+        out.sort(key=lambda a: (a["where"] != "center", a["slot_wait"], a["wait_no"] or 0))
         return out
 
     def place_item(self, item_id: str, payload: object) -> dict:
@@ -606,8 +722,10 @@ class TowerService:
                     claim = {"claim_id": c["claim_id"], "name_masked": c["name_masked"]} if c else None
                 except Exception:
                     claim = None
-            slot = (self.slot_of(row["item_id"]) or {}).get("slot_id")
+            where = self.slot_of(row["item_id"]) or {}
+            slot = where.get("slot_id")
             out.append({"case_id": row["case_id"], "item_id": row["item_id"], "claim": claim, "slot": slot,
+                        "staff_shelf": bool(where.get("staff_shelf")),   # 11/9 선반 물건: 직원이 선반에서 가져와 건넴
                         "category": item.get("category") or feats.get("category"),
                         "public": {k: show_ko(feats[k]) for k in ("color", "shape", "material") if feats.get(k)},
                         "has_photo": self.item_photo(row["item_id"]) is not None})
@@ -674,9 +792,11 @@ class TowerService:
         return None
 
     def slot_of(self, item_id: str) -> dict | None:
-        """물건이 기록된 보관 칸 {"slot_id", "pose_name"} 또는 None(기록 없음·DB 오류)"""
+        """물건이 기록된 보관 칸 {"slot_id", "pose_name", "staff_shelf"} 또는 None(기록 없음·DB 오류).
+        staff_shelf = 직원 보관 선반(구역 종류 staff, 11/9) — 로봇이 집지 않는 자리"""
+        from agents.storage import STAFF_KIND
         try:
-            return next(({"slot_id": s["slot_id"], "pose_name": s["pose_name"]}
+            return next(({"slot_id": s["slot_id"], "pose_name": s["pose_name"], "staff_shelf": sec["kind"] == STAFF_KIND}
                          for sec in self.storage.layout()["sections"] for s in sec["slots"]
                          if s.get("item") and s["item"]["item_id"] == item_id), None)
         except Exception:

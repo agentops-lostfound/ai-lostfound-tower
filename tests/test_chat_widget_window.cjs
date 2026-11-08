@@ -4,9 +4,10 @@ const test=require('node:test'),assert=require('node:assert/strict'),vm=require(
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const SRC=fs.readFileSync(path.join(__dirname,'../web/chat-widget/widget.js'),'utf8');
 
-function setup({questionFetch,storage,width=1280,height=900}={}){
+function setup({questionFetch,storage,width=1280,height=900,pageTheme=null}={}){
  const timers=new Map(),calls=[];let timerId=0;const clock={t:0};
  const doc={readyState:'complete',activeElement:null,addEventListener(){}};
+ if(pageTheme!==null)doc.documentElement={getAttribute:k=>k==='data-theme'?pageTheme:null};
  class Element{
   constructor(tag){this.tag=tag;this.children=[];this.attributes={};this.events={};this.style={};this.className='';this.value='';this.textContent='';this.hidden=false;this.disabled=false;this.classList={add:n=>{if(!this.className.split(' ').includes(n))this.className+=' '+n;},remove:n=>{this.className=this.className.split(' ').filter(c=>c!==n).join(' ');}};}
   set innerHTML(v){this._html=v;} get innerHTML(){return this._html||'';}
@@ -39,7 +40,11 @@ function setup({questionFetch,storage,width=1280,height=900}={}){
  vm.createContext(ctx);vm.runInContext(SRC,ctx);
  const root=doc.body.children[0].shadowRoot,get=sel=>root.querySelector(sel);
  const run=delay=>{for(const [id,t] of [...timers])if(t.delay===delay){timers.delete(id);t.fn();}};
- return {doc,root,get,calls,timers,window,clock,run,
+ // 11/9: 화면 숫자는 1%씩 세는 짧은 타이머(16~60ms)로 따라간다 — 그 타이머를 다 돌리고, 지나간 숫자를 모은다
+ const steps=(seen)=>{for(let k=0;k<400;k++){const due=[...timers].filter(([,t])=>t.delay>=16&&t.delay<=60);if(!due.length)break;
+   for(const [id,t] of due){timers.delete(id);t.fn();}
+   const b=root.querySelector('.prog');if(seen&&b)seen.push(Number(b.getAttribute('aria-valuenow')));}};
+ return {doc,root,get,calls,timers,window,clock,run,steps,
   open(){window.LostFoundChat.open();run(0);},
   send(q){get('textarea').value=q;get('form').dispatchEvent({type:'submit',preventDefault(){}});},
   button(label){return root.querySelectorAll('button').find(b=>b.getAttribute('aria-label')===label);}};
@@ -80,13 +85,16 @@ test('a slow answer shows a progressbar with aria values, then 100% and the answ
  let resolve;const s=setup({questionFetch:()=>new Promise(r=>{resolve=r;})});s.open();await tick();
  s.send('지갑 찾아줘');assert.equal(s.get('.prog'),null,'0.3초 전에는 막대 없음');
  s.clock.t=300;s.run(300);const bar=s.get('.prog');assert.ok(bar);assert.equal(bar.getAttribute('role'),'progressbar');
- const seen=[];for(let t=450;t<=12000;t+=150){s.clock.t=t;s.run(150);seen.push(Number(bar.getAttribute('aria-valuenow')));}
+ const drawn=[];const set0=bar.setAttribute.bind(bar);bar.setAttribute=(k,v)=>{if(k==='aria-valuenow')drawn.push(Number(v));return set0(k,v);};   // 화면에 그려진 숫자 전부
+ const seen=[];for(let t=450;t<=12000;t+=150){s.clock.t=t;s.run(150);s.steps();seen.push(Number(bar.getAttribute('aria-valuenow')));}
+ assert.deepEqual(drawn,drawn.map((_,i)=>drawn[0]+i),'화면 숫자는 건너뛰지 않고 1씩');assert.ok(drawn[0]<=5,'0 근처부터 센다(막대가 생긴 직후부터 기록)');
  assert.deepEqual(seen,[...seen].sort((x,y)=>x-y));assert.ok(seen.at(-1)<=95&&seen.at(-1)>=80);
  assert.match(bar.querySelector('b').textContent,/^답 준비 중 \d+%/);assert.equal(bar.querySelector('.est').textContent,'예상');
  resolve(ok('안내'));await tick();
- assert.equal(bar.getAttribute('aria-valuenow'),'100');assert.ok(s.root.querySelectorAll('.bubble').some(n=>n.textContent==='안내'));
+ const before=drawn.length;s.steps();assert.equal(bar.getAttribute('aria-valuenow'),'100');
+ const tail=drawn.slice(before-1);assert.deepEqual(tail,tail.map((_,i)=>tail[0]+i),'답이 오면 남은 숫자도 1씩 빠르게 세어 100');assert.ok(s.root.querySelectorAll('.bubble').some(n=>n.textContent==='안내'));
  assert.equal(s.root.querySelectorAll('.msg.pending').length,0);
- s.run(350);s.run(450);assert.equal(s.get('.prog'),null,'잠깐 보인 뒤 사라짐');
+ s.run(450);s.run(450);assert.equal(s.get('.prog'),null,'100% 를 잠깐(0.45초) 보인 뒤 사라짐');
 });
 
 test('an answer within 0.3s never draws the bar (no flicker for rule answers)',async()=>{
@@ -112,7 +120,7 @@ test('a stage line updates the label with the real stage name',async()=>{
  const enc=new TextEncoder();let push;const pending=[];
  resolveStage({ok:true,headers:{get:()=> 'application/x-ndjson'},body:{getReader(){return {read:()=>pending.length?Promise.resolve(pending.shift()):new Promise(r=>{push=r;}),cancel(){}};}}});
  await tick();push({done:false,value:enc.encode(JSON.stringify({stage:'check',pct:80})+'\n')});await tick();await tick();
- s.clock.t=450;s.run(150);const bar=s.get('.prog');assert.ok(Number(bar.getAttribute('aria-valuenow'))>=80);assert.match(bar.querySelector('b').textContent,/근거 확인/);
+ s.clock.t=450;s.run(150);s.steps();const bar=s.get('.prog');assert.ok(Number(bar.getAttribute('aria-valuenow'))>=80);assert.match(bar.querySelector('b').textContent,/근거 확인/);
  push({done:false,value:enc.encode(JSON.stringify({done:true,...okBody('끝')})+'\n')});for(let i=0;i<6;i++)await tick();
  assert.ok(s.root.querySelectorAll('.bubble').some(n=>n.textContent==='끝'));
 });
@@ -166,4 +174,39 @@ test('broken localStorage does not stop the window',async()=>{
  const bad={getItem(){throw Error('blocked');},setItem(){throw Error('blocked');},removeItem(){throw Error('blocked');}};
  const s=setup({storage:bad});s.open();s.button('창 크게').dispatchEvent({type:'click'});assert.equal(s.get('.panel').style.width,'480px');
  s.window.LostFoundChat.close();assert.equal(s.get('.panel').hidden,true);
+});
+
+// ── 11/9 창 밝기 단추 ──
+const wrapOf=s=>s.root.children.find(n=>(n.className||'').split(' ').includes('wrap'));
+test('theme button toggles only the chat window and is remembered in the window key',()=>{
+ const store=memoryStorage();
+ const s=setup({storage:store,pageTheme:'light'});s.open();
+ assert.equal(wrapOf(s).getAttribute('data-theme'),'light','기본은 화면 테마를 따름');
+ const btn=s.button('챗봇 창 어둡게');
+ assert.ok(btn,'밝기 단추에 aria-label');
+ btn.dispatchEvent({type:'click'});
+ assert.equal(wrapOf(s).getAttribute('data-theme'),'dark');
+ assert.ok(s.button('챗봇 창 밝게'),'누른 뒤 반대 동작 이름으로 바뀜');
+ assert.deepEqual([...store.m.keys()],['lf-chat-win:/lost'],'창 설정 칸 하나만(대화는 넣지 않음)');
+ const saved=JSON.parse(store.m.get('lf-chat-win:/lost'));
+ assert.equal(saved.theme,'dark');
+ assert.ok(!('history' in saved)&&!('msgs' in saved));
+ // 새로 고침: 같은 저장소로 다시 띄우면 창만 다크
+ const again=setup({storage:store,pageTheme:'light'});again.open();
+ assert.equal(wrapOf(again).getAttribute('data-theme'),'dark');
+ // 화면과 같은 밝기로 다시 누르면 기억을 지우고 화면을 따름
+ again.button('챗봇 창 밝게').dispatchEvent({type:'click'});
+ assert.equal(wrapOf(again).getAttribute('data-theme'),'light');
+ assert.equal(store.m.has('lf-chat-win:/lost'),false,'창 자리를 옮긴 적이 없으면 칸을 비움');
+});
+test('without a chosen value the window follows the page theme',()=>{
+ const s=setup({storage:memoryStorage(),pageTheme:'dark'});s.open();
+ assert.equal(wrapOf(s).getAttribute('data-theme'),'dark');
+ assert.ok(s.button('챗봇 창 밝게'));
+ const t=setup({storage:memoryStorage()});t.open();
+ assert.equal(wrapOf(t).getAttribute('data-theme'),'auto','화면 값이 없으면 OS 설정(auto)');
+});
+test('header buttons are at least 44px (kiosk 56px)',()=>{
+ assert.match(SRC,/\.icon\{[^}]*width:44px;height:44px/);
+ assert.match(SRC,/\.wrap\.kiosk \.icon\{width:56px;height:56px/);
 });

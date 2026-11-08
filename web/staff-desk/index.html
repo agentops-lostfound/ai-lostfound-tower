@@ -280,7 +280,8 @@
     r.data.forEach(function (q) {
       var row = el("div", undefined, "qitem" + (xcur && xcur.case_id === q.case_id ? " on" : ""));
       row.appendChild(el("span", q.case_id + " · 물건 " + q.item_id + " · " + (catName(q.category) || "품목 미정") +
-                                 (q.claim ? " · " + q.claim.name_masked : "")));
+                                 (q.claim ? " · " + q.claim.name_masked : "") +
+                                 (q.staff_shelf ? " · 직원 보관 선반 " + q.slot + "에서 가져와 확인" : "")));   // 11/9 선반 물건은 로봇이 제출보관함에 두지 않음
       var b = el("button", "확인 시작", "primary");
       b.addEventListener("click", function () { pick(q); });
       row.appendChild(b); box.appendChild(row);
@@ -289,7 +290,8 @@
   function pick(q) {
     xcur = q; xans = {}; xdone = false;
     var kv = $("xkv"); kv.textContent = "";
-    [["사례", q.case_id], ["물건 번호", q.item_id], ["품목", catName(q.category) || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"]]
+    [["사례", q.case_id], ["물건 번호", q.item_id], ["품목", catName(q.category) || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"],
+     ["물건 위치", q.staff_shelf ? "직원 보관 선반 " + q.slot + " (직원이 가져옴)" : "제출보관함 H-1"]]
       .forEach(function (p) { kv.appendChild(el("b", p[0])); kv.appendChild(el("span", p[1])); });
     var pub = q.public || {};
     $("xpub").textContent = Object.keys(pub).map(function (k) { return pub[k]; }).join(" · ") || "공개 특징 없음";

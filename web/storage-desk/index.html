@@ -6,6 +6,8 @@
 <title>본센터 보관함</title>
 <!-- 본센터 보관 화면(11/6, LF-8) — 관제탑이 /storage-desk 로 열고 관리자 화면 '보관함' 탭에 들어간다.
      흐름: 회수해 온 물건(도착 대기) 고르기 → 추천 칸 확인(또는 다른 칸 고르기) → 실제로 넣은 뒤 "넣었음" → 본센터 보관 + 칸 기록
+     11/9 칸 규칙: R1 = 휴대폰 전용 · R2~R4 = 그 밖 5종. 맞는 빈 칸이 없으면 역 물건은 '칸 대기'(회수하지 않음, 칸이 비면 먼저 온 순서로 자동 회수),
+          본센터 물건은 직원 보관 선반(S-n, 로봇이 집지 않음 → 반환은 직원이 직접 건넴)을 추천. 꽉 차면 가장 오래 보관된 물건부터 선반으로 옮기기를 제안
      개인정보: 물건 번호·품목·공개 특징·등록 사진만. 연락처·비공개 특징은 보이지 않음 -->
 <link rel="stylesheet" href="/ui/theme.css">
 <script src="/ui/theme.js"></script>
@@ -43,11 +45,15 @@
   .tag.warn { color:var(--warn); background:var(--ui-warn-soft); } .tag.ok { color:var(--ok); background:var(--ui-ok-soft); }
   #arrivals h3 { font-size:13px; font-weight:700; margin:14px 0 8px; }
   #arrivals h3:first-child { margin-top:0; }
-  .boardwrap { display:grid; grid-template-columns:minmax(0,1fr) 120px; gap:12px; align-items:center; }
-  .board { display:grid; gap:6px; padding:12px; border-radius:var(--ui-radius); background:var(--chip); border-left:6px solid var(--ui-text-3); }
-  .row { display:grid; grid-template-columns:70px 1fr 1fr; gap:6px; align-items:stretch; }
-  .row.r1 { margin-bottom:14px; }            /* 실제 판: 1행(휴대폰)은 2행과 간격이 넓다 */
-  .rlabel { font-size:12.5px; font-weight:600; color:var(--muted); align-self:center; }
+  /* 11/9 실제 배치(위에서 본 모습): 제출보관함 H-1 은 보관판 위쪽 가운데, R1~R4 는 왼→오, 각 줄은 먼 칸(2) 위·가까운 칸(1) 아래, 로봇팔은 아래 가운데 */
+  .boardwrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  #hbox { order:-1; width:40%; min-width:120px; }
+  .robotmark { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:12px; color:var(--ui-text-3); }
+  .robotmark i { display:block; width:14%; min-width:44px; height:8px; border-radius:4px; background:var(--ui-text-3); }
+  .board { width:100%; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px; padding:12px; border-radius:var(--ui-radius); background:var(--chip); outline:3px solid color-mix(in srgb, var(--ui-text-3) 35%, transparent); outline-offset:-3px; }
+  .row { display:grid; grid-template-rows:auto 1fr 1fr; gap:6px; align-items:stretch; min-width:0; }
+  .row.r1 { margin-right:10px; }             /* 실제 판: R1(휴대폰 사선) 두 칸은 다른 줄과 간격이 넓다 */
+  .rlabel { font-size:12.5px; font-weight:600; color:var(--muted); text-align:center; overflow-wrap:anywhere; }
   .slot { min-height:68px; border-radius:12px; border:2px dashed var(--line); background:var(--panel); padding:8px; font-size:12.5px; font-weight:500;
           text-align:left; display:grid; gap:2px; align-content:start; min-width:0; overflow-wrap:anywhere; }
   .slot.full { border-style:solid; border-color:transparent; background:var(--slot); }
@@ -67,6 +73,21 @@
   input[type=text]:focus { border-color:var(--accent); background:var(--panel); }
   .hd-right { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
   [hidden] { display:none !important; }
+  /* 11/9 보관함 꽉 참 현황 */
+  #full { grid-column:1/-1; display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; padding:16px 20px; }
+  #full.warn { background:var(--ui-warn-soft); box-shadow:inset 0 0 0 1.5px var(--warn); }
+  #full .head { font-weight:700; font-size:16px; }
+  #full.warn .head { color:var(--warn); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:0 12px; border-radius:999px; background:var(--chip); font-size:13px; font-weight:600; color:var(--muted); white-space:nowrap; }
+  .chip b { color:var(--fg); font-variant-numeric:tabular-nums; }
+  .chip.full b { color:var(--warn); }
+  #suggest { margin-left:auto; }
+  @media (max-width:600px) { #suggest { margin-left:0; width:100%; } }
+  .shelf { margin-top:12px; padding:12px; border-radius:var(--ui-radius); background:var(--soft); }
+  .shelf h3 { font-size:13px; font-weight:700; margin:0 0 8px; }
+  .shelf .list { display:flex; flex-wrap:wrap; gap:6px; }
+  .shelf .tok { display:inline-flex; gap:6px; align-items:center; padding:4px 10px; border-radius:10px; background:var(--panel); font:500 12.5px var(--ui-mono); overflow-wrap:anywhere; }
   /* 11/8 글 줄이기: 칸 범례는 작은 칸 그림으로, 긴 설명은 "ⓘ 자세히"로 접음 */
   .legend { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin:12px 0 0; color:var(--muted); font-size:13px; }
   .legend span { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
@@ -77,7 +98,7 @@
   details.more[open] summary { margin-bottom:6px; }
   section > details.more { margin:0 0 14px; }
   #arrivals { max-height:min(66vh, 640px); overflow:auto; }
-  @media (max-width:600px) { .boardwrap { grid-template-columns:1fr; } .row { grid-template-columns:56px 1fr 1fr; }   /* 11/8 휴대폰 폭: 제출보관함이 R2-2 칸을 덮던 것 */
+  @media (max-width:600px) { .board { gap:4px; padding:6px; } .row.r1 { margin-right:4px; }   /* 11/8 휴대폰 폭: 제출보관함이 R2-2 칸을 덮던 것 */
     body { padding-top:16px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
     h1 { font-size:21px; } section { padding:18px; } .board { padding:8px; } }
 </style>
@@ -88,6 +109,13 @@
     <h1>본센터 보관함 · 도착 물건 넣기</h1>
     <span class="hd-right"><span class="muted" id="sum">불러오는 중…</span><span data-theme-slot></span></span>
   </header>
+
+  <section id="full" aria-live="polite" hidden>
+    <span class="head" id="fullHead"></span>
+    <span class="chips" id="fullChips"></span>
+    <button id="suggest" class="primary" hidden></button>
+    <span class="msg" id="fullMsg" role="status"></span>
+  </section>
 
   <section aria-labelledby="h-arr">
     <h2 id="h-arr">1. 도착 대기</h2>
@@ -100,20 +128,23 @@
     <div class="boardwrap">
       <div class="board" id="board"></div>
       <div id="hbox"></div>
+      <div class="robotmark" aria-hidden="true"><i></i>로봇팔(아래 가운데)</div>
     </div>
     <div class="legend">
       <span><svg viewBox="0 0 26 20" role="img" aria-label="점선 칸: 빈 칸"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--panel)" stroke="var(--line)" stroke-width="2" stroke-dasharray="3 2.5"/></svg>빈 칸</span>
       <span><svg viewBox="0 0 26 20" role="img" aria-label="파란 칸: 사용 중"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--slot)"/><path d="M7 10h12" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>사용 중</span>
       <span><svg viewBox="0 0 26 20" role="img" aria-label="파란 점선 테두리: 추천 칸"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--panel)" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 2.5"/></svg>추천</span>
       <span><svg viewBox="0 0 26 20" role="img" aria-label="주황 테두리: 고른 칸"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--pick)" stroke="var(--warn)" stroke-width="2"/></svg>고른 칸</span>
-      <span><svg viewBox="0 0 26 20" role="img" aria-label="왼쪽 굵은 선: 로봇팔 쪽"><rect x="3" y="2" width="4" height="16" rx="2" fill="var(--ui-text-3)"/><path d="M11 10h11M18 6l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>로봇팔 쪽</span>
+      <span><svg viewBox="0 0 26 20" role="img" aria-label="아래 굵은 막대: 로봇팔 쪽"><rect x="7" y="14" width="12" height="4" rx="2" fill="var(--ui-text-3)"/><path d="M13 12V3M9 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>로봇팔 쪽(아래)</span>
     </div>
-    <details class="more"><summary>ⓘ 자세히</summary>1행 휴대폰은 사선으로 놓고 칸 간격이 넓습니다 · 노란 바구니는 가림막(칸 아님)</details>
+    <details class="more"><summary>ⓘ 자세히</summary>R1 두 칸은 휴대폰 전용(사선으로 놓아 간격이 넓음) · R2~R4 여섯 칸은 그 밖 물건(행 구분 없음, 로봇 쪽 1번 칸부터) · 제출보관함은 보관판 위쪽 가운데 · 맞는 칸이 없으면 직원 보관 선반(로봇이 집지 않음)</details>
+    <div class="shelf" id="shelfBox"><h3>직원 보관 선반 <span class="muted" id="shelfN"></span></h3><div class="list" id="shelfList"></div></div>
     <div class="actions">
       <span id="pickInfo" class="muted">물건을 먼저 고르세요</span>
     </div>
     <div class="actions">
       <button id="place" class="primary" disabled>이 칸에 넣었음</button>
+      <button id="toShelf" disabled>직원 보관 선반에 놓았음</button>
       <label class="muted" id="ovWrap" hidden><input type="checkbox" id="override"> 품목이 다른 행이지만 넣음</label>
       <span class="msg" id="msg" role="status" aria-live="polite"></span>
     </div>
@@ -121,7 +152,7 @@
       <summary>칸 관리(비우기·저장 자세) — 로봇 티칭 담당용</summary>
       <p class="muted">칸을 누른 뒤 비우거나 자세 이름(예: pose_1)을 연결</p>
       <div class="actions"><b id="mgSlot">칸 없음</b><input type="text" id="pose" placeholder="pose_1" aria-label="저장 자세 이름">
-        <button id="savePose" disabled>자세 저장</button><button id="release" disabled>칸 비우기</button><span class="msg" id="mgMsg"></span></div>
+        <button id="savePose" disabled>자세 저장</button><button id="release" disabled>칸 비우기</button><button id="mgShelf" disabled>선반으로 옮기기</button><span class="msg" id="mgMsg"></span></div>
     </details>
   </section>
 </main>
@@ -130,7 +161,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var arrivals = [], layout = null, pickItem = null, pickSlot = null, mgSlot = null, busy = false;
+  var arrivals = [], layout = null, status = null, pickItem = null, pickSlot = null, mgSlot = null, busy = false;
   function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
   async function api(method, path, body) {
     var res = await fetch(path, { method: method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -171,11 +202,14 @@
       line.appendChild(el("span", a.category && a.category !== "확인 불가" ? catName(a.category) : "품목 미확인", "tag" + (a.category && a.category !== "확인 불가" ? "" : " warn")));
       line.appendChild(el("span", a.status === "등록기계 보관" ? (a.where === "center" ? "본센터 접수" : "역에 보관 중") : a.status, "tag"));
       line.appendChild(el("span", STATION[a.machine_id] || a.machine_id || "", "tag"));
+      if (a.slot_wait) line.appendChild(el("span", "칸 대기 " + a.wait_no + "번째", "tag warn"));
       info.appendChild(line);
       var pub = a.public || {}; var txt = Object.keys(pub).map(function (k) { return pub[k]; }).join(" · ");
-      info.appendChild(el("div", (txt ? txt + " · " : "") + (a.recommended ? "추천 " + a.recommended.slot_id + (a.recommended.other_row ? "(다른 행)" : "") : "추천 칸 없음"), "muted"));
+      var rec = !a.recommended ? "추천 칸 없음" : a.recommended.shelf ? (a.slot_wait ? "맞는 빈 칸 없음 — 회수하지 말고 대기(칸이 비면 자동 회수) · 급하면 선반" : "맞는 빈 칸 없음 — 직원 보관 선반 추천")
+                : "추천 " + a.recommended.slot_id + (a.recommended.other_row ? "(다른 행)" : "");
+      info.appendChild(el("div", (txt ? txt + " · " : "") + rec, "muted"));
       row.appendChild(t); row.appendChild(info);
-      function choose() { pickItem = a; pickSlot = a.recommended ? a.recommended.slot_id : null; $("msg").textContent = ""; render(); }
+      function choose() { pickItem = a; pickSlot = a.recommended && !a.recommended.shelf ? a.recommended.slot_id : null; $("msg").textContent = ""; render(); }
       row.addEventListener("click", choose);
       row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(); } });
       box.appendChild(row);
@@ -191,6 +225,7 @@
     b.addEventListener("click", function () {
       mgSlot = s; $("mgSlot").textContent = s.slot_id; $("pose").value = s.pose_name || "";
       $("savePose").disabled = false; $("release").disabled = !s.item; $("mgMsg").textContent = "";
+      $("mgShelf").disabled = !(s.item && sec.kind === "shelf" && s.item.status === "본센터 보관");
       if (sec.kind === "shelf" && !s.item && pickItem) { pickSlot = s.slot_id; $("msg").textContent = ""; }
       render();
     });
@@ -199,15 +234,39 @@
   function renderBoard() {
     var board = $("board"), hbox = $("hbox"); board.textContent = ""; hbox.textContent = "";
     if (!layout) return;
+    var shelf = [];
     layout.sections.forEach(function (sec) {
       if (sec.kind === "handover") { sec.slots.forEach(function (s) { hbox.appendChild(slotButton(sec, s)); }); return; }
+      if (sec.kind === "staff") { sec.slots.forEach(function (s) { if (s.item) shelf.push(s); }); return; }   // 11/9 직원 보관 선반(보관판 밖)
       var row = el("div", undefined, "row" + (sec.code === "R1" ? " r1" : ""));
       row.appendChild(el("span", showText(sec.label), "rlabel"));
-      sec.slots.forEach(function (s) { row.appendChild(slotButton(sec, s)); });
+      sec.slots.slice().sort(function (a, b) { return b.slot_id.localeCompare(a.slot_id); })   // 먼 칸(-2) 위, 가까운 칸(-1) 아래
+        .forEach(function (s) { row.appendChild(slotButton(sec, s)); });
       board.appendChild(row);
     });
+    var list = $("shelfList"); list.textContent = "";
+    $("shelfN").textContent = shelf.length ? shelf.length + "개 · 로봇이 집지 않음, 반환 때 직원이 가져다 드림" : "비어 있음";
+    shelf.forEach(function (s) { list.appendChild(el("span", s.slot_id + " · " + s.item.item_id + " · " + catName(s.item.category), "tok")); });
     var sm = layout.summary;
-    $("sum").textContent = "보관 칸 " + sm.shelf_slots + " · 사용 " + sm.used + " · 빈 칸 " + sm.free + " · 자세 없는 칸 " + sm.slots_without_pose + " · 도착 대기 " + arrivals.length;
+    var groups = (sm.groups || []).map(function (g) { return g.label + " " + g.used + "/" + g.total; }).join(" · ");
+    $("sum").textContent = (groups || ("보관 칸 " + sm.used + "/" + sm.shelf_slots)) + " · 선반 " + (sm.staff_shelf || 0) +
+      " · 도착 대기 " + arrivals.length + (sm.slots_without_pose ? " · 자세 없는 칸 " + sm.slots_without_pose : "");
+  }
+  function renderFull() {                                // 11/9 보관 칸이 다 찼을 때 안내 + 선반으로 옮기기 제안
+    var box = $("full");
+    if (!status) { box.hidden = true; return; }
+    var waiting = status.waiting.length, full = status.groups.some(function (g) { return g.used >= g.total; });
+    box.hidden = false; box.className = waiting ? "warn" : "";
+    $("fullHead").textContent = waiting ? "보관 칸이 다 찼어요 · 대기 " + waiting + "건" : full ? "보관 칸이 다 찼어요" : "보관 칸 여유 있음";
+    var chips = $("fullChips"); chips.textContent = "";
+    status.groups.forEach(function (g) {
+      var c = el("span", undefined, "chip" + (g.used >= g.total ? " full" : "")); c.appendChild(document.createTextNode(g.label + " "));
+      c.appendChild(el("b", g.used + "/" + g.total)); if (g.waiting) c.appendChild(document.createTextNode(" · 대기 " + g.waiting)); chips.appendChild(c);
+    });
+    var sc = el("span", undefined, "chip"); sc.appendChild(document.createTextNode("선반 ")); sc.appendChild(el("b", String(status.shelf.length))); chips.appendChild(sc);
+    var sg = status.suggest, b = $("suggest");
+    b.hidden = !sg;
+    if (sg) b.textContent = "가장 오래 보관된 " + sg.slot_id + "(" + sg.item_id + ") 선반으로 옮기기";
   }
   function renderPick() {
     var known = pickItem && pickItem.category && pickItem.category !== "확인 불가";
@@ -217,14 +276,17 @@
     $("pickInfo").textContent = !pickItem ? "물건을 먼저 고르세요" : !pickSlot ? pickItem.item_id + " — 빈 칸을 눌러 고르세요" :
       pickItem.item_id + " → " + pickSlot + (known ? "" : " (품목 미확인: 사진을 보고 고른 칸)") + (mismatch ? " · 이 행의 품목이 아님" : "");
     $("place").disabled = busy || !pickItem || !pickSlot || (mismatch && !$("override").checked);
+    $("toShelf").disabled = busy || !pickItem;
+    $("toShelf").classList.toggle("primary", !!(pickItem && pickItem.recommended && pickItem.recommended.shelf));
   }
-  function render() { renderArrivals(); renderBoard(); renderPick(); }
+  function render() { renderArrivals(); renderBoard(); renderPick(); renderFull(); }
   $("override").addEventListener("change", renderPick);
 
   async function load() {
-    var a = await api("GET", "/api/admin/storage/arrivals?limit=100"), l = await api("GET", "/api/admin/storage");
+    var a = await api("GET", "/api/admin/storage/arrivals?limit=100"), l = await api("GET", "/api/admin/storage"),
+        st = await api("GET", "/api/admin/storage/status");
     if (a.status !== 200 || l.status !== 200) { $("sum").textContent = "불러오지 못함: " + detail(a.status !== 200 ? a : l); return; }
-    arrivals = a.data; layout = l.data;
+    arrivals = a.data; layout = l.data; status = st.status === 200 ? st.data : null;
     if (pickItem) {                                     // 다시 불러와도 고른 물건 유지(이미 넣었으면 해제)
       pickItem = arrivals.find(function (x) { return x.item_id === pickItem.item_id; }) || null;
       if (!pickItem) pickSlot = null;
@@ -242,6 +304,29 @@
     if (r.status === 200) { $("msg").className = "msg ok"; $("msg").textContent = "✅ " + r.data.item_id + " → " + r.data.slot_id + " 기록함(본센터 보관)"; pickItem = null; pickSlot = null; }
     else { $("msg").className = "msg bad"; $("msg").textContent = "저장 안 됨: " + detail(r); }
     load();
+  });
+  async function shelfMove(itemId, out) {             // 11/9 직원 보관 선반으로(로봇이 집지 않는 자리)
+    var r = await api("POST", "/api/admin/storage/shelf", { item_id: itemId });
+    out.className = "msg " + (r.status === 200 ? "ok" : "bad");
+    out.textContent = r.status === 200 ? "✅ " + itemId + " → " + r.data.slot_id + (r.data.from ? " (" + r.data.from + " 비움 · 칸 대기 물건 자동 회수)" : "") : "옮기지 못함: " + detail(r);
+    return r.status === 200;
+  }
+  $("toShelf").addEventListener("click", async function () {
+    if (!pickItem || busy) return;
+    busy = true; renderPick();
+    if (await shelfMove(pickItem.item_id, $("msg"))) { pickItem = null; pickSlot = null; }
+    busy = false; load();
+  });
+  $("suggest").addEventListener("click", async function () {
+    if (!status || !status.suggest || busy) return;
+    busy = true; $("suggest").disabled = true;
+    await shelfMove(status.suggest.item_id, $("fullMsg"));
+    busy = false; $("suggest").disabled = false; load();
+  });
+  $("mgShelf").addEventListener("click", async function () {
+    if (!mgSlot || !mgSlot.item) return;
+    await shelfMove(mgSlot.item.item_id, $("mgMsg"));
+    mgSlot = null; $("mgShelf").disabled = true; $("release").disabled = true; load();
   });
   $("savePose").addEventListener("click", async function () {
     if (!mgSlot) return;

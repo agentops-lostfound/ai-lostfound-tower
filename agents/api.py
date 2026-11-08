@@ -362,6 +362,16 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """직원이 칸에 넣었음 → 본센터 보관 + 칸 기록. 본문 {"slot_id": "R4-1", "override_category": false}"""
         return _case(lambda: svc.place_item(item_id, payload))
 
+    @app.get("/api/admin/storage/status", dependencies=admin)
+    def storage_status() -> dict:
+        """11/9 보관함 꽉 참 현황: 묶음별 사용(휴대폰 x/2 · 그 밖 y/6)·칸 대기·직원 보관 선반·선반으로 옮기기 제안"""
+        return _case(svc.storage_status)
+
+    @app.post("/api/admin/storage/shelf", dependencies=admin)
+    def storage_shelf(payload: dict = Body(...)) -> dict:
+        """직원 보관 선반으로 옮김(보관 칸 물건 또는 칸 대기 물건). 본문 {"item_id": "..."} — 로봇은 선반 물건을 집지 않음"""
+        return _case(lambda: svc.move_to_shelf(payload))
+
     @app.get("/api/admin/handovers", dependencies=admin)
     def handover_queue(limit: int = 20) -> list:
         """제출보관함에서 직원 확인을 기다리는 반환(인계 대기) 목록"""
@@ -581,7 +591,22 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         world = getattr(svc, "world", None)
         return {"seq": board.last_seq if board else 0, "events": board.since(after, story) if board else [],
                 "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
-                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"]}
+                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"], "storage": _storage_brief()}
+
+    _brief = {"t": 0.0, "v": None}
+
+    def _storage_brief():
+        """11/9 /live 칸 사용 현황(휴대폰 x/2 · 그 밖 y/6 · 대기 n · 선반). 0.4초마다 불리므로 1.5초 동안은 지난 값(팀 DB 부담 줄임)"""
+        import time as _t
+        now = _t.monotonic()
+        if _brief["v"] is None or now - _brief["t"] > 1.5:
+            try:
+                st = svc.storage_status()
+                _brief["v"] = {k: st[k] for k in ("groups", "waiting", "shelf", "message", "summary", "suggest")}
+            except Exception:
+                _brief["v"] = None
+            _brief["t"] = now
+        return _brief["v"]
 
     def _sim():
         d = getattr(svc, "sim", None)

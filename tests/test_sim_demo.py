@@ -92,10 +92,14 @@ class SimPartsTest(unittest.TestCase):
                 lo, hi = SO101_LIMITS[k]
                 self.assertTrue(lo <= v <= hi, (x, y, z, k, v))
             self.assertLess(math.dist(so101_tip(j), (x, y, z)), 1.0, (x, y, z, j))
-        from agents.sim_world import ROBOT_BASE_MM
-        far = max(math.hypot(x - ROBOT_BASE_MM[0], ROBOT_BASE_MM[1] - y) for x, y in SLOTS_MM + [BASKET_MM])
-        self.assertLess(so101_reach(PICK_Z, 1.0), far)      # 실제 크기 팔로는 보관함 끝 칸에 못 닿음(배율을 쓰는 이유)
-        self.assertGreater(so101_reach(PICK_Z, ARM_SCALE), far)   # 화면 배율 팔은 닿음
+        # 11/9 실제 규격 배치: 실제 크기 팔(배율 1.0)로 보관 칸 8곳은 수직으로 집을 수 있다(먼 줄 끝 칸이 수직 도달 거리 안)
+        from agents.sim_world import ROBOT_BASE_MM, SO101_PAN_X
+        self.assertEqual(ARM_SCALE, 1.0)
+        far_slot = max(math.hypot(x - ROBOT_BASE_MM[0], ROBOT_BASE_MM[1] - SO101_PAN_X - y) for x, y in SLOTS_MM)
+        self.assertGreater(so101_reach(PICK_Z, 1.0), far_slot)
+        # 제출보관함은 수직으로는 못 닿고 집게를 기울여 놓는다(로봇 쪽 절반)
+        j = so101_joints(*BASKET_MM, DROP_Z, 50)
+        self.assertLess(j["wrist_flex"], 70)
 
     def test_robot_stop_halts_motion_midway(self):
         w = SimWorld(speed=1)
@@ -301,7 +305,7 @@ class DirectorTest(unittest.TestCase):
         lay = self.svc.storage.layout()
         held = {sl["slot_id"]: (sl.get("item") or {}).get("item_id") for sec in lay["sections"] for sl in sec["slots"]}
         self.assertEqual(held[sid], f["item_id"])
-        self.assertEqual(sid, "R4-2")                                      # 지갑 행(R4)의 빈 칸
+        self.assertEqual(sid, "R2-2")                                      # 11/9 그 밖 칸(R2~R4): 1번 줄이 차 있어 2번 줄 첫 칸
 
     def test_reset_restores_seed_and_keeps_claim_numbers(self):
         self.found()

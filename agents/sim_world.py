@@ -31,19 +31,28 @@ from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa
 
 # ---------- 작업대 좌표(가상, mm) ----------
 # 11/7: 실제 판(docs/design/storage_slots.md)과 같게 — 보관판 500 × 250 mm, 로봇팔은 아래쪽 긴 변, 제출보관함(H-1, 20×20cm)은
-# 반대쪽 긴 변 바깥(위). 한 행 = 로봇 쪽(1)·먼 쪽(2) 칸 2개, 행 4개가 긴 변 방향(왼→오)으로 R1 모형폰 · R2 USB·핸드크림·보조배터리 ·
-# R3 립밤 · R4 지갑. R1(모형폰 사선)은 간격이 넓다. 칸 이름·품목은 보관함 정답지(agents/storage.py LAYOUT)와 같다
-BENCH_MM = (560.0, 600.0)
+# 반대쪽 긴 변(위) 가운데. 한 행 = 로봇 쪽(1)·먼 쪽(2) 칸 2개, 행 4개가 긴 변 방향(왼→오).
+# 11/9 사용자 결정: R1(왼쪽 두 칸) = 휴대폰 전용(사선이라 간격이 넓음) · R2~R4 = 그 밖 5종(행 제한 없음). 칸 이름·품목은 정답지 LAYOUT 과 같다
+BENCH_MM = (560.0, 620.0)
 BIN_MM = (0.0, 240.0, 500.0, 490.0)                   # 보관판 x1, y1, x2, y2
 SLOT_IDS = ["R1-1", "R1-2", "R2-1", "R2-2", "R3-1", "R3-2", "R4-1", "R4-2"]
 _ROW_X = {"R1": 70.0, "R2": 205.0, "R3": 325.0, "R4": 445.0}
 _SLOT_Y = {"1": 420.0, "2": 310.0}                    # 1 = 로봇 쪽(가까움), 2 = 먼 쪽
 SLOTS_MM = [(_ROW_X[sid[:2]], _SLOT_Y[sid[3]]) for sid in SLOT_IDS]   # 보관 칸 8개(순서 = SLOT_IDS)
-HBOX_MM = (150.0, 10.0, 350.0, 210.0)                # 제출보관함 H-1 (20 × 20 cm)
-BASKET_MM = ((HBOX_MM[0] + HBOX_MM[2]) / 2, (HBOX_MM[1] + HBOX_MM[3]) / 2)   # 제출보관함 가운데(로봇이 내려놓는 곳)
+# 11/9 실제 규격(사용자 실측): 보관판 500×250, 테두리 마킹테이프 15mm. 로봇 쪽 아래에 15mm 덧댄 띠(받침 앞 돌출부 두 개 폭)로 가운데 맞춤.
+# 제출보관함 H-1(200×200, 테두리 테이프)은 보관판 위쪽 가운데에 딱 붙임
+TAPE_MM = 15.0
+HBOX_MM = (150.0, 40.0, 350.0, 240.0)                # 제출보관함 H-1 (20 × 20 cm), 보관판 위 가장자리에 붙음
+# 로봇이 내려놓는 곳 = H-1 의 로봇 쪽 절반(보관판 끝에서 50mm 안). 실제 크기 팔은 H-1 한가운데(회전축에서 약 391mm)에
+# 수직으로는 못 닿고, 집게를 30~45° 기울이면 이 자리(약 341mm)에 놓을 수 있다(11/9 관절 범위 전체 계산)
+BASKET_MM = ((HBOX_MM[0] + HBOX_MM[2]) / 2, HBOX_MM[3] - 50.0)
 HOME_MM = (250.0, 360.0)                   # 원점(대기) 자세의 집게 끝 — 실제 SO-101 관절 한계 안
-ROBOT_BASE_MM = (250.0, 545.0)
+# 받침 원점 위치: 회전축이 받침 앞 돌출부 끝에서 25.8mm 뒤(공식 STL) + 덧댄 띠 15mm → 보관판 아래 끝(490)에서 40.8mm 바깥
+ROBOT_BASE_MM = (250.0, 490.0 + 15.0 + 25.8 + 38.84)
 MARKERS_MM = [(12.0, 252.0), (488.0, 478.0)]          # ArUco 표식 2개(보관판 대각선)
+# 로봇 쪽 덧댄 띠(가로 약 66mm = 받침 앞 돌출부 두 개의 양 끝 폭, 세로 15mm), 보관판 아래 끝 가운데 — 그림용 x1, y1, x2, y2
+SHIM_MM = (250.0 - 33.0, BIN_MM[3], 250.0 + 33.0, BIN_MM[3] + 15.0)
+CAMERA_HEIGHT_MM = 500.0                              # 탑뷰 카메라 높이(사용자 정보, 약) — 보관함과 로봇팔을 위에서 내려다봄
 PX_SCALE, PX_OFFSET = 1.4, (40.0, 30.0)              # 탑뷰 사진 픽셀 = mm × 1.4 + 여백(가상 1360×900 사진 안)
 
 
@@ -56,6 +65,7 @@ PICK_RADIUS_MM = 35.0                                 # 접근 좌표에서 이 
 # ---------- 물건이 있는 곳(세계) ----------
 LOC_KIOSK, LOC_TRANSIT, LOC_BIN, LOC_GRIPPER, LOC_BASKET, LOC_HANDED, LOC_STAFF = (
     "kiosk", "transit", "bin", "gripper", "basket", "handed", "staff")
+LOC_SHELF = "shelf"          # 11/9 직원 보관 선반(보관판 밖, 로봇이 집지 않음 — 반환은 직원이 직접 건넴)
 
 STATIONS = {"서면": "KIOSK-C", "해운대": "KIOSK-A"}   # 말에 나오는 역 이름 → 등록기계
 MACHINE_STATION = {v: k for k, v in STATIONS.items()}
@@ -166,13 +176,13 @@ def lost_station(text: str) -> str | None:
 #   목업폰(아이폰17 목업): 화이트·블랙·블루 구매 → 블랙은 신고용으로 비움
 #   USB: 샌디스크 울트라 듀얼드라이브 2개(같은 제품) + 액센 SK31 1개(신고용). 샌디스크 색은 은색(추정)
 #   보조배터리(스피디 슬림 듀얼) 2개 중 1개만 보관함, 색 흰색(추정). 핸드크림(부케가르니) 흰색(추정)
-#   11/7: 보관 칸이 8개(실제 판)라 8개를 다 넣으면 습득 시연 물건을 넣을 칸이 없다 → 5개만 넣고 R3(립밤) 2칸 · R4-2(지갑) 를 비워 둔다.
-#   핑크샌드 카드지갑·보조배터리·핸드크림은 습득 신고로 넣어 볼 물건(보조배터리·핸드크림은 R2 가 차 있어 다른 행 빈 칸으로 감)
+#   11/7: 보관 칸이 8개(실제 판)라 8개를 다 넣으면 습득 시연 물건을 넣을 칸이 없다 → 5개만 넣는다.
+#   11/9: 휴대폰 칸(R1) 2개는 시작부터 참(휴대폰 습득 → 바로 '칸 대기' 장면), 그 밖 6칸은 로봇 쪽 1번 줄 3칸만 차고 2번 줄 3칸이 빈다
 SEED_ITEMS = [
     ("목업폰 화이트", "화이트 모형폰"),        # → R1-1
     ("목업폰 블루", "블루 모형폰"),            # → R1-2
     ("USB 샌디스크 1", "은색 USB SanDisk"),    # → R2-1 (같은 제품 2개 → '닮은 물건 → 직원 확인' 장면)
-    ("USB 샌디스크 2", "은색 USB SanDisk"),    # → R2-2
+    ("USB 샌디스크 2", "은색 USB SanDisk"),    # → R3-1
     ("카드지갑 브라운", "브라운 카드지갑"),    # → R4-1
 ]
 
@@ -195,9 +205,8 @@ SO101_TOOL = (159.30, -7.90)                          # 손목 → 집게 끝(gr
 SO101_LIMITS = {"shoulder_pan": (-110.0, 110.0), "shoulder_lift": (-100.0, 100.0), "elbow_flex": (-96.8, 96.8),
                 "wrist_flex": (-95.0, 95.0), "wrist_roll": (-157.2, 162.8), "gripper": (0.0, 100.0)}
 SO101_GRIP_DEG = (-10.0, 100.0)                       # 집게 관절 각도 범위(0% 닫힘 ~ 100% 열림, 화면 그림용)
-# 가상 작업대(640×420)는 실제 팔보다 크게 잡혀 있어 화면·계산 모두 팔을 이 배율로 키운다(실제 팔은 1.0).
-# 실제 크기(1.0)로는 보관함 앞줄·바구니에 집게를 수직으로 내릴 수 없다 → docs/design/virtual_demo.md 4-3
-ARM_SCALE = 1.6
+# 11/9: 실제 규격 배치로 바꾸고 실제 크기(1.0)로 그린다(예전 1.6배는 H-1 을 한가운데에 수직으로 놓으려던 가정 때문)
+ARM_SCALE = 1.0
 
 
 def so101_joints(x: float, y: float, z: float, gripper: float, roll: float = 0.0, scale: float | None = None) -> dict:
@@ -213,24 +222,30 @@ def so101_joints(x: float, y: float, z: float, gripper: float, roll: float = 0.0
     a1z, a2z, a3z = (math.atan2(v[1], v[0]) for v in (SO101_UPPER, SO101_FORE, SO101_TOOL))   # 0° 자세의 각 마디 방향
     sx, sz = SO101_SHOULDER[0] * s, SO101_SHOULDER[1] * s
     best = None
-    for tilt in range(0, 75, 5):                                # 집게 기울기: 0 = 수직 아래
+    # 11/9: 실제 크기 팔 검증에서 찾은 문제 — 닿지 않는 거리를 잘라 맞춘 해를 '관절 한계 안'이라고 골라 집게 끝이 26~86mm 어긋났다.
+    # → 닿는 해(거리 오차 0)를 먼저, 그중 관절 한계 안이고 집게가 가장 수직에 가까운 해. 팔꿈치 위·아래 두 해를 모두 본다
+    for tilt in range(0, 95, 5):                                # 집게 기울기: 0 = 수직 아래(11/9: 90°까지 — H-1 은 기울여 놓음)
         pitch = math.radians(-90 + tilt)
         wx, wz = r - l3 * math.cos(pitch), z - l3 * math.sin(pitch)        # 손목 축 위치
         vx, vz = wx - sx, wz - sz
-        d = min(max(math.hypot(vx, vz), 1e-6), l1 + l2 - 1e-6)
+        raw = max(math.hypot(vx, vz), 1e-6)
+        miss = max(0.0, raw - (l1 + l2), abs(l1 - l2) - raw)    # 손목이 닿지 않는 거리(mm)
+        d = min(max(raw, abs(l1 - l2) + 1e-6), l1 + l2 - 1e-6)
         c = max(-1.0, min(1.0, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)))
-        a1 = math.atan2(vz, vx) + math.acos(c)                  # 팔꿈치가 위로 가는 해
-        ex, ez = sx + l1 * math.cos(a1), sz + l1 * math.sin(a1)
-        a2 = math.atan2(wz - ez, wx - ex)
-        lift = math.degrees(a1z - a1)
-        elbow = math.degrees(a2z - a2) - lift
-        wrist = math.degrees(a3z - pitch) - lift - elbow
-        wrist = (wrist + 180) % 360 - 180
-        j = {"shoulder_pan": pan, "shoulder_lift": lift, "elbow_flex": elbow, "wrist_flex": wrist}
-        over = sum(max(0.0, lo - v, v - hi) for k, v in j.items() for lo, hi in [SO101_LIMITS[k]])
-        if best is None or over < best[0] - 1e-9:
-            best = (over, j)
-        if over == 0:
+        for sign in (1, -1):                                    # 1 = 팔꿈치가 위로 가는 해, -1 = 아래
+            a1 = math.atan2(vz, vx) + sign * math.acos(c)
+            ex, ez = sx + l1 * math.cos(a1), sz + l1 * math.sin(a1)
+            a2 = math.atan2(wz - ez, wx - ex)
+            lift = math.degrees(a1z - a1)
+            elbow = math.degrees(a2z - a2) - lift
+            wrist = math.degrees(a3z - pitch) - lift - elbow
+            lift, elbow, wrist = ((v + 180) % 360 - 180 for v in (lift, elbow, wrist))
+            j = {"shoulder_pan": pan, "shoulder_lift": lift, "elbow_flex": elbow, "wrist_flex": wrist}
+            over = sum(max(0.0, lo - v, v - hi) for k, v in j.items() for lo, hi in [SO101_LIMITS[k]])
+            key = (miss > 0.5, over > 0, miss + over, tilt)
+            if best is None or key < best[0]:
+                best = (key, j)
+        if best[0][:2] == (False, False):
             break
     j = best[1]
     return {"shoulder_pan": round(j["shoulder_pan"], 1), "shoulder_lift": round(j["shoulder_lift"], 1),
@@ -292,6 +307,10 @@ class SimWorld:
         # 11/7 보관함 정답지와 맞추기(build_sim_service 가 연결): 칸에 넣을 때 알림 · 정답지가 예약한 칸 · 그 물건의 칸
         self.on_bin = None          # (item_id, slot_id) → None
         self.reserved = None        # () → {slot_id: item_id}
+        # 11/9 보관함이 꽉 찼을 때: 회수하러 간 물건이 미리 잡아 둔 칸 · 칸이 없어 등록기계에 둔 물건(먼저 온 순서)
+        self.collecting: dict[str, int] = {}
+        self.wait_queue: list[str] = []
+        self.on_freed = None        # () → None. 칸이 비면(인계 완료) 연출기가 대기 물건을 회수하게 알림
         if seed:
             self.seed()
 
@@ -419,12 +438,17 @@ class SimWorld:
                 i = SLOT_IDS.index(sid) if sid else self.free_slot(row.get("category"), item_id, res)
                 if i is not None:
                     row["slot"], row["loc"] = i, LOC_BIN
-            if status == HANDOVER_DONE and row["loc"] == LOC_BASKET:
-                row["loc"] = LOC_HANDED                # 직원이 바구니에서 꺼내 분실인에게 건넴
+            if status == HANDOVER_DONE and row["loc"] in (LOC_BASKET, LOC_SHELF):
+                row["loc"] = LOC_HANDED                # 직원이 바구니(또는 직원 보관 선반)에서 꺼내 분실인에게 건넴
             elif status == HANDOVER_HOLD and row["loc"] == LOC_BASKET:
                 row["loc"] = LOC_STAFF                 # 직원이 꺼내 따로 보관
             self._touch()
-            return robot_result(True)
+        if status == HANDOVER_DONE and self.on_freed:   # 11/9 칸 예약이 풀림 → 칸 대기 물건 회수(잠금 밖에서)
+            try:
+                self.on_freed()
+            except Exception:
+                pass
+        return robot_result(True)
 
     def db_list_active(self) -> list[dict] | None:
         with self._lock:
@@ -440,23 +464,74 @@ class SimWorld:
             return {}
 
     def _taken(self, except_item: str | None, res: dict) -> set[int]:
-        used = {r["slot"] for r in self.items.values() if r["loc"] == LOC_BIN and r["slot"] is not None}
+        used = {r["slot"] for r in self.items.values() if r["loc"] == LOC_BIN and r["slot"] is not None
+                and r["item_id"] != except_item}
         used |= {SLOT_IDS.index(sid) for sid, it in res.items() if sid in SLOT_IDS and it != except_item}
+        used |= {i for it, i in self.collecting.items() if it != except_item}   # 11/9 회수하러 간 물건이 잡아 둔 칸
         return used
 
     def free_slot(self, category: str | None = None, item_id: str | None = None, res: dict | None = None) -> int | None:
-        """빈 칸 고르기(보관함 정답지 추천과 같은 순서): 그 품목을 받는 행 → 품목 제한 없는 행 → 아무 빈 칸.
-        정답지가 이미 예약한 칸(반환 중·보류 물건의 원래 칸)은 비어 보여도 쓰지 않는다"""
+        """빈 칸 고르기(보관함 정답지 recommend_slot 과 같은 규칙, 11/9): 그 품목을 받는 행(또는 제한 없는 행)의 빈 칸 중
+        로봇에 가까운 칸(1번 줄)부터. 휴대폰 칸(R1)과 그 밖 칸(R2~R4)은 섞지 않는다 → 맞는 칸이 없으면 None(칸 대기·선반).
+        품목을 모르면(시연 부품) 아무 빈 칸. 정답지가 이미 예약한 칸(반환 중·보류 물건의 원래 칸)은 비어 보여도 쓰지 않는다"""
         used = self._taken(item_id, self._reserved() if res is None else res)
-        free = [i for i in range(len(SLOTS_MM)) if i not in used]
+        free = sorted((i for i in range(len(SLOTS_MM)) if i not in used),
+                      key=lambda i: (SLOT_IDS[i].split("-")[1], SLOT_IDS[i]))        # 1번 줄(로봇 쪽) 먼저
         if not free:
             return None
+        if category is None:
+            return free[0]
         rows = slot_rows()
         for want in (lambda r: category in rows.get(r, []), lambda r: not rows.get(r)):
             hit = [i for i in free if want(SLOT_IDS[i][:2])]
-            if category is not None and hit:
+            if hit:
                 return hit[0]
-        return free[0]
+        return None
+
+    def reserve_slot(self, item_id: str, category: str | None) -> str | None:
+        """11/9 회수하기 전에 칸 확인: 맞는 빈 칸이 있으면 그 칸을 이 물건 몫으로 잡아 두고 칸 번호, 없으면 None(칸 대기).
+        잡아 둔 칸은 보관함에 넣거나(move) 선반으로 옮기면 풀린다"""
+        res = self._reserved()                                  # 잠금 밖에서
+        with self._lock:
+            if item_id not in self.items:
+                return None
+            if item_id in self.collecting:
+                return SLOT_IDS[self.collecting[item_id]]
+            i = self.free_slot(category, item_id, res)
+            if i is None:
+                return None
+            self.collecting[item_id] = i
+            if item_id in self.wait_queue:
+                self.wait_queue.remove(item_id)
+            self._touch()
+            return SLOT_IDS[i]
+
+    def reserved_for(self, item_id: str) -> str | None:
+        """회수하려고 잡아 둔 칸(없으면 None)"""
+        with self._lock:
+            i = self.collecting.get(item_id)
+            return SLOT_IDS[i] if i is not None else None
+
+    def add_wait(self, item_id: str) -> int:
+        """칸 대기 줄에 넣기(이미 있으면 그대로). 줄에서의 순서(1부터)"""
+        with self._lock:
+            if item_id not in self.wait_queue:
+                self.wait_queue.append(item_id)
+                self._touch()
+            return self.wait_queue.index(item_id) + 1
+
+    def to_shelf(self, item_id: str) -> bool:
+        """11/9 직원이 물건을 직원 보관 선반에 둠(보관 칸 → 선반, 또는 등록기계에서 바로 선반). 상태는 정답지가 바꾼다"""
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None:
+                return False
+            row["loc"], row["slot"] = LOC_SHELF, None
+            self.collecting.pop(item_id, None)
+            if item_id in self.wait_queue:
+                self.wait_queue.remove(item_id)
+            self._touch()
+            return True
 
     def put(self, item_id: str, slot_id: str) -> bool:
         """정해진 칸에 넣기(직원이 보관 화면에서 고른 칸, 반환 보류 물건을 원래 칸에)"""
@@ -483,7 +558,9 @@ class SimWorld:
                 return False
             if loc == LOC_BIN:
                 cat = row.get("category")
-                slot = self.free_slot(cat if cat not in (None, UNKNOWN) else None, item_id, res)
+                slot = self.collecting.pop(item_id, None)       # 11/9 회수 전에 잡아 둔 칸
+                if slot is None:
+                    slot = self.free_slot(cat if cat not in (None, UNKNOWN) else None, item_id, res)
                 if slot is None:
                     return False
                 row["slot"] = slot
@@ -522,12 +599,15 @@ class SimWorld:
                 items.append({"item_id": r["item_id"], "machine_id": r["machine_id"], "status": r["status"],
                               "loc": r["loc"], "category": r.get("category"), "color": r["features"].get("color"),
                               "place_text": r["place_text"], "mm": list(pos) if pos else None,
-                              "slot_id": SLOT_IDS[r["slot"]] if pos else None})
+                              "slot_id": SLOT_IDS[r["slot"]] if pos else None,
+                              "waiting": r["item_id"] in self.wait_queue})
             return {"version": self.version, "arm": dict(self.arm), "items": items,
+                    "wait_queue": list(self.wait_queue),
                     "bench": {"size_mm": list(BENCH_MM), "bin_mm": list(BIN_MM), "basket_mm": list(BASKET_MM),
                               "home_mm": list(HOME_MM), "base_mm": list(ROBOT_BASE_MM),
                               "markers_mm": [list(m) for m in MARKERS_MM], "slots_mm": [list(s) for s in SLOTS_MM],
-                              "slot_ids": list(SLOT_IDS), "rows": slot_rows(), "hbox_mm": list(HBOX_MM)},
+                              "slot_ids": list(SLOT_IDS), "rows": slot_rows(), "hbox_mm": list(HBOX_MM),
+                              "tape_mm": TAPE_MM, "shim_mm": list(SHIM_MM), "camera_height_mm": CAMERA_HEIGHT_MM},
                     "faults": dict(self.faults),
                     "robot": {"model": "SO-101", "role": "팔로워(흰색) — 학습된 정책(SmolVLA)이 움직임",
                               "leader": "리더(검정) — 텔레오퍼레이션으로 학습 에피소드 녹화용(시연 때는 쓰지 않음)",

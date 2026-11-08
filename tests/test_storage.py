@@ -50,8 +50,13 @@ class MemoryStorageTest(unittest.TestCase):
 
     def test_layout_is_4_rows_by_2_plus_handover(self):
         lay = self.s.layout()
-        self.assertEqual([x["code"] for x in lay["sections"]], ["R1", "R2", "R3", "R4", "H"])
-        self.assertEqual(lay["summary"], {"shelf_slots": 8, "used": 0, "free": 8, "slots_without_pose": 8})
+        self.assertEqual([x["code"] for x in lay["sections"]], ["R1", "R2", "R3", "R4", "H", "S"])
+        sm = dict(lay["summary"])
+        groups = sm.pop("groups")
+        self.assertEqual(sm, {"shelf_slots": 8, "used": 0, "free": 8, "slots_without_pose": 8, "staff_shelf": 0})
+        self.assertEqual([(g["key"], g["label"], g["rows"], g["used"], g["total"]) for g in groups],
+                         [("phone", "휴대폰", ["R1"], 0, 2), ("other", "그 밖", ["R2", "R3", "R4"], 0, 6)])
+        self.assertEqual((lay["sections"][5]["kind"], lay["sections"][5]["slots"]), ("staff", []))   # 선반 칸은 필요할 때 생김
         r1 = lay["sections"][0]
         self.assertEqual([x["slot_id"] for x in r1["slots"]], ["R1-1", "R1-2"])
         self.assertEqual({x["note"] for x in r1["slots"]}, {"사선 배치·간격 넓음"})      # 11/6: 폰은 사선, 간격 넓음
@@ -161,27 +166,123 @@ class MemoryStorageTest(unittest.TestCase):
             s.assign("A-W02", "H-1")
 
 
+class PhoneRowAndShelfTest(unittest.TestCase):
+    """11/9 사용자 결정: R1 두 칸 = 휴대폰 전용, R2~R4 여섯 칸 = 그 밖 5종(행 제한 없음), 맞는 칸이 없으면 직원 보관 선반"""
+
+    def setUp(self):
+        from agents.storage import recommend_slot, shelf_items, slot_groups, group_of
+        self.recommend, self.shelf_items, self.groups, self.group_of = recommend_slot, shelf_items, slot_groups, group_of
+        self.db = {f"A-W1{i}": {"status": "본센터 보관", "category": "모형폰"} for i in range(1, 4)}
+        for i, cat in enumerate(["지갑", "USB", "립밤", "핸드크림", "보조배터리", "지갑", "USB"], start=1):
+            self.db[f"A-W2{i}"] = {"status": "본센터 보관", "category": cat}
+        self.db["A-W31"] = {"status": "등록기계 보관", "category": "지갑"}
+        self.set_calls = []
+
+        def setter(item_id, status):
+            self.set_calls.append((item_id, status))
+            self.db[item_id]["status"] = status
+            return True
+        self.s = MemoryStorageStore(item_lookup=self.db.get, status_setter=setter)
+
+    def test_phone_only_r1(self):
+        self.assertEqual(self.recommend(self.s.layout(), "모형폰")["slot_id"], "R1-1")
+        self.s.assign("A-W11", "R1-1"); self.s.assign("A-W12", "R1-2")
+        self.assertIsNone(self.recommend(self.s.layout(), "모형폰"))          # R1 이 차면 다른 행으로 보내지 않음
+        with self.assertRaises(StorageError):
+            self.s.assign("A-W13", "R2-1")                                   # 휴대폰을 R2 에 → 품목 다름
+        with self.assertRaises(StorageError):
+            self.s.assign("A-W21", "R1-1", override_category=False)          # 지갑을 R1 에
+
+    def test_others_any_row_near_robot_first(self):
+        order = []
+        for i in range(1, 7):
+            rec = self.recommend(self.s.layout(), self.db[f"A-W2{i}"]["category"])
+            self.assertFalse(rec["other_row"])
+            order.append(rec["slot_id"])
+            self.s.assign(f"A-W2{i}", rec["slot_id"])                       # 립밤·핸드크림도 R2~R4 어디든
+        self.assertEqual(order, ["R2-1", "R3-1", "R4-1", "R2-2", "R3-2", "R4-2"])   # 로봇 쪽(1번) 먼저
+        self.assertIsNone(self.recommend(self.s.layout(), "USB"))           # 그 밖 6칸이 다 참
+        self.assertEqual(self.recommend(self.s.layout(), "모형폰")["slot_id"], "R1-1")   # 휴대폰 칸은 따로 남음
+        g = {x["key"]: (x["used"], x["total"]) for x in self.groups(self.s.layout())}
+        self.assertEqual(g, {"phone": (0, 2), "other": (6, 6)})
+        self.assertEqual(self.group_of(self.groups(self.s.layout()), "립밤")["key"], "other")
+        self.assertIsNone(self.group_of(self.groups(self.s.layout()), "확인 불가"))
+
+    def test_move_to_shelf_from_slot_and_from_kiosk(self):
+        self.s.assign("A-W21", "R2-1")
+        out = self.s.move_to_shelf("A-W21")
+        self.assertEqual((out["slot_id"], out["from"]), ("S-1", "R2-1"))
+        lay = self.s.layout()
+        slots = {sl["slot_id"]: sl for sec in lay["sections"] for sl in sec["slots"]}
+        self.assertIsNone(slots["R2-1"]["item"])                             # 칸이 빔
+        self.assertEqual(lay["summary"]["staff_shelf"], 1)
+        out = self.s.move_to_shelf("A-W31")                                  # 칸 대기 물건 → 직원이 가져와 바로 선반
+        self.assertEqual((out["slot_id"], out["status"]), ("S-2", "본센터 보관"))
+        self.assertEqual(self.set_calls, [("A-W31", "본센터 보관")])
+        self.assertEqual(self.s.move_to_shelf("A-W31")["slot_id"], "S-2")     # 두 번 눌러도 그대로
+        self.assertEqual([x["item_id"] for x in self.shelf_items(self.s.layout())], ["A-W21", "A-W31"])
+        self.s.release(item_id="A-W21")
+        self.assertEqual(self.s.move_to_shelf("A-W22")["slot_id"], "S-1")     # 빈 선반 자리 다시 씀
+        self.db["A-W23"]["status"] = "인계 대기"
+        with self.assertRaises(StorageConflict):
+            self.s.move_to_shelf("A-W23")                                     # 반환 중·인계 대기는 못 옮김
+
+    def test_shelf_not_exported_to_vision(self):
+        from agents.storage import SLOT_POSES
+        s = MemoryStorageStore(item_lookup=self.db.get, poses=SLOT_POSES)
+        s.assign("A-W21", "R2-1")
+        s.move_to_shelf("A-W22")
+        out = s.export()
+        self.assertNotIn("S", out["sections"])
+        self.assertEqual(set(out["inventory"]), {"A-W21"})                   # 선반 물건은 로봇·탑뷰 대상이 아님
+        self.assertEqual(out["warnings"], [])
+
+
 class MigrationMatchesLayoutTest(unittest.TestCase):
     def test_seed_rows_match_layout(self):
         sql = MIGRATION.read_text(encoding="utf-8")
-        sections = re.findall(r"\('(\w+)',\s*'([^']+)',\s*'(shelf|handover)',\s*'\{([^}]*)\}',\s*(\d+)\)", sql)
+        sections = re.findall(r"\('(\w+)',\s*'([^']+)',\s*'(shelf|handover|staff)',\s*'\{([^}]*)\}',\s*(\d+)\)", sql)
+        fix14 = (ROOT / "center" / "migrations" / "014_storage_phone_rows_staff_shelf_1109.sql").read_text(encoding="utf-8")
+        body14 = "\n".join(line for line in fix14.splitlines() if not line.lstrip().startswith("--"))
+        sections += re.findall(r"\('(\w+)',\s*'([^']+)',\s*'(shelf|handover|staff)',\s*'\{([^}]*)\}',\s*(\d+)\)", body14)  # 11/9 구역 S
         got = {c: (lb, k, [x for x in cats.split(",") if x]) for c, lb, k, cats, _ in sections}
-        # 009 가 바꾼 행(이름·품목)을 007 시작값에 적용하면 LAYOUT 과 같아야 한다
-        fix9 = (ROOT / "center" / "migrations" / "009_storage_categories_photo_1106.sql").read_text(encoding="utf-8")
-        for lb, cats, code, old in re.findall(r"SET label = '([^']+)', allowed_categories = '\{([^}]*)\}'\s*"
-                                              r"WHERE section_code = '(\w+)' AND allowed_categories = '\{([^}]*)\}'", fix9):
-            self.assertEqual(",".join(got[code][2]), old)
-            got[code] = (lb, got[code][1], cats.split(","))
+        # 009 → 014 가 바꾼 행(이름·품목)을 007 시작값에 차례로 적용하면 LAYOUT 과 같아야 한다(주석 속 되돌리기 문장은 빼고)
+        for rel in ("009_storage_categories_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql"):
+            text = (ROOT / "center" / "migrations" / rel).read_text(encoding="utf-8")
+            text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
+            fixes = re.findall(r"SET label = '([^']+)', allowed_categories = '\{([^}]*)\}'\s*"
+                               r"WHERE section_code = '(\w+)' AND allowed_categories = '\{([^}]*)\}'", text)
+            self.assertTrue(fixes, rel)
+            for lb, cats, code, old in fixes:
+                self.assertEqual(",".join(got[code][2]), old, f"{rel} {code}")
+                got[code] = (lb, got[code][1], cats.split(","))
         self.assertEqual([(c, *got[c]) for c, _, _, _, _ in sections],
                          [(c, lb, k, al) for c, lb, k, al, _, _ in LAYOUT])
+        self.assertIn("CHECK (kind IN ('shelf', 'handover', 'staff'))", body14)
         slots = re.findall(r"\('([A-Z]\d?-\d)',\s*'(\w+)',\s*(\d+),\s*(NULL|'[^']*')\)", sql)
-        # 008 이 바꾼 메모(옛 값 → 새 값)를 007 시작값에 적용하면 LAYOUT 과 같아야 한다
-        fix = (ROOT / "center" / "migrations" / "008_storage_layout_photo_1106.sql").read_text(encoding="utf-8")
-        renames = {old: new for new, old in re.findall(r"SET note = '([^']+)' WHERE .*?note = '([^']+)'", fix)}
+        # 008 → 014 가 바꾼 메모(옛 값 → 새 값)를 007 시작값에 적용하면 LAYOUT 과 같아야 한다
+        renames = {}
+        for rel in ("008_storage_layout_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql"):
+            text = (ROOT / "center" / "migrations" / rel).read_text(encoding="utf-8")
+            text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
+            for new, old in re.findall(r"SET note = '([^']+)' WHERE .*?note = '([^']+)'", text):
+                renames = {k: (new if v == old else v) for k, v in renames.items()}
+                renames[old] = new
         got = [(sid, c, no, f"'{renames.get(n[1:-1], n[1:-1])}'" if n != "NULL" else n) for sid, c, no, n in slots]
         expect = [(f"{c}-{i}", c, str(i), "NULL" if note is None else f"'{note}'")
                   for c, _, _, _, n, note in LAYOUT for i in range(1, n + 1)]
         self.assertEqual(got, expect)
+
+    def test_014_has_undo_notes_and_keeps_edited_values(self):
+        """11/9: 되돌리기 방법을 주석으로 남기고, 화면에서 이미 바꾼 값은 덮어쓰지 않는다(옛 값일 때만 UPDATE)"""
+        sql = (ROOT / "center" / "migrations" / "014_storage_phone_rows_staff_shelf_1109.sql").read_text(encoding="utf-8")
+        self.assertIn("되돌리기", sql)
+        body = [line for line in sql.splitlines() if line.strip() and not line.lstrip().startswith("--")]
+        updates = " ".join(body).split(";")
+        for u in updates:
+            if "UPDATE storage_section" in u or "UPDATE storage_slot" in u:
+                self.assertIn(" AND ", u, u)                             # 옛 값 조건
+        self.assertIn("ON CONFLICT (section_code) DO NOTHING", sql)
 
     def test_on_shelf_and_check_statuses_match_sql(self):
         from agents.storage import CHECK_STATUSES, RELEASE_STATUSES

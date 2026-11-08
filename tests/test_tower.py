@@ -538,7 +538,7 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(type(app).visited, ["web_gate"])
         type(app).visited = []
         graph.run_return_graph(ReturnRequest("T", "A-1"), backend(), Reporter(), app=app)
-        self.assertEqual(type(app).visited, ["web_gate", "visit_gate", "locate", "approach", "grasp", "deliver"])
+        self.assertEqual(type(app).visited, ["web_gate", "visit_gate", "shelf_handover", "locate", "approach", "grasp", "deliver"])
 
 
 
