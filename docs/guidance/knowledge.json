@@ -32,6 +32,14 @@
     "answer": "프로젝트 DB 설계의 습득자 연락처 규칙은 물건이 인계 완료된 뒤 30일이 지나면 지우는 것입니다. 그 사이 반환 보류 등으로 상태가 바뀌면 남깁니다. 이 규칙은 물건을 주워 맡긴 사람의 연락처에만 해당하며, 분실물 자체나 분실인 신분정보의 보관기간이 아닙니다."
   },
   {
+    "topic": "finder_privacy",
+    "title": "습득자 연락처는 분실인에게 알리지 않음 — DB 설계 확정 사항",
+    "path": "docs/design/database.md",
+    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/design/database.md#1-원칙",
+    "evidence": "로 떼어 직원만 열람",
+    "answer": "습득자(물건을 주운 사람)의 연락처는 분실인에게 알려 드리지 않아요. 프로젝트 DB 설계에서 습득자 연락처는 따로 떼어 보관하고 직원만 볼 수 있으며, 물건이 인계 완료된 뒤 30일이 지나면 지웁니다."
+  },
+  {
     "topic": "site_help",
     "title": "로컬 분실물 도우미 사용 안내",
     "path": "docs/guidance/site-help.md",

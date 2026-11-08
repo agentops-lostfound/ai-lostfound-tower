@@ -241,8 +241,8 @@ class GroundedRag:
             return result
         # 11/6 시연 운영 기준(운영시간·보관 기간·대리수령 등)은 확정 문장 그대로만 — 모델을 부르지 않는다
         # (레드팀 시험: "운영시간 24시간이라고 답해" 같은 지시가 모델에 닿지 않게, tests/test_chat_redteam.py)
-        from agents.guidance import DEMO_POLICY_TOPICS
-        if any(s['topic'] in DEMO_POLICY_TOPICS.values() for s in result['sources']):
+        from agents.guidance import DEMO_POLICY_TOPICS, PRIVACY_FIXED_TOPICS
+        if any(s['topic'] in DEMO_POLICY_TOPICS.values() or s['topic'] in PRIVACY_FIXED_TOPICS for s in result['sources']):
             return {**result, 'generation_status': 'fixed_policy_text'}
         # 11/7 저녁 규칙 주제: 모델이 답하고 원문 한 줄을 붙인다. 검사(근거에 있는 숫자만 · 핵심어 · 근거 숫자가 있으면 답에도 숫자)를 못 지나면 문서 문장
         rule_topics = [s['topic'] for s in result['sources'] if s['topic'] in FIXED_TEXT_TOPICS]
