@@ -54,3 +54,38 @@ except GpuBusy as e:
 - 각 모듈의 `wait` 값(STT 는 짧게, Qwen 은 분석 시간만큼) — 담당별 실측 후
 - VLA 에 필요한 남은 메모리(`TOWER_GPU_FREE_MB`) — LF-19 실측 후
 - STT 를 웹 서버가 돌린다면 웹 쪽에서 열쇠 받기(김재민 LF-5·6 과 협의)
+
+## 5. 11/8 6GB 그래픽카드 안전 — 시뮬레이션과 고친 점 (변재원)
+한줄 설명: 챗봇·메인 AI(Mi:dm, Ollama)와 키오스크 사진 Qwen 이 그래픽카드에 계속 머물러 있으면, 로봇 VLA 를 올릴 자리가 없어 로봇이 멈춘다.
+그래서 **GPU 사용권을 쥔 동안에는 한 프로그램만 그래픽카드를 쓰고, 나머지는 내리거나 CPU 로 돌린다.**
+
+### 5-1. 전제(숫자 출처)
+| 항목 | 값(MiB) | 출처 |
+|---|---|---|
+| 그래픽카드 | 6144, 여유 300 남김 | RTX 3050 6GB · 여유는 Windows·조각화 몫(추정) |
+| 화면(모니터가 3050 에 꽂힘) | 700~1300 | docs/ollama/README.md "약 1GB", 집 PC 1216 실측 |
+| Mi:dm 2.0 Mini(Ollama, num_ctx 4096) | 2100~2400 | 11/8 집 PC 실측(두 모델 합 4844) − Qwen 몫 |
+| Qwen3-VL-2B NF4 작업자 | 2300~2700 | 11/8 집 PC peak reserved 2298 + CUDA 기본(추정) |
+| SmolVLA 집기 | 1500~3000 | **추정·TBD**(LF-19 실측 전) |
+| 사건 빈도(분당) | 질문 0.5~3 · 사진 0.1~0.5 · 반환 0.05~0.3 · 애매한 매칭 30% | 시연 상황 추정 |
+- Ollama 는 자리가 모자라면 일부를 CPU 로 돌려 느려질 뿐 죽지 않는다. PyTorch(Qwen·VLA)는 모자라면 OOM 으로 실패
+
+### 5-2. 결과(`python tools/gpu_budget_sim.py --runs 2000`, 1시간 시연 2000번)
+| 전제 | 지금 방식(11/8 오전 코드) | 고친 방식 |
+|---|---|---|
+| 범위 무작위 | 시연 99% 에서 넘침(사진 분석 실패·로봇 실패) | 넘침 0 · 최고 4272MiB |
+| 나쁜 쪽(화면 1300 · VLA 3000) | 99.9% 넘침 | 넘침 0 · 최고 4300MiB |
+- 지금 방식이 넘치는 이유: ① Qwen 작업자가 첫 사진 뒤 계속 상주(약 2.5GB) ② Mi:dm 이 마지막 질문 뒤 5분 상주(약 2.2GB) ③ 그 위에 로봇 VLA → 화면까지 더하면 6GB 초과
+- 고친 방식의 대가: 사용권을 쥔 동안(사진 10~20초, 로봇 20~60초) 들어온 챗봇 질문은 CPU 로 답함(시뮬레이션상 질문의 약 18%) → CPU 답 시간은 `python tools/ollama_cpu_bench.py` 로 교육원 PC 실측(TBD)
+
+### 5-3. 고친 점(코드)
+| 어디 | 바뀐 점 | 끄기 |
+|---|---|---|
+| `agents/local_model.py` | 누가 GPU 사용권을 쥐었으면 Ollama 요청을 CPU 로(`num_gpu=0`) — 챗봇·메인 AI·분석 에이전트 모두 이 함수를 거침. `unload_local_models()` 로 Ollama 모델 내리기 | `OLLAMA_GPU_GUARD=0` |
+| `agents/service.py` (반환) | 로봇 `vla` 사용권을 받으면 Ollama 모델을 내림 | `TOWER_OLLAMA_UNLOAD=0` |
+| `tools/intake_qwen_worker.py` | 사진 한 장마다 `qwen` 사용권 → Ollama 내림 → 분석 → Qwen 내림 → 돌려줌. 로봇이 GPU 를 쓰면 실패로 세지 않고 기다림. 관제탑이 늦게 켜져도 5초마다 다시 연결 | `QWEN_KEEP_MODEL=1`(8GB 이상 PC) |
+
+### 5-4. 교육원 PC 에서 확인할 것(TBD)
+1. `python tools/ollama_cpu_bench.py` — CPU 답 시간(40초 넘으면 챗봇은 문서 문장으로 대신 답함)
+2. 시연 흐름 중 `nvidia-smi` — 사진 분석 중·로봇 동작 중 최고 사용량이 5.8GB 아래인지
+3. SmolVLA 실측값이 나오면 `tools/gpu_budget_sim.py` 의 `vla` 범위를 바꿔 다시 돌린다
