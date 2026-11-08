@@ -109,10 +109,12 @@ class KioskAutoCaptureTest(unittest.TestCase):
         from pathlib import Path
         html = (Path(__file__).resolve().parents[1] / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
         self.assertNotIn('id="shoot"', html)                      # 찍기 버튼 없음
-        for word in ("stillMs", "getUserMedia", "trueEmpty"):      # 정지 2초 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
+        for word in ("stillMs: 3000", "getUserMedia", "trueEmpty"):      # 정지 3초(11/8) 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
             self.assertIn(word, html)
         for cat in ("휴대폰", "지갑", "USB", "립밤", "핸드크림", "보조배터리"):   # 11/8 화면 이름(값은 모형폰 그대로)
             self.assertIn(f"<b>{cat}", html)
+        self.assertIn("'모형폰'", html)                            # 서버로 보내는 품목 값은 계약(CATEGORIES) 그대로
+        self.assertNotIn("<b>모형폰", html)
         self.assertIn("다른 목적으로 쓰거나 다른 곳에 주지 않아요", html)
         self.assertNotIn("서버 없이 가짜 응답", html)
 
@@ -122,3 +124,15 @@ class KioskAutoCaptureTest(unittest.TestCase):
         for word in ("enumerateDevices", "kioskCamera", "camsetup", "ideal: 1920", "isSecureContext"):
             self.assertIn(word, html)
         self.assertNotIn("facingMode:'environment'", html)          # 태블릿 뒷면 카메라를 잡지 않게
+
+    def test_no_file_upload_and_camera_down_notice_and_demo_mode(self):
+        """11/8: 주운 사람이 기계 앞에서 쓰므로 사진 파일 접수 없음 · 카메라가 없으면 점검 안내 · 직원용 ?demo=1 가상 카메라"""
+        from pathlib import Path
+        html = (Path(__file__).resolve().parents[1] / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("사진 파일로 접수", html)
+        self.assertNotIn('type="file"', html)
+        self.assertIn("<h2>카메라 점검 중</h2>", html)
+        self.assertIn("역무실에 알려 주세요", html)
+        for word in ("openMs: 8000", "NotAllowed", "NoFrameError", "get('demo') === '1'", "captureStream", "function gotPhoto(blob)"):
+            self.assertIn(word, html)
+        self.assertIn('inputmode="tel"', html)

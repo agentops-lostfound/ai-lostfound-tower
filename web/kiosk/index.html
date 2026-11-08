@@ -632,7 +632,7 @@ function stopCam() {
 // ---- 11/8 직원용 시연 모드(?demo=1): 카메라가 있어도 가상 카메라(캔버스 영상)를 쓴다 ----
 // 캔버스 그림을 진짜 카메라처럼 <video> 에 흘려 보내므로, 물건 감지·3초·찍기·서버 접수는 실제와 같은 코드로 지나간다.
 // 빈 상자 → (1.2초 뒤) 손이 물건을 넣고 빠짐 → 멈춤 → 3초 → 자동 촬영. 물건은 6종 중 무작위, 또는 머리말 "시연 모드" 단추에서 고름
-const DEMO_SIZE = {w: 640, h: 480};
+const DEMO_SIZE = {width: 640, height: 480};
 let demoCanvas = null, demoTimer = null, demoNext = '', scene = null;
 function demoOpen() {
   demoCanvas = demoCanvas || Object.assign(document.createElement('canvas'), DEMO_SIZE);
@@ -656,7 +656,7 @@ function demoPaint() {
     else scene.waitSince = 0;
   }
   const css = getComputedStyle(document.documentElement), tok = n => css.getPropertyValue(n).trim();
-  const g = demoCanvas.getContext('2d'), W = DEMO_SIZE.w, H = DEMO_SIZE.h;
+  const g = demoCanvas.getContext('2d'), W = DEMO_SIZE.width, H = DEMO_SIZE.height;
   g.fillStyle = tok('--ui-surface-2'); g.fillRect(0, 0, W, H);                  // 상자 바닥
   g.strokeStyle = tok('--ui-line'); g.lineWidth = 2;
   for (let x = 80; x < W; x += 80) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
@@ -665,7 +665,7 @@ function demoPaint() {
   const t = now - scene.t0;                                 // 0~1.0초 손이 물건을 내려놓음 → 1.0~1.8초 손이 빠짐
   if (scene.nudge && now - scene.nudge < 500) scene.dx = Math.round(70 * ease((now - scene.nudge) / 500)) * (scene.nudgeDir || 1);
   const cx = W / 2 + scene.ox + scene.dx, cy = H / 2 + scene.oy;
-  const y = cy - (1 - ease(t / 1000)) * (H / 2 + 260);
+  const y = cy - (1 - Math.min(1, t / 1000)) * (H / 2 + 260);     // 같은 빠르기로 내려놓고 바로 손을 뺀다(바닥에서 멈칫하면 3·2·1 이 잠깐 떴다 사라짐)
   demoItem(g, scene.item, cx, y, tok);
   if (t < 1800) demoHand(g, cx, t < 1000 ? y - 90 : y - 90 - ease((t - 1000) / 800) * (H / 2 + 300), tok);
 }
