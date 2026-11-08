@@ -143,6 +143,58 @@ def grounded_sentences(items, passages_text, question: str = "") -> tuple[list[s
     return kept, dropped
 
 
+# 11/8 질문-답 맞물림 검사(사용자 결정: "검사하는 단계 추가")
+# 한줄 설명: 문장마다 근거가 맞아도 "물어본 것"에 답하지 않으면 다시 쓰게 하고, 그래도 안 되면 "자료에 없다"고 솔직히 말한다
+# 실측(11/8 집 PC): "주운 사람 연락처 알려줄 수 있어요?" → "30일 뒤 삭제됩니다"(근거는 맞지만 되는지/안 되는지 답이 없음)
+#                   "지갑은 어느 쪽이 위로 가게 놓나요?" → 휴대폰 이야기(물건이 바뀜, 11/7 40문항 실측)
+WH_Q = re.compile(r"어떻게|어디|언제|무엇|뭐|왜|어느|누가|누구|몇|얼마")
+YESNO_Q = re.compile(r"수(?:있|없)|가능|(?:해|어|아)도(?:돼|되)|야(?:해|돼|되|하나|할까|합)|(?:돼|되나|되요|될까|되죠|되는지|되나요)$|괜찮")
+STANCE_A = re.compile(r"수\s*(?:있|없)|가능|불가|(?:^|[\s,.])(?:안\s*)?(?:돼요|됩니다|돼)|필요|필수|야\s*(?:해|합|돼|됩)|않|없|못|마세요|말아|금지|아니|아닙|^(?:네|예)[,.\s]")
+WHEN_Q = re.compile(r"언제|며칠|몇일|기간|얼마나(?:오래|걸|보관|있)|몇시")
+WHEN_A = re.compile(r"\d|하루|당일|즉시|바로|마다|시간|동안|이후|후에|전에|까지")
+WHERE_A = re.compile(r"역|센터|키오스크|웹|보관함|창구|에서")
+ITEM_WORDS = {"지갑": ("지갑",), "모형폰": ("모형폰", "휴대폰", "핸드폰", "폰"), "USB": ("usb",), "립밤": ("립밤",),
+              "핸드크림": ("핸드크림",), "보조배터리": ("보조배터리", "배터리")}
+GAP_LEAD = "안내 자료에서 이 질문에 바로 답할 내용은 찾지 못했어요. 관련 안내: "
+GAP_TAIL = " 정확한 내용은 본센터 직원에게 확인해 주세요."
+
+
+def items_named(text: str) -> set:
+    low = (text or "").lower()
+    return {name for name, words in ITEM_WORDS.items() if any(w in low for w in words)}
+
+
+def answer_gap(question: str, answer: str) -> str | None:
+    """답이 질문이 묻는 것을 빠뜨렸으면 그 종류(when·where·subject·yesno), 맞물리면 None. 코드 규칙이라 빠르고 매번 같다"""
+    q = re.sub(r"[\s?？!.~]+", "", question or "")
+    a = answer or ""
+    if WHEN_Q.search(q) and not WHEN_A.search(a):
+        return "when"
+    if "어디" in q and not WHERE_A.search(a):
+        return "where"
+    asked, said = items_named(question), items_named(a)
+    if asked and said and not asked & said:
+        return "subject"
+    if not WH_Q.search(q) and YESNO_Q.search(q) and not STANCE_A.search(a):
+        return "yesno"
+    return None
+
+
+def gap_hint(gap: str, question: str) -> str:
+    item = "·".join(sorted(items_named(question))) or "그 물건"
+    return {"yesno": "앞 답은 질문이 묻는 '되는지(할 수 있는지)'에 답하지 않았다. 첫 문장에서 근거대로 된다·안 된다(할 수 있다·없다)를 바로 말한다",
+            "when": "앞 답에 질문이 묻는 때·기간이 없다. 근거의 시간·기간을 넣어 답한다",
+            "where": "앞 답에 질문이 묻는 장소가 없다. 근거의 장소를 넣어 답한다",
+            "subject": f"질문은 {item} 에 대해 묻는데 앞 답은 다른 물건 이야기다. {item} 에 대한 근거로 답한다",
+            }[gap] + ". 근거 문단에 그 답이 없으면 answerable 을 false 로 하고, 관련된 근거 문장만 쓴다"
+
+
+def generation_note(parsed: dict) -> dict:
+    """화면·Langfuse 에 보일 진단 메모: 다시 쓰기·자료 없음(note) + 버린 문장 이유(dropped)"""
+    parts = ([parsed['note']] if parsed.get('note') else []) + (['dropped: ' + ', '.join(parsed['dropped'])] if parsed.get('dropped') else [])
+    return {'generation_note': ' / '.join(parts)[:120]} if parts else {}
+
+
 def numbers_supported(answer: str, evidence: str) -> bool:
     """답에 나온 숫자가 모두 근거 문단에 있는지(09:00·14일·30일 같은 운영값을 지어내지 못하게)"""
     have = set(re.findall(r"\d+", evidence))
@@ -226,7 +278,7 @@ class GroundedRag:
                 quotes = [first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics]
                 answer = answer.rstrip() + '\n\n근거: ' + ' '.join(quotes)
                 method = 'retrieval_augmented_generation_with_rule_quote'
-            extra = {'generation_note': 'dropped: ' + ', '.join(parsed['dropped'])[:80]} if parsed.get('dropped') else {}
+            extra = generation_note(parsed)
             return {**result, 'answer': answer, 'method': method, 'generation_used': True,
                     'generation_status': 'generated', 'model': self.model, **extra}
         except (OSError, ValueError, KeyError, TypeError, RecursionError) as e:
@@ -238,9 +290,10 @@ class GroundedRag:
             self._lock.release()
 
     # ---------- 11/6 sLLM 생성(답 또는 되묻기)과 검사 ----------
-    def _generate(self, question, passages, allow_clarify, history=None):
+    def _generate(self, question, passages, allow_clarify, history=None, feedback=None):
         """passages=[{id, topic, text}] 만 근거로. 돌려줌: {passage_ids, (answer) | (mode=clarify, follow_up, choices)}
-        모델이 규칙을 어기면 ValueError → 부른 쪽이 문서 문장으로 대신 답함"""
+        모델이 규칙을 어기면 ValueError → 부른 쪽이 문서 문장으로 대신 답함
+        11/8 feedback: 질문-답 맞물림 검사(answer_gap)에 걸린 첫 답과 고칠 점 — 모델이 한 번 더 생각해 다시 쓴다(최대 1번)"""
         modes = ['answer', 'clarify'] if allow_clarify else ['answer']
         # 11/7 실측: 앞 대화가 길면 Mi:dm 이 answer 칸을 빼고 {"mode":"answer","passage_ids":[0]} 만 냄 → 모드별로 필수 칸을 나눔
         ids_schema = {'type': 'array', 'maxItems': len(passages), 'items': {'type': 'integer', 'enum': list(range(len(passages)))}}
@@ -249,6 +302,9 @@ class GroundedRag:
         answer_schema = {'type': 'object', 'additionalProperties': False, 'required': ['mode', 'passage_ids', 'sentences'],
                          'properties': {'mode': {'type': 'string', 'enum': ['answer']}, 'passage_ids': ids_schema,
                                         'sentences': {'type': 'array', 'minItems': 1, 'maxItems': 3, 'items': sentence_item}}}
+        if feedback:          # 다시 쓸 때만: 근거에 답이 없으면 모델이 스스로 "없다"고 표시할 칸
+            answer_schema = {**answer_schema, 'required': answer_schema['required'] + ['answerable'],
+                             'properties': {**answer_schema['properties'], 'answerable': {'type': 'boolean'}}}
         clarify_schema = {'type': 'object', 'additionalProperties': False, 'required': ['mode', 'passage_ids', 'follow_up', 'choices'],
                           'properties': {'mode': {'type': 'string', 'enum': ['clarify']}, 'passage_ids': ids_schema,
                                          'follow_up': {'type': 'string', 'maxLength': 120},
@@ -264,9 +320,10 @@ class GroundedRag:
             'messages': [{'role': 'system', 'content': system},
                          {'role': 'user', 'content': json.dumps({**({'previous_questions': questions} if questions else {}),
                                                                   **({'previous_turns': turns} if turns else {}),
-                                                                  'question': question, 'retrieved_passages': passages}, ensure_ascii=False)}],
+                                                                  'question': question, 'retrieved_passages': passages,
+                                                                  **({'feedback': feedback} if feedback else {})}, ensure_ascii=False)}],
             'options': {'temperature': 0, 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
-        with step('reporter-writer', as_type='generation', model=self.model, input=payload['messages'], prompt=prompt_obj,
+        with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=self.model, input=payload['messages'], prompt=prompt_obj,
                   model_parameters={'temperature': 0, 'num_predict': 400}) as gen:
             generated = self.request(payload)
             content = (generated.get('message') or {}).get('content') if isinstance(generated, dict) else None
@@ -284,7 +341,7 @@ class GroundedRag:
             legacy = True
         else:
             legacy = False
-            if not set(parsed) <= {'mode', 'passage_ids', 'answer', 'sentences', 'follow_up', 'choices'} or parsed.get('mode') not in modes:
+            if not set(parsed) <= {'mode', 'passage_ids', 'answer', 'sentences', 'follow_up', 'choices', 'answerable'} or parsed.get('mode') not in modes:
                 raise ValueError('Unsupported generation fields')
         ids = parsed.get('passage_ids')
         if (not isinstance(ids, list) or any(type(i) is not int or not 0 <= i < len(passages) for i in ids)
@@ -313,13 +370,30 @@ class GroundedRag:
                 or re.search(r'https?://', answer) or not numbers_supported(answer, evidence)):
             raise ValueError('Unsupported answer')
         answer = answer.strip()
+        dropped = list(self.last_dropped)
+        # 11/8 질문-답 맞물림: 첫 답이 물어본 것을 빠뜨리면 고칠 점을 주고 한 번 더 쓰게 함. 다시 쓴 답도 빠뜨리거나
+        # 모델이 "근거에 답이 없다"(answerable=false)고 하면, 관련 근거 문장 앞에 "자료에 없다"를 붙여 솔직히 답함
+        gap = answer_gap(question, answer)
+        note = None
+        if feedback is None and gap:
+            try:
+                again = self._generate(question, passages, allow_clarify, history,
+                                       feedback={'previous_answer': answer, 'problem': gap_hint(gap, question)})
+                again['note'] = f'retry:{gap}' + (f" → {again['note']}" if again.get('note') else '')
+                return again
+            except ValueError:
+                answer, note = GAP_LEAD + answer + GAP_TAIL, f'not_addressed:{gap}(retry_failed)'
+        elif feedback is not None and (gap or parsed.get('answerable') is False):
+            answer, note = GAP_LEAD + answer + GAP_TAIL, f'not_addressed:{gap or "model"}'
         from agents.guidance import DEMO_POLICY_TOPICS
         if any(passages[i]['topic'] in DEMO_POLICY_TOPICS.values() or passages[i]['topic'] == 'arrival' for i in ids) \
                 and '시연 기준' not in answer:
             answer += DEMO_SUFFIX
         out = {'mode': 'answer', 'passage_ids': ids, 'answer': answer}
-        if self.last_dropped:
-            out['dropped'] = list(self.last_dropped)
+        if dropped:
+            out['dropped'] = dropped
+        if note:
+            out['note'] = note
         return out
 
     def _guide(self, question, result, history=None):
@@ -349,7 +423,8 @@ class GroundedRag:
                             'sources': self.guidance._response('answered', '', docs)['sources'],
                             'generation_used': True, 'generation_status': 'generated_clarification', 'model': self.model}
                 return {**self.guidance._response('answered', parsed['answer'], docs), 'generation_used': True,
-                        'generation_status': 'generated', 'method': 'retrieval_augmented_generation', 'model': self.model}
+                        'generation_status': 'generated', 'method': 'retrieval_augmented_generation', 'model': self.model,
+                        **generation_note(parsed)}
             except (OSError, ValueError, KeyError, TypeError, RecursionError):
                 pass
             finally:
