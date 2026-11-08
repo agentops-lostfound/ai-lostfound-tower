@@ -64,6 +64,9 @@ def topic_question(topic: str) -> str:
 SENTENCE_OVERLAP = 0.12
 NOVEL_RUN_LIMIT = 10
 NEGATION = re.compile(r"않|없|못\s|못하|금지|불가|말아|말고|말고|마세요|아니|아닙")
+# 11/8 집 PC 무작위 시험: '본센터 키오스크 한 곳'처럼 하나만이라고 말하는 근거는 다른 곳은 안 된다는 뜻 → 부정 문장 허용
+# ("서면역에서 받을 수 있어요?" → "서면역에서는 받을 수 없어요"가 '근거에 없는 부정'으로 빠지던 것)
+EXCLUSIVE = re.compile(r"한\s*곳|에서만|만\s*(?:한다|해요|받|가능)|뿐")
 # 누가 하는 일인지(11/8 실측: 근거는 "분실인 … 본센터로 오시면" 인데 "습득자는 … 본센터로 와야" 로 바꿈)
 ROLES = {"lost": re.compile(r"분실인|잃어버린\s*(?:사람|분)|찾는\s*(?:사람|분)"),
          "finder": re.compile(r"습득자|주운\s*(?:사람|분)|맡긴\s*(?:사람|분)|주워\s*맡긴")}
@@ -130,14 +133,14 @@ def grounded_sentences(items, passages_text, question: str = "") -> tuple[list[s
             dropped.append("인용이 문단에 없음")
         elif sentence_overlap(sen, ev) < SENTENCE_OVERLAP:
             dropped.append(f"근거와 멀어짐({sentence_overlap(sen, ev):.2f})")
-        elif NEGATION.search(sen) and not NEGATION.search(ev):
+        elif NEGATION.search(sen) and not (NEGATION.search(ev) or EXCLUSIVE.search(ev)):
             dropped.append("근거에 없는 부정")
         elif role_swapped(sen, next((p for p in paragraphs if _squash(ev) in _squash(p)), ev)):   # 구절이 나온 문단 전체의 사람과 비교
             dropped.append("사람이 바뀜")
         elif novel_run(sen, ev + " " + question) >= NOVEL_RUN_LIMIT:
             dropped.append(f"근거에 없는 내용({novel_run(sen, ev + ' ' + question)}자)")
-        elif sen in kept:
-            dropped.append("중복")
+        elif sen in kept or any(_squash(sen) in _squash(k) or _squash(k) in _squash(sen) for k in kept):
+            dropped.append("중복")       # 11/8 실측: 앞 문장 안에 그대로 들어 있는 문장을 한 번 더 말하던 것
         else:
             kept.append(sen)
     return kept, dropped
@@ -153,6 +156,9 @@ STANCE_A = re.compile(r"수\s*(?:있|없)|가능|불가|(?:^|[\s,.])(?:안\s*)?(
 WHEN_Q = re.compile(r"언제|며칠|몇일|기간|얼마나(?:오래|걸|보관|있)|몇시")
 WHEN_A = re.compile(r"\d|하루|당일|즉시|바로|마다|시간|동안|이후|후에|전에|까지")
 WHERE_A = re.compile(r"역|센터|키오스크|웹|보관함|창구|에서")
+# 11/8 실측: 안내 자료에 없는 돈·책임 질문("습득자한테 사례금 줘야 하나요", "없어지면 누가 책임져요")에 엉뚱한 근거로 답함
+# → 질문의 이 낱말이 답에 없으면 '맞물리지 않음'(다시 쓰기 → 그래도 없으면 자료에 없다고 답함)
+UNCOVERED_Q = re.compile(r"사례금|보상금|사례비|보상|배상|변상|책임|소송|고소|보험")
 ITEM_WORDS = {"지갑": ("지갑",), "모형폰": ("모형폰", "휴대폰", "핸드폰", "폰"), "USB": ("usb",), "립밤": ("립밤",),
               "핸드크림": ("핸드크림",), "보조배터리": ("보조배터리", "배터리")}
 GAP_LEAD = "안내 자료에서 이 질문에 바로 답할 내용은 찾지 못했어요. 관련 안내: "
@@ -172,6 +178,9 @@ def answer_gap(question: str, answer: str) -> str | None:
         return "when"
     if "어디" in q and not WHERE_A.search(a):
         return "where"
+    m = UNCOVERED_Q.search(q)
+    if m and m.group(0) not in re.sub(r"\s+", "", a):
+        return "uncovered"
     asked, said = items_named(question), items_named(a)
     if asked and said and not asked & said:
         return "subject"
@@ -186,6 +195,7 @@ def gap_hint(gap: str, question: str) -> str:
             "when": "앞 답에 질문이 묻는 때·기간이 없다. 근거의 시간·기간을 넣어 답한다",
             "where": "앞 답에 질문이 묻는 장소가 없다. 근거의 장소를 넣어 답한다",
             "subject": f"질문은 {item} 에 대해 묻는데 앞 답은 다른 물건 이야기다. {item} 에 대한 근거로 답한다",
+            "uncovered": "질문이 묻는 돈·책임 문제는 앞 답에 없다. 근거 문단에 그 내용이 있으면 그것으로 답한다",
             }[gap] + ". 근거 문단에 그 답이 없으면 answerable 을 false 로 하고, 관련된 근거 문장만 쓴다"
 
 
@@ -404,8 +414,22 @@ class GroundedRag:
         hits = [h for h in self.retriever.search(question, 4) if h['score'] >= MIN_SCORE]
         base = {**result, 'generation_used': False}
         if LOST_RE.search(compact):
+            # 11/8 집 PC 무작위 시험: 물건을 이미 말했거나("검정 반지갑 잃어버렸어요"), 물건이 아니라 번호를 잃어버린 경우에도
+            # "어떤 물건을 잃어버리셨나요?"라고 되묻던 것 → 경우를 나눔
+            named = items_named(question)
+            if re.search(r'(?:찾기|접수|예약)번호|번호를?(?:잃|분실|까먹|모르)', compact) and not named:
+                return {**base, 'status': 'answered', 'generation_status': 'fixed_policy_text',
+                        'answer': '찾기 번호(C-로 시작)는 분실인 웹이나 키오스크에서 물건을 확인하면 받는 번호예요. '
+                                  '잃어버린 번호를 다시 찾는 방법은 아직 안내 자료에 없어요. 본센터 직원에게 확인해 주세요.',
+                        'choices': MENU}
+            if named:
+                return {**base, 'status': 'answered', 'generation_status': 'guided_question',
+                        'answer': f"{'·'.join(sorted(named))} 분실로 이해했어요. 후보가 보이면 내 물건 같은지 확인하고 '잃어버린 물건 찾기'에서 "
+                                  "분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호를 받고, 그 번호와 신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요.",
+                        'choices': LOST_CHOICES}
             return {**base, 'status': 'clarification_needed', 'generation_status': 'guided_question',
-                    'answer': '어떤 물건을 잃어버리셨나요? 물건 종류와 색을 알려 주시면 후보를 찾아 드릴게요. 예: "검정 지갑 잃어버렸어요"',
+                    'answer': '어떤 물건을 잃어버리셨나요? 이 시연에서는 지갑·모형폰(휴대폰)·USB·립밤·핸드크림·보조배터리 6가지를 찾을 수 있어요. '
+                              '물건 종류와 색을 알려 주세요. 예: "검정 지갑 잃어버렸어요"',
                     'choices': LOST_CHOICES}
         if not hits:
             return {**base, 'generation_status': 'off_topic',
