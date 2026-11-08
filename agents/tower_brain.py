@@ -51,6 +51,11 @@ REASON_WORDS = {"matching_agent": ("후보", "점수", "매칭", "비슷", "차�
                 "storage_agent": ("칸", "보관", "위치", "기록"),
                 "vision_agent": ("찍", "촬영", "탑뷰", "가려", "특징", "사진", "보이", "카메라"),
                 "finish": ("충분", "확실", "근거")}
+PROMPT_EXAMPLES = {"특징을못읽어서다시찍어보려고": "vision_agent", "두후보점수가같아서보관칸기록으로좁히려고": "storage_agent"}
+# 11/8 집 PC 무작위 시연: 매칭 에이전트를 고르며 "두 후보 점수가 같아서 보관 칸 기록으로 좁히려고"(보관 칸 예시)를 그대로 베낌 →
+# 이유의 '하려는 일'(마지막 '~서' 뒤)이 다른 에이전트 일이면 정해진 문장으로
+GOAL_OTHER = {"matching_agent": ("칸", "보관", "찍", "촬영"), "storage_agent": ("찍", "촬영", "매칭"),
+              "vision_agent": ("칸 기록", "보관 칸", "매칭")}
 META_WORDS = ("다음에 부를", "저장합니다", "에이전트를 부르", "에이전트 중", "finish", "JSON", "findings", "지시", "고른다", "고릅니다")
 
 
@@ -64,6 +69,12 @@ def clean_reason(pick: str, reason: str) -> str:
     text = text.rstrip(". ")
     if (not text or len(text) > 40 or any(w in text for w in META_WORDS)
             or not any(w in text for w in REASON_WORDS.get(pick, ("",)))):
+        return DEFAULT_REASON.get(pick, "")
+    squashed = "".join(ch for ch in text if ch.isalnum())
+    if PROMPT_EXAMPLES.get(squashed, pick) != pick:
+        return DEFAULT_REASON.get(pick, "")
+    goal = text.rsplit("서 ", 1)[-1]
+    if any(w in goal for w in GOAL_OTHER.get(pick, ())):
         return DEFAULT_REASON.get(pick, "")
     return text
 

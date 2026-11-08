@@ -101,7 +101,8 @@ class Guidance:
                 and not re.search(r'(?:전화번호|비밀번호).*(?:적|써|쓰|입력|넣)', q):
             return self._response('answered', '관리자 비밀번호·키·내부 설정 같은 정보는 알려 드릴 수 없어요. 분실물 찾기·습득 신고·물건 받는 방법을 물어봐 주세요.', [])
         # 11/8: 영어 질문("How do I find my lost wallet?")에 보관 기간을 답함 → 한국어 안내만 한다고 분명히
-        if re.search(r'[a-z]{3}', q) and not re.search(r'[가-힣]', q):
+        # 11/8 웹 무작위 시험: 'ㅁㄴㅇㄹ;;;DROP TABLE'·'<script>' 같은 장난 입력에도 이 문장이 나와 어색 → 한글 자모·기호 섞인 입력은 일반 되묻기로
+        if len(re.findall(r'[a-z]', q)) >= 6 and not re.search(r'[ㄱ-ㅎㅏ-ㅣ가-힣<>{};=]', q):
             return self._response('answered', '지금은 한국어 안내만 할 수 있어요(Korean only for now). 예: “지갑 잃어버렸어요”, “주운 물건 어디에 맡겨요?”', [])
         if re.search(r'뭐할수|무엇을할수|무슨일|기능.*(?:알려|있)|도와줘', q):
             return self._response('answered', '물건 설명 정리·후보 검색·사이트 이용 안내를 도와드려요. 찾는 물건을 적거나, 사진 입력·본인인증·수령 절차 중 궁금한 것을 물어보세요. 현재 가상 DB 시연 결과는 실제 습득물이 아니며 실제 검색에는 인증 연결이 필요해요.', [])

@@ -266,6 +266,8 @@ class SimDirector:
         """opts(11/7 분실인 웹): {"visit": "kiosk"} 이면 방문을 자동으로 하지 않고 본센터 키오스크 회수를 기다린다.
         name_masked·id_no_masked 는 웹이 가린 값(키오스크에서 같은 신분 번호를 다시 입력해야 반환 시작)"""
         clean, tags = split_tags(text)
+        if has_pii(clean):   # 11/8 웹 무작위 시험: 하이픈 없는 번호(01012345678)가 화면 검사를 지나 그대로 접수됐다
+            raise RequestError("분실 신고에 전화번호·주민등록번호 같은 개인정보는 쓰지 마세요")
         desc = query_features(clean)
         if "category" not in desc:
             raise RequestError("무엇을 잃어버렸는지 알 수 없어요 — 지갑·USB·립밤·모형폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
