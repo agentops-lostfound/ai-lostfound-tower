@@ -98,7 +98,67 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .card{background:var(--ui-fill);border-radius:var(--ui-radius);padding:14px 16px;font-size:19px;line-height:1.4;color:var(--ui-text-2)}
 .card b{display:block;font-size:21px;margin-bottom:2px;color:var(--ui-text)}
-#manual{min-height:64px;font-size:22px}
+/* 11/8 자동 촬영을 눈에 보이게: 촬영 무대(카메라 화면 + 가운데 틀 + 상태 칩 + 3·2·1 원 + 찰칵 번쩍임) */
+.stage{position:relative;width:100%;aspect-ratio:4/3;max-height:40vh;border-radius:20px;overflow:hidden;background:var(--ui-fill)}
+.stage video,#cam{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0}
+.stage .frame{position:absolute;inset:16% 20%;border:3px dashed color-mix(in srgb,var(--ui-surface) 80%,transparent);border-radius:16px;transition:border-color .2s}
+.stage[data-phase="hand"] .frame{border-color:var(--ui-warn)}
+.stage[data-phase="count"] .frame,.stage[data-phase="shot"] .frame{border-style:solid;border-color:var(--ui-ok)}
+.camchip{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:var(--ui-surface);color:var(--ui-text);font-size:17px;font-weight:700;box-shadow:var(--ui-shadow)}
+.camchip i{width:10px;height:10px;border-radius:50%;background:var(--ui-text-3)}
+.camchip[data-state="ok"] i{background:var(--ui-ok)}
+.camchip[data-state="find"] i{background:var(--ui-warn)}
+.camchip[data-state="down"] i{background:var(--ui-err)}
+@media (prefers-reduced-motion:no-preference){.camchip[data-state="find"] i{animation:blink 1s infinite}}
+@keyframes blink{50%{opacity:.25}}
+.ring{position:absolute;left:50%;top:50%;width:min(140px,42%);aspect-ratio:1;translate:-50% -50%;display:none;place-items:center;border-radius:50%;background:color-mix(in srgb,var(--ui-surface) 82%,transparent);box-shadow:var(--ui-shadow)}
+.stage[data-phase="count"] .ring{display:grid}
+.ring svg{position:absolute;inset:0;width:100%;height:100%;rotate:-90deg}
+.ring circle{fill:none;stroke-width:9}
+.ring .ring-bg{stroke:var(--ui-fill)}
+.ring .ring-fg{stroke:var(--ui-ok);stroke-linecap:round;stroke-dasharray:326.7;stroke-dashoffset:326.7;transition:stroke-dashoffset .25s linear}
+.ring b{position:relative;font-size:clamp(40px,7vw,64px);line-height:1;color:var(--ui-text);font-variant-numeric:tabular-nums}
+.flash{position:absolute;inset:0;background:var(--ui-on-primary);opacity:0;pointer-events:none}
+.flash.go{animation:flash .45s ease-out}
+@keyframes flash{0%{opacity:.95}100%{opacity:0}}
+.phases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0;padding:0;list-style:none;counter-reset:ph}
+.phases li{counter-increment:ph;text-align:center;font-size:18px;font-weight:700;padding:8px 2px;border-radius:12px;background:var(--ui-fill);color:var(--ui-text-3);transition:background-color .2s,color .2s}
+.phases li::before{content:counter(ph) " ";opacity:.7}
+.phases li.done{color:var(--ui-text-2)}
+.phases li.now{background:var(--ui-primary);color:var(--ui-on-primary)}
+.hint{font-size:19px;color:var(--ui-text-2);margin:-4px 0 0}
+.hint b{color:var(--ui-text)}
+.status.again{background:var(--ui-warn-soft);color:var(--ui-warn)}
+.status.shot{background:var(--ui-primary-soft);color:var(--ui-primary)}
+/* 카메라 점검 중 카드: 고객은 역무실에 알리기만 하면 된다. 아래 작은 회색 글씨는 직원이 원인을 알 수 있는 점검 코드 */
+.camdown{display:flex;gap:18px;align-items:center;background:var(--ui-err-soft);color:var(--ui-err);border-radius:20px;padding:24px}
+.camdown[hidden]{display:none}
+.camdown .pic{width:72px;height:72px;color:var(--ui-err)}
+.camdown .pic .p{stroke:var(--ui-err)}
+.camdown h2{margin:0;font-size:32px;font-weight:800}
+.camdown .down-sub{font-size:26px;font-weight:700;color:var(--ui-text)}
+.camdown .down-more{font-size:19px;color:var(--ui-text-2);margin-top:6px}
+.camdown .down-code{font-size:15px;color:var(--ui-text-3);margin-top:6px}
+.camdown .down-code:empty{display:none}
+.camwrap.down .stage,.camwrap.down .phases,.camwrap.down .hint,.camwrap.down #camStatus{display:none}
+/* 직원용 시연 모드(?demo=1) 배지: 작게, 손가락으로는 56px 영역 */
+.demo{position:relative;display:inline-flex}
+.demo[hidden]{display:none}
+#demoBadge,#demoBadge:hover{min-height:56px;padding:0 4px;background:transparent;color:var(--ui-warn);font-size:15px}
+#demoBadge span{display:inline-block;padding:4px 10px;border-radius:999px;background:var(--ui-warn-soft);font-weight:800;line-height:1.3}
+.demo-menu{position:absolute;top:100%;left:0;z-index:20;display:grid;gap:10px;width:min(360px,calc(100vw - 32px));padding:16px;background:var(--ui-surface);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow),0 0 0 1px var(--ui-line);font-size:17px}
+.demo-menu[hidden]{display:none}
+.demo-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.demo-menu button{min-height:56px;font-size:18px;padding:0 10px;border-radius:12px}
+.demo-items button{background:var(--ui-fill);color:var(--ui-text)}
+.demo-items button.on{background:var(--ui-primary);color:var(--ui-on-primary)}
+/* 오래 손대지 않을 때 묻는 창 */
+.idle{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:var(--ui-scrim)}
+.idle[hidden]{display:none}
+.idle-card{display:grid;gap:18px;width:min(560px,100%);padding:32px;background:var(--ui-surface);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow);text-align:center}
+.idle-card h2{margin:0;font-size:36px}
+#s4 .bar{max-width:520px;width:100%;margin:-8px auto 0}
+#s4 .bar i{background:var(--ui-text-3);transition:width 1s linear}
 #morePlaces{min-height:64px;font-size:22px;align-self:flex-start}
 #camSel{font-size:20px;min-height:60px;padding:0 16px}
 @media (prefers-reduced-motion:no-preference){button:active{transform:scale(.98)}}
@@ -177,7 +237,18 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
 .note .pic,.legal .pic{width:22px;height:22px}
 .big{width:72px;height:72px}
 #app .ui-scroll-hint{font-size:16px;padding:0 18px}
-#manual,#morePlaces{min-height:56px;font-size:17px}
+#morePlaces{min-height:56px;font-size:17px}
+body.demo #stn{flex:1 1 auto}
+.camchip{font-size:14px;padding:4px 10px}
+.phases li{font-size:14px;padding:6px 2px}
+.hint{font-size:15px}
+.camdown{padding:16px;gap:12px}
+.camdown .pic{width:48px;height:48px}
+.camdown h2{font-size:22px}
+.camdown .down-sub{font-size:18px}
+.camdown .down-more{font-size:15px}
+.idle-card{padding:22px 16px}
+.idle-card h2{font-size:24px}
 #camSel{font-size:16px;min-height:56px}
 .note,.err{font-size:16px;padding:12px 14px}
 .thumb img{height:72px}
@@ -188,7 +259,7 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
 </head>
 <body>
 <div id="app">
-  <header><span id="stn"></span><button type="button" class="chatbot-open" data-chatbot-open aria-label="AI 안내 도우미 열기">💬 AI 안내</button><span data-theme-slot></span><div class="prog" id="prog"><i></i><i></i><i></i><i></i></div></header>
+  <header><span id="stn"></span><span class="demo" id="demo" hidden><button type="button" id="demoBadge" aria-haspopup="true" aria-expanded="false" aria-label="시연 모드 · 직원용 메뉴"><span>시연 모드</span></button><span class="demo-menu" id="demoMenu" hidden><b>직원용 · 다음에 넣을 물건</b><span class="demo-items" id="demoItems"></span><button type="button" class="ghost" id="demoNudge">물건 움직이기 (다시 세기 보기)</button></span></span><button type="button" class="chatbot-open" data-chatbot-open aria-label="AI 안내 도우미 열기">💬 AI 안내</button><span data-theme-slot></span><div class="prog" id="prog"><i></i><i></i><i></i><i></i></div></header>
   <nav class="tabs" role="tablist" aria-label="메뉴">
     <button type="button" id="tabFound" class="on" role="tab" aria-selected="true">물건 주웠어요<br>(습득)</button>
     <button type="button" id="tabLost" role="tab" aria-selected="false">물건 잃어버렸어요<br>(분실접수)</button>
@@ -242,11 +313,31 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
     <h1>가운데에 두면 자동으로 찍어요</h1>
     <div class="shoot">
       <div class="camwrap">
-        <video id="cam" playsinline muted hidden></video>
-        <p class="status wait" id="camStatus" role="status" aria-live="polite">카메라를 켜는 중…</p>
-        <div class="bar" aria-hidden="true"><i id="camBar"></i></div>
+        <div class="stage" id="stage" data-phase="find">
+          <video id="cam" playsinline muted hidden></video>
+          <span class="frame" aria-hidden="true"></span>
+          <span class="camchip" id="camChip" data-state="find"><i aria-hidden="true"></i><span id="camChipText">카메라 찾는 중</span></span>
+          <div class="ring" id="ring" aria-hidden="true">
+            <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="52"/><circle class="ring-fg" id="ringFg" cx="60" cy="60" r="52"/></svg>
+            <b id="ringNum">3</b>
+          </div>
+          <div class="flash" id="flash" aria-hidden="true"></div>
+        </div>
+        <div class="camdown" id="camDown" role="alert" hidden>
+          <svg class="pic" viewBox="0 0 56 56" aria-hidden="true"><rect x="6" y="16" width="44" height="30" rx="5"/><path d="M20 16l3-6h10l3 6"/><circle cx="28" cy="31" r="8"/><path class="p" stroke-width="3.5" d="M8 50L48 8"/></svg>
+          <div>
+            <h2>카메라 점검 중</h2>
+            <p class="down-sub">역무실에 알려 주세요</p>
+            <p class="down-more">위의 <b>분실접수 · 회수</b> 메뉴는 그대로 쓸 수 있어요</p>
+            <p class="down-code" id="camCode"></p>
+          </div>
+        </div>
+        <ol class="phases" id="phases" aria-hidden="true">
+          <li data-p="place">놓기</li><li data-p="hand">손 빼기</li><li data-p="count">3·2·1</li><li data-p="shot">찰칵</li>
+        </ol>
+        <p class="status wait" id="camStatus" role="status" aria-live="polite">카메라를 찾는 중…</p>
+        <p class="hint" id="camHint">물건이 움직이면 <b>처음부터 다시 3초</b> 세요</p>
         <select id="camSel" hidden aria-label="카메라 고르기(직원용)"></select>
-        <button class="ghost" id="manual" hidden>카메라가 안 돼요 → 사진 파일로 접수</button>
         <p class="note"><svg class="pic" viewBox="0 0 32 32" role="img"><title>주의</title><path d="M16 4L30 28H2z"/><path d="M16 13v7M16 24v.5"/></svg>현금·위험물은 역무실로</p>
       </div>
       <div class="guide" aria-label="보관 가이드">
@@ -254,11 +345,11 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
         <ol class="steps">
           <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>한 번에 한 개만</title><rect x="14" y="4" width="52" height="48" rx="4"/><rect class="p" x="30" y="19" width="20" height="18" rx="3"/></svg><span><span class="num">1</span>한 개만</span></li>
           <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>상자 가운데에</title><rect x="14" y="4" width="52" height="48" rx="4"/><path d="M40 8v40M18 28h44" stroke-dasharray="3 4" opacity=".5"/><rect class="p" x="32" y="21" width="16" height="14" rx="3"/></svg><span><span class="num">2</span>가운데에</span></li>
-          <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>손을 빼고 2초 기다리기</title><rect x="4" y="16" width="44" height="36" rx="4"/><rect x="18" y="31" width="16" height="12" rx="3"/><path class="p" d="M26 25V4M20 10l6-6 6 6"/><circle class="p" cx="64" cy="36" r="12"/><path class="p" d="M64 29v7l5 3"/></svg><span><span class="num">3</span>손 빼고 2초</span></li>
+          <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>손을 빼고 3초 기다리기</title><rect x="4" y="16" width="44" height="36" rx="4"/><rect x="18" y="31" width="16" height="12" rx="3"/><path class="p" d="M26 25V4M20 10l6-6 6 6"/><circle class="p" cx="64" cy="36" r="12"/><path class="p" d="M64 29v7l5 3"/></svg><span><span class="num">3</span>손 빼고 3초</span></li>
         </ol>
         <h3><svg class="pic" viewBox="0 0 24 24" aria-hidden="true"><path class="p" d="M12 20V4M5 11l7-7 7 7"/></svg>눕혀서, 이 면이 위로</h3>
         <div class="cards">
-          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>모형폰: 뒷면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="3"/><path class="p" stroke-width="4" d="M19 40h42"/><rect class="p" x="21" y="35" width="10" height="5" rx="1.5"/><path class="p" d="M44 32V10M37 17l7-7 7 7"/></svg><b>모형폰</b>뒷면(카메라)</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>휴대폰: 뒷면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="3"/><path class="p" stroke-width="4" d="M19 40h42"/><rect class="p" x="21" y="35" width="10" height="5" rx="1.5"/><path class="p" d="M44 32V10M37 17l7-7 7 7"/></svg><b>휴대폰</b>뒷면(카메라)</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>지갑: 접은 채 앞면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="38" width="52" height="12" rx="4"/><path d="M14 44h52" opacity=".45"/><path class="p" stroke-width="4" d="M18 38h44"/><path class="p" d="M40 32V10M33 17l7-7 7 7"/></svg><b>지갑</b>접은 채 앞면</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>USB: 뚜껑 닫고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="18" y="43" width="32" height="7" rx="2"/><rect x="50" y="42" width="12" height="8" rx="2"/><path class="p" stroke-width="4" d="M21 43h26"/><path class="p" d="M34 36V10M27 17l7-7 7 7"/></svg><b>USB</b>뚜껑 닫고 글자</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>립밤: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="5"/><path d="M46 40v10"/><path class="p" stroke-width="4" d="M22 40h20"/><path class="p" d="M32 33V10M25 17l7-7 7 7"/></svg><b>립밤</b>눕혀서 글자</div>
@@ -281,7 +372,7 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
     <h1>연락처를 남기시겠어요?</h1>
     <p class="sub">안 남겨도 접수돼요 (선택)</p>
     <input type="text" id="cname" maxlength="20" placeholder="이름" autocomplete="off">
-    <input type="tel" id="cphone" inputmode="numeric" maxlength="13" placeholder="전화번호" autocomplete="off">
+    <input type="tel" id="cphone" inputmode="tel" maxlength="13" placeholder="전화번호 (숫자만)" autocomplete="off">
     <ul class="uses" aria-label="연락처 이용 안내">
       <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>감사 연락</title><rect x="5" y="3" width="14" height="26" rx="3"/><path d="M10 25h4"/><path class="p" d="M24 23s-6-3.5-6-7.5a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.5-6 7.5z"/></svg><span>주인이 찾아가면 <b>감사 연락에만</b> 써요</span></li>
       <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>보호</title><path d="M16 3l11 4v8c0 7-5 12-11 14C10 27 5 22 5 15V7z"/><path class="p" d="M11 16l4 4 7-8"/></svg><span><b>다른 목적으로 쓰거나 다른 곳에 주지 않아요</b></span></li>
@@ -296,11 +387,19 @@ textarea{font-size:17px;min-height:96px;padding:14px 16px}
     <p class="sub center">접수 번호</p>
     <div class="receipt" id="rno"></div>
     <p class="sub center"><span id="count">10</span>초 뒤 처음 화면으로</p>
-    <button class="ghost" id="home">처음으로</button>
+    <div class="bar" aria-hidden="true"><i id="homeBar"></i></div>
+    <button class="ghost" id="home">지금 처음으로</button>
   </section>
 </div>
+<!-- 11/8 오래 손대지 않으면(연락처 화면에 이름·번호를 남긴 채 떠난 경우 등) 묻고 처음으로 -->
+<div class="idle" id="idle" role="alertdialog" aria-labelledby="idleTitle" hidden>
+  <div class="idle-card">
+    <h2 id="idleTitle">계속하시겠어요?</h2>
+    <p class="sub"><b id="idleCount">10</b>초 뒤 처음 화면으로 돌아가요. 적은 내용은 지워져요.</p>
+    <button id="idleKeep">계속할게요</button>
+  </div>
+</div>
 <canvas id="cv" hidden></canvas>
-<input type="file" id="file" accept="image/*" capture="environment" hidden>
 <script>
 const API = '';
 const KIOSKS = {'KIOSK-A':'해운대','KIOSK-C':'서면','CENTER':'부산'};   // 11/6 본센터 = 부산역, 역 키오스크는 해운대·서면
@@ -323,7 +422,11 @@ $('#raway').hidden = isCenter; $('#rform').hidden = !isCenter;
 let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬영·자동 초기화가 습득 화면을 다시 켜지 않게
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
 let step = 1;
-const CATS = ['지갑','USB','립밤','모형폰','핸드크림','보조배터리'];     // agents/contracts.py CATEGORIES 와 같게
+const CATS = ['지갑','USB','립밤','모형폰','핸드크림','보조배터리'];     // agents/contracts.py CATEGORIES 와 같게(품목 값은 그대로)
+const CAT_LABEL = {'모형폰': '휴대폰'};                                 // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
+const catLabel = c => CAT_LABEL[c] || c;
+const Q = new URLSearchParams(location.search);
+const DEMO = Q.get('demo') === '1';      // 11/8 직원용 시연 모드: 실제 카메라 대신 가상 카메라(캔버스)가 물건을 넣은 것처럼 보여 줌
 let lcat = '';
 function tab(which) {
   curTab = which;
@@ -340,7 +443,7 @@ $('#tabFound').onclick = () => tab('found');
 $('#tabLost').onclick = () => tab('lost');
 $('#tabRet').onclick = () => tab('ret');
 CATS.forEach(c => {
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = c;
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = catLabel(c);
   b.onclick = () => { lcat = c; document.querySelectorAll('#lcat button').forEach(x => x.classList.toggle('on', x === b)); lcheck(); };
   $('#lcat').appendChild(b);
 });

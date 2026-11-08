@@ -245,6 +245,8 @@
   var DECISION = { returned: ["ok", "✅ 반환 완료"], rejected: ["bad", "⛔ 반환 안 함"],
                    staff_check: ["warn", "🙋 직원 확인 필요"], stopped: ["bad", "🛑 로봇 정지"] };
 
+  var CAT_LABEL = { "모형폰": "휴대폰" };   // 품목 값은 서버 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
+  function catName(c) { return CAT_LABEL[c] || c; }
   function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
   // 11/5 /api/ 주소 체계: 찾기 접수는 /api/lost, 정지는 /api/robot(로그인 없이), 나머지 관리자 API 는 /api/admin
   function route(method, path) {
@@ -277,7 +279,7 @@
     if (!r.data.length) { box.appendChild(el("p", "제출보관함에서 확인을 기다리는 물건이 없습니다", "muted")); if (!xdone) $("xbox").hidden = true; return; }
     r.data.forEach(function (q) {
       var row = el("div", undefined, "qitem" + (xcur && xcur.case_id === q.case_id ? " on" : ""));
-      row.appendChild(el("span", q.case_id + " · 물건 " + q.item_id + " · " + (q.category || "품목 미정") +
+      row.appendChild(el("span", q.case_id + " · 물건 " + q.item_id + " · " + (catName(q.category) || "품목 미정") +
                                  (q.claim ? " · " + q.claim.name_masked : "")));
       var b = el("button", "확인 시작", "primary");
       b.addEventListener("click", function () { pick(q); });
@@ -287,7 +289,7 @@
   function pick(q) {
     xcur = q; xans = {}; xdone = false;
     var kv = $("xkv"); kv.textContent = "";
-    [["사례", q.case_id], ["물건 번호", q.item_id], ["품목", q.category || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"]]
+    [["사례", q.case_id], ["물건 번호", q.item_id], ["품목", catName(q.category) || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"]]
       .forEach(function (p) { kv.appendChild(el("b", p[0])); kv.appendChild(el("span", p[1])); });
     var pub = q.public || {};
     $("xpub").textContent = Object.keys(pub).map(function (k) { return pub[k]; }).join(" · ") || "공개 특징 없음";

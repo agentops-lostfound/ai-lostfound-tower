@@ -12,7 +12,7 @@ async function api(path,body){
 function clearDrafts(){pickupSelection.clear();pendingPickup=null;arrivalDrafts.clear();zeroConfirm.clear();$('resetConfirm').hidden=true;}
 function failed(error,saved){fresh=false;if(error.code==='stale_demo')clearDrafts();message(saved?saved+' 저장은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침 후 계속해주세요.':error.message+' 새로고침으로 최신 기록을 확인해주세요.',true);}
 const timeLabel=value=>new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}).format(new Date(value));
-function title(item){return [item.color,item.category==='모형폰'?'휴대폰(모형폰)':item.category].filter(Boolean).join(' ');}
+function title(item){return [item.color,item.category==='모형폰'?'휴대폰':item.category].filter(Boolean).join(' ');}
 // Replacing a checked row must not send keyboard users back to the document body.
 function keepListFocus(list,draw){
  const key=document.activeElement?.getAttribute('data-focus-key');

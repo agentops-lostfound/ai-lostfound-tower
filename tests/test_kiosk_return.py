@@ -111,7 +111,7 @@ class KioskAutoCaptureTest(unittest.TestCase):
         self.assertNotIn('id="shoot"', html)                      # 찍기 버튼 없음
         for word in ("stillMs", "getUserMedia", "trueEmpty"):      # 정지 2초 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
             self.assertIn(word, html)
-        for cat in ("모형폰", "지갑", "USB", "립밤", "핸드크림", "보조배터리"):
+        for cat in ("휴대폰", "지갑", "USB", "립밤", "핸드크림", "보조배터리"):   # 11/8 화면 이름(값은 모형폰 그대로)
             self.assertIn(f"<b>{cat}", html)
         self.assertIn("다른 목적으로 쓰거나 다른 곳에 주지 않아요", html)
         self.assertNotIn("서버 없이 가짜 응답", html)

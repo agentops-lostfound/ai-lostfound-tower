@@ -126,6 +126,8 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .p-part{fill:var(--part);stroke:var(--part-line);stroke-width:1;stroke-linejoin:round}
 .p-motor{fill:var(--motor);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
 .p-camera{fill:var(--cam);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
+g.p-part .o,g.p-motor .o,g.p-camera .o{stroke-width:2}
+g.p-part .f,g.p-motor .f,g.p-camera .f{stroke:none}
 .side-wrap{border-radius:var(--ui-radius);background:var(--bench);margin-bottom:14px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
 .side-cap{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--sub2);padding:8px 12px 0}
 .side-cap #sideTip{color:var(--ink);font-weight:700}
@@ -254,6 +256,8 @@ details.more .robot-note{margin-top:0}
   const COLORS = {"검정":"#2b2b2b","흰색":"#f7f7f7","회색":"#a2a8b1","빨강":"#e05252","파랑":"#3d7be0","남색":"#2e3f73",
                   "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
   const CAT = {"지갑":"지갑","USB":"USB","립밤":"립밤","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리"};
+  const CAT_LABEL = {"모형폰":"휴대폰"};   // 품목 값('모형폰')은 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
+  const catName = (c) => CAT_LABEL[c] || c || "";
   const LOC = {kiosk:"등록기계", transit:"이동 중", bin:"보관함", gripper:"그리퍼", basket:"제출보관함", handed:"인계 완료", staff:"직원 보관"};
   let seq = 0, world = null, shown = {z: 100}, target = {z: 100}, failCount = 0, pendingId = null;
   const JN = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"];
@@ -268,7 +272,7 @@ details.more .robot-note{margin-top:0}
     const [W, H] = b.size_mm, [x1, y1, x2, y2] = b.bin_mm, [rx, ry] = b.base_mm;
     const ids = b.slot_ids || b.slots_mm.map((_, i) => String(i + 1));
     const hb = b.hbox_mm || [b.basket_mm[0] - 55, b.basket_mm[1] - 45, b.basket_mm[0] + 55, b.basket_mm[1] + 45];
-    const CATS = {"모형폰": "모형폰", "USB": "USB", "핸드크림": "크림", "보조배터리": "배터리", "립밤": "립밤", "지갑": "지갑"};
+    const CATS = {"모형폰": "휴대폰", "USB": "USB", "핸드크림": "크림", "보조배터리": "배터리", "립밤": "립밤", "지갑": "지갑"};
     let s = `<rect x="0" y="0" width="${W}" height="${H}" rx="10" class="s-bench"/>`;
     s += `<rect x="${x1}" y="${y1}" width="${x2-x1}" height="${y2-y1}" rx="8" class="s-bin"/>`;
     s += `<text x="${x1+8}" y="${y2+16}" font-size="12" class="s-sub">보관판 50 × 25 cm · 로봇 쪽 = 1번 칸</text>`;
@@ -297,7 +301,7 @@ details.more .robot-note{margin-top:0}
 
   function itemShape(it, x, y) {
     const c = COLORS[it.color] || "#b9b4ff";
-    const tip = `<title>${esc(it.slot_id ? it.slot_id + " · " : "")}${esc(it.item_id)} · ${esc(it.category || "")} · ${esc(it.color || "")} · ${esc(it.status)}</title>`;
+    const tip = `<title>${esc(it.slot_id ? it.slot_id + " · " : "")}${esc(it.item_id)} · ${esc(catName(it.category))} · ${esc(it.color || "")} · ${esc(it.status)}</title>`;
     const light = ["흰색","노랑"].includes(it.color);
     const label = CAT[it.category] || "?";
     const short = it.item_id.slice(-4);
@@ -363,14 +367,22 @@ details.more .robot-note{margin-top:0}
     return lo.slice(0, -1).concat(up.slice(0, -1));
   }
   // proj(점) → [그림 x, 그림 y, 깊이(클수록 앞에 그림)]
+  // 11/8: 부품을 조각(grp 가 같은 것)으로 나눠 그린다 — 실제 STL 처럼 집게 손가락·파인 곳이 보이게.
+  // 같은 부품 조각은 ① 테두리를 함께 그리고 ② 그 위에 면만 칠해 조각 사이 이음선이 안 보이게(바깥 윤곽만 남음)
   function drawArm(gEl, tf, proj) {
-    const polys = SHAPE.geoms.map(g => {
+    const groups = new Map();
+    SHAPE.geoms.forEach((g, i) => {
       const [R, p] = tf[g.body]; let depth = 0;
       const pts = g.pts.map(v => { const w = mv3(R, v); const q = proj([w[0]+p[0], w[1]+p[1], w[2]+p[2]]); depth += q[2]; return [q[0], q[1]]; });
       const h = hull(pts);
-      return {k: g.kind, depth: depth / pts.length, d: "M" + h.map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z"};
-    }).sort((a, b) => a.depth - b.depth);
-    gEl.innerHTML = polys.map(o => `<path class="p-${o.k}" d="${o.d}"/>`).join("");
+      const key = g.grp ?? ("g" + i);
+      const o = groups.get(key) || {k: g.kind, depth: 0, n: 0, d: []};
+      o.depth += depth / pts.length; o.n += 1;
+      o.d.push("M" + h.map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z");
+      groups.set(key, o);
+    });
+    const list = [...groups.values()].map(o => ({...o, depth: o.depth / o.n})).sort((a, b) => a.depth - b.depth);
+    gEl.innerHTML = list.map(o => { const d = o.d.join(""); return `<g class="p-${o.k}"><path class="o" d="${d}"/><path class="f" d="${d}"/></g>`; }).join("");
   }
   function tipOf(tf) { const [R, p] = tf[SHAPE.tip.body], w = mv3(R, SHAPE.tip.pos); return [w[0]+p[0], w[1]+p[1], w[2]+p[2]]; }
 

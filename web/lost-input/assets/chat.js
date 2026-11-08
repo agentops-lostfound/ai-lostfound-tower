@@ -62,7 +62,7 @@ $('clearChat').onclick=()=>{if(chatBusy)return;chatHistory=[];$('chatLog').repla
 loadFaq();
 function addCandidates(li,candidates){
  if(!candidates.length)return;const cards=document.createElement('div');cards.className='candidate-cards';
- for(const candidate of candidates){const card=document.createElement('div');card.className='candidate-card';const title=document.createElement('strong');title.textContent=[candidate.color,candidate.category==='모형폰'?'휴대폰(팀 분류: 모형폰)':candidate.category].filter(Boolean).join(' ');const info=document.createElement('span');info.textContent='후보 '+candidate.candidate_no;card.append(title,info);cards.append(card);}li.append(cards);
+ for(const candidate of candidates){const card=document.createElement('div');card.className='candidate-card';const title=document.createElement('strong');title.textContent=[candidate.color,candidate.category==='모형폰'?'휴대폰':candidate.category].filter(Boolean).join(' ');const info=document.createElement('span');info.textContent='후보 '+candidate.candidate_no;card.append(title,info);cards.append(card);}li.append(cards);
 }
 fetch('/health').then(r=>r.json()).then(data=>{
  $('chatMode').textContent=data.chat_search_mode==='demo_sqlite'?'안내 + 가상 물건 DB 시연':data.chat_search_mode==='postgres'?'안내 + 인증 연계가 필요한 DB 조회':'문서 기반 이용 안내';

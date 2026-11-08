@@ -112,7 +112,7 @@ class SimDirector:
             raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 서면·해운대 중 하나를 넣어 주세요(등록기계가 있는 역)")
         q = sim_qwen(clean)
         if q["category"] == "unknown":
-            raise RequestError("무슨 물건인지 알 수 없어요 — 지갑·USB·립밤·모형폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
+            raise RequestError("무슨 물건인지 알 수 없어요 — 지갑·USB·립밤·휴대폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
         if has_pii(place):   # 11/4: 이야기(화면 제목)를 만들기 전에 막는다 — 예전에는 제목에 전화번호가 보이고 이야기가 멈춰 있었다
             raise RequestError("장소에 전화번호 같은 개인정보는 쓰지 마세요(연락처는 등록기계에서 따로 받습니다)")
         sid = self.board.new_story("found", f"습득 신고 · {place}")
@@ -272,7 +272,7 @@ class SimDirector:
             raise RequestError("분실 신고에 전화번호·주민등록번호 같은 개인정보는 쓰지 마세요")
         desc = query_features(clean)
         if "category" not in desc:
-            raise RequestError("무엇을 잃어버렸는지 알 수 없어요 — 지갑·USB·립밤·모형폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
+            raise RequestError("무엇을 잃어버렸는지 알 수 없어요 — 지갑·USB·립밤·휴대폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
         return self._next(desc, lost_station(clean), tags, set(), opts or {})
 
     def _next(self, desc: dict, station: str | None, tags: set[str], asked: set[str], opts: dict | None = None) -> dict:

@@ -12,6 +12,7 @@
 import json
 import threading
 import re
+from agents.contracts import category_label
 from agents.local_model import ask_local_model
 from agents.support_security import has_private_pattern
 
@@ -279,6 +280,8 @@ class GroundedRag:
         """history: 같은 화면의 이전 사용자 질문(최대 4개, chat_conversation.checked_history 로 검사된 것). 모델에 맥락으로만 준다.
         여러 사람이 동시에 묻기 때문에 객체에 저장하지 않고 인자로만 넘긴다(다른 사람 질문이 섞이지 않게)"""
         history = [h for h in (history or []) if isinstance(h, str) or (isinstance(h, dict) and isinstance(h.get('question'), str))][-4:]
+        from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로, agents/chat_progress.py)
+        notify('retrieve')
         result = self.guidance.ask(question)
         result = {**result, 'generation_used': False, 'generation_status': 'not_needed'}
         allowed = None
@@ -387,7 +390,10 @@ class GroundedRag:
             'options': {'temperature': 0, 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
         with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=self.model, input=payload['messages'], prompt=prompt_obj,
                   model_parameters={'temperature': 0, 'num_predict': 400}) as gen:
+            from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로)
+            notify('rewrite' if feedback else 'write')
             generated = self.request(payload)
+            notify('recheck' if feedback else 'check')
             content = (generated.get('message') or {}).get('content') if isinstance(generated, dict) else None
             gen.update(output=content, usage_details={k: v for k, v in (('input', generated.get('prompt_eval_count')),
                                                                           ('output', generated.get('eval_count')))
@@ -504,11 +510,11 @@ class GroundedRag:
                         'choices': MENU}
             if named:
                 return {**base, 'status': 'answered', 'generation_status': 'guided_question',
-                        'answer': f"{'·'.join(sorted(named))} 분실로 이해했어요. 후보가 보이면 내 물건 같은지 확인하고 '잃어버린 물건 찾기'에서 "
+                        'answer': f"{'·'.join(sorted(category_label(n) for n in named))} 분실로 이해했어요. 후보가 보이면 내 물건 같은지 확인하고 '잃어버린 물건 찾기'에서 "
                                   "분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호를 받고, 그 번호와 신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요.",
                         'choices': LOST_CHOICES}
             return {**base, 'status': 'clarification_needed', 'generation_status': 'guided_question',
-                    'answer': '어떤 물건을 잃어버리셨나요? 이 시연에서는 지갑·모형폰(휴대폰)·USB·립밤·핸드크림·보조배터리 6가지를 찾을 수 있어요. '
+                    'answer': '어떤 물건을 잃어버리셨나요? 이 시연에서는 지갑·휴대폰·USB·립밤·핸드크림·보조배터리 6가지를 찾을 수 있어요. '
                               '물건 종류와 색을 알려 주세요. 예: "검정 지갑 잃어버렸어요"',
                     'choices': LOST_CHOICES}
         if not hits:
