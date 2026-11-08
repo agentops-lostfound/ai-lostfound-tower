@@ -22,6 +22,12 @@
 - 등록기계 번호: `KIOSK-A` 해운대(앞글자 A) · `KIOSK-C` 서면(앞글자 S) · `CENTER` **부산역 본센터** 키오스크(앞글자 H). 11/6 중앙역(KIOSK-B)은 삭제
 - 화면은 관제탑과 같은 주소에서 열리므로 `fetch("/items")` 처럼 앞부분 없이 부른다
 
+## 1-1. 공통 디자인(11/8 디자인 개편)
+- 모든 화면은 `web/ui/theme.css`(색·글자·간격 토큰 `--ui-*`, 부품 `.ui-btn`·`.ui-card`·`.ui-input`·`.ui-chip`·`.ui-badge`)와 `web/ui/theme.js`(라이트/다크 전환)를 쓴다. 관제탑이 `/ui/theme.css`·`/ui/theme.js` 로 제공
+- 새 화면: `<head>` 에 `<link rel="stylesheet" href="/ui/theme.css">` + `<script src="/ui/theme.js"></script>`, 머리말에 `<span data-theme-slot></span>`(전환 버튼 자리). 색은 토큰만 쓴다(직접 색 값 금지 → 다크에서 깨짐)
+- 전환: 처음엔 휴대폰·PC 밝기 설정을 따르고, 버튼을 누르면 그 브라우저에 기억. 관리자 화면 안쪽(iframe) 화면도 함께 바뀜
+- 글꼴 Pretendard 는 인터넷으로 받는다. 끊기면 맑은 고딕 등 시스템 글꼴로 열린다(화면은 정상)
+
 ## 2. 화면이 따를 흐름 (11/5 칠판 정리)
 상세 이벤트·API 권한·본센터 판별·6종 분류 정책은 [docs/design/operating_flow_1105.md](../docs/design/operating_flow_1105.md)를 기준으로 한다.
 ```

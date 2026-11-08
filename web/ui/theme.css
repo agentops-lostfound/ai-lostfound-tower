@@ -1,0 +1,114 @@
+/* AI 분실물 관제탑 공통 디자인(11/8 변재원 디자인 개편) — 흰 바탕 + 미니멀, 라이트·다크 전환
+   한줄 설명: 모든 화면이 같은 색·글자·간격·부품(버튼·카드·입력칸)을 쓰도록 모아 둔 파일. 화면은 <link rel="stylesheet" href="/ui/theme.css"> 한 줄로 쓴다.
+   - 색은 아래 토큰(--ui-*)으로만 쓴다. 다크 모드는 토큰 값만 바뀐다(OS 설정을 따르고, theme.js 버튼으로 바꾸면 그 선택이 이김)
+   - 부품: .ui-btn(.secondary/.ghost/.danger) · .ui-card · .ui-input · .ui-chip · .ui-badge(.ok/.warn/.err) · .ui-list · .ui-title/.ui-sub
+   - 글꼴: Pretendard(인터넷이 없으면 맑은 고딕 등 시스템 글꼴) */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+:root {
+  --ui-bg: #f2f4f6;          /* 화면 바탕 */
+  --ui-surface: #ffffff;     /* 카드·머리말 */
+  --ui-surface-2: #f9fafb;   /* 카드 안 칸 */
+  --ui-fill: #f2f4f6;        /* 입력칸·보조 버튼 바탕 */
+  --ui-fill-hover: #e8ebed;
+  --ui-text: #191f28;
+  --ui-text-2: #4e5968;
+  --ui-text-3: #8b95a1;
+  --ui-line: #e5e8eb;
+  --ui-primary: #3182f6;
+  --ui-primary-hover: #1b64da;
+  --ui-primary-soft: #e8f3ff;
+  --ui-on-primary: #ffffff;
+  --ui-ok: #03b26c;
+  --ui-ok-soft: #e5f8ef;
+  --ui-warn: #e58a00;
+  --ui-warn-soft: #fff4e0;
+  --ui-err: #f04452;
+  --ui-err-soft: #ffeeee;
+  --ui-shadow: 0 2px 8px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .04);
+  --ui-radius: 16px;
+  --ui-radius-lg: 24px;
+  --ui-radius-sm: 10px;
+  --ui-font: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --ui-mono: "SF Mono", Consolas, "D2Coding", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ui-bg: #101013; --ui-surface: #1c1c21; --ui-surface-2: #24242b; --ui-fill: #2a2a32; --ui-fill-hover: #33333c;
+    --ui-text: #f2f3f5; --ui-text-2: #b0b4bc; --ui-text-3: #7e838c; --ui-line: #2e2e36;
+    --ui-primary: #4593fc; --ui-primary-hover: #6aa8fd; --ui-primary-soft: #1b2a40; --ui-on-primary: #ffffff;
+    --ui-ok: #20c47f; --ui-ok-soft: #12302a; --ui-warn: #f0a33a; --ui-warn-soft: #362a14; --ui-err: #ff5f6d; --ui-err-soft: #3a1c20;
+    --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ui-bg: #101013; --ui-surface: #1c1c21; --ui-surface-2: #24242b; --ui-fill: #2a2a32; --ui-fill-hover: #33333c;
+  --ui-text: #f2f3f5; --ui-text-2: #b0b4bc; --ui-text-3: #7e838c; --ui-line: #2e2e36;
+  --ui-primary: #4593fc; --ui-primary-hover: #6aa8fd; --ui-primary-soft: #1b2a40; --ui-on-primary: #ffffff;
+  --ui-ok: #20c47f; --ui-ok-soft: #12302a; --ui-warn: #f0a33a; --ui-warn-soft: #362a14; --ui-err: #ff5f6d; --ui-err-soft: #3a1c20;
+  --ui-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--ui-bg); color: var(--ui-text); font-family: var(--ui-font); letter-spacing: -0.01em;
+       -webkit-font-smoothing: antialiased; transition: background-color .2s, color .2s; }
+
+/* 글자 */
+.ui-title { font-size: 26px; font-weight: 700; line-height: 1.35; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.ui-sub { font-size: 16px; color: var(--ui-text-2); line-height: 1.55; margin: 6px 0 0; }
+.ui-caption { font-size: 13px; color: var(--ui-text-3); }
+
+/* 카드 */
+.ui-card { background: var(--ui-surface); border-radius: var(--ui-radius-lg); padding: 24px; box-shadow: var(--ui-shadow); }
+
+/* 버튼 */
+.ui-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 52px; padding: 0 20px;
+          border: 0; border-radius: var(--ui-radius); background: var(--ui-primary); color: var(--ui-on-primary);
+          font: 600 16px/1 var(--ui-font); cursor: pointer; transition: background-color .15s, transform .08s; }
+.ui-btn:hover { background: var(--ui-primary-hover); }
+.ui-btn:active { transform: scale(.98); }
+.ui-btn:disabled { background: var(--ui-fill); color: var(--ui-text-3); cursor: not-allowed; transform: none; }
+.ui-btn.secondary { background: var(--ui-primary-soft); color: var(--ui-primary); }
+.ui-btn.ghost { background: var(--ui-fill); color: var(--ui-text); }
+.ui-btn.ghost:hover { background: var(--ui-fill-hover); }
+.ui-btn.danger { background: var(--ui-err); color: #fff; }
+.ui-btn.danger:hover { background: var(--ui-err); filter: brightness(1.07); }   /* 정지 버튼이 마우스를 올리면 파랗게 바뀌지 않게 */
+.ui-btn.block { width: 100%; }
+
+/* 입력칸 */
+.ui-input { width: 100%; min-height: 52px; padding: 0 16px; border: 1.5px solid transparent; border-radius: var(--ui-radius);
+            background: var(--ui-fill); color: var(--ui-text); font: 500 16px var(--ui-font); outline: none; transition: border-color .15s, background-color .15s; }
+.ui-input::placeholder { color: var(--ui-text-3); }
+.ui-input:focus { border-color: var(--ui-primary); background: var(--ui-surface); }
+
+/* 칩·배지 */
+.ui-chip { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 0;
+           background: var(--ui-fill); color: var(--ui-text); font: 600 15px var(--ui-font); cursor: pointer; }
+.ui-chip[aria-pressed="true"], .ui-chip.on { background: var(--ui-primary); color: var(--ui-on-primary); }
+.ui-badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700;
+            background: var(--ui-fill); color: var(--ui-text-2); }
+.ui-badge.ok { background: var(--ui-ok-soft); color: var(--ui-ok); }
+.ui-badge.warn { background: var(--ui-warn-soft); color: var(--ui-warn); }
+.ui-badge.err { background: var(--ui-err-soft); color: var(--ui-err); }
+
+/* 목록 */
+.ui-list { list-style: none; margin: 0; padding: 0; }
+.ui-list > li { display: flex; align-items: center; gap: 12px; padding: 16px 4px; border-bottom: 1px solid var(--ui-line); }
+.ui-list > li:last-child { border-bottom: 0; }
+
+/* 초점 표시(키보드) */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid var(--ui-primary); outline-offset: 2px; }
+
+/* 라이트·다크 전환 버튼(theme.js 가 붙임). 화면에 [data-theme-slot] 이 있으면 그 안에, 없으면 왼쪽 아래에 뜬다 */
+.ui-theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0;
+                   border: 0; border-radius: 999px; background: var(--ui-fill); color: var(--ui-text); cursor: pointer; font-size: 18px; line-height: 1; }
+.ui-theme-toggle:hover { background: var(--ui-fill-hover); }
+[data-theme-slot] .ui-theme-toggle { background: var(--ui-surface); box-shadow: var(--ui-shadow); }   /* 회색 바탕 머리말에서도 보이게 */
+.ui-theme-toggle.floating { position: fixed; z-index: 2147483000; left: max(16px, env(safe-area-inset-left, 0px));
+                            bottom: max(16px, env(safe-area-inset-bottom, 0px)); box-shadow: var(--ui-shadow); background: var(--ui-surface); }
+.ui-theme-toggle svg { width: 20px; height: 20px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: .01ms !important; } }

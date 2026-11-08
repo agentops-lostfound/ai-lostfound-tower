@@ -287,7 +287,7 @@ class ApiRoutesTest(unittest.TestCase):
                                          "/api/admin/returns/{case_id}/verify", "/api/admin/returns/{case_id}/restock",
                                          "/api/admin/storage/arrivals/{item_id}/place")]   # 11/6 교차 검증   # 11/5 /api/ 주소 체계
         self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/metrics"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
-                                     ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"),
+                                     ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"), ("GET", "/ui/{name}"),
                                      ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
                                      ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold"),
