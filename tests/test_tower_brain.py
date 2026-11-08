@@ -98,6 +98,16 @@ class TowerBrainTest(unittest.TestCase):
         run(recheck_backend(second=False), b2)
         self.assertEqual(b2.last["asked"][0], "matching_agent")
 
+    def test_reason_repeating_instructions_is_replaced(self):
+        """11/8 집 PC 실측: Mi:dm 이 이유에 지시문을 되풀이 → 직원이 읽을 정해진 문장으로"""
+        measured = "아직 보관 칸 기록과 위치가 맞는 후보를 확인하지 않았으므로 다음에 부를 것을 저장합니다."
+        b = brain(model_answers=[{"next": "storage_agent", "reason": measured}, {"next": "vision_agent", "reason": "가려졌을 수 있어 다시 촬영"}])
+        _, talk = run(recheck_backend(), b)
+        bodies = " ".join(m["body"] for m in talk)
+        self.assertNotIn("저장합니다", bodies)
+        self.assertIn("보관 칸 기록으로 후보를 좁히려고", bodies)
+        self.assertIn("가려졌을 수 있어 다시 촬영", bodies)          # 자연스러운 이유는 그대로
+
     def test_brain_cannot_force_robot_when_recheck_still_uncertain(self):
         be = recheck_backend(second=False)
         out, _ = run(be, brain(model_answers=[{"next": "vision_agent", "reason": "x"}, {"next": "finish", "reason": "y"}]))
