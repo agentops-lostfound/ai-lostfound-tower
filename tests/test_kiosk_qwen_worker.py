@@ -149,5 +149,25 @@ class SimKioskFlowTest(unittest.TestCase):
         self.assertIn("초기화", self.story(iid)["result"]["text"])
 
 
+class AnalyzerImportTest(unittest.TestCase):
+    def test_qwen_config_not_hidden_by_vision_config(self):
+        """11/8 집 PC: vision/config.py 가 qwen/config 를 가려 작업자가 켜지지 않던 것(모델은 올리지 않고 가져오기만 확인)"""
+        import importlib
+        from tools import intake_qwen_worker as w
+        saved_path, saved_mods = list(sys.path), {k: sys.modules[k] for k in ("config", "config.settings") if k in sys.modules}
+        try:
+            sys.path.insert(0, str(w.ROOT / "vision"))           # 예전 순서처럼 vision 이 앞에 있어도
+            for k in ("config", "config.settings"):
+                sys.modules.pop(k, None)
+            analyze = w.qwen_analyzer(512)
+            self.assertTrue(callable(analyze))
+            self.assertTrue(importlib.import_module("config.settings").Settings().model_id.startswith("Qwen/"))
+        finally:
+            sys.path[:] = saved_path
+            for k in ("config", "config.settings"):
+                sys.modules.pop(k, None)
+            sys.modules.update(saved_mods)
+
+
 if __name__ == "__main__":
     unittest.main()
