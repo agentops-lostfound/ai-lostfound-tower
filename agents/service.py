@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import os
 import re
 import threading
 from dataclasses import fields
@@ -50,11 +51,16 @@ class GuardedBackend:
         from agents.gpu_lease import GpuBusy
         try:
             self._lease = self._lease_factory(user).acquire()
-            return True, ""
         except GpuBusy as e:
             return False, str(e)
         except Exception as e:                  # 잠금 파일 오류 등 → 안전하게 못 받은 것으로
             return False, f"GPU 사용권 확인 실패({type(e).__name__})"
+        # 11/8 6GB 안전: 사용권을 받으면 Ollama(Mi:dm 챗봇·메인 AI)를 그래픽카드에서 내린다 — 사용권 동안 Ollama 는 CPU 로 답함
+        # (agents/local_model.py). 꺼짐: .env TOWER_OLLAMA_UNLOAD=0
+        if str(os.environ.get("TOWER_OLLAMA_UNLOAD") or "1").strip().lower() not in ("0", "false", "no", "off"):
+            from agents.local_model import unload_local_models
+            unload_local_models()
+        return True, ""
 
     def gpu_release(self) -> None:
         if self._lease is not None:
