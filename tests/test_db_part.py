@@ -231,6 +231,9 @@ class RealPostgresTest(unittest.TestCase):
         out = svc.start_return({"case_id": case, "item_id": "A-W03", **{g: True for g in GATE_FIELDS}})
         self.assertEqual(out["decision"], "returned")
         self.assertTrue(rec.has(case))
+        # 11/4 부터 로봇 전달 뒤에는 '인계 대기' → 직원이 건넴을 확인해야 '인계 완료'(실제 DB 시험만 옛 흐름을 기대하고 있었음, 11/9)
+        self.assertEqual(part.db_get_item("A-W03")["status"], "인계 대기")
+        self.assertEqual(svc.handover(case, {"staff_confirmed": True})["status"], "인계 완료")
         self.assertEqual(part.db_get_item("A-W03")["status"], "인계 완료")
         self.assertTrue(part.db_set_status("A-W03", "본센터 보관")["ok"])   # 다음 시험을 위해 되돌림
 
