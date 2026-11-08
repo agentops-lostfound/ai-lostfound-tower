@@ -57,7 +57,7 @@ def apply_change(config: dict, tool: str, value) -> dict:
     spec = TOOLS[tool]
     if "range" in spec:
         lo, hi = spec["range"]
-        if not isinstance(value, (int, float)) or not lo <= value <= hi:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not lo <= value <= hi:   # False·True 는 숫자로 안 봄
             raise ValueError(f"{tool}: {value!r} 는 {lo}~{hi} 범위 밖")
     elif value not in spec["choices"]:
         raise ValueError(f"{tool}: {value!r} 는 등록된 값({spec['choices']})이 아님")
@@ -181,14 +181,27 @@ def run_round(st: LoopState, truths, runner, proposer, p95_limit, eval_complete,
         return log
     best = None
     for pr in proposals:
-        cand_cfg = apply_change(st.config, pr["tool"], pr["value"])
-        if len(changed_keys(st.config, cand_cfg)) != 1:   # python -O 에서도 꺼지지 않게 assert 대신 직접 검사
-            raise ValueError("개선안은 바꾸는 것 하나만")
+        # 11/8 에이전트 무작위 시험: 같은 값·없는 도구·value 없는 제안 하나에 회차 전체가 ValueError·KeyError 로 멈췄다
+        # → 그 제안만 '거절(형식 오류)'로 기록하고 다음 제안으로
+        try:
+            if not isinstance(pr, dict):
+                raise ValueError("제안 형식 아님")
+            cand_cfg = apply_change(st.config, pr["tool"], pr["value"])
+            if len(changed_keys(st.config, cand_cfg)) != 1:   # python -O 에서도 꺼지지 않게 assert 대신 직접 검사
+                raise ValueError("개선안은 바꾸는 것 하나만")
+        except (KeyError, TypeError, ValueError) as e:
+            log["proposals"].append({"proposal": repr(pr)[:120], "rejected": f"형식 오류({type(e).__name__}: {str(e)[:60]})"})
+            continue
         st.tried.add((pr["tool"], pr["value"]))
         r = evaluate(runner, cand_cfg, truths, "개선용")
         log["proposals"].append({**pr, "improve_score": r["score"]})
         if best is None or r["score"] > best[1]["score"]:
             best = (cand_cfg, r, pr)
+    if best is None:
+        log["result"] = "쓸 수 있는 개선안 없음(모두 형식 오류)"
+        st.history.append(log)
+        st.stop_reason = "개선안이 모두 형식 오류"
+        return log
     cand_cfg, _, pr = best
     base_val = evaluate(runner, st.config, truths, "검증용")
     cand_val = evaluate(runner, cand_cfg, truths, "검증용")

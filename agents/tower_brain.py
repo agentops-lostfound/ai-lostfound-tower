@@ -19,6 +19,7 @@
 """
 from __future__ import annotations
 
+import re
 import json
 import os
 import time
@@ -59,9 +60,30 @@ GOAL_OTHER = {"matching_agent": ("칸", "보관", "찍", "촬영"), "storage_age
 META_WORDS = ("다음에 부를", "저장합니다", "에이전트를 부르", "에이전트 중", "finish", "JSON", "findings", "지시", "고른다", "고릅니다")
 
 
+RESHOT_NEAR_MM = 40      # 다시 찍은 1위가 처음 1·2위 후보 자리에서 이만큼 안에 있어야 같은 물건으로 봄(추정값, 칸 간격보다 작게)
+
+
+def _reshot_doubt(s: dict, dets: list, m2: dict) -> str:
+    """다시 찍은 매칭을 믿으면 안 되는 이유(없으면 ""): ① 처음보다 물건이 줄었음(가려짐) ② 1위 자리가 처음 후보 자리가 아님"""
+    first = s.get("detections") or []
+    if len(dets) < len(first):
+        return f"처음 {len(first)}개 → 다시 {len(dets)}개, 가려진 물건이 있음"
+    rank = [i for i in (s.get("match") or {}).get("ranking") or [] if isinstance(i, int) and 0 <= i < len(first)][:2]
+    spots = [first[i].get("center_mm") for i in rank]
+    p = dets[m2["index"]].get("center_mm")
+    ok = [q for q in spots if isinstance(q, (list, tuple)) and len(q) >= 2]
+    if ok and isinstance(p, (list, tuple)) and len(p) >= 2:
+        near = min(((float(p[0]) - float(q[0])) ** 2 + (float(p[1]) - float(q[1])) ** 2) ** 0.5 for q in ok)
+        if near > RESHOT_NEAR_MM:
+            return f"고른 물건이 처음 후보 자리에서 {near:.0f}mm 떨어짐"
+    return ""
+
+
 def clean_reason(pick: str, reason: str) -> str:
     """직원이 읽을 이유 한 문장: 첫 문장만, 40자 안, 지시문을 되풀이한 말이면 정해진 문장"""
     text = " ".join(str(reason or "").split())
+    if re.search(r"<|>|https?://|www\.|@|`|\d{3,}", text):   # 11/8 무작위 시험: "<script>… 칸 기록"·URL 이 관제 채널에 그대로 나감
+        return DEFAULT_REASON.get(pick, "")
     for mark in (". ", "。", "다. ", "요. "):
         if mark in text:
             text = text.split(mark)[0] + mark.strip()
@@ -244,6 +266,9 @@ class TowerBrain:
                 from agents.supervisor import lookalike
                 twin = lookalike(self._ctx, dets[m2["index"]]["features"])
                 out["resolved"] = not twin
+                why = _reshot_doubt(s, dets, m2)
+                if why:                       # 11/8 에이전트 무작위 시험: 다시 찍을 때 진짜가 가려지면 옆의 닮은 물건이 '확실'이 됐다
+                    out["resolved"], out["doubt"] = False, why
             out.update({"status": (m2 or {}).get("status"), "score": (m2 or {}).get("score"),
                         "margin": (m2 or {}).get("margin"), "count": len(dets), "lookalike": twin})
             if out["resolved"]:
@@ -252,7 +277,8 @@ class TowerBrain:
             elif m2 is None:
                 msg = "다시 찍었지만 물건을 찾지 못했어요" + (f"({out['error']})" if out.get("error") else "")
             else:
-                msg = f"다시 찍어도 그대로예요(매칭 {m2.get('status')}, 차이 {m2.get('margin')})" + (" / 닮은 물건 여전히 있음" if twin else "")
+                msg = (f"다시 찍은 결과를 믿기 어려워요({out['doubt']})" if out.get("doubt") else
+                       f"다시 찍어도 그대로예요(매칭 {m2.get('status')}, 차이 {m2.get('margin')})" + (" / 닮은 물건 여전히 있음" if twin else ""))
             self._say(AGENT_KO["vision_agent"], msg)
             obs.update(output={k: v for k, v in out.items() if not k.startswith("_")})
             return self._found(s, "vision_agent", out)

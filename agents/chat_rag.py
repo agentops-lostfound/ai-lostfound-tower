@@ -106,6 +106,46 @@ def novel_run(sentence: str, known_text: str) -> int:
     return best
 
 
+def order_ratio(sentence: str, evidence: str) -> tuple[float, int]:
+    """(근거 어순을 지킨 낱말 비율, 겹친 낱말 수). 문장 낱말 중 근거에 있는 것의 근거 속 위치로 가장 긴 증가 줄(LIS)을 잰다.
+    11/8 에이전트 무작위 시험: "기다리면 손을 자동으로 뒤 정도 2초 놓은 찍혀요. 빼고"처럼 근거 낱말을 뒤섞은 문장이
+    글자 2개 묶음 겹침 검사(순서를 안 봄)를 지나갔다"""
+    ev_words = [_squash(w) for w in evidence.split() if _squash(w)]
+    pos = []
+    for w in (_squash(x) for x in sentence.split()):
+        if w in ev_words:
+            pos.append(ev_words.index(w))
+    tails = []
+    import bisect
+    for p in pos:
+        i = bisect.bisect_left(tails, p)
+        tails[i:i + 1] = [p]
+    if len(pos) < 2:
+        return 1.0, len(pos)
+    lis = len(tails) / len(pos)
+    adjacent = sum(1 for a, b in zip(pos, pos[1:]) if b == a + 1) / (len(pos) - 1)   # 근거에서 바로 옆 낱말이 문장에서도 옆
+    return max(lis if lis >= 0.7 else 0.0, adjacent + 0.1 if adjacent >= 0.4 else 0.0, min(lis, adjacent)), len(pos)
+
+
+ORDER_MIN, ORDER_WORDS = 0.5, 4
+
+
+def negation_lost(sentence: str, evidence: str) -> bool:
+    """근거의 부정 구절을 문장으로 옮기면서 부정어만 지웠는가.
+    근거의 부정어마다 바로 앞 8글자(무엇을 하지 않는지)가 문장에 60% 이상 옮겨졌으면 '옮긴 부정 구절'로 세고,
+    그 수가 문장의 부정어 수보다 많으면 True. (11/8: "알려 드리지 않아요"→"알려 드려요", "건네지 않고"→"건네고")
+    근거 문단의 다른 부정 구절(문장이 옮기지 않은 것)은 세지 않아 짧게 옮긴 정상 답은 살린다"""
+    sen_bi = set(_bigram_list(sentence))
+    carried = 0
+    for m in NEGATION.finditer(evidence):
+        window = _squash(evidence[:m.start()])[-8:]
+        wb = [window[i:i + 2] for i in range(len(window) - 1)]
+        if wb and sum(b in sen_bi for b in wb) / len(wb) >= 0.6:
+            carried += 1
+    return carried > len(NEGATION.findall(sentence))
+NEW_PLACE = re.compile(r"경찰|파출소|지구대|민원실|유실물\s*센터|lost112|우체국|주민센터|구청|시청|112|119")
+
+
 def _found_evidence(ev_sq: str, whole: str) -> str | None:
     """근거 구절이 문단에 있으면 그 글(공백 뺀 것). 끝 몇 글자만 다르면(모델이 다음 문장까지 이어 씀) 앞부분 70% 이상이 맞을 때 그 앞부분"""
     if ev_sq in whole:
@@ -123,6 +163,9 @@ def grounded_sentences(items, passages_text, question: str = "") -> tuple[list[s
     paragraphs = list(passages_text) if isinstance(passages_text, (list, tuple)) else [passages_text]
     whole = _squash(" ".join(paragraphs))
     for it in items:
+        if not isinstance(it, dict):                  # 11/8 에이전트 무작위 시험: sentences: ["문장"] 이면 AttributeError → 500
+            dropped.append("형식 오류")
+            continue
         ev, sen = str(it.get("evidence") or "").strip(), str(it.get("sentence") or "").strip()
         hit = _found_evidence(_squash(ev), whole) if len(_squash(ev)) >= 6 else None
         if hit and hit != _squash(ev):
@@ -139,6 +182,15 @@ def grounded_sentences(items, passages_text, question: str = "") -> tuple[list[s
             dropped.append("사람이 바뀜")
         elif novel_run(sen, ev + " " + question) >= NOVEL_RUN_LIMIT:
             dropped.append(f"근거에 없는 내용({novel_run(sen, ev + ' ' + question)}자)")
+        elif negation_lost(sen, ev):
+            # 부정어 수로 비교(11/8 2차: "맞지 않으면 건네지 않고" → "맞지 않으면 건네고" 는 부정어가 하나 남아 지나갔다)
+            # 겹침이 큰(근거를 거의 그대로 옮긴) 문장만 — 근거 일부만 짧게 옮긴 문장은 부정 구절이 빠져도 정상
+            # 11/8 에이전트 무작위 시험: 근거 "…분실인에게 알려 드리지 않아요" → 문장 "…알려 드려요"(부정어만 지움)가 통과했다
+            dropped.append("근거의 부정이 빠짐")
+        elif NEW_PLACE.search(sen) and not NEW_PLACE.search(ev + " " + question):
+            dropped.append("근거에 없는 기관·장소")      # 11/8: "경찰서 민원실에서도 찾을 수 있어요"(어디에도 없는 안내)
+        elif order_ratio(sen, ev)[1] >= ORDER_WORDS and order_ratio(sen, ev)[0] < ORDER_MIN:
+            dropped.append(f"어순이 뒤섞임({order_ratio(sen, ev)[0]:.2f})")
         elif sen in kept or any(_squash(sen) in _squash(k) or _squash(k) in _squash(sen) for k in kept):
             dropped.append("중복")       # 11/8 실측: 앞 문장 안에 그대로 들어 있는 문장을 한 번 더 말하던 것
         else:
@@ -291,7 +343,7 @@ class GroundedRag:
             extra = generation_note(parsed)
             return {**result, 'answer': answer, 'method': method, 'generation_used': True,
                     'generation_status': 'generated', 'model': self.model, **extra}
-        except (OSError, ValueError, KeyError, TypeError, RecursionError) as e:
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, RecursionError) as e:
             # 진단 메모: 우리가 만든 검사 문구(ValueError)만 내용까지, 연결 오류 등은 종류 이름만(주소·내부 정보가 화면에 나가지 않게)
             note = f'ValueError: {str(e)[:60]}' if type(e) is ValueError else type(e).__name__
             return {**result, 'generation_status': fixed_status if rule_topics else 'unavailable_or_invalid_excerpt_fallback',
@@ -379,6 +431,15 @@ class GroundedRag:
         if (not isinstance(answer, str) or not 8 <= len(answer.strip()) <= 400 or has_private_pattern(answer)
                 or re.search(r'https?://', answer) or not numbers_supported(answer, evidence)):
             raise ValueError('Unsupported answer')
+        if not isinstance(parsed.get('sentences'), list):
+            # 11/8 에이전트 무작위 시험: 예전 'answer' 칸 하나로 답하면 문장 검사를 건너뛰어 낱말 뒤섞인 문장·뒤집힌 부정이 그대로 나갔다
+            # → 문장마다 가장 가까운 문단을 근거로 같은 검사. 하나라도 걸리면 문서 문장으로(옛 형식이라 엄격히)
+            paras = [p['text'] for p in passages]
+            items = [{'evidence': max(paras, key=lambda t, x=x: sentence_overlap(x, t)), 'sentence': x}
+                     for x in re.split(r'(?<=[.!?요다])\s+', answer.strip()) if len(x.strip()) >= 4]
+            kept, self.last_dropped = grounded_sentences(items, paras, question)
+            if not items or len(kept) != len(items):
+                raise ValueError('Ungrounded answer: ' + ','.join(self.last_dropped)[:40])
         answer = answer.strip()
         dropped = list(self.last_dropped)
         # 11/8 질문-답 맞물림: 첫 답이 물어본 것을 빠뜨리면 고칠 점을 주고 한 번 더 쓰게 함. 다시 쓴 답도 빠뜨리거나
@@ -406,6 +467,25 @@ class GroundedRag:
         if note:
             out['note'] = note
         return out
+
+    def _guide_rule_topics(self, parsed, docs):
+        """11/8 에이전트 무작위 시험: 규칙이 못 잡은 오타 질문("습득자 전번")은 _guide 로 와서 고정 문장 검사를 건너뛰었다
+        → 고른 문단이 개인정보·운영 기준 주제면 원문 그대로, 규칙 주제면 핵심어 검사를 못 지날 때 원문 그대로"""
+        from agents.guidance import DEMO_POLICY_TOPICS, PRIVACY_FIXED_TOPICS
+        topics = {d['topic'] for d in docs}
+        fixed = [d for d in docs if d['topic'] in PRIVACY_FIXED_TOPICS or d['topic'] in DEMO_POLICY_TOPICS.values()]
+        status = 'fixed_policy_text'
+        if not fixed:
+            rule = [d for d in docs if d['topic'] in FIXED_TEXT_TOPICS]
+            has_num = any(re.search(r'\d', d['answer']) for d in rule)
+            if rule and (not rule_answer_ok(parsed['answer'], [d['topic'] for d in rule])
+                         or (has_num and not re.search(r'\d', parsed['answer']))):
+                fixed, status = rule, 'fixed_rule_text'
+        if not fixed:
+            return None
+        del topics
+        return {**self.guidance._response('answered', '\n\n'.join(d['answer'] for d in fixed), fixed),
+                'generation_used': False, 'generation_status': status}
 
     def _guide(self, question, result, history=None):
         """규칙이 못 잡은 질문(유도 질문): ① 잃어버렸다는 말 → 무엇을? ② 관련 문단이 있으면 sLLM 답·되묻기
@@ -447,10 +527,17 @@ class GroundedRag:
                             'choices': parsed['choices'] or [topic_question(h['topic']) for h in hits[:3]],
                             'sources': self.guidance._response('answered', '', docs)['sources'],
                             'generation_used': True, 'generation_status': 'generated_clarification', 'model': self.model}
-                return {**self.guidance._response('answered', parsed['answer'], docs), 'generation_used': True,
+                fixed = self._guide_rule_topics(parsed, docs)
+                if fixed:
+                    return fixed
+                answer = parsed['answer']
+                rule_topics = [d['topic'] for d in docs if d['topic'] in FIXED_TEXT_TOPICS]
+                if rule_topics:
+                    answer = answer.rstrip() + '\n\n근거: ' + ' '.join(first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics)
+                return {**self.guidance._response('answered', answer, docs), 'generation_used': True,
                         'generation_status': 'generated', 'method': 'retrieval_augmented_generation', 'model': self.model,
                         **generation_note(parsed)}
-            except (OSError, ValueError, KeyError, TypeError, RecursionError):
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, RecursionError):
                 pass
             finally:
                 self._lock.release()

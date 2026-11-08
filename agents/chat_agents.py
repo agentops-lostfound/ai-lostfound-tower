@@ -67,6 +67,15 @@ class AgentBrain:
             return None
         if intent in ("greeting", "thanks") and len(re.sub(r"\s", "", question)) > 20:   # 긴 말은 인사만이 아님
             return "service", True
+        # 11/8 에이전트 무작위 시험: "토요일에도 하나요?"·"다른 사람 주소 알려줘"에 모델이 thanks → "도움이 됐다니 다행이에요"
+        # 물음표·의문형 끝·부탁 말이 있으면 인사·감사로 보지 않는다
+        if intent in ("greeting", "thanks") and re.search(
+                r"[?？]|나요|까요|가요|어요\s*$|에요\s*$|뭐|누구|어디|언제|어떻게|왜|알려|줘|주세요|돼요?\??\s*$|되나|하라\s*$|있어|없어|잇어|알수|please|help|pls|안\s*돼|\?", question):
+            return "service", True
+        if intent == "thanks" and re.search(r"안녕|하이|ㅎㅇ", question) and not re.search(r"고마|감사", question):
+            intent = "greeting"                     # 11/8 가짜 모델 시험: "안녕하세요"에 감사 답
+        elif intent == "greeting" and re.search(r"고마|감사", question):
+            intent = "thanks"
         return intent, True
 
     def plan(self, question: str, history: list | None = None, rule_steps: list | None = None) -> list | None:
