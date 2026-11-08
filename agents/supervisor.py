@@ -119,6 +119,17 @@ def _set_status(c: Ctx, status: str) -> bool:
     return ok
 
 
+def safe_note(note) -> str:
+    """검토 모델 메모를 직원 알림에 넣기 전에 거른다(11/8 에이전트 무작위 시험: "@everyone 010-…" 메모가 알림 본문에 그대로 들어감).
+    개인정보·멘션·주소가 있으면 정해진 문장, 아니면 60자까지"""
+    import re
+    from agents.claims import has_pii
+    text = " ".join(str(note or "").split())
+    if not text or has_pii(text) or re.search(r"@|https?://|<|>|`", text):
+        return "모델 메모 생략(형식)"
+    return text[:60]
+
+
 # 각 단계는 끝났으면 True, 다음 단계로 가면 False 를 돌려준다
 def web_gate(c: Ctx) -> bool:
     """1. 웹 단계: 코드로 강제하는 관문 → 메인 AI 승인"""
@@ -135,7 +146,7 @@ def web_gate(c: Ctx) -> bool:
     if c.reviewer is not None:
         verdict, note = c.reviewer({"case": req.case_id, "item_id": req.item_id, "status": c.item.get("status")})
         if verdict != "ok":
-            return c.finish(DECISION_STAFF, f"메인 AI 검토 보류: {note}", alert=True)
+            return c.finish(DECISION_STAFF, f"메인 AI 검토 보류: {safe_note(note)}", alert=True)
     if not _set_status(c, "승인·수령 예약"):
         return c.finish(DECISION_STAFF, "상태 기록 실패 — 승인 보류", alert=True)
     c.out.approved = True

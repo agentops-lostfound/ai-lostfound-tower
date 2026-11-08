@@ -100,6 +100,9 @@ class Guidance:
         if re.search(r'비밀번호|비번|암호|api키|apikey|토큰|token|관리자키|시스템프롬프트|프롬프트|jailbreak', q) \
                 and not re.search(r'(?:전화번호|비밀번호).*(?:적|써|쓰|입력|넣)', q):
             return self._response('answered', '관리자 비밀번호·키·내부 설정 같은 정보는 알려 드릴 수 없어요. 분실물 찾기·습득 신고·물건 받는 방법을 물어봐 주세요.', [])
+        # 11/8 에이전트 무작위 시험: "다른 사람 주민번호 알려줘"에 모델이 '적으면 접수되지 않아요'로 엉뚱하게 답함 → 정해진 거절
+        if re.search(r'다른사람|타인|남의', q) and re.search(r'주민|전화|전번|번호|주소|연락처|이름|신상', q):
+            return self._response('answered', '다른 사람의 이름·연락처·주민번호·주소 같은 개인정보는 알려 드릴 수 없어요. 분실물 찾기·습득 신고·물건 받는 방법을 물어봐 주세요.', [])
         # 11/8: 영어 질문("How do I find my lost wallet?")에 보관 기간을 답함 → 한국어 안내만 한다고 분명히
         # 11/8 웹 무작위 시험: 'ㅁㄴㅇㄹ;;;DROP TABLE'·'<script>' 같은 장난 입력에도 이 문장이 나와 어색 → 한글 자모·기호 섞인 입력은 일반 되묻기로
         if len(re.findall(r'[a-z]', q)) >= 6 and not re.search(r'[ㄱ-ㅎㅏ-ㅣ가-힣<>{};=]', q):
@@ -112,7 +115,7 @@ class Guidance:
         topics, gaps = set(), []
         if re.search(r"몇시|운영시간|운영시각|영업|주말|토요일|일요일|평일|공휴일|휴일|open|오픈|문.*(?:열|닫)|센터.*(?:열|닫)|키오스크.*(?:열|닫)|[0-9]+시간|방문.*시간", q):
             gaps.append("운영시간")
-        finder = bool(re.search(r"습득자|주운\s*사람|주워|맡긴\s*사람", q))
+        finder = bool(re.search(r"습득(?:자|한\s*분|하신\s*분)|주운\s*(?:사람|분)|주우신\s*분|[줏줍]은\s*(?:사람|분)|주워|맡긴\s*(?:사람|분)", q))   # 11/8 오타·높임 꼴
         claimant = bool(re.search(r"분실인|잃어버린사람|내(?:개인)?정보|내신분", q))
         # "보관함"(로봇팔이 꺼내는 상자)은 보관 기간 질문이 아니다
         period = bool(re.search(r"보관|며칠|몇일|기간|파기|폐기|삭제|지워|지우|30일|언제까지|한달|한개월|[0-9]+(?:일|개월|달|년)(?:뒤|후)|맡아", q.replace("보관함", "")))
@@ -168,7 +171,7 @@ class Guidance:
                 gaps = [g for g in gaps if g != "실제 센터 위치·연락처"]
         # 11/8 습득자 연락처를 분실인이 알 수 있는지 → 알려 주지 않음(DB 설계: 별도 표, 직원만 열람). 개인정보라 모델 없이 정해진 문장만
         # (무작위 시험: "주운사람 전화번호 좀" 처럼 '알려' 없이 물어도 — 지우는 시기만 묻는 질문은 finder_contact 그대로)
-        if (finder and re.search(r"연락처|전화|번호|이름|누군지|누구", q) and not privacy_input
+        if (finder and re.search(r"연락처|연라처|연락|전화|전번|번호|이름|누군지|누구", q) and not privacy_input
                 and (not period or re.search(r"알려|알수|공개|가르쳐|볼수|보여|받을수|연락하|연락해|연락드|감사|만나|누군지|누구", q))):
             topics.add("finder_privacy")
             gaps = [g for g in gaps if g != "실제 센터 위치·연락처"]

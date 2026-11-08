@@ -1,7 +1,10 @@
 """Repeatable, authored guidance question regression set; not independent accuracy."""
 import json
+import sys
 from pathlib import Path
-from agents.guidance import Guidance
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # python evaluation/evaluate_guidance.py 로도 실행되게(11/8)
+from agents.guidance import Guidance  # noqa: E402
 
 
 DEMO_POLICY = {"hours", "retention", "proxy_pickup", "delivery", "fee", "id_document", "reservation_change",

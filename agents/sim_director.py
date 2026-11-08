@@ -161,6 +161,8 @@ class SimDirector:
         self.board.stage("collect", "done")
         if not w.move(item_id, LOC_BIN):
             self.rep.alert(item_id, "보관함 칸이 꽉 참 — 직원이 자리 정리", "")
+            # 11/8 무작위 시험: '회수 중'으로 남아 분실 후보로 계속 뽑히고 120초 뒤 "보관함에 없음"으로 끝났다 → 후보에서 빠지는 상태로
+            w.db_set_status(item_id, "반환 보류", changed_by="staff")   # 계약 상태 중 후보에서 빠지고 직원이 정리하는 것
             self.board.finish(sid, "보관함 칸 부족", False)
             return
         w.db_set_status(item_id, "본센터 보관", changed_by="staff")
@@ -380,7 +382,13 @@ class SimDirector:
                        "quiz": quiz, "visit_date": date.today().isoformat()}
             if station:
                 payload["lost_station"] = station
-            claim = self.svc.create_claim(payload)                                         # 진짜 분실인 웹과 같은 입구
+            try:
+                claim = self.svc.create_claim(payload)                                     # 진짜 분실인 웹과 같은 입구
+            except Exception as e:
+                # 11/8 무작위 시험: 이미 찾기 요청이 있는 물건(Conflict)이면 이야기가 'claim 진행 중'으로 영원히 남았다
+                self.board.stage("claim", "fail", f"{pick} · {getattr(e, 'kind', type(e).__name__)}")
+                self.board.finish(sid, f"찾기 요청 안 됨 — {e}", False)
+                raise RequestError(str(e) or "찾기 요청을 만들지 못했어요") from e
             cid = claim["claim_id"]
             self.board.set_ids(sid, claim_id=cid, item_id=pick)
             names = ", ".join(q["field"] for q in quiz)
@@ -439,7 +447,8 @@ class SimDirector:
                     self.board.finish(sid, f"{ko}({out['decision']}) — {out['reason']}", False)
                     return
                 if not self.auto_handover or "manual_handover" in tags:
-                    self.board.stage("handover", "active", "직원 화면에서 '분실인에게 건넴'")
+                    # 11/8 무작위 시험: 'active' 로 두면 finish 가 'done' 으로 바꿔 직원 확인 전인데 인계 완료로 보였다
+                    self.board.stage("handover", "todo", "직원 화면에서 '분실인에게 건넴'")
                     self.board.finish(sid, f"제출보관함 전달 완료 — 직원 화면 /staff 에서 교차 검증({out['case_id']})", True)
                     return
                 w.sleep(3.0)

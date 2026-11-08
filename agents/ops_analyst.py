@@ -183,9 +183,11 @@ def template_report(f: dict, question: str) -> str:
 
 
 def numbers_ok(text: str, facts: dict) -> bool:
-    """보고서 속 숫자가 모두 계산 결과(facts)에 있는지. 1~9 같은 목록 번호는 허용."""
-    allowed = set(re.findall(r"\d+(?:\.\d+)?", json.dumps(facts, ensure_ascii=False))) | {str(i) for i in range(10)}
-    return all(n in allowed for n in re.findall(r"\d+(?:\.\d+)?", text))
+    """보고서 속 숫자가 모두 계산 결과(facts)에 있는지. 목록 번호는 줄 첫머리 '1.'·'1)' 꼴만 허용.
+    11/8 에이전트 무작위 시험: 0~9 를 어디서나 허용해 "반환 실패 0건, 성공 9건"(facts 는 5·12)이 통과했다"""
+    allowed = set(re.findall(r"\d+(?:\.\d+)?", json.dumps(facts, ensure_ascii=False)))
+    body = re.sub(r"(?m)^\s*(?:[-*]\s*)?\d{1,2}[.)]\s", "", text)
+    return all(n in allowed for n in re.findall(r"\d+(?:\.\d+)?", body))
 
 
 class OpsState(TypedDict, total=False):

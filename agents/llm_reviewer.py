@@ -83,11 +83,13 @@ class OllamaReviewer:
         t = time.perf_counter()
         try:
             data = json.loads(self._ask(summary))
+            if not isinstance(data, dict):          # 11/8 에이전트 무작위 시험: ["ok"]·"ok"·null 이면 AttributeError 로 반환 흐름이 끊겼다
+                raise ValueError("JSON 객체 아님")
             verdict = data.get("verdict")
             if verdict not in ("ok", "hold"):
                 raise ValueError("verdict 형식 오류")
             return verdict, str(data.get("note", ""))[:200]
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, json.JSONDecodeError) as e:
+        except Exception as e:                      # 어떤 실패든 '보류'(on_error) — 로봇은 안 움직이고 직원 알림
             return self.on_error, f"LLM 검토 실패({type(e).__name__})"
         finally:
             self.durations.append(round(time.perf_counter() - t, 2))
