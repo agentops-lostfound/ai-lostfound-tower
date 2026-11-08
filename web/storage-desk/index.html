@@ -7,55 +7,76 @@
 <!-- 본센터 보관 화면(11/6, LF-8) — 관제탑이 /storage-desk 로 열고 관리자 화면 '보관함' 탭에 들어간다.
      흐름: 회수해 온 물건(도착 대기) 고르기 → 추천 칸 확인(또는 다른 칸 고르기) → 실제로 넣은 뒤 "넣었음" → 본센터 보관 + 칸 기록
      개인정보: 물건 번호·품목·공개 특징·등록 사진만. 연락처·비공개 특징은 보이지 않음 -->
+<link rel="stylesheet" href="/ui/theme.css">
+<script src="/ui/theme.js"></script>
 <style>
-  :root { --bg:#f5f6f4; --panel:#fff; --fg:#1d2420; --muted:#5d6a63; --line:#d9ded9; --accent:#1f6f50; --accent-fg:#fff;
-          --ok:#1f7a46; --bad:#b3261e; --warn:#8a5a00; --chip:#eef2ef; --slot:#e3f1e8; --pick:#ffe9a8; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121614; --panel:#1b201d; --fg:#e6ebe7; --muted:#9aa69f;
-          --line:#2e3631; --accent:#5cc095; --accent-fg:#0f1411; --ok:#6fd39a; --bad:#ff8a80; --warn:#e2b04a; --chip:#232a26;
-          --slot:#1f3a2b; --pick:#5a4a12; color-scheme: dark; } }
+  /* 11/8 디자인 개편: 자체 다크 규칙을 없애고 공통 토큰(--ui-*)을 쓴다 — 라이트·다크는 공통 토큰과 전환 버튼(data-theme)을 따라 바뀜 */
+  :root { --bg:var(--ui-bg); --panel:var(--ui-surface); --fg:var(--ui-text); --muted:var(--ui-text-2); --line:var(--ui-line);
+          --accent:var(--ui-primary); --accent-fg:var(--ui-on-primary); --ok:var(--ui-ok); --bad:var(--ui-err); --warn:var(--ui-warn);
+          --chip:var(--ui-fill); --soft:var(--ui-surface-2); --slot:var(--ui-primary-soft); --pick:var(--ui-warn-soft); }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 "Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
-         padding:16px max(16px, env(safe-area-inset-left, 0px)) 32px max(16px, env(safe-area-inset-right, 0px)); }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.6 var(--ui-font);
+         padding:28px max(20px, env(safe-area-inset-left, 0px)) 48px max(20px, env(safe-area-inset-right, 0px)); }
   main { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:16px; align-items:start; }
   @media (max-width:860px) { main { grid-template-columns:1fr; } }
-  header { grid-column:1/-1; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:8px; }
-  h1 { font-size:1.3rem; margin:0; } h2 { font-size:1rem; margin:0 0 10px; }
-  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
-  .muted { color:var(--muted); font-size:.88rem; }
-  button { font:inherit; padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:var(--chip); color:var(--fg); cursor:pointer; }
-  button.primary { background:var(--accent); color:var(--accent-fg); border-color:var(--accent); font-weight:600; }
-  button:disabled { opacity:.45; cursor:not-allowed; }
-  .item { display:grid; grid-template-columns:72px minmax(0,1fr); gap:10px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; cursor:pointer; }
-  .item.on { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset; }
-  .thumb { width:72px; height:56px; border-radius:6px; background:var(--chip); object-fit:cover; display:grid; place-items:center; font-size:.75rem; color:var(--muted); }
-  .tag { display:inline-block; padding:0 6px; border-radius:6px; background:var(--chip); font-size:.8rem; margin-right:4px; }
-  .tag.warn { color:var(--warn); } .tag.ok { color:var(--ok); }
-  #arrivals h3 { font-size:.85rem; margin:10px 0 6px; }
+  header { grid-column:1/-1; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 12px; padding:0 4px 4px; }
+  h1 { font-size:24px; font-weight:700; letter-spacing:-.02em; margin:0; } h2 { font-size:18px; font-weight:700; letter-spacing:-.015em; margin:0 0 10px; }
+  #sum { font-weight:600; }
+  section { background:var(--panel); border-radius:var(--ui-radius-lg); padding:24px; min-width:0; box-shadow:var(--ui-shadow); }
+  section > p.muted { margin:0 0 14px; }
+  .muted { color:var(--muted); font-size:14px; }
+  button { font:600 15px/1.25 var(--ui-font); min-height:44px; padding:0 16px; border-radius:12px; border:0; background:var(--chip); color:var(--fg); cursor:pointer;
+           transition:background-color .15s, transform .08s, box-shadow .15s; }
+  button:hover:not(:disabled) { background:var(--ui-fill-hover); }
+  button:active:not(:disabled) { transform:scale(.98); }
+  button.primary { background:var(--accent); color:var(--accent-fg); font-weight:700; }
+  button.primary:hover:not(:disabled) { background:var(--ui-primary-hover); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .item { display:grid; grid-template-columns:72px minmax(0,1fr); gap:12px; padding:10px; border-radius:var(--ui-radius); background:var(--soft); margin-bottom:8px; cursor:pointer;
+          transition:box-shadow .15s, background-color .15s; }
+  .item:hover { background:var(--chip); }
+  .item.on { box-shadow:0 0 0 2px var(--accent) inset; background:var(--ui-primary-soft); }
+  .item b { font-family:var(--ui-mono); font-size:14px; overflow-wrap:anywhere; }
+  .item > div { min-width:0; }
+  .thumb { width:72px; height:56px; border-radius:10px; background:var(--chip); object-fit:cover; display:grid; place-items:center; font-size:.75rem; color:var(--muted); }
+  .tag { display:inline-block; padding:1px 8px; border-radius:999px; background:var(--panel); font-size:12px; font-weight:600; margin:2px 4px 2px 0; color:var(--muted); }
+  .tag.warn { color:var(--warn); background:var(--ui-warn-soft); } .tag.ok { color:var(--ok); background:var(--ui-ok-soft); }
+  #arrivals h3 { font-size:13px; font-weight:700; margin:14px 0 8px; }
+  #arrivals h3:first-child { margin-top:0; }
   .boardwrap { display:grid; grid-template-columns:minmax(0,1fr) 120px; gap:12px; align-items:center; }
-  .board { display:grid; gap:6px; padding:10px; border-radius:10px; background:var(--chip); border-left:6px solid var(--muted); }
+  .board { display:grid; gap:6px; padding:12px; border-radius:var(--ui-radius); background:var(--chip); border-left:6px solid var(--ui-text-3); }
   .row { display:grid; grid-template-columns:70px 1fr 1fr; gap:6px; align-items:stretch; }
   .row.r1 { margin-bottom:14px; }            /* 실제 판: 1행(모형폰)은 2행과 간격이 넓다 */
-  .rlabel { font-size:.8rem; color:var(--muted); align-self:center; }
-  .slot { min-height:64px; border-radius:8px; border:2px dashed var(--line); background:var(--panel); padding:6px; font-size:.82rem;
-          text-align:left; display:grid; gap:2px; }
-  .slot.full { border-style:solid; background:var(--slot); }
-  .slot.pick { border-color:var(--warn); background:var(--pick); }
+  .rlabel { font-size:12.5px; font-weight:600; color:var(--muted); align-self:center; }
+  .slot { min-height:68px; border-radius:12px; border:2px dashed var(--line); background:var(--panel); padding:8px; font-size:12.5px; font-weight:500;
+          text-align:left; display:grid; gap:2px; align-content:start; min-width:0; overflow-wrap:anywhere; }
+  .slot.full { border-style:solid; border-color:transparent; background:var(--slot); }
+  .slot.pick { border-style:solid; border-color:var(--warn); background:var(--pick); }
   .slot.rec { border-color:var(--accent); }
-  .slot b { font-size:.85rem; }
+  .slot b { font-size:13px; font-weight:700; }
+  .slot .muted { font-size:11.5px; }
   .handover { min-height:120px; }
-  .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; }
-  .msg { font-weight:600; } .msg.bad { color:var(--bad); } .msg.ok { color:var(--ok); }
-  details summary { cursor:pointer; color:var(--muted); }
-  input[type=text] { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); width:120px; }
+  .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px; }
+  #pickInfo { font-weight:600; color:var(--fg); }
+  .msg { font-weight:700; } .msg.bad { color:var(--bad); } .msg.ok { color:var(--ok); }
+  label.muted { display:inline-flex; gap:6px; align-items:center; }
+  label.muted input { accent-color:var(--accent); width:18px; height:18px; }
+  details { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+  details summary { cursor:pointer; color:var(--muted); font-weight:600; }
+  input[type=text] { font:500 14px var(--ui-mono); min-height:44px; padding:0 12px; border:1.5px solid transparent; border-radius:12px; background:var(--chip); color:var(--fg); width:120px; outline:none; }
+  input[type=text]:focus { border-color:var(--accent); background:var(--panel); }
+  .hd-right { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
   [hidden] { display:none !important; }
-  @media (max-width:600px) { .boardwrap { grid-template-columns:1fr; } .row { grid-template-columns:56px 1fr 1fr; } }   /* 11/8 휴대폰 폭: 제출보관함이 R2-2 칸을 덮던 것 */
+  @media (max-width:600px) { .boardwrap { grid-template-columns:1fr; } .row { grid-template-columns:56px 1fr 1fr; }   /* 11/8 휴대폰 폭: 제출보관함이 R2-2 칸을 덮던 것 */
+    body { padding-top:16px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+    h1 { font-size:21px; } section { padding:18px; } .board { padding:8px; } }
 </style>
 </head>
 <body>
 <main>
   <header>
     <h1>본센터 보관함 · 도착 물건 넣기</h1>
-    <span class="muted" id="sum">불러오는 중…</span>
+    <span class="hd-right"><span class="muted" id="sum">불러오는 중…</span><span data-theme-slot></span></span>
   </header>
 
   <section aria-labelledby="h-arr">
