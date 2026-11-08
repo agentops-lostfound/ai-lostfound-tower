@@ -130,6 +130,11 @@ class LiveBoard:
             if step.startswith("직원 보관 선반"):
                 for k in SHELF_SKIP:
                     self.stage(k, "skip", "직원 보관 선반 — 로봇 안 씀", sid)
+                with self._lock:            # 11/9: 선반 물건은 '제출보관함 전달'이 아니라 직원이 선반에서 가져옴 — 단계 이름도 바꿈
+                    st2 = self.stories.get(sid)
+                    for s in (st2 or {}).get("stages", []):
+                        if s["key"] == "deliver":
+                            s["label"] = "직원이 선반에서 가져옴"
             self.stage(stage, "fail" if step == "집기 실패" else "done", body, sid)
         elif st and channel == "alert":
             key = next((k for word, k in ALERT_STAGE if word in title), None) or self._active_stage(sid)

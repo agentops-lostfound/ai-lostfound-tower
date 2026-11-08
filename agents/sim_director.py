@@ -209,6 +209,26 @@ class SimDirector:
         self.board.stage("stored", "done", f"{sid_slot} 칸")
         self.board.finish(sid, f"{item_id} 보관 완료({sid_slot}) — 분실 신고가 오면 반환할 수 있음", True)
 
+    def _claimed_to_shelf(self, cid: str, item_id: str) -> None:
+        """찾는 사람이 생긴 칸 대기 물건: 등록기계 → 본센터 회수 → 직원 보관 선반(정답지도 선반으로)"""
+        w = self.world
+        with w._lock:
+            if item_id in w.wait_queue:
+                w.wait_queue.remove(item_id)
+        self.board.stage("visit", "active", "칸 대기 물건 — 찾는 분이 있어 먼저 회수해 직원 보관 선반에 둠")
+        self.rep.progress(cid, "칸 대기 물건 먼저 회수", f"물건 {item_id} · 보관함이 꽉 차 직원 보관 선반으로(직원이 건넴)")
+        w.db_set_status(item_id, "회수 중", changed_by="staff")
+        w.move(item_id, LOC_TRANSIT)
+        w.sleep(3.0)
+        try:
+            self.svc.move_to_shelf({"item_id": item_id})    # 정답지·세계 모두 선반으로(직원 보관 선반 S-n)
+        except Exception:
+            w.to_shelf(item_id)
+        w.db_set_status(item_id, "본센터 보관", changed_by="staff")
+        story = self.wait_story.pop(item_id, None)
+        if story:
+            self.board.finish(story, f"{item_id} 찾는 분이 있어 직원 보관 선반으로 회수 — 반환은 직원이 건넴", True)
+
     # ----- 11/9 칸 대기 → 칸이 비면 자동 회수 -----
     def kick_wait(self) -> None:
         """칸이 비었을 수 있음(인계 완료·칸 비우기·선반 이동) → 뒤에서 칸 대기 물건 회수를 시도"""
@@ -490,6 +510,10 @@ class SimDirector:
         with self.board.bind(sid):
             try:
                 self.board.stage("visit", "active", "물건이 보관함에 올 때까지 기다림")
+                # 11/9: 칸 대기(보관함이 꽉 차 등록기계에 있는) 물건을 찾는 사람이 생기면 줄을 기다리지 않는다 —
+                # 바로 본센터로 회수해 직원 보관 선반에 두고(로봇 칸이 필요 없음) 직원이 건넨다. 예전에는 120초 뒤 '보관함에 없음'으로 끝났다
+                if item_id in w.wait_queue and w.items[item_id]["loc"] == LOC_KIOSK:
+                    self._claimed_to_shelf(cid, item_id)
                 end = time.time() + self.visit_wait_s
                 # 11/9 직원 보관 선반 물건도 본센터에 있는 것(반환은 로봇 없이 직원이 건넴)
                 while not (w.items[item_id]["status"] == "본센터 보관" and w.items[item_id]["loc"] in (LOC_BIN, LOC_SHELF)):
