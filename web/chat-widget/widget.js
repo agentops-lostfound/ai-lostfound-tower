@@ -193,7 +193,7 @@
     "/* 11/8 진행률: 답 말풍선 자리의 얇은 막대 + 글. 퍼센트는 예상치라 '예상'을 작게 붙인다 */",
     ".prog{display:flex;flex-direction:column;gap:7px;min-width:min(220px,60vw)}",
     ".prog .track{height:4px;border-radius:999px;background:var(--line);overflow:hidden}",
-    ".prog .fill{height:100%;width:0;background:var(--accent);border-radius:inherit;transition:width .25s linear}",
+    ".prog .fill{height:100%;width:0;background:var(--accent);border-radius:inherit;transition:width .06s linear}",
     ".prog .ptxt{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);white-space:nowrap}",
     ".prog .ptxt b{font-weight:600;font-variant-numeric:tabular-nums}",
     ".prog .est{font-size:11px;color:var(--faint);font-weight:500}",
@@ -609,17 +609,32 @@
     var est = estimate(), model = progressModel(est.p50, est.p95), t0 = now();
     var box = null, fill = null, txt = null, showTimer = null, tickTimer = null, stopped = false;
     var verb = STAFF ? "분석 중" : "답 준비 중";
-    function render() {
-      var v = model.at(now() - t0);
+    // 11/9 사용자 요청: 0~100% 의 모든 자연수가 눈에 보이게 — 화면 숫자(disp)는 계산값(target)을 1%씩 따라간다.
+    // 차이가 크면 빠르게(최소 16ms 에 1), 작으면 천천히(최대 60ms 에 1). 예) 이미 20% 단계면 0→20 을 빠르게 센다
+    var disp = 0, stepTimer = null, onFull = null, finishing = false;
+    function stepDelay(gap) { return Math.max(16, Math.min(60, Math.round(700 / Math.max(1, gap)))); }
+    function show(v) {
       var stage = model.stageText();
-      var label = verb + " " + v + "%" + (stage ? " · " + stage : "");
+      var head = v >= 100 ? (STAFF ? "분석 완료" : "답 완료") : finishing ? "마무리 중" : verb;   // 답이 온 뒤 100 까지 세는 동안은 '마무리 중'
+      var label = head + " " + v + "%" + (v < 100 && stage && !finishing ? " · " + stage : "");
       if (box) {
         fill.style.width = v + "%";
         txt.textContent = label;
         box.setAttribute("aria-valuenow", String(v));
-        box.setAttribute("aria-valuetext", label + " (예상)");
+        box.setAttribute("aria-valuetext", label + (v < 100 ? " (예상)" : ""));
       }
       if (minimized && pillText) pillText.textContent = verb + " " + v + "%";
+    }
+    function chase(target) {                    // disp 를 target 까지 1씩 올린다(내려가지 않음)
+      clearTimeout(stepTimer);
+      if (disp >= target) { if (disp >= 100 && onFull) { var f = onFull; onFull = null; f(); } return; }
+      disp += 1; show(disp);
+      stepTimer = setTimeout(function () { chase(Math.max(target, model.value())); }, stepDelay(target - disp));
+    }
+    function render() {
+      var v = model.at(now() - t0);
+      if (v > disp && !stepTimer) chase(v);
+      else if (v > disp) { clearTimeout(stepTimer); chase(v); }
     }
     function tick() { if (stopped) return; render(); tickTimer = setTimeout(tick, 150); }
     showTimer = setTimeout(function () {
@@ -642,20 +657,18 @@
     }, SHOW_AFTER_MS);
     return {
       stage: function (name, pct) { model.stage(name, pct); if (box) render(); },
-      stop: function () { stopped = true; clearTimeout(showTimer); clearTimeout(tickTimer); },
-      // 답이 오면 100% 로 채운 막대를 답 아래로 옮겨 잠깐 보인 뒤 사라지게 한다(답은 기다리지 않고 바로 보인다)
+      stop: function () { stopped = true; clearTimeout(showTimer); clearTimeout(tickTimer); if (!finishing) clearTimeout(stepTimer); },   // 답 뒤 100 까지 세는 중이면 그대로
+      // 답이 오면 막대를 답 아래로 옮기고, 지금 숫자에서 100 까지 빠르게 센 뒤 잠깐 보이고 사라진다(답은 기다리지 않고 바로 보인다)
       finish: function (answerMsg) {
-        this.stop();
+        stopped = true; finishing = true; clearTimeout(showTimer); clearTimeout(tickTimer);
         model.done();
         if (!box) return;
-        fill.style.width = "100%";
-        txt.textContent = (STAFF ? "분석 완료" : "답 완료") + " 100%";
-        box.setAttribute("aria-valuenow", "100");
-        box.setAttribute("aria-valuetext", "완료 100%");
         box.remove();
         answerMsg.append(box);
-        setTimeout(function () { box.className = "prog done"; setTimeout(function () { box.remove(); }, 450); }, 350);
+        onFull = function () { setTimeout(function () { box.className = "prog done"; setTimeout(function () { box.remove(); }, 450); }, 450); };
+        chase(100);
       },
+      shown: function () { return disp; },
       model: model
     };
   }

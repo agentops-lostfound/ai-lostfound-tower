@@ -6,6 +6,7 @@
     [웹] 동의 → 본인인증(OCR) → 확인 질문 → 메인 AI 승인·수령 예약
     [본센터] 직원 실물 신분증 대조 → 안쪽 특징 확인 → 직원 최종 확인
     [로봇] 탑뷰 촬영 → 매칭 → 사전 접근 → 집기(실패 시 1번 재시도) → 집기 확인 → 바구니 전달(인계 대기)
+    [직원 보관 선반] 11/9: 칸이 꽉 차 선반에 둔 물건은 로봇 단계를 모두 건너뛰고 인계 대기 → 직원이 직접 가져와 교차 검증 후 건넴
     [직원] 분실인에게 건넴 확인 → 인계 완료 (service.handover, 이 흐름 밖)
 
 안전 규칙(바꿀 수 없음)
@@ -45,6 +46,7 @@ class ReturnRequest:
     visitor_id_match: bool = True     # 방문 때 실물 신분증 대조
     inner_feature_ok: bool = True     # 직원이 안쪽 특징 확인
     staff_confirmed: bool = True      # 직원 최종 확인 버튼
+    staff_shelf: bool = False         # 11/9 물건이 직원 보관 선반(S-n)에 있음 — 화면이 보내지 못하고 서버가 보관함 정답지로 정함
 
 
 @dataclass
@@ -169,6 +171,20 @@ def visit_gate(c: Ctx) -> bool:
     return False
 
 
+SHELF_STEP = "직원 보관 선반 · 로봇 없이 직원 인계"
+
+
+def shelf_handover(c: Ctx) -> bool:
+    """2-1. (11/9) 직원 보관 선반 물건: 로봇이 집을 수 없는 곳(보관판 밖)이라 탑뷰·매칭·로봇 단계를 건너뛴다.
+    앞의 관문(웹 확인·방문 신분증·안쪽 특징·직원 확인)은 그대로 통과한 뒤에만 오고, 건네기 전 직원 교차 검증도 그대로(인계 대기)"""
+    if not c.req.staff_shelf:
+        return False
+    if not _set_status(c, HANDOVER_WAIT):
+        return c.finish(DECISION_STAFF, "상태 기록 실패 — 직원 보관 선반 물건, 직원 확인", alert=True)
+    c.step(SHELF_STEP, "직원이 선반에서 가져와 교차 검증 후 건넴")
+    return c.finish(DECISION_RETURNED, "직원 보관 선반 물건 — 로봇 안 씀 · 직원 인계 대기(교차 검증)")
+
+
 def locate(c: Ctx) -> bool:
     """3. 탑뷰 촬영 → 매칭(불확실하면 자동 반환 안 함)"""
     dets = c.backend.vision_topview()
@@ -286,7 +302,7 @@ def deliver(c: Ctx) -> bool:
     return c.finish(DECISION_RETURNED, "제출보관함 전달 완료 · 직원 인계 대기(교차 검증)")
 
 
-STAGES = [("web_gate", web_gate), ("visit_gate", visit_gate), ("locate", locate),
+STAGES = [("web_gate", web_gate), ("visit_gate", visit_gate), ("shelf_handover", shelf_handover), ("locate", locate),
           ("approach", approach), ("grasp", grasp), ("deliver", deliver)]
 
 

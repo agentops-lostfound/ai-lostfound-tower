@@ -46,6 +46,9 @@ class SimDemoTextTest(unittest.TestCase):
         from agents.sim_director import build_sim_service
         self.svc = build_sim_service(ENV)
         self.d = self.svc.sim
+        # 11/9: 시작 때 휴대폰 칸(R1) 2개가 차 있어 습득 휴대폰은 칸 대기가 된다 → R1-1 시연 물건을 직원 보관 선반으로 옮겨 칸 하나를 비움
+        self.svc.move_to_shelf({"item_id": self.svc.world.slot_id_of and next(
+            r["item_id"] for r in self.svc.world.items.values() if self.svc.world.slot_id_of(r["item_id"]) == "R1-1")})
 
     def run_lost(self, text):
         r = self.d.lost(text)

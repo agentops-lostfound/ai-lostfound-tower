@@ -25,7 +25,10 @@ LOST_STAGES = [("claim", "찾기 요청·확인 질문"), ("approve", "메인 AI
 # 반환 흐름(supervisor)·서비스가 보내는 단계 이름 → 이야기 단계
 STEP_STAGE = {"메인 AI 승인 · 수령 예약": "approve", "직원 확인 완료": "visit", "탑뷰 촬영": "topview",
               "매칭 완료": "match", "GPU 사용권 받음": "approach", "사전 접근 완료": "approach", "집기 성공": "grasp",
-              "집기 실패": "grasp", "제출보관함 전달 완료": "deliver", "바구니 전달 완료": "deliver", "인계 완료": "handover"}
+              "집기 실패": "grasp", "제출보관함 전달 완료": "deliver", "바구니 전달 완료": "deliver", "인계 완료": "handover",
+              "직원 보관 선반 · 로봇 없이 직원 인계": "deliver"}
+# 11/9 직원 보관 선반 물건: 로봇 단계는 건너뜀(skip)으로 칠한다
+SHELF_SKIP = ("topview", "match", "approach", "grasp")
 
 
 # 경보 내용 → 실패로 칠할 단계(11/4 무작위 시험: '지금 진행 중인 단계'만 보면 확인 질문 미통과가 '방문'에 칠해졌다)
@@ -124,6 +127,9 @@ class LiveBoard:
             del self._events[:-MAX_EVENTS]
             st = self.stories.get(sid or "")
         if st and stage:
+            if step.startswith("직원 보관 선반"):
+                for k in SHELF_SKIP:
+                    self.stage(k, "skip", "직원 보관 선반 — 로봇 안 씀", sid)
             self.stage(stage, "fail" if step == "집기 실패" else "done", body, sid)
         elif st and channel == "alert":
             key = next((k for word, k in ALERT_STAGE if word in title), None) or self._active_stage(sid)

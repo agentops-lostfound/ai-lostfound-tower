@@ -305,7 +305,7 @@ class DirectorTest(unittest.TestCase):
         lay = self.svc.storage.layout()
         held = {sl["slot_id"]: (sl.get("item") or {}).get("item_id") for sec in lay["sections"] for sl in sec["slots"]}
         self.assertEqual(held[sid], f["item_id"])
-        self.assertEqual(sid, "R4-2")                                      # 지갑 행(R4)의 빈 칸
+        self.assertEqual(sid, "R2-2")                                      # 11/9 그 밖 칸(R2~R4): 1번 줄이 차 있어 2번 줄 첫 칸
 
     def test_reset_restores_seed_and_keeps_claim_numbers(self):
         self.found()

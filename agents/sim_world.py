@@ -506,6 +506,12 @@ class SimWorld:
             self._touch()
             return SLOT_IDS[i]
 
+    def reserved_for(self, item_id: str) -> str | None:
+        """회수하려고 잡아 둔 칸(없으면 None)"""
+        with self._lock:
+            i = self.collecting.get(item_id)
+            return SLOT_IDS[i] if i is not None else None
+
     def add_wait(self, item_id: str) -> int:
         """칸 대기 줄에 넣기(이미 있으면 그대로). 줄에서의 순서(1부터)"""
         with self._lock:

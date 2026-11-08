@@ -277,7 +277,8 @@ class ApiRoutesTest(unittest.TestCase):
                                         "/api/admin/returns/{case_id}", "/api/admin/robot/state", "/api/kiosk/places",
                                         "/api/admin/storage", "/api/admin/storage/export", "/api/admin/storage/checks",
                                         "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo", "/api/admin/intake/pending-photos",
-                                        "/api/admin/storage/arrivals", "/storage-desk", "/storage")] + \
+                                        "/api/admin/storage/arrivals", "/storage-desk", "/storage",
+                                        "/api/admin/storage/status")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
                                          "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",
@@ -285,7 +286,8 @@ class ApiRoutesTest(unittest.TestCase):
                                          "/api/admin/storage/assign", "/api/admin/storage/release",   # 11/6 보관함 정답지
                                          "/api/admin/storage/slots/{slot_id}/pose", "/api/admin/storage/checks",
                                          "/api/admin/returns/{case_id}/verify", "/api/admin/returns/{case_id}/restock",
-                                         "/api/admin/storage/arrivals/{item_id}/place")]   # 11/6 교차 검증   # 11/5 /api/ 주소 체계
+                                         "/api/admin/storage/arrivals/{item_id}/place",
+                                         "/api/admin/storage/shelf")]   # 11/9 보관함 꽉 참: 현황·직원 보관 선반   # 11/6 교차 검증   # 11/5 /api/ 주소 체계
         self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/metrics"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"), ("GET", "/ui/{name}"), ("GET", "/ui/fonts/{name}"),
                                      ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
@@ -585,7 +587,7 @@ class HandoverTest(unittest.TestCase):
         with self.assertRaises(RequestError):
             self.svc.restock("X2", {})
         out = self.svc.restock("X2", {"staff_confirmed": True})
-        self.assertEqual((out["status"], out["slot"]), ("본센터 보관", {"slot_id": "R4-1", "pose_name": "pose_7"}))
+        self.assertEqual((out["status"], out["slot"]), ("본센터 보관", {"slot_id": "R4-1", "pose_name": "pose_7", "staff_shelf": False}))
         self.assertEqual(self.svc.storage.export()["inventory"], {"A-W01": {"section": "R4", "slot": "1"}})
         with self.assertRaises(Conflict):                             # 두 번 되돌릴 수 없음
             self.svc.restock("X2", {"staff_confirmed": True})
