@@ -59,7 +59,8 @@ class AdminAuth:
 
     def valid_token(self, token: str, now: float | None = None) -> bool:
         expires, _, sig = (token or "").partition(".")
-        if not expires.isdigit() or not hmac.compare_digest(sig, self._sign(expires)):
+        # 11/8 무작위 시험: 비ASCII 쿠키(lf_admin=1.é)에서 compare_digest 가 TypeError → 500. 바이트끼리 비교
+        if not expires.isdigit() or not hmac.compare_digest(sig.encode('utf-8', 'replace'), self._sign(expires).encode()):
             return False
         return int(expires) > (now or time.time())
 

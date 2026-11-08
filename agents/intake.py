@@ -51,7 +51,7 @@ def parse_intake(payload: object) -> dict:
     if unknown:
         raise IntakeError(f"모르는 칸: {unknown} (발견 시각·물건 특징은 받지 않습니다)")
     machine = payload.get("machine_id")
-    if machine not in MACHINE_LETTERS:
+    if not isinstance(machine, str) or machine not in MACHINE_LETTERS:      # 11/8: [1] 같은 값이 503 으로 나가던 것
         raise IntakeError(f"machine_id: {list(MACHINE_LETTERS)} 중 하나")
     place_id = payload.get("place_id")
     if place_id is not None and (isinstance(place_id, bool) or not isinstance(place_id, int) or place_id < 1):
@@ -76,6 +76,10 @@ def parse_intake(payload: object) -> dict:
     if photo is not None and (not isinstance(photo, str) or not PHOTO_RE.match(photo) or ".." in photo
                               or photo.startswith("/")):
         raise IntakeError("photo_path: 사진 파일 상대 경로(영문·숫자·_ . / -)")
+    # 11/8 무작위 시험: photo_path 로 사진 폴더의 아무 파일(notes.txt·README.md)이나 다른 기계 사진을 지정할 수 있었다
+    if photo is not None and (not photo.startswith((f"photos/{machine}/", f"photos/{MACHINE_LETTERS[machine]}/"))
+                              or not photo.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+        raise IntakeError("photo_path: 이 등록기계의 사진(photos/기계번호/…jpg·png·webp)만")
     return {"machine_id": machine, "place_id": place_id, "place_text": place_text, "finder": contact,
             "photo_path": photo}
 
@@ -222,6 +226,9 @@ class MemoryIntakeStore:
             row = self.items.get(item_id)
             if row is None:
                 return False
+            # 11/8 무작위 시험: 이미 특징이 있는 물건(확인 질문 정답 포함)을 덮어쓰지 않는다
+            if row.get("features"):
+                raise IntakeError("이미 특징이 채워진 물건입니다(덮어쓰지 않음)")
             row.update(category=cat, features=pub, private_features=priv)
             return True
 
@@ -263,7 +270,7 @@ SQL_PENDING_PHOTOS = ("SELECT item_id, machine_id, photo_path, received_at FROM 
                       "WHERE photo_path IS NOT NULL AND category = %s AND features = '{}'::jsonb AND status = %s "
                       "ORDER BY received_at, item_id LIMIT %s")
 SQL_SET_FEATURES = ("UPDATE item SET category = %s, features = %s::jsonb, private_features = %s::jsonb, "
-                    "updated_at = now() WHERE item_id = %s")
+                    "updated_at = now() WHERE item_id = %s AND features = '{}'::jsonb")   # 11/8 이미 채운 특징은 덮어쓰지 않음
 
 
 def _iso(v):
@@ -327,7 +334,12 @@ class PostgresIntakeStore:
         with self._connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(SQL_SET_FEATURES, (cat, json.dumps(pub, ensure_ascii=False),
                                            json.dumps(priv, ensure_ascii=False), item_id))
-            return cur.rowcount == 1
+            if cur.rowcount == 1:
+                return True
+            cur.execute("SELECT 1 FROM item WHERE item_id = %s", (item_id,))
+            if cur.fetchone() is not None:
+                raise IntakeError("이미 특징이 채워진 물건입니다(덮어쓰지 않음)")
+            return False
 
     def pending_photos(self, limit: int = 10) -> list[dict]:
         """11/7 사진 분석 대기(MemoryIntakeStore.pending_photos 와 같은 조건)"""
