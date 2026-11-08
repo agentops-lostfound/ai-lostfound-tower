@@ -52,3 +52,48 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
 })();
+
+/* "아래에 더 있음" 표시(11/8). 안쪽에서 스크롤되는 상자에 data-scroll-hint 를 붙이면,
+   내용이 넘칠 때만 아래쪽이 흐려지고 "아래에 더 있음 ↓" 단추가 뜬다(누르면 한 화면 내려감). 끝까지 내리면 사라진다.
+   상자 크기·내용이 바뀌어도 다시 계산한다(ResizeObserver·MutationObserver). 페이지 전체 스크롤에는 쓰지 않는다 */
+(function () {
+  var seen = typeof WeakSet === 'function' ? new WeakSet() : null;
+  function attach(box) {
+    if (!seen || seen.has(box)) return;
+    seen.add(box);
+    var label = box.getAttribute('data-scroll-hint') || '아래에 더 있음';
+    var hint = document.createElement('button');
+    hint.type = 'button';
+    hint.className = 'ui-scroll-hint';
+    hint.setAttribute('aria-label', label + ' — 아래로 내리기');
+    hint.innerHTML = '<span>' + label + '</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+    hint.hidden = true;
+    hint.addEventListener('click', function () { box.scrollBy({ top: Math.max(120, box.clientHeight * 0.8), behavior: 'smooth' }); });
+    var host = box.parentElement;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    host.appendChild(hint);
+    function update() {
+      var visible = box.offsetParent !== null;
+      var more = visible && box.scrollHeight - box.clientHeight - box.scrollTop > 16;
+      hint.hidden = !more;
+      box.classList.toggle('ui-has-more', more);
+      if (more) {   // 상자 아래쪽 가운데에 둔다(상자가 부모 안 어디에 있든)
+        hint.style.top = (box.offsetTop + box.clientHeight - 52) + 'px';
+        hint.style.left = (box.offsetLeft + box.clientWidth / 2) + 'px';
+      }
+    }
+    box.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    if (window.ResizeObserver) new ResizeObserver(update).observe(box);
+    if (window.MutationObserver) new MutationObserver(function () { setTimeout(update, 0); })
+      .observe(box, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    setTimeout(update, 50);
+  }
+  function scan() { document.querySelectorAll('[data-scroll-hint]').forEach(attach); }
+  window.lfScrollHint = { scan: scan };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan); else scan();
+  if (window.MutationObserver) {
+    var start = function () { new MutationObserver(scan).observe(document.body, { childList: true, subtree: true }); };
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  }
+})();

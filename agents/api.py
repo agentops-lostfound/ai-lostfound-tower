@@ -499,6 +499,16 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             raise HTTPException(status_code=404, detail="없는 파일")
         return FileResponse(os.path.join(WEB_DIR, "ui", name), media_type=types[name], headers={"Cache-Control": "no-cache"})
 
+    @app.get("/ui/fonts/{name}", include_in_schema=False)
+    def ui_font(name: str):
+        """11/8 글꼴 직접 제공(교육원에 인터넷이 없어도 모든 화면이 같은 글꼴). 정해진 파일 이름만"""
+        from fastapi.responses import FileResponse
+        types = {"PretendardVariable.woff2": "font/woff2", "Pretendard-LICENSE.txt": "text/plain; charset=utf-8"}
+        if name not in types:
+            raise HTTPException(status_code=404, detail="없는 파일")
+        return FileResponse(os.path.join(WEB_DIR, "ui", "fonts", name), media_type=types[name],
+                            headers={"Cache-Control": "public, max-age=604800"})
+
     @app.get("/", include_in_schema=False)
     def home_page():
         """11/7 첫 화면: 주소만 입력했을 때 Not Found 대신 화면 목록(발표 순서). 데이터는 보여 주지 않는다"""
