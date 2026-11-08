@@ -45,7 +45,8 @@ input[type=password]:focus{border-color:var(--accent);background:var(--ui-surfac
 iframe{flex:1;width:100%;border:0;background:var(--bg)}
 /* 11/8 그림 안내: 탭 아이콘·로그인 자물쇠(선 그림, currentColor) */
 button.tab{display:inline-flex;align-items:center;gap:6px}
-button.tab svg{width:18px;height:18px;flex:none}
+button.tab svg,button[data-chatbot-open] svg{width:18px;height:18px;flex:none}
+button[data-chatbot-open]{display:inline-flex;align-items:center;gap:6px}
 #login .lock{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--ui-primary-soft);color:var(--accent);margin-bottom:14px}
 #login .lock svg{width:28px;height:28px}
 @media (max-width:600px){button.tab svg{width:16px;height:16px} header{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}

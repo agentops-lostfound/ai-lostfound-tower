@@ -119,7 +119,7 @@ body { background: var(--ui-bg); color: var(--ui-text); font-family: var(--ui-fo
 /* "아래에 더 있음" 표시(theme.js 가 data-scroll-hint 상자에 붙임) */
 .ui-has-more { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
                mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
-.ui-scroll-hint { position: absolute; z-index: 5; translate: -50% 0;   /* transform 대신 translate — 화면별 button:active{transform} 과 부딪히지 않게 */ display: inline-flex; align-items: center; gap: 6px;
+.ui-scroll-hint { position: absolute; z-index: 1;   /* 고정 머리말(z-index 2 이상)보다 아래 */ translate: -50% 0;   /* transform 대신 translate — 화면별 button:active{transform} 과 부딪히지 않게 */ display: inline-flex; align-items: center; gap: 6px;
                   min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--ui-text); color: var(--ui-surface);
                   font: 600 14px var(--ui-font); box-shadow: var(--ui-shadow); cursor: pointer; opacity: .92;
                   animation: ui-hint-bob 1.8s ease-in-out infinite; }

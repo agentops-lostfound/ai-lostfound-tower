@@ -27,6 +27,7 @@
     .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
     .section-head small{display:block;color:var(--ui-text-3);font-weight:600;font-size:13px}
     h2{font-size:22px;margin:4px 0 0;font-weight:700;letter-spacing:-.02em}
+    .form-err{margin:0 0 10px;padding:12px 14px;border-radius:12px;background:var(--ui-err-soft);color:var(--ui-err);font-weight:700}
     .required{display:inline-flex;align-items:center;background:var(--ui-err-soft);color:var(--ui-err);border-radius:99px;padding:4px 10px;font-size:12px;font-weight:700;white-space:nowrap}
     .field-group{margin:24px 0}.field-group label{display:block;font-weight:700;font-size:15px;margin-bottom:10px}
     .field-group label > span:not(.required):not(.upload-content){color:var(--ui-text-3);font-weight:600;font-size:13px}
@@ -97,7 +98,7 @@
   </ol>
 
   <div class="layout">
-    <form id="intake-form">
+    <form id="intake-form" novalidate>
       <div class="section-head">
         <div><h2>습득물 등록</h2></div>
       </div>
@@ -108,7 +109,7 @@
           <span class="upload-content" id="upload-prompt"><svg class="pic" viewBox="0 0 48 48" role="img"><title>사진 찍기</title><rect x="5" y="13" width="38" height="28" rx="5"/><path d="M17 13l3-5h8l3 5"/><circle cx="24" cy="27" r="7"/><path d="M38 6v8M34 10h8"/></svg><strong>눌러서 사진 찍기</strong><br><span class="hint">또는 파일 고르기</span></span>
           <img id="photo-preview" alt="선택한 습득물 사진 미리보기" hidden>
         </label>
-        <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required hidden>
+        <input id="photo" name="photo" type="file" accept="image/*" capture="environment" hidden>
         <p class="hint" id="photo-name">사진 파일 1장을 선택해 주세요.</p>
       </div>
 
@@ -175,10 +176,11 @@
   $('photo').addEventListener('change', () => {
     const file=$('photo').files && $('photo').files[0]; if(!file)return;
     if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){
-      alert('JPG, PNG 또는 WEBP 사진을 5MB 이하로 선택해 주세요.'); $('photo').value=''; selectedPhotoData=null; return;
+      formErr('JPG·PNG·WEBP 사진, 5MB 이하만 돼요.'); $('photo').value=''; selectedPhotoData=null; return;
     }
     const reader=new FileReader();
     reader.onload=()=>{
+      formErr('');
       selectedPhotoData=reader.result; $('photo-preview').src=selectedPhotoData; $('photo-preview').hidden=false;
       $('upload-prompt').hidden=true; $('device-placeholder').hidden=true;
       const img=document.createElement('img'); img.src=selectedPhotoData; img.alt='등록할 습득물';
@@ -199,11 +201,16 @@
     $('success').hidden=true; $('status').textContent='접수 대기 중'; $('receipt-summary').replaceChildren();
     $('receipt-number').textContent=''; window.scrollTo({top:0,behavior:'smooth'}); loadPlaces();
   }
+  function formErr(msg){let e=$('form-err');if(!e){e=document.createElement('p');e.id='form-err';e.className='form-err';e.setAttribute('role','alert');
+    const sub=form.querySelector('.submit');sub.parentNode.insertBefore(e,sub);}e.textContent=msg;e.hidden=!msg;}
   form.addEventListener('submit',async event=>{
-    event.preventDefault(); if(!form.reportValidity())return;
-    if(!selectedPhotoData){alert('습득물 사진을 먼저 등록해 주세요.');$('photo').focus();return;}
+    event.preventDefault(); formErr('');
+    // 11/8 무작위 시험: 숨긴 사진 칸이 required 라 사진 없이 누르면 안내 없이 막혔고, 나머지 안내는 alert 창이었다 → 화면 안 문구
+    if(!selectedPhotoData){formErr('사진을 먼저 올려 주세요.');document.querySelector('label[for=photo]').scrollIntoView({behavior:'smooth',block:'center'});return;}
     const placeText=$('location').value.trim();
-    if(!placeText){alert('발견 장소를 입력하거나 추천 장소를 선택해 주세요.');$('location').focus();return;}
+    if(!placeText){formErr('발견 장소를 고르거나 적어 주세요.');$('location').focus();return;}
+    if(!$('consent').checked){formErr('개인정보 이용에 동의해 주세요.');$('consent').focus();return;}
+    if(!form.checkValidity()){formErr('입력한 내용을 다시 확인해 주세요.');return;}
     const body={machine_id:machine,place_text:placeText,photo:selectedPhotoData};
     if(chosenPlaceId!==null&&chosenPlaceId!==undefined)body.place_id=chosenPlaceId;
     const name=$('finder-name').value.trim(),phone=$('finder-phone').value.trim();
@@ -218,7 +225,7 @@
       $('receipt-summary').textContent='발견 장소: '+(data.place_text||placeText);
       $('status').textContent='접수 완료 · '+data.item_id; $('success').hidden=false;
       $('success').scrollIntoView({behavior:'smooth',block:'nearest'}); resetTimer=setTimeout(resetScreen,10000);
-    }catch(error){alert(error.message||'접수 중 오류가 발생했습니다.');}
+    }catch(error){formErr(error.message||'접수하지 못했어요. 다시 눌러 주세요.');}
     finally{submit.disabled=false;submit.textContent='습득물 접수하기 →';}
   });
   loadPlaces();

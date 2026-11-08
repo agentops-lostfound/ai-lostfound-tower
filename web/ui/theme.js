@@ -72,21 +72,30 @@
     var host = box.parentElement;
     if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
     host.appendChild(hint);
+    // 11/8 무작위 시험: 단추가 상자 안 마지막 입력칸·단추를 덮어 바로 누를 수 없었다 →
+    // ① 상자 아래 테두리에 반쯤 걸치게 두고 ② 사용자가 한 번 내려 보면 숨긴다(내용이 새로 바뀌면 다시)
+    var seenScroll = false;
     function update() {
       var visible = box.offsetParent !== null;
       var more = visible && box.scrollHeight - box.clientHeight - box.scrollTop > 16;
-      hint.hidden = !more;
       box.classList.toggle('ui-has-more', more);
-      if (more) {   // 상자 아래쪽 가운데에 둔다(상자가 부모 안 어디에 있든)
-        hint.style.top = (box.offsetTop + box.clientHeight - 52) + 'px';
+      hint.hidden = !more || seenScroll;
+      if (!hint.hidden) {
+        hint.style.top = (box.offsetTop + box.clientHeight - (hint.offsetHeight || 40) / 2) + 'px';
         hint.style.left = (box.offsetLeft + box.clientWidth / 2) + 'px';
       }
     }
-    box.addEventListener('scroll', update, { passive: true });
+    box.addEventListener('scroll', function () { if (box.scrollTop > 24) seenScroll = true; update(); }, { passive: true });
+    box.addEventListener('focusin', function (e) { if (e.target !== box) { seenScroll = true; update(); } });
     window.addEventListener('resize', update);
     if (window.ResizeObserver) new ResizeObserver(update).observe(box);
-    if (window.MutationObserver) new MutationObserver(function () { setTimeout(update, 0); })
-      .observe(box, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    if (window.MutationObserver) new MutationObserver(function (list) {
+      if (list.some(function (m) { return m.type === 'childList' && m.target === box; })) seenScroll = false;   // 내용이 새로 바뀜
+      setTimeout(update, 0);
+    }).observe(box, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    var section = box.closest('section') || box;      // 키오스크처럼 같은 상자를 다른 단계로 다시 보여 줄 때 다시 띄움
+    if (window.MutationObserver) new MutationObserver(function () { if (!section.classList.contains('on')) seenScroll = false; setTimeout(update, 0); })
+      .observe(section, { attributes: true, attributeFilter: ['class'] });
     setTimeout(update, 50);
   }
   function scan() { document.querySelectorAll('[data-scroll-hint]').forEach(attach); }
