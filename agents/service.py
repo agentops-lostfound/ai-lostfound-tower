@@ -578,8 +578,12 @@ class TowerService:
             elif self._where(r) == "station":
                 waiting.append({"item_id": r["item_id"], "category": r.get("category"), "group": g["key"],
                                 "machine_id": r.get("machine_id"), "received_at": r.get("received_at")})
+        queue = list(getattr(getattr(self, "world", None), "wait_queue", None) or [])
+        if queue:       # 가상 시연: 접수 시각이 초 단위라 같을 수 있음 → 연출기의 실제 대기 줄 순서를 따른다
+            waiting.sort(key=lambda w: queue.index(w["item_id"]) if w["item_id"] in queue else len(queue))
         for g in groups:
             g["waiting"] = sum(1 for w in waiting if w["group"] == g["key"])
+            g["busy"] = g["total"] - free[g["key"]]     # 칸에 있음 + 본센터에 와서 칸을 기다리는 물건(회수 중 등)
         suggest = None
         busy = {g["key"] for g in groups if g["waiting"]}
         for sec in layout["sections"]:
@@ -605,7 +609,7 @@ class TowerService:
             st = self.storage_status()
             w = next((x for x in st["waiting"] if x["item_id"] == item_id), None)
             g = next((g for g in st["groups"] if w and g["key"] == w["group"]), None)
-            head = f"보관 칸 없음({g['label']} {g['used']}/{g['total']})" if g else "보관 칸 없음"
+            head = f"보관 칸 없음({g['label']} {g['busy']}/{g['total']})" if g else "보관 칸 없음"
             no = position or (st["waiting"].index(w) + 1 if w else None)
             self.reporter.alert(item_id, f"{head} — 회수 대기",
                                 f"등록기계에 둔 채 칸 대기{f' {no}번째' if no else ''} · 칸이 비면 먼저 온 순서로 회수 · "
@@ -645,27 +649,35 @@ class TowerService:
         except Exception as e:
             raise Unavailable(f"보관함 DB 사용 불가({type(e).__name__})") from e
         rows = sorted(rows, key=lambda r: self._where(r) != "center")   # 본센터 물건이 빈 칸을 먼저 받는다
-        out, wait_no = [], 0
+        try:                                                            # 칸 대기 순서는 현황(storage_status)과 같은 규칙으로
+            seen: dict[str, int] = {}
+            waits = {}
+            for w in self.storage_status()["waiting"]:                  # 묶음(휴대폰·그 밖)마다 1번부터
+                seen[w["group"]] = seen.get(w["group"], 0) + 1
+                waits[w["item_id"]] = seen[w["group"]]
+        except Unavailable:
+            waits = {}
+        out = []
         for r in rows:
             feats = r.get("features") or {}
             cat = r.get("category") or feats.get("category")
             rec = recommend_slot(layout, cat)
             where = self._where(r)
             known = bool(cat) and cat != "확인 불가"
-            slot_wait = known and rec is None and where == "station"
-            wait_no += slot_wait
+            slot_wait = r["item_id"] in waits
             out.append({"item_id": r["item_id"], "status": r.get("status"), "category": cat, "where": where,
                         "machine_id": r.get("machine_id"), "received_at": r.get("received_at"),
                         "public": {k: show_ko(feats[k]) for k in ("color", "shape", "material") if feats.get(k)},
                         "has_photo": self.item_photo(r["item_id"]) is not None,
                         "recommended": rec if rec or not known else shelf_suggestion(),
-                        "slot_wait": slot_wait, "wait_no": wait_no if slot_wait else None})
+                        "slot_wait": slot_wait, "wait_no": waits.get(r["item_id"])})
             if rec and rec.get("slot_id"):   # 같은 목록 안에서 같은 칸을 두 번 추천하지 않게
                 for sec in layout["sections"]:
                     for slot in sec["slots"]:
                         if slot["slot_id"] == rec["slot_id"]:
                             slot["item"] = {"item_id": r["item_id"]}
-        out.sort(key=lambda a: a["where"] != "center")      # 본센터에 있는 물건 먼저(접수 순서는 유지)
+        # 본센터에 있는 물건 먼저(접수 순서는 유지), 역 물건은 회수할 수 있는 것 → 칸 대기(대기 순서)
+        out.sort(key=lambda a: (a["where"] != "center", a["slot_wait"], a["wait_no"] or 0))
         return out
 
     def place_item(self, item_id: str, payload: object) -> dict:

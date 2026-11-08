@@ -181,10 +181,11 @@ class SimDirector:
             ahead = [x for x in list(w.wait_queue) if x != item_id and self._group(self._category(x)) == mine]
             slot = None if ahead else w.reserve_slot(item_id, cat)
         if slot is None:
-            n = w.add_wait(item_id)
+            pos, mine = w.add_wait(item_id), self._group(cat)
+            n = sum(1 for x in list(w.wait_queue)[:pos] if self._group(self._category(x)) == mine)   # 같은 묶음 안 순서
             self.wait_story[item_id] = sid
+            self.svc.notify_slot_wait(item_id, n)       # 경보가 지금 단계를 '실패'로 칠하므로 그 뒤에 '진행(대기)'로 다시 칠함
             self.board.stage("collect", "active", f"칸 대기 {n}번째 — 맞는 빈 칸이 없어 등록기계에 보관")
-            self.svc.notify_slot_wait(item_id, n)
             return
         self.board.stage("collect", "active", f"등록기계 → 본센터 · {slot} 칸 확보")
         w.sleep(1.5)
@@ -536,8 +537,11 @@ class SimDirector:
                     return
                 if not self.auto_handover or "manual_handover" in tags:
                     # 11/8 무작위 시험: 'active' 로 두면 finish 가 'done' 으로 바꿔 직원 확인 전인데 인계 완료로 보였다
-                    self.board.stage("handover", "todo", "직원 화면에서 '분실인에게 건넴'")
-                    self.board.finish(sid, f"제출보관함 전달 완료 — 직원 화면 /staff 에서 교차 검증({out['case_id']})", True)
+                    shelf_case = "선반" in str(out.get("reason"))
+                    self.board.stage("handover", "todo", "직원이 선반에서 가져다 드려요 · 직원 화면에서 교차 검증" if shelf_case
+                                     else "직원 화면에서 '분실인에게 건넴'")
+                    self.board.finish(sid, (f"직원 보관 선반 물건 — 직원이 가져다 드려요 · /staff 에서 교차 검증({out['case_id']})" if shelf_case
+                                            else f"제출보관함 전달 완료 — 직원 화면 /staff 에서 교차 검증({out['case_id']})"), True)
                     return
                 w.sleep(3.0)
                 self.svc.handover(out["case_id"], {"staff_confirmed": True})               # 진짜 직원 화면과 같은 입구
