@@ -13,6 +13,10 @@ from agents.guidance import Guidance  # noqa: E402
 FINDER_Q = "주운 사람 연락처 알려줄 수 있어요?"
 FINDER_EV = "습득자 연락처 규칙은 물건이 인계 완료된 뒤 30일이 지나면 지우는 것입니다"
 FINDER_SEN = "습득자 연락처는 물건 인계 후 30일이 지나면 삭제됩니다."
+# 근거 문단에 되는지/안 되는지 답이 없는 질문(로봇팔이 직접 건네지 않고 직원이 건넴 — "안 된다"는 말이 문단에 없음)
+ROBOT_Q = "로봇팔이 물건을 직접 손에 건네줄 수 있어요?"
+ROBOT_EV = "로봇팔이 보관함에서 물건을 꺼내 제출보관함(물건 받는 칸)에 놓아요"
+ROBOT_SEN = "로봇팔이 보관함에서 물건을 꺼내 제출보관함에 놓아요."
 
 # 11/7 40문항 실측에서 맞게 답한 것(검사가 괜히 걸면 안 됨)
 GOOD = [("신분증 꼭 가져가야 해?", "분실물을 찾기 위해 신분증을 가져가야 해요."),
@@ -72,26 +76,37 @@ class AnswerGapTest(unittest.TestCase):
         self.assertIn("휴대폰", log[1]["feedback"]["previous_answer"])
 
     def test_retry_cannot_invent_policy(self):
-        """연락처를 알려 주는지는 안내 자료에 없음 → 다시 쓴 '알려드릴 수 없어요'도 근거 없는 부정이라 버리고, 자료에 없다고 말함"""
-        req = model(say(FINDER_EV, FINDER_SEN),
-                    say(FINDER_EV, "습득자 연락처는 알려드릴 수 없고, 인계 후 30일이 지나면 삭제됩니다.", answerable=True))
-        r = GroundedRag(Guidance(), "m", request=req).ask(FINDER_Q)
+        """근거 문단에 없는 '안 된다'를 다시 쓴 답이 지어내면 근거 없는 부정이라 버리고, 자료에 없다고 말함"""
+        req = model(say(ROBOT_EV, ROBOT_SEN), say(ROBOT_EV, "로봇팔이 직접 건네줄 수는 없어요.", answerable=True))
+        r = GroundedRag(Guidance(), "m", request=req).ask(ROBOT_Q)
         self.assertTrue(r["answer"].startswith(GAP_LEAD), r["answer"])
-        self.assertIn("30일", r["answer"])
+        self.assertIn("제출보관함", r["answer"])
         self.assertIn("not_addressed:yesno", r["generation_note"])
 
     def test_model_says_not_in_passages(self):
-        req = model(say(FINDER_EV, FINDER_SEN),
-                    say("주운 물건은 가까운 역 키오스크", "주운 물건은 가까운 역 키오스크에서 신고해 주세요.", answerable=False))
-        r = GroundedRag(Guidance(), "m", request=req).ask(FINDER_Q)
+        req = model(say(ROBOT_EV, ROBOT_SEN),
+                    say("직원이 실물 신분증과 물건을 한 번 더 확인", "직원이 실물 신분증과 물건을 한 번 더 확인해요.", answerable=False))
+        r = GroundedRag(Guidance(), "m", request=req).ask(ROBOT_Q)
         self.assertTrue(r["answer"].startswith(GAP_LEAD), r["answer"])
-        self.assertNotIn("신고", r["answer"])                             # 11/8 실측: 다시 쓴 답의 관련 없는 문장은 안 씀(첫 답 사용)
-        self.assertIn("30일", r["answer"])                                # 관련 근거는 그대로 알려 줌
+        self.assertNotIn("신분증", r["answer"])                           # 11/8 실측: 다시 쓴 답의 문장은 안 씀(첫 답 사용)
+        self.assertIn("제출보관함", r["answer"])                           # 관련 근거는 그대로 알려 줌
         self.assertIn("not_addressed:yesno", r["generation_note"])
 
     def test_retry_failure_still_honest(self):
-        r = GroundedRag(Guidance(), "m", request=model(say(FINDER_EV, FINDER_SEN))).ask(FINDER_Q)   # 두 번째 호출은 연결 오류
+        r = GroundedRag(Guidance(), "m", request=model(say(ROBOT_EV, ROBOT_SEN))).ask(ROBOT_Q)   # 두 번째 호출은 연결 오류
         self.assertTrue(r["answer"].startswith(GAP_LEAD) or r["generation_status"] != "generated", r)
+
+    def test_finder_contact_is_never_shared(self):
+        """11/8 사용자 결정: 습득자 연락처는 분실인에게 알려 주지 않음(DB 설계: 별도 표, 직원만 열람) — 모델 없이 정해진 문장"""
+        def no_model(_payload):
+            raise AssertionError("개인정보 질문은 모델을 부르지 않아야 함")
+        for q in (FINDER_Q, "습득자 전화번호 알 수 있나요?", "주운 사람한테 감사 인사하고 싶은데 연락처 받을 수 있어요?", "주운 사람 누군지 알려줘"):
+            r = GroundedRag(Guidance(), "m", request=no_model).ask(q)
+            self.assertEqual(r["generation_status"], "fixed_policy_text", q)
+            self.assertIn("알려 드리지 않아요", r["answer"])
+        r = GroundedRag(Guidance(), None).ask("습득자 연락처 언제 지워요?")      # 삭제 시기 질문은 기존 규칙 그대로
+        self.assertNotIn("알려 드리지 않아요", r["answer"])
+        self.assertIn("30일", r["answer"])
 
     def test_no_retry_when_answer_fits(self):
         log = []

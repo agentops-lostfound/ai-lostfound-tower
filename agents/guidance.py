@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = '86e041af0fc3a9276f09926bf2a6b679018bd399f9f9f1fd6cadbcc8b2e45256'  # 11/6 변재원: 자동 촬영·놓는 법·교차 검증·본센터 도착 시간 반영
+APPROVED_CORPUS_SHA256 = '76ea72a1228d278db4ffdd4df5e9f17e613e3ecae674755777e839bf68043fcc'  # 11/8 변재원: 습득자 연락처는 분실인에게 알리지 않음(finder_privacy, DB 설계 근거)
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),
@@ -33,6 +33,8 @@ SUGGESTIONS = [
 
 
 # 미정으로 빠지던 운영값 → 11/6 시연 운영 기준 주제(docs/guidance/knowledge.json)
+# 11/8 개인정보 보호 확정 문장: 모델이 바꿔 말하지 못하게 문서 문장 그대로만(agents/chat_rag.py)
+PRIVACY_FIXED_TOPICS = {"finder_privacy"}
 DEMO_POLICY_TOPICS = {
     "운영시간": "hours",
     "분실물 또는 분실인 개인정보의 보관·파기 기간": "retention",
@@ -156,6 +158,11 @@ class Guidance:
             topics.add("privacy_input")
             if not re.search(r"센터|주소|위치", q):       # 입력 규칙 질문은 센터 연락처 질문이 아니다
                 gaps = [g for g in gaps if g != "실제 센터 위치·연락처"]
+        # 11/8 습득자 연락처를 분실인이 알 수 있는지 → 알려 주지 않음(DB 설계: 별도 표, 직원만 열람). 개인정보라 모델 없이 정해진 문장만
+        if (finder and re.search(r"연락처|전화|번호|이름|누군지|누구", q) and not privacy_input
+                and re.search(r"알려|알수|공개|가르쳐|볼수|보여|받을수|연락하|연락해|연락드|감사|만나|누군지|누구", q)):
+            topics.add("finder_privacy")
+            gaps = [g for g in gaps if g != "실제 센터 위치·연락처"]
         if re.search(r"후보.*(?:뭐|무슨|뜻|의미|확정|내물건|맞)|후보가", q):
             topics.add("candidate_scope")
         if re.search(r"개인정보|신분정보|신분증.*저장|신분증.*보관", q) and (not finder or claimant) and not privacy_input:
