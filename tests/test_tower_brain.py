@@ -107,6 +107,9 @@ class TowerBrainTest(unittest.TestCase):
         self.assertNotIn("저장합니다", bodies)
         self.assertIn("보관 칸 기록으로 후보를 좁히려고", bodies)
         self.assertIn("가려졌을 수 있어 다시 촬영", bodies)          # 자연스러운 이유는 그대로
+        from agents.tower_brain import clean_reason              # 11/8 2차: 비전을 고르며 보관 칸 예시를 베낀 이유 → 비전용 정해진 문장
+        self.assertEqual(clean_reason("vision_agent", "두 후보 점수가 같아서 보관 칸 기록으로 좁히려고"), "다시 찍으면 가려진 특징이 보일 수 있어서")
+        self.assertEqual(clean_reason("storage_agent", "보관 칸 기록과 위치가 맞는 후보를 확인하려고"), "보관 칸 기록과 위치가 맞는 후보를 확인하려고")
 
     def test_brain_cannot_force_robot_when_recheck_still_uncertain(self):
         be = recheck_backend(second=False)

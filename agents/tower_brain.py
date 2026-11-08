@@ -46,6 +46,11 @@ DEFAULT_REASON = {"matching_agent": "어떤 후보가 왜 비슷한지 먼저 �
                   "storage_agent": "보관 칸 기록으로 후보를 좁히려고",
                   "vision_agent": "다시 찍으면 가려진 특징이 보일 수 있어서",
                   "finish": "근거가 충분해서"}
+# 11/8 2차 실측: 비전 에이전트를 고르면서 프롬프트 예시(보관 칸 이야기)를 그대로 베낌 → 고른 에이전트와 관계있는 말이 있어야 그대로 씀
+REASON_WORDS = {"matching_agent": ("후보", "점수", "매칭", "비슷", "차이"),
+                "storage_agent": ("칸", "보관", "위치", "기록"),
+                "vision_agent": ("찍", "촬영", "탑뷰", "가려", "특징", "사진", "보이", "카메라"),
+                "finish": ("충분", "확실", "근거")}
 META_WORDS = ("다음에 부를", "저장합니다", "에이전트를 부르", "에이전트 중", "finish", "JSON", "findings", "지시", "고른다", "고릅니다")
 
 
@@ -57,7 +62,8 @@ def clean_reason(pick: str, reason: str) -> str:
             text = text.split(mark)[0] + mark.strip()
             break
     text = text.rstrip(". ")
-    if not text or len(text) > 40 or any(w in text for w in META_WORDS):
+    if (not text or len(text) > 40 or any(w in text for w in META_WORDS)
+            or not any(w in text for w in REASON_WORDS.get(pick, ("",)))):
         return DEFAULT_REASON.get(pick, "")
     return text
 
