@@ -107,6 +107,6 @@ test('retry keeps the original question context even after a different item was 
  const s=setup((_init,n)=>n===2?Promise.reject(Error('offline')):Promise.resolve(ok('안내')));s.open();await tick();
  s.send('검정 지갑 찾아줘');await tick();s.send('그럼 빨간색은?');await tick();const retry=s.get('.retry');
  s.send('회색 USB 찾아줘');await tick();retry.dispatchEvent({type:'click'});await tick();
- assert.deepEqual(s.calls[3].body.history,['검정 지갑 찾아줘']);
- s.send('그럼 흰색은?');await tick();assert.deepEqual(s.calls[4].body.history,['검정 지갑 찾아줘','그럼 빨간색은?']);
+ assert.deepEqual(s.calls[3].body.history.map(h=>h.q),['검정 지갑 찾아줘']);   // 11/9 기록은 {q,a} 묶음
+ s.send('그럼 흰색은?');await tick();assert.deepEqual(s.calls[4].body.history.map(h=>h.q),['검정 지갑 찾아줘','그럼 빨간색은?']);
 });

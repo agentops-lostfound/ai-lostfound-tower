@@ -136,8 +136,9 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .p-part{fill:var(--part);stroke:var(--part-line);stroke-width:1;stroke-linejoin:round}
 .p-motor{fill:var(--motor);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
 .p-camera{fill:var(--cam);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
-g.p-part .o,g.p-motor .o,g.p-camera .o{stroke-width:2}
-g.p-part .f,g.p-motor .f,g.p-camera .f{stroke:none}
+.arm-o path{stroke-width:2.4}
+.arm-f path{stroke-width:.6;stroke:var(--part)}   /* 면만(같은 색 얇은 선으로 조각 사이 틈 메움) */
+.arm-f path.p-motor{stroke:var(--motor)} .arm-f path.p-camera{stroke:var(--cam)}
 .side-wrap{border-radius:var(--ui-radius);background:var(--bench);margin-bottom:14px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
 .side-cap{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--sub2);padding:8px 12px 0}
 .side-cap #sideTip{color:var(--ink);font-weight:700}
@@ -453,19 +454,16 @@ details.more .robot-note{margin-top:0}
   // 11/8: 부품을 조각(grp 가 같은 것)으로 나눠 그린다 — 실제 STL 처럼 집게 손가락·파인 곳이 보이게.
   // 같은 부품 조각은 ① 테두리를 함께 그리고 ② 그 위에 면만 칠해 조각 사이 이음선이 안 보이게(바깥 윤곽만 남음)
   function drawArm(gEl, tf, proj) {
-    const groups = new Map();
-    SHAPE.geoms.forEach((g, i) => {
+    // 11/9 옆모습 재검증(STL 겹침 검사): 부품 묶음 평균 깊이로 앞뒤를 정하면 판 뒤 모터가 앞에 큰 검은 상자로 보이고,
+    // 조각 테두리가 겹쳐 톱니 모양이 생겼다 → ① 모든 조각 테두리를 먼저(바깥 윤곽만 남음) ② 조각마다 깊이 순서로 면만 칠한다
+    const pieces = SHAPE.geoms.map(g => {
       const [R, p] = tf[g.body]; let depth = 0;
       const pts = g.pts.map(v => { const w = mv3(R, v); const q = proj([w[0]+p[0], w[1]+p[1], w[2]+p[2]]); depth += q[2]; return [q[0], q[1]]; });
-      const h = hull(pts);
-      const key = g.grp ?? ("g" + i);
-      const o = groups.get(key) || {k: g.kind, depth: 0, n: 0, d: []};
-      o.depth += depth / pts.length; o.n += 1;
-      o.d.push("M" + h.map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z");
-      groups.set(key, o);
-    });
-    const list = [...groups.values()].map(o => ({...o, depth: o.depth / o.n})).sort((a, b) => a.depth - b.depth);
-    gEl.innerHTML = list.map(o => { const d = o.d.join(""); return `<g class="p-${o.k}"><path class="o" d="${d}"/><path class="f" d="${d}"/></g>`; }).join("");
+      return {k: g.kind, depth: depth / pts.length, d: "M" + hull(pts).map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z"};
+    }).sort((a, b) => a.depth - b.depth);
+    const outline = pieces.map(o => `<path class="o p-${o.k}" d="${o.d}"/>`).join("");
+    const fills = pieces.map(o => `<path class="f p-${o.k}" d="${o.d}"/>`).join("");
+    gEl.innerHTML = `<g class="arm-o">${outline}</g><g class="arm-f">${fills}</g>`;
   }
   function tipOf(tf) { const [R, p] = tf[SHAPE.tip.body], w = mv3(R, SHAPE.tip.pos); return [w[0]+p[0], w[1]+p[1], w[2]+p[2]]; }
 
