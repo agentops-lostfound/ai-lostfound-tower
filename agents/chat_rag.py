@@ -234,6 +234,10 @@ def answer_gap(question: str, answer: str) -> str | None:
     m = UNCOVERED_Q.search(q)
     if m and m.group(0) not in re.sub(r"\s+", "", a):
         return "uncovered"
+    # 11/9 날씨·맛집 같은 서비스 밖 질문: 안내 자료에 답이 없다(지명만 같은 키오스크·도착 안내로 답하면 안 됨)
+    from agents.guidance import off_topic
+    if off_topic(q):
+        return "uncovered"
     asked, said = items_named(question), items_named(a)
     if asked and said and not asked & said:
         return "subject"
@@ -248,7 +252,7 @@ def gap_hint(gap: str, question: str) -> str:
             "when": "앞 답에 질문이 묻는 때·기간이 없다. 근거의 시간·기간을 넣어 답한다",
             "where": "앞 답에 질문이 묻는 장소가 없다. 근거의 장소를 넣어 답한다",
             "subject": f"질문은 {item} 에 대해 묻는데 앞 답은 다른 물건 이야기다. {item} 에 대한 근거로 답한다",
-            "uncovered": "질문이 묻는 돈·책임 문제는 앞 답에 없다. 근거 문단에 그 내용이 있으면 그것으로 답한다",
+            "uncovered": "질문이 묻는 돈·책임 문제나 날씨 같은 서비스 밖 내용은 앞 답에 없다. 근거 문단에 그 내용이 있으면 그것으로 답한다",
             }[gap] + ". 근거 문단에 그 답이 없으면 answerable 을 false 로 하고, 관련된 근거 문장만 쓴다"
 
 
@@ -503,8 +507,12 @@ class GroundedRag:
         """규칙이 못 잡은 질문(유도 질문): ① 잃어버렸다는 말 → 무엇을? ② 관련 문단이 있으면 sLLM 답·되묻기
         ③ 모델이 없으면 '혹시 이 내용인가요?' 선택지 ④ 주제 밖이면 기본 메뉴(상태는 not_found 그대로)"""
         compact = re.sub(r'\s+', '', question)
-        hits = [h for h in self.retriever.search(question, 4) if h['score'] >= MIN_SCORE]
         base = {**result, 'generation_used': False}
+        # 11/9 서비스 밖 질문(날씨·맛집 등)은 검색·모델 없이 정해진 문장 + 메뉴(지명 낱말로 엉뚱한 문단이 걸리던 것)
+        from agents.guidance import OFF_TOPIC_ANSWER
+        if result.get('answer') == OFF_TOPIC_ANSWER:
+            return {**base, 'generation_status': 'off_topic', 'answer': OFF_TOPIC_ANSWER, 'choices': MENU}
+        hits = [h for h in self.retriever.search(question, 4) if h['score'] >= MIN_SCORE]
         if LOST_RE.search(compact):
             # 11/8 집 PC 무작위 시험: 물건을 이미 말했거나("검정 반지갑 잃어버렸어요"), 물건이 아니라 번호를 잃어버린 경우에도
             # "어떤 물건을 잃어버리셨나요?"라고 되묻던 것 → 경우를 나눔
