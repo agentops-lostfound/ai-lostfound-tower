@@ -664,7 +664,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         board = getattr(svc, "board", None)
         st = board.story(story_id) if board else None
         if st is None:
-            raise HTTPException(status_code=404, detail="없는 이야기 번호")
+            raise HTTPException(status_code=404, detail="없는 처리 번호")
         return {**st, "events": board.since(after, story_id), "seq": board.last_seq}
 
     @app.post("/sim/reset", dependencies=admin)     # 11/8 무작위 시험: 로그인 없이 시연 전체를 지울 수 있었다

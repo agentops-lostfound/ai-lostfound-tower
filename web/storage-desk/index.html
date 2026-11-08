@@ -43,6 +43,7 @@
   .thumb { width:72px; height:56px; border-radius:10px; background:var(--chip); object-fit:cover; display:grid; place-items:center; font-size:.75rem; color:var(--muted); }
   .tag { display:inline-block; padding:1px 8px; border-radius:999px; background:var(--panel); font-size:12px; font-weight:600; margin:2px 4px 2px 0; color:var(--muted); }
   .tag.warn { color:var(--warn); background:var(--ui-warn-soft); } .tag.ok { color:var(--ok); background:var(--ui-ok-soft); }
+  .tag.st { color:var(--ui-primary); background:var(--ui-primary-soft); }   /* 11/9 습득 역 배지 */
   #arrivals h3 { font-size:13px; font-weight:700; margin:14px 0 8px; }
   #arrivals h3:first-child { margin-top:0; }
   /* 11/9 실제 배치(위에서 본 모습): 제출보관함 H-1 은 보관판 위쪽 가운데, R1~R4 는 왼→오, 각 줄은 먼 칸(2) 위·가까운 칸(1) 아래, 로봇팔은 아래 가운데 */
@@ -170,10 +171,21 @@
     return { status: res.status, data: data };
   }
   function detail(r) { var d = r.data && r.data.detail; if (!d) return "오류 " + r.status; return typeof d === "string" ? d : (d.message || JSON.stringify(d)); }
-  var STATION = { "KIOSK-A": "해운대", "KIOSK-C": "서면", "CENTER": "부산역 본센터" };
   // 품목 값('모형폰')은 서버·DB 그대로, 화면 이름만 바꾼다(agents/contracts.py CATEGORY_LABEL 과 같게)
   var CAT_LABEL = { "모형폰": "휴대폰" };
   function catName(c) { return CAT_LABEL[c] || c || ""; }
+  // 11/9 습득 역: 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터) — agents/contracts.py station_name 과 같게
+  var LETTER_ST = { A: "해운대역", S: "서면역", H: "부산역 본센터" };
+  var ST_SHORT = { "해운대역": "해운대", "서면역": "서면", "부산역 본센터": "본센터" };
+  function stationOf(it) {
+    var id = (it && it.item_id) || "";
+    return (it && it.station) || ({ "KIOSK-A": "해운대역", "KIOSK-C": "서면역", "CENTER": "부산역 본센터" })[it && it.machine_id] ||
+      (/^[A-Z]-/.test(id) ? LETTER_ST[id[0]] || "" : "");
+  }
+  function itemFull(it) {
+    var st = stationOf(it);
+    return [it.item_id, st ? st + " 습득" : "", catName(it.category), it.status].filter(Boolean).join(" · ");
+  }
   function showText(t) { return String(t || "").replace(/모형폰/g, CAT_LABEL["모형폰"]); }   // 행 이름('1행 모형폰')처럼 DB 에 저장된 글
 
   function slotOf(id) {
@@ -201,7 +213,8 @@
       var line = el("div");
       line.appendChild(el("span", a.category && a.category !== "확인 불가" ? catName(a.category) : "품목 미확인", "tag" + (a.category && a.category !== "확인 불가" ? "" : " warn")));
       line.appendChild(el("span", a.status === "등록기계 보관" ? (a.where === "center" ? "본센터 접수" : "역에 보관 중") : a.status, "tag"));
-      line.appendChild(el("span", STATION[a.machine_id] || a.machine_id || "", "tag"));
+      line.appendChild(el("span", stationOf(a) || a.machine_id || "", "tag st"));          // 11/9 습득 역(파란 배지)
+      row.title = itemFull(a);
       if (a.slot_wait) line.appendChild(el("span", "칸 대기 " + a.wait_no + "번째", "tag warn"));
       info.appendChild(line);
       var pub = a.public || {}; var txt = Object.keys(pub).map(function (k) { return pub[k]; }).join(" · ");
@@ -220,7 +233,9 @@
                (pickItem && pickItem.recommended && pickItem.recommended.slot_id === s.slot_id ? " rec" : "") + (sec.kind === "handover" ? " handover" : ""));
     b.type = "button";
     b.appendChild(el("b", s.slot_id + (s.pose_name ? " · " + s.pose_name : " · 자세 없음")));
+    if (s.item && stationOf(s.item)) b.appendChild(el("span", ST_SHORT[stationOf(s.item)] || stationOf(s.item), "tag st"));   // 11/9 습득 역
     b.appendChild(el("span", s.item ? s.item.item_id + " · " + catName(s.item.category) + " · " + s.item.status : (sec.kind === "handover" ? "제출보관함" : "빈 칸")));
+    if (s.item) { b.title = s.slot_id + " · " + itemFull(s.item); b.setAttribute("aria-label", b.title); }
     if (s.note) b.appendChild(el("span", s.note, "muted"));
     b.addEventListener("click", function () {
       mgSlot = s; $("mgSlot").textContent = s.slot_id; $("pose").value = s.pose_name || "";
@@ -246,7 +261,10 @@
     });
     var list = $("shelfList"); list.textContent = "";
     $("shelfN").textContent = shelf.length ? shelf.length + "개 · 로봇이 집지 않음, 반환 때 직원이 가져다 드림" : "비어 있음";
-    shelf.forEach(function (s) { list.appendChild(el("span", s.slot_id + " · " + s.item.item_id + " · " + catName(s.item.category), "tok")); });
+    shelf.forEach(function (s) {
+      var st = stationOf(s.item), t = el("span", s.slot_id + " · " + (st ? (ST_SHORT[st] || st) + " · " : "") + s.item.item_id + " · " + catName(s.item.category), "tok");
+      t.title = s.slot_id + " · " + itemFull(s.item); list.appendChild(t);
+    });
     var sm = layout.summary;
     var groups = (sm.groups || []).map(function (g) { return g.label + " " + g.used + "/" + g.total; }).join(" · ");
     $("sum").textContent = (groups || ("보관 칸 " + sm.used + "/" + sm.shelf_slots)) + " · 선반 " + (sm.staff_shelf || 0) +

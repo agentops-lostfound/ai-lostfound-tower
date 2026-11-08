@@ -34,6 +34,12 @@ from agents.sim_world import (LOC_BIN, LOC_KIOSK, LOC_SHELF, LOC_STAFF, LOC_TRAN
                               SimWorld, lost_station, parse_place, query_features, sim_qwen, slot_rows, split_tags)
 
 PUBLIC_COMPARE = ("category", "color", "shape", "material")
+# 11/9 버튼을 바꿔 누른 경우(사용자 실측: "파란색 폰 잃어버렸어요"로 '습득 신고' → "어느 역에서 주웠는지 알 수 없어요").
+# 한줄 설명: 글에 반대쪽 말(잃어버·주웠)만 있고 제 쪽 말이 없으면, 엉뚱한 오류 대신 맞는 버튼을 알려 준다
+LOST_SAY = re.compile(r"잃어버|잃었|잊어버|분실했|분실한|분실해|두고\s*내|놓고\s*내")
+FOUND_SAY = re.compile(r"주웠|주운|주워|습득했|습득한|발견했|떨어져\s*있|놓여\s*있")
+TO_LOST = "잃어버린 물건이면 '분실 신고'를 눌러 주세요 — 습득 신고는 주운 물건을 맡길 때 써요"
+TO_FOUND = "주운 물건이면 '습득 신고'를 눌러 주세요 — 분실 신고는 잃어버린 물건을 찾을 때 써요"
 CANDIDATE_STATUSES = ("등록기계 보관", "회수 중", "본센터 보관")
 QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (서면·해운대)", "color": "물건 색이 무엇인가요?",
                   "visible_text": "물건에 적힌 글자(로고)가 있다면 무엇인가요?",
@@ -117,6 +123,8 @@ class SimDirector:
     # ================= 습득 신고 =================
     def found(self, text: str) -> dict:
         clean, tags = split_tags(text)
+        if LOST_SAY.search(clean) and not FOUND_SAY.search(clean):
+            raise RequestError(TO_LOST)
         machine, place = parse_place(clean)
         if not machine:
             raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 서면·해운대 중 하나를 넣어 주세요(등록기계가 있는 역)")
@@ -374,6 +382,8 @@ class SimDirector:
         """opts(11/7 분실인 웹): {"visit": "kiosk"} 이면 방문을 자동으로 하지 않고 본센터 키오스크 회수를 기다린다.
         name_masked·id_no_masked 는 웹이 가린 값(키오스크에서 같은 신분 번호를 다시 입력해야 반환 시작)"""
         clean, tags = split_tags(text)
+        if FOUND_SAY.search(clean) and not LOST_SAY.search(clean):
+            raise RequestError(TO_FOUND)
         if has_pii(clean):   # 11/8 웹 무작위 시험: 하이픈 없는 번호(01012345678)가 화면 검사를 지나 그대로 접수됐다
             raise RequestError("분실 신고에 전화번호·주민등록번호 같은 개인정보는 쓰지 마세요")
         desc = query_features(clean)

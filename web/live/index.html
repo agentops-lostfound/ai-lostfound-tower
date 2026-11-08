@@ -136,8 +136,9 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .p-part{fill:var(--part);stroke:var(--part-line);stroke-width:1;stroke-linejoin:round}
 .p-motor{fill:var(--motor);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
 .p-camera{fill:var(--cam);stroke:var(--motor-line);stroke-width:1;stroke-linejoin:round}
-g.p-part .o,g.p-motor .o,g.p-camera .o{stroke-width:2}
-g.p-part .f,g.p-motor .f,g.p-camera .f{stroke:none}
+.arm-o path{stroke-width:2.4}
+.arm-f path{stroke-width:.6;stroke:var(--part)}   /* 면만(같은 색 얇은 선으로 조각 사이 틈 메움) */
+.arm-f path.p-motor{stroke:var(--motor)} .arm-f path.p-camera{stroke:var(--cam)}
 .side-wrap{border-radius:var(--ui-radius);background:var(--bench);margin-bottom:14px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
 .side-cap{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--sub2);padding:8px 12px 0}
 .side-cap #sideTip{color:var(--ink);font-weight:700}
@@ -175,6 +176,13 @@ details.more .robot-note{margin-top:0}
 #stories,.log{scrollbar-gutter:stable}
 #stories{max-height:min(78vh,1100px);overflow:auto}
 .c-ok{color:var(--ok)} .c-acc{color:var(--accent)} .c-bad{color:var(--bad)} .c-warn{color:var(--warn)} .c-team{color:var(--team)}
+/* 11/9 습득 역 표시(사용자 요청: 어느 역에서 주운 물건인지 보여야 바로 검색) — 칸 카드 배지 · 목록 앞 역 이름 */
+.s-badge{fill:var(--panel);opacity:.94} .s-badge-t{fill:var(--ink)}
+#items [data-tip]{cursor:pointer;outline:none} #items [data-tip]:focus-visible rect:first-of-type,#items [data-tip].sel rect:first-of-type{stroke:var(--accent);stroke-width:3}
+.tok .st{font-family:var(--ui-font);font-weight:700;color:var(--accent);font-size:11px;white-space:nowrap;flex:none}
+.st-chip{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-family:var(--ui-font)}
+.pick{margin:8px 0 0;padding:8px 12px;border-radius:12px;background:var(--accent-soft);color:var(--ink);font-size:13px;overflow-wrap:anywhere}
+.s-ghost-dot{fill:var(--binline)}
 </style>
 </head>
 <body>
@@ -193,14 +201,14 @@ details.more .robot-note{margin-top:0}
 <main>
   <section class="col col-left">
     <div class="card">
-      <h2>진행 중인 이야기</h2>
+      <h2>처리 현황</h2>
       <div class="icons" style="margin:-4px 0 12px">
         <span><svg viewBox="0 0 16 16" role="img" aria-label="초록 점: 끝난 단계" class="c-ok"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg>끝남</span>
         <span><svg viewBox="0 0 16 16" role="img" aria-label="파란 테두리 점: 진행 중인 단계" class="c-acc"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1" opacity=".35"/></svg>진행</span>
         <span><svg viewBox="0 0 16 16" role="img" aria-label="빨간 점: 실패한 단계" class="c-bad"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg>실패</span>
         <span><svg viewBox="0 0 16 16" role="img" aria-label="빈 점: 아직 안 한 단계"><circle cx="8" cy="8" r="4.5" fill="none" stroke="var(--line)" stroke-width="2"/></svg>대기</span>
       </div>
-      <div id="stories" data-scroll-hint="아래에 더 있음"><p class="empty">아직 신고가 없습니다.</p></div>
+      <div id="stories" data-scroll-hint="아래에 더 있음"><p class="empty">아직 접수된 건이 없어요.</p></div>
     </div>
     <div class="card try" id="tryCard" hidden>
       <h2>시험 입력</h2>
@@ -220,15 +228,18 @@ details.more .robot-note{margin-top:0}
       <h2>본센터 작업대 (탑뷰, mm)</h2>
       <div class="phase" id="phase">대기</div>
       <svg id="bench" viewBox="-20 -20 680 455" role="img" aria-label="보관함과 로봇팔 탑뷰"></svg>
+      <p class="pick" id="pick" aria-live="polite" hidden></p>
       <div class="legend icons">
         <span><svg viewBox="0 0 18 18" role="img" aria-label="검은 네모: 보정 표식"><rect x="2" y="2" width="14" height="14" fill="currentColor"/><rect x="5" y="5" width="4" height="4" fill="var(--panel)"/><rect x="9" y="9" width="4" height="4" fill="var(--panel)"/></svg>표식</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="점선 네모: 보관 칸"><rect x="1.5" y="3.5" width="15" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2.5"/></svg>보관 칸</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="파란 점선 네모: 로봇이 제출보관함에 놓는 자리" class="c-acc"><rect x="2" y="4" width="14" height="10" rx="3" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/></svg>놓는 자리</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="베이지 띠: 테두리 종이 테이프"><rect x="1.5" y="3.5" width="15" height="11" fill="var(--tape)" stroke="var(--tape-line)"/><rect x="4.5" y="6.5" width="9" height="5" fill="var(--bin)"/></svg>테이프</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="흰 부품과 검정 모터: 로봇팔"><rect x="2" y="6" width="11" height="6" rx="1.5" fill="var(--part)" stroke="var(--part-line)"/><rect x="11" y="4.5" width="5" height="9" rx="1" fill="var(--motor)" stroke="var(--motor-line)"/></svg>로봇팔</span>
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="사선 휴대폰: 상단(점) 왼쪽 위, 단자 오른쪽 아래"><g transform="translate(9 9) rotate(-35)"><rect x="-3.6" y="-8" width="7.2" height="16" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="0" cy="-5.3" r="1.2" fill="currentColor"/><rect x="-1.4" y="6.1" width="2.8" height="1" fill="currentColor"/></g></svg>휴대폰 사선</span>
+        <span><svg viewBox="0 0 22 18" role="img" aria-label="역 배지: 습득 역" class="c-acc"><rect x="1" y="4" width="20" height="10" rx="5" fill="var(--accent-soft)" stroke="currentColor"/></svg>습득 역</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="옅은 원: 집게 높이, 클수록 높음"><circle cx="6" cy="10" r="3" fill="var(--arm)" opacity=".25"/><circle cx="12.5" cy="9" r="5" fill="var(--arm)" opacity=".18"/></svg>집게 높이</span>
       </div>
-      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용(사선, 간격 넓음) · R2~R4 = 그 밖의 물건 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
+      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 사선(상단 왼쪽 위·단자 오른쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2~R4 = 그 밖의 물건 · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
       <div class="cap" id="cap" aria-live="polite"></div>
       <div class="places" id="places"></div>
     </div>
@@ -270,6 +281,15 @@ details.more .robot-note{margin-top:0}
   const CAT = {"지갑":"지갑","USB":"USB","립밤":"립밤","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리"};
   const CAT_LABEL = {"모형폰":"휴대폰"};   // 품목 값('모형폰')은 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   const catName = (c) => CAT_LABEL[c] || c || "";
+  // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터, agents/contracts.py station_name 과 같게)
+  const MACHINE_ST = {"KIOSK-A":"해운대역","KIOSK-C":"서면역","CENTER":"부산역 본센터"};
+  const LETTER_ST = {A:"해운대역", S:"서면역", H:"부산역 본센터"};
+  const ST_SHORT = {"해운대역":"해운대","서면역":"서면","부산역 본센터":"본센터"};
+  const stationOf = (it) => (it && (it.station || MACHINE_ST[it.machine_id] ||
+    (/^[A-Z]-/.test(it.item_id || "") ? LETTER_ST[it.item_id[0]] : ""))) || "";
+  const stShort = (it) => { const n = stationOf(it); return ST_SHORT[n] || n; };
+  const itemTip = (it) => [it.slot_id, it.item_id, stationOf(it) ? stationOf(it) + " 습득" : "", catName(it.category), it.color, it.status]
+    .filter(Boolean).join(" · ");
   const LOC = {kiosk:"등록기계", transit:"이동 중", bin:"보관함", gripper:"그리퍼", basket:"제출보관함", handed:"인계 완료", staff:"직원 보관", shelf:"직원 보관 선반"};
   let seq = 0, world = null, shown = {z: 100}, target = {z: 100}, failCount = 0, pendingId = null;
   const JN = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"];
@@ -305,8 +325,11 @@ details.more .robot-note{margin-top:0}
     b.slots_mm.forEach(([sx, sy], i) => {
       const id = ids[i], phone = ((b.rows || {})[id.slice(0, 2)] || []).join() === "모형폰";
       s += `<rect x="${sx-half}" y="${sy-half}" width="${2*half}" height="${2*half}" rx="8" class="s-slot"/>`;
-      if (phone) s += `<rect x="-14" y="-33" width="28" height="66" rx="5" class="s-ghost" transform="translate(${sx},${sy}) rotate(35)"/>`;   // 휴대폰을 사선으로 두는 자리
-      s += `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`;
+      // 휴대폰을 사선으로 두는 자리(11/9 사용자 결정: '\' 방향 — 상단(점) 왼쪽 위 · 단자 오른쪽 아래, 가로로 두면 비전 인식률이 떨어짐)
+      if (phone) s += `<g transform="translate(${sx},${sy}) rotate(-35)"><rect x="-14" y="-33" width="28" height="66" rx="5" class="s-ghost"/><circle cy="-26" r="2.6" class="s-ghost-dot"/></g>`;
+      // 칸 이름: 휴대폰 칸은 사선 휴대폰('\')이 왼쪽 위를 덮으므로 오른쪽 위에
+      s += phone ? `<text x="${sx+half-5}" y="${sy-half+13}" text-anchor="end" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`
+                 : `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`;
       rowX[id.slice(0, 2)] = sx;
     });
     // 행 이름표: 받는 품목이 같은 이웃 행은 하나로(R2~R4 그 밖의 물건)
@@ -338,19 +361,35 @@ details.more .robot-note{margin-top:0}
 
   function itemShape(it, x, y) {
     const c = COLORS[it.color] || "#b9b4ff";
-    if (it.category === "모형폰" && it.loc === "bin") {     // 11/9 휴대폰은 사선으로 놓음(R1)
-      const light = ["흰색","노랑"].includes(it.color);
-      return `<g transform="translate(${x},${y}) rotate(35)"><title>${esc(it.slot_id || "")} · ${esc(it.item_id)} · ${esc(catName(it.category))} · ${esc(it.status)}</title>`+
-        `<rect x="-16" y="-34" width="32" height="68" rx="6" fill="${c}" stroke="rgba(0,0,0,.3)"/>`+
-        `<text y="4" text-anchor="middle" font-size="10" font-weight="700" fill="${light?"#222":"#fff"}" transform="rotate(-90)">${esc(it.item_id.slice(-4))}</text></g>`;
-    }
-    const tip = `<title>${esc(it.slot_id ? it.slot_id + " · " : "")}${esc(it.item_id)} · ${esc(catName(it.category))} · ${esc(it.color || "")} · ${esc(it.status)}</title>`;
+    const full = itemTip(it), st = stShort(it), short = it.item_id.slice(-4);
+    // 11/9 마우스를 올리면 title, 누르거나 Tab+Enter 면 아래 줄(#pick)에 전체 정보: 칸 · 물건 번호 · 습득 역 · 품목 · 색 · 상태
+    const attrs = `data-id="${esc(it.item_id)}" data-tip="${esc(full)}" tabindex="0" role="img" aria-label="${esc(full)}"`;
     const light = ["흰색","노랑"].includes(it.color);
+    if (it.category === "모형폰" && it.loc === "bin") {
+      // 11/9 휴대폰은 사선으로 놓음(R1): 화면에서 '\' — 상단(카메라 점) 왼쪽 위 · 단자 오른쪽 아래. 가로로 두면 비전(YOLO·Qwen) 인식률이 떨어짐
+      return `<g transform="translate(${x},${y}) rotate(-35)" ${attrs}><title>${esc(full)}</title>`+
+        `<rect x="-16" y="-34" width="32" height="68" rx="6" fill="${c}" stroke="rgba(0,0,0,.3)"/>`+
+        `<circle cx="-7" cy="-26" r="3.2" fill="${light?"rgba(0,0,0,.45)":"rgba(255,255,255,.75)"}"/>`+              // 상단: 카메라
+        `<rect x="-5" y="29" width="10" height="2.6" rx="1.2" fill="${light?"rgba(0,0,0,.45)":"rgba(255,255,255,.75)"}"/>`+   // 하단: 케이블 꽂는 단자
+        `<g transform="rotate(90)" text-anchor="middle" font-weight="700" fill="${light?"#222":"#fff"}">` +              // 긴 축을 따라 두 줄: 역 · 번호 끝자리
+        (st ? `<text y="1" font-size="9">${esc(st)}</text><text y="11" font-size="9">${esc(short)}</text>` : `<text y="4" font-size="10">${esc(short)}</text>`) + `</g></g>`;
+    }
     const label = CAT[it.category] || "?";
-    const short = it.item_id.slice(-4);
-    return `<g transform="translate(${x},${y})">${tip}<rect x="-38" y="-24" width="76" height="48" rx="8" fill="${c}" stroke="rgba(0,0,0,.25)"/>`+
-      `<text y="-4" text-anchor="middle" font-size="13" font-weight="700" fill="${light?"#222":"#fff"}">${esc(label)}</text>`+
-      `<text y="13" text-anchor="middle" font-size="10.5" fill="${light?"#333":"#eee"}">${esc(it.item_id.slice(0,1))}…${esc(short)}</text></g>`;
+    const badge = st ? `${st} ${short}` : `${it.item_id.slice(0,1)}…${short}`;
+    return `<g transform="translate(${x},${y})" ${attrs}><title>${esc(full)}</title><rect x="-38" y="-24" width="76" height="48" rx="8" fill="${c}" stroke="rgba(0,0,0,.25)"/>`+
+      `<text y="-6" text-anchor="middle" font-size="13" font-weight="700" fill="${light?"#222":"#fff"}">${esc(label)}</text>`+
+      `<rect x="-34" y="2" width="68" height="17" rx="8.5" class="s-badge"/>`+                                  // 습득 역 배지(예: "서면 0003")
+      `<text y="14.5" text-anchor="middle" font-size="10.5" font-weight="700" class="s-badge-t">${esc(badge)}</text></g>`;
+  }
+
+  let pickId = null;            // 누른 칸 카드의 물건 번호
+  function syncPick() {         // 누른 카드 표시 + 전체 정보 줄(상태가 바뀌면 글도 새로)
+    const box = $("pick"); if (!box) return;
+    const el = pickId ? [...document.querySelectorAll("#items [data-id], #held [data-id]")].find(e => e.dataset.id === pickId) : null;
+    document.querySelectorAll("#items .sel").forEach(e => { if (e !== el) e.classList.remove("sel"); });
+    if (!el) { if (pickId && world && !world.items.some(i => i.item_id === pickId && (i.loc === "bin" || i.loc === "basket" || i.loc === "gripper"))) pickId = null;
+      box.hidden = true; return; }
+    el.classList.add("sel"); box.textContent = el.dataset.tip; box.hidden = false;
   }
 
   function renderItems() {
@@ -362,7 +401,8 @@ details.more .robot-note{margin-top:0}
       if (it.loc === "bin" && it.mm) s += itemShape(it, it.mm[0], it.mm[1]);
       if (it.loc === "basket") { s += itemShape(it, bx - 12 + basketN * 8, by - 4 + basketN * 6); basketN++; }
     }
-    g.innerHTML = s;
+    if (g.dataset.last !== s) { g.innerHTML = s; g.dataset.last = s; }   // 바뀔 때만 다시 그림(누른 카드·키보드 초점 유지)
+    syncPick();
     const held = world.items.find(i => i.loc === "gripper");
     $("held").innerHTML = held ? itemShape(held, 0, 0) : "";
     // 등록기계·이동 중·인계 완료
@@ -374,7 +414,7 @@ details.more .robot-note{margin-top:0}
     $("places").innerHTML = Object.entries(groups).map(([name, f]) => {
       const list = world.items.filter(f);
       return `<div class="place"><b>${esc(name)}</b><div class="row">${list.length ? list.map(i =>
-        `<span class="tok" title="${esc(i.status)}"><i style="background:${COLORS[i.color]||"#b9b4ff"}"></i>${esc(i.item_id)}${i.loc==="staff"?" (직원)":""}${i.waiting?" · 칸 대기":""}</span>`).join("") :
+        `<span class="tok" title="${esc(itemTip(i))}" aria-label="${esc(itemTip(i))}"><i style="background:${COLORS[i.color]||"#b9b4ff"}"></i>${stShort(i) ? `<span class="st">${esc(stShort(i))}</span>` : ""}${esc(catName(i.category))} ${esc(i.item_id)}${i.loc==="staff"?" (직원)":""}${i.waiting?" · 칸 대기":""}</span>`).join("") :
         '<span class="empty">없음</span>'}</div></div>`;
     }).join("");
   }
@@ -414,19 +454,16 @@ details.more .robot-note{margin-top:0}
   // 11/8: 부품을 조각(grp 가 같은 것)으로 나눠 그린다 — 실제 STL 처럼 집게 손가락·파인 곳이 보이게.
   // 같은 부품 조각은 ① 테두리를 함께 그리고 ② 그 위에 면만 칠해 조각 사이 이음선이 안 보이게(바깥 윤곽만 남음)
   function drawArm(gEl, tf, proj) {
-    const groups = new Map();
-    SHAPE.geoms.forEach((g, i) => {
+    // 11/9 옆모습 재검증(STL 겹침 검사): 부품 묶음 평균 깊이로 앞뒤를 정하면 판 뒤 모터가 앞에 큰 검은 상자로 보이고,
+    // 조각 테두리가 겹쳐 톱니 모양이 생겼다 → ① 모든 조각 테두리를 먼저(바깥 윤곽만 남음) ② 조각마다 깊이 순서로 면만 칠한다
+    const pieces = SHAPE.geoms.map(g => {
       const [R, p] = tf[g.body]; let depth = 0;
       const pts = g.pts.map(v => { const w = mv3(R, v); const q = proj([w[0]+p[0], w[1]+p[1], w[2]+p[2]]); depth += q[2]; return [q[0], q[1]]; });
-      const h = hull(pts);
-      const key = g.grp ?? ("g" + i);
-      const o = groups.get(key) || {k: g.kind, depth: 0, n: 0, d: []};
-      o.depth += depth / pts.length; o.n += 1;
-      o.d.push("M" + h.map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z");
-      groups.set(key, o);
-    });
-    const list = [...groups.values()].map(o => ({...o, depth: o.depth / o.n})).sort((a, b) => a.depth - b.depth);
-    gEl.innerHTML = list.map(o => { const d = o.d.join(""); return `<g class="p-${o.k}"><path class="o" d="${d}"/><path class="f" d="${d}"/></g>`; }).join("");
+      return {k: g.kind, depth: depth / pts.length, d: "M" + hull(pts).map(q => q[0].toFixed(1) + " " + q[1].toFixed(1)).join("L") + "Z"};
+    }).sort((a, b) => a.depth - b.depth);
+    const outline = pieces.map(o => `<path class="o p-${o.k}" d="${o.d}"/>`).join("");
+    const fills = pieces.map(o => `<path class="f p-${o.k}" d="${o.d}"/>`).join("");
+    gEl.innerHTML = `<g class="arm-o">${outline}</g><g class="arm-f">${fills}</g>`;
   }
   function tipOf(tf) { const [R, p] = tf[SHAPE.tip.body], w = mv3(R, SHAPE.tip.pos); return [w[0]+p[0], w[1]+p[1], w[2]+p[2]]; }
 
@@ -511,8 +548,8 @@ details.more .robot-note{margin-top:0}
     if (!st) { box.innerHTML = ""; return; }
     let h = st.groups.map(g => `<span class="chip${g.used >= g.total ? " full" : ""}">${esc(g.label)} <b>${g.used}/${g.total}</b></span>`).join("");
     h += `<span class="chip">대기 <b>${st.waiting.length}</b></span><span class="chip">선반 <b>${st.shelf.length}</b></span>`;
-    if (st.waiting.length) h += `<span class="warnline">${esc(st.message)} — ${st.waiting.slice(0, 3).map(w => esc(w.item_id)).join(", ")}${st.waiting.length > 3 ? ` 외 ${st.waiting.length - 3}건` : ""} 등록기계에서 칸을 기다림` +
-      (st.suggest ? ` · 제안: 가장 오래 보관된 ${esc(st.suggest.slot_id)}(${esc(st.suggest.item_id)})를 선반으로(보관함 화면)` : "") + `</span>`;
+    if (st.waiting.length) h += `<span class="warnline">${esc(st.message)} — ${st.waiting.slice(0, 3).map(w => esc((stShort(w) ? stShort(w) + " " : "") + w.item_id)).join(", ")}${st.waiting.length > 3 ? ` 외 ${st.waiting.length - 3}건` : ""} 등록기계에서 칸을 기다림` +
+      (st.suggest ? ` · 제안: 가장 오래 보관된 ${esc(st.suggest.slot_id)}(${esc((stShort(st.suggest) ? stShort(st.suggest) + " " : "") + st.suggest.item_id)})를 선반으로(보관함 화면)` : "") + `</span>`;
     box.innerHTML = h;
   }
 
@@ -530,10 +567,11 @@ details.more .robot-note{margin-top:0}
     if (!stories || !stories.length) return;
     $("stories").innerHTML = stories.map(st => {
       const ids = Object.entries(st.ids || {}).map(([k, v]) => `${{item_id:"물건",claim_id:"찾기",case_id:"사례"}[k]||k} ${v}`).join(" · ");
+      const stn = st.ids && st.ids.item_id ? stationOf({item_id: st.ids.item_id}) : "";      // 11/9 습득 역(물건 번호 앞글자)
       const steps = st.stages.map(s => `<li class="${s.state}"><span class="m"></span><span>${esc(s.label)}${s.detail ? `<small>${esc(s.detail)}</small>` : ""}</span></li>`).join("");
       const res = st.result ? `<div class="result ${st.result.ok ? "ok" : "fail"}">${st.result.ok ? "✅" : "⚠️"} ${esc(st.result.text)}</div>` : "";
       const secs = Math.round(((st.result ? st.result.t : Date.now() / 1000) - st.started));
-      return `<div class="story"><div class="top"><span class="kind ${st.kind}">${st.kind === "found" ? "습득" : "분실"} ${esc(st.story_id)}</span><span class="title">${esc(st.title)}</span><span class="time">${secs}초</span></div>`+
+      return `<div class="story"><div class="top"><span class="kind ${st.kind}">${st.kind === "found" ? "습득" : "분실"} ${esc(st.story_id)}</span><span class="title">${esc(st.title)}</span>${stn ? `<span class="st-chip" title="${esc(stn)}에서 습득">${esc(stn)}</span>` : ""}<span class="time">${secs}초</span></div>`+
              `<div class="ids">${esc(ids)}</div><ol class="steps">${steps}</ol>${res}</div>`;
     }).join("");
   }
@@ -608,6 +646,14 @@ details.more .robot-note{margin-top:0}
     if (!r.ok) throw new Error(typeof d?.detail === "string" ? d.detail : (d?.detail?.message || `오류 ${r.status}`));
     return d;
   }
+  // 11/9 칸 카드를 누르면(또는 Tab 으로 고르고 Enter) 전체 정보를 작업대 아래에 보여 준다
+  function showPick(el) {
+    pickId = pickId === el.dataset.id ? null : el.dataset.id;     // 같은 카드를 다시 누르면 닫음
+    syncPick();
+  }
+  $("bench").addEventListener("click", (e) => { const g = e.target.closest("[data-tip]"); if (g) showPick(g); });
+  $("bench").addEventListener("keydown", (e) => { const g = e.target.closest && e.target.closest("[data-tip]");
+    if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); showPick(g); } });
   $("btnStop").onclick = () => post("/api/robot/stop").catch(e => $("tryMsg").textContent = e.message);
   let homeArmed = null;
   $("btnHome").onclick = () => {

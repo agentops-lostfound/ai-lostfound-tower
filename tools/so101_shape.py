@@ -113,8 +113,8 @@ def outline_points(v: np.ndarray, n: int = N_DIRS) -> np.ndarray:
 # 삼각형으로, 위팔도 실제보다 뚱뚱하게 보였다(실제 STL 삼각형 투영과 비교) → 부품을 조각(k-평균)으로 나눠 조각마다 껍질.
 # 조각 경계 점은 이웃 조각에도 넣어(겹침) 틈이 생기지 않게 한다. 모터(상자 모양)는 1조각
 PIECES = {"jaw": 12, "wrist_roll_follower": 14, "camera": 3, "sts3215": 1}
-PIECES_DEFAULT = 7
-OVERLAP = 1.35                                # 두 번째로 가까운 중심까지 거리가 가장 가까운 거리의 이 배 안이면 그 조각에도 넣음
+PIECES_DEFAULT = 10                            # 11/9 옆모습 재검증: 7→10, 겹침 1.35→1.6, 조각 방향 90→120 (STL 대비 IoU 0.95→0.965, 빠진 면적 3.1%→1.2%)
+OVERLAP = 1.6                                 # 두 번째로 가까운 중심까지 거리가 가장 가까운 거리의 이 배 안이면 그 조각에도 넣음
 
 
 def pieces_of(mesh: str) -> int:
@@ -163,7 +163,7 @@ def build(model_dir: str) -> dict:
             v = cache[mesh] @ quat_mat(gq).T + gp          # 몸체 좌표(m)
             grp = len({(g["body"], g["mesh"]) for g in geoms})   # 같은 부품 조각끼리 묶는 번호(화면이 윤곽을 한 번에 그림)
             for part in split_pieces(v, pieces_of(mesh)):
-                pts = outline_points(part, 90 if pieces_of(mesh) > 1 else N_DIRS) * 1000
+                pts = outline_points(part, 120 if pieces_of(mesh) > 1 else N_DIRS) * 1000
                 geoms.append({"body": i, "mesh": mesh, "kind": kind_of(mesh), "grp": grp,
                               "pts": [[round(float(c), 1) for c in p] for p in pts]})
         if "gripperframe" in b["sites"]:

@@ -137,7 +137,7 @@ def findings(f: dict) -> list[str]:
     if not f["returns_total"] and not f["stories_total"]:
         if not chat:
             return ["아직 관제 기록이 없습니다(관제탑을 막 켰거나 시연 전)."]
-        return chat + ["반환·이야기 기록은 아직 없습니다."]
+        return chat + ["반환·처리 기록은 아직 없습니다."]
     if f["returned_rate_pct"] is not None:
         out.append(f"반환 {f['returns_total']}건 중 반환 완료 비율 {f['returned_rate_pct']}%")
     if f["top_reasons"]:
@@ -151,7 +151,7 @@ def findings(f: dict) -> list[str]:
     if f["seconds_max"] is not None and f["seconds_avg"] is not None and f["seconds_max"] > 2 * f["seconds_avg"]:
         out.append(f"처리 시간 편차 큼: 평균 {f['seconds_avg']}초, 최대 {f['seconds_max']}초")
     if f["stories_running"]:
-        out.append(f"아직 끝나지 않은 이야기 {f['stories_running']}건")
+        out.append(f"아직 처리 중인 건 {f['stories_running']}건")
     out += chat
     return out or ["눈에 띄는 문제가 없습니다."]
 
@@ -164,7 +164,7 @@ def template_report(f: dict, question: str) -> str:
               (", ".join(f"{k} {v}" for k, v in f["decisions"].items()) or "없음")]
     if f["seconds_avg"] is not None:
         lines.append(f"- 처리 시간 평균 {f['seconds_avg']}초 · 최대 {f['seconds_max']}초")
-    lines.append(f"- 이야기 {f['stories_total']}건: 성공 {f['stories_ok']} · 실패 {f['stories_fail']} · 진행 중 {f['stories_running']}")
+    lines.append(f"- 처리 {f['stories_total']}건: 성공 {f['stories_ok']} · 실패 {f['stories_fail']} · 진행 중 {f['stories_running']}")
     if f["focus"] in ("failures", "overall") and f["top_reasons"]:
         lines += ["", "## 반환하지 못한 이유"] + [f"- {r['reason']}: {r['count']}건" for r in f["top_reasons"]]
     if f["focus"] in ("failures", "robot", "overall") and f["fail_stages"]:
