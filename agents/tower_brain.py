@@ -25,7 +25,7 @@ import os
 import time
 from typing import TypedDict
 
-from agents.contracts import MATCH_OK, NONE, UNKNOWN, validate_detection
+from agents.contracts import MATCH_OK, NONE, UNKNOWN, category_label, validate_detection
 from agents.observability import conversation, graph_callbacks, callbacks_active, node_step, step
 
 AGENTS = ("matching_agent", "storage_agent", "vision_agent")
@@ -119,7 +119,7 @@ class BrainState(TypedDict, total=False):
 def _short_features(f: dict) -> str:
     f = f or {}
     keys = ("category", "color", "mark", "visible_text")
-    vals = [str(f.get(k)) for k in keys if f.get(k) not in (None, "", UNKNOWN, NONE)]
+    vals = [category_label(f.get(k)) if k == "category" else str(f.get(k)) for k in keys if f.get(k) not in (None, "", UNKNOWN, NONE)]
     return " · ".join(vals) or "특징 없음"
 
 

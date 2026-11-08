@@ -4,6 +4,8 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta, timezone
 
+from agents.contracts import category_label
+
 KST = timezone(timedelta(hours=9))
 CATEGORIES = {"지갑": "지갑", "usb": "USB", "립밤": "립밤", "휴대폰": "모형폰",
               "휴대전화": "모형폰", "핸드폰": "모형폰", "유에스비": "USB", "모형폰": "모형폰", "핸드크림": "핸드크림", "보조배터리": "보조배터리"}
@@ -87,7 +89,7 @@ class Statistics:
 
 
 def count_response(query, count, sql, parameters, source, mode):
-    return {'answer': f"{query.day} {query.machine_id or '전체 등록기계'} {query.category or '전체 물건'} 접수는 {count}건입니다.",
+    return {'answer': f"{query.day} {query.machine_id or '전체 등록기계'} {category_label(query.category) if query.category else '전체 물건'} 접수는 {count}건입니다.",
             'count': count, 'sql': sql,
             'parameters': [v.isoformat() if isinstance(v, datetime) else v for v in parameters],
             'source': source, 'database_mode': mode, 'supported_scope': '하루·등록기계·품목별 접수 건수',

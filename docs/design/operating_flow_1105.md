@@ -44,7 +44,8 @@
 | 5 | `power_bank` | 보조배터리 | B |
 
 - 기준: `vision/config.py` `CLASSES`(11/6 LF-3 #90 고정), 한국어는 `agents/contracts.py` `CATEGORIES`. 0~3번은 예전 4종과 같은 번호라 기존 라벨을 다시 매기지 않는다
-- 모형폰의 내부 이름은 `phone` 으로 둔다. 실제 스마트폰과 헷갈리지 않게 `model_phone` 으로 바꾸자는 안(11/5)이 있었지만, Qwen 특징(`vision/item_features.py`)·변환(`agents/vision_adapter.py`, `agents/lost_photo.py`, `agents/matcher_part.py`)·매칭(`matching/`)이 모두 `phone` 을 모형폰으로 쓰고 있어 이름을 바꾸면 여러 변환표가 함께 틀어진다. 화면에는 항상 "모형폰"으로 표시한다
+- 모형폰의 내부 이름은 `phone` 으로 둔다. 실제 스마트폰과 헷갈리지 않게 `model_phone` 으로 바꾸자는 안(11/5)이 있었지만, Qwen 특징(`vision/item_features.py`)·변환(`agents/vision_adapter.py`, `agents/lost_photo.py`, `agents/matcher_part.py`)·매칭(`matching/`)이 모두 `phone` 을 모형폰으로 쓰고 있어 이름을 바꾸면 여러 변환표가 함께 틀어진다. 한국어 품목 값도 `모형폰` 그대로 둔다(계약·DB·비전·매칭·API JSON)
+- 11/8: 사람에게 보이는 글(화면·디스코드·챗봇 문장)에는 **"휴대폰"** 으로 표시한다. 파이썬은 `agents/contracts.py` `category_label()`(표 `CATEGORY_LABEL`), 화면 JS 는 `{모형폰: "휴대폰"}` 표시 사전을 거친다. 사용자 입력은 `모형폰`·`휴대폰`·`핸드폰` 모두 알아듣는다
 - 클래스 인덱스는 데이터셋 라벨·학습 결과와 함께 관리하며, 기존 학습 데이터 라벨을 재매핑하지 않고 이름만 바꾸어 배포해서는 안 된다
 
 ## 구현 경계와 안전

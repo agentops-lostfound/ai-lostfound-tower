@@ -153,7 +153,11 @@ class ChatRoutesTest(unittest.TestCase):
             src = source.read()
         for needle in ("data-chatbot-open", "/chat/questions", "attachShadow", "isComposing", "LostFoundChat"):
             self.assertIn(needle, src)
-        self.assertNotIn("localStorage", src)                                  # 대화는 저장하지 않음
+        # 대화는 저장하지 않음 — 11/8부터 localStorage 는 창 위치·크기(winKey)에만 쓴다(대화·질문을 넣지 않음)
+        import re
+        uses = re.findall(r"localStorage\.(\w+)\(", src)
+        self.assertTrue(uses)
+        self.assertEqual(len(uses), len(re.findall(r"localStorage\.\w+\(winKey\(\)", src)), uses)
         demo = self.routes[("GET", "/chat-widget/demo")]().body
         self.assertIn("data-chatbot-open", demo)
         self.assertIn('src="/chat-widget/widget.js"', demo)

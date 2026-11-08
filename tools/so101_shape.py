@@ -1,7 +1,7 @@
 """SO-101 실제 형상 자료 만들기 (LF-29, 11/4) — /live 화면이 그리는 로봇팔 모양의 출처.
 
 한줄 설명: SO-ARM100 공식 저장소의 MuJoCo 모델(so101_new_calib_camera.xml)과 부품 STL 을 읽어,
-부품마다 '겉모양 점'(볼록 껍질 꼭짓점 근사)만 뽑아 web/live/so101_shape.js 로 저장한다.
+부품을 조각으로 나눈 뒤 조각마다 '겉모양 점'(볼록 껍질 꼭짓점 근사)만 뽑아 web/live/so101_shape.js 로 저장한다(11/8 조각 나눔).
 화면은 이 점들을 관절 각도로 돌려(정방향 기구학) 위·옆에서 본 실루엣을 그린다.
 
 - 원본: https://github.com/TheRobotStudio/SO-ARM100 (Apache-2.0) · Simulation/SO101
@@ -109,6 +109,37 @@ def outline_points(v: np.ndarray, n: int = N_DIRS) -> np.ndarray:
     return v[idx]
 
 
+# 11/8 옆모습 검증(사용자 요청 "정말 저 집게가 저런지"): 부품 하나를 볼록 껍질 하나로 그리면 고정 집게·손목이 한 덩어리
+# 삼각형으로, 위팔도 실제보다 뚱뚱하게 보였다(실제 STL 삼각형 투영과 비교) → 부품을 조각(k-평균)으로 나눠 조각마다 껍질.
+# 조각 경계 점은 이웃 조각에도 넣어(겹침) 틈이 생기지 않게 한다. 모터(상자 모양)는 1조각
+PIECES = {"jaw": 12, "wrist_roll_follower": 14, "camera": 3, "sts3215": 1}
+PIECES_DEFAULT = 7
+OVERLAP = 1.35                                # 두 번째로 가까운 중심까지 거리가 가장 가까운 거리의 이 배 안이면 그 조각에도 넣음
+
+
+def pieces_of(mesh: str) -> int:
+    return next((k for key, k in PIECES.items() if key in mesh), PIECES_DEFAULT)
+
+
+def split_pieces(v: np.ndarray, k: int, seed: int = 0, iters: int = 30) -> list:
+    """k-평균으로 점을 k 조각으로 나누고, 경계 점은 이웃 조각에도 넣는다(겹침)"""
+    v = np.unique(np.round(v, 6), axis=0)
+    if k <= 1 or len(v) < k * 8:
+        return [v]
+    rng = np.random.default_rng(seed)
+    c = v[rng.choice(len(v), k, replace=False)]
+    for _ in range(iters):
+        d = ((v[:, None, :] - c[None]) ** 2).sum(-1)
+        lab = d.argmin(1)
+        for j in range(k):
+            if (lab == j).any():
+                c[j] = v[lab == j].mean(0)
+    d = np.sqrt(((v[:, None, :] - c[None]) ** 2).sum(-1))
+    near = d.min(1, keepdims=True)
+    member = d <= near * OVERLAP + 1e-9
+    return [v[member[:, j]] for j in range(k) if member[:, j].sum() >= 4]
+
+
 def kind_of(mesh: str) -> str:
     if mesh.startswith("sts3215"):
         return "motor"                      # STS3215 서보(검정)
@@ -130,9 +161,11 @@ def build(model_dir: str) -> dict:
                 f, sc = m["files"][mesh]
                 cache[mesh] = read_stl(os.path.join(m["meshdir"], f)) * sc
             v = cache[mesh] @ quat_mat(gq).T + gp          # 몸체 좌표(m)
-            pts = outline_points(v) * 1000
-            geoms.append({"body": i, "mesh": mesh, "kind": kind_of(mesh),
-                          "pts": [[round(float(c), 1) for c in p] for p in pts]})
+            grp = len({(g["body"], g["mesh"]) for g in geoms})   # 같은 부품 조각끼리 묶는 번호(화면이 윤곽을 한 번에 그림)
+            for part in split_pieces(v, pieces_of(mesh)):
+                pts = outline_points(part, 90 if pieces_of(mesh) > 1 else N_DIRS) * 1000
+                geoms.append({"body": i, "mesh": mesh, "kind": kind_of(mesh), "grp": grp,
+                              "pts": [[round(float(c), 1) for c in p] for p in pts]})
         if "gripperframe" in b["sites"]:
             tip = {"body": i, "pos": [round(float(t) * 1000, 2) for t in b["sites"]["gripperframe"]]}
     return {"source": "TheRobotStudio/SO-ARM100 Simulation/SO101/" + XML_NAME + " (Apache-2.0)",

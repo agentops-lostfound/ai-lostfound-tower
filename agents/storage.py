@@ -24,7 +24,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Callable, Protocol
 
-from agents.contracts import ITEM_ID_RE
+from agents.contracts import ITEM_ID_RE, category_label
 
 # 김건태 run_storage_check.ON_SHELF 와 같음: 이 상태일 때만 보관함 위에 있다고 본다
 ON_SHELF = ("본센터 보관", "확인 중", "승인·수령 예약")
@@ -146,7 +146,7 @@ def _category_ok(section: dict, category: str | None, override: bool) -> None:
         raise StorageError("인계 구역(H)은 로봇이 바구니로 옮길 때만 씁니다. 보관 칸(R1~R4)을 고르세요")
     # category None = 품목 정보가 없는 시연 부품(evaluation/test_cases.json) → 막지 않음. DB 의 '확인 불가'는 막음
     if allowed and category is not None and category not in allowed and not override:
-        raise StorageError(f"{section['code']} 행은 {'·'.join(allowed)} 자리입니다(이 물건: {category}). "
+        raise StorageError(f"{section['code']} 행은 {'·'.join(category_label(a) for a in allowed)} 자리입니다(이 물건: {category_label(category)}). "
                            "그래도 넣으려면 override_category: true")
 
 

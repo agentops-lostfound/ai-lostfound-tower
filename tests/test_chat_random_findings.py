@@ -33,7 +33,8 @@ class RandomFindingsTest(unittest.TestCase):
 
     def test_camera_trouble_has_answer(self):
         r = self.rag.ask("키오스크 카메라가 안 켜져요")
-        self.assertIn("사진 파일로 접수", r["answer"])
+        self.assertIn("카메라 점검 중 · 역무실에 알려 주세요", r["answer"])   # 11/8: 키오스크 화면 안내와 같은 문장(파일 접수 없음)
+        self.assertNotIn("사진 파일로 접수", r["answer"])
         self.assertEqual(r["generation_status"], "fixed_policy_text")
 
     def test_lost_variants_are_not_all_the_same_question(self):

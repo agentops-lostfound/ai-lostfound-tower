@@ -8,7 +8,7 @@
 ## 1. 화면 목록
 | 화면 | 주소(관제탑 `:8100` 또는 Docker `:8080`) | 폴더 | 화면 담당 | 부르는 API | 상태(11/5) |
 | --- | --- | --- | --- | --- | --- |
-| 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 변재원(이전 김재민) | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 모든 역: 습득 신고 + 분실 확인, 본센터만 셀프 신분 확인·회수(11/5 정책, `docs/design/operating_flow_1105.md`). 탭 3개(습득 신고 / 분실접수 / 회수). 습득은 서버 연결됨 — **11/6 찍기 버튼 없이 자동 촬영**(상자 안 카메라가 빈 상자와 달라지고 2초 멈추면 찍음, 작은 흑백 화면만 비교) + 품목 6종 놓는 법 안내 + 연락처 이용 목적 안내, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수 탭은 **모든 키오스크에 보이고**(11/6) 역 키오스크에서는 "부산역 본센터로 가세요(찾기 번호·신분증)" 안내, 실제 회수는 `?machine=CENTER`(본센터)만 — `POST /api/kiosk/returns`(11/6, 관문 값은 서버가 정함) |
+| 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 변재원(이전 김재민) | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 모든 역: 습득 신고 + 분실 확인, 본센터만 셀프 신분 확인·회수(11/5 정책, `docs/design/operating_flow_1105.md`). 탭 3개(습득 신고 / 분실접수 / 회수). 습득은 서버 연결됨 — **11/6 찍기 버튼 없이 자동 촬영**(상자 안 카메라가 빈 상자와 달라지고 3초 멈추면 찍음, 작은 흑백 화면만 비교 · 11/8 놓기→손 빼기→3·2·1→찰칵 진행 표시, 사진 파일 접수 없음, 카메라가 없으면 "카메라 점검 중 · 역무실에 알려 주세요", **직원 시연은 주소 끝에 `&demo=1`**(예: `/kiosk?machine=KIOSK-A&demo=1`) — 가상 카메라가 물건을 넣고 자동 촬영, 위쪽 "시연 모드" 배지에서 넣을 물건을 고름) + 품목 6종 놓는 법 안내 + 연락처 이용 목적 안내, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수 탭은 **모든 키오스크에 보이고**(11/6) 역 키오스크에서는 "부산역 본센터로 가세요(찾기 번호·신분증)" 안내, 실제 회수는 `?machine=CENTER`(본센터)만 — `POST /api/kiosk/returns`(11/6, 관문 값은 서버가 정함) |
 | 등록기계(습득 신고) | `/intake?machine=KIOSK-A` | `intake/` | 변재원(이전 김재민) | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 키오스크 습득 탭과 같은 일 → **키오스크로 합치는 중**(이 화면은 호환용으로 남김, 3차에서 `/kiosk` 로 넘김) |
 | 분실인 웹(분실 확인) | `/lost` | `lost/` | 변재원(이전 김재민) | (서버 연결 전) | 화면 흐름 시안. 분실 확인 후 본센터 방문 안내 정책 적용 예정 |
 | 관제 모니터링 | `/live` | `live/` | 변재원(이전 김재민) | `GET /api/admin/live/state`, `/sim/*`, `POST /api/robot/stop`, `/api/admin/robot/home` | 됨(가상 시연·SO-101 실제 형상) |
@@ -42,7 +42,8 @@
 ## 3. 지켜야 할 약속
 - 요청·응답 형식: `agents/contracts.py`, `docs/contracts/mcp_tools.md`, 등록기계 API 는 `intake/README.md`
 - 찾기 요청(`POST /claims`)은 동의·신분 인증 결과·가린 이름·특징 설명·확인 질문이 필요하다(전화번호 원문을 받지 않는다)
-- 물건 종류는 팀 6종: 지갑 · USB · 립밤 · 모형폰 · 핸드크림 · 보조배터리 (`agents/contracts.py` CATEGORIES 및 MVP_CATEGORIES)
+- 물건 종류는 팀 6종: 지갑 · USB · 립밤 · 휴대폰 · 핸드크림 · 보조배터리 (`agents/contracts.py` CATEGORIES 및 MVP_CATEGORIES)
+  - 11/8: 화면에는 **휴대폰**으로 보인다. 품목 값(계약·DB·비전·매칭·API JSON)은 `모형폰` 그대로라, 서버 값을 화면에 보일 때는 표시 사전 `{모형폰: "휴대폰"}`(파이썬은 `agents/contracts.py` `category_label()`)을 거친다. 사용자 입력은 `모형폰`·`휴대폰` 둘 다 알아듣는다
 - 개인정보(전화번호·주민번호·이메일)는 장소·설명 칸에 쓰면 관제탑이 거절한다
 - 로봇 관련 화면 요소(정지·원점·관절 값)는 `docs/contracts/robot_api.md` 기준
 

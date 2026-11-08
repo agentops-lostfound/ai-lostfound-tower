@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = '4b99465ba41578df28db66471157d135563d8bf7fcffaba8b3ed9b55da4e2f73'  # 11/8 변재원: 키오스크 카메라 안내(kiosk_camera) 추가 — 무작위 시험
+APPROVED_CORPUS_SHA256 = '667daedb8901a687fa02616894052d9b1ee689e9263e5aa39ab56802e9fc8a3e'  # 11/8 변재원: 키오스크 카메라 안내(kiosk_camera, 파일 접수 → 점검 안내) + 품목 화면 이름 모형폰→휴대폰(categories)
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),
@@ -34,7 +34,7 @@ SUGGESTIONS = [
 
 # 미정으로 빠지던 운영값 → 11/6 시연 운영 기준 주제(docs/guidance/knowledge.json)
 # 11/8 개인정보 보호 확정 문장: 모델이 바꿔 말하지 못하게 문서 문장 그대로만(agents/chat_rag.py)
-PRIVACY_FIXED_TOPICS = {"finder_privacy", "kiosk_camera"}   # kiosk_camera: 화면 버튼 이름과 똑같아야 해서(11/8)
+PRIVACY_FIXED_TOPICS = {"finder_privacy", "kiosk_camera"}   # kiosk_camera: 화면 점검 안내 문장과 똑같아야 해서(11/8)
 DEMO_POLICY_TOPICS = {
     "운영시간": "hours",
     "분실물 또는 분실인 개인정보의 보관·파기 기간": "retention",

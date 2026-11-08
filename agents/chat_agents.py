@@ -36,6 +36,8 @@ class AgentBrain:
         self.request = request or (lambda payload: ask_local_model(payload, timeout=timeout))
 
     def _ask(self, name: str, prompt_name: str, schema: dict, user: dict) -> dict | None:
+        from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로, agents/chat_progress.py)
+        notify("route")
         system, prompt_obj = prompts.get(prompt_name)
         payload = {"model": self.model, "stream": False, "format": schema,
                    "messages": [{"role": "system", "content": system},

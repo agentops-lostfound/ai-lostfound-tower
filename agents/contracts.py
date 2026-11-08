@@ -142,8 +142,20 @@ SHOW_KO = {"rectangular": "직사각형", "rectangle": "직사각형", "stick": 
 
 
 def show_ko(v) -> str:
-    """'rectangular, plastic' → '직사각형, 플라스틱'(모르는 말은 그대로)"""
-    return ", ".join(SHOW_KO.get(x.strip().lower(), x.strip()) for x in str(v).split(","))
+    """'rectangular, plastic' → '직사각형, 플라스틱'(모르는 말은 그대로). 품목 값도 화면 이름으로(모형폰 → 휴대폰)"""
+    return ", ".join(category_label(SHOW_KO.get(x.strip().lower(), x.strip())) for x in str(v).split(","))
+
+
+# 품목의 화면 이름(11/8). 저장·계약 값(CATEGORIES·DB·비전·매칭·API JSON)은 '모형폰' 그대로 두고,
+# 사람에게 보이는 글(화면·디스코드·챗봇 문장)만 이 표를 거친다. 사용자 입력은 '모형폰'·'휴대폰' 둘 다 알아듣는다
+CATEGORY_LABEL = {"모형폰": "휴대폰"}
+
+
+def category_label(cat) -> str:
+    """품목 값 → 사람에게 보이는 이름('모형폰' → '휴대폰', 나머지·None 은 그대로 글자로)"""
+    if cat is None:
+        return ""
+    return CATEGORY_LABEL.get(str(cat).strip(), str(cat))
 
 
 def public_card(features: dict) -> dict:

@@ -5,6 +5,7 @@
 
 주소
     POST /chat/questions      {"question": "...", "history": ["이전 질문", ...최대 4개], "mode": "staff"(직원 화면만)} → 답변·근거·후보 카드
+                              11/8 "stream": true(또는 Accept: application/x-ndjson)면 NDJSON 단계 줄 {"stage","pct"} … 마지막 {"done": true, ...같은 응답}
     GET  /chat/suggestions    추천 질문 목록
     GET  /chat/health         챗봇 준비 상태(문서 RAG 모델·검색 모드)
     GET  /chat/metrics        챗봇 운영 지표(LLMOps): 건수·응답 시간 p50/p95·결과 비율 — 질문 원문은 저장 안 함(agents/chat_metrics.py)
@@ -27,6 +28,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import threading
@@ -40,6 +42,18 @@ except ImportError:      # fastapi 가 없어도 관제탑 시험(가짜 fastapi
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIDGET_DIR = os.path.join(ROOT, "web", "chat-widget")
 SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+STREAM_WAIT_S = 90      # 스트림에서 다음 단계 알림을 기다리는 최대 시간(위젯은 30초·직원 60초에서 먼저 멈춤)
+
+
+def wants_stream(body, request) -> bool:
+    """11/8 진행률: 본문 "stream": true 또는 Accept: application/x-ndjson 일 때만 단계별 스트림. 그 밖은 기존처럼 한 번에"""
+    if isinstance(body, dict) and body.get("stream") is True:
+        return True
+    try:
+        accept = (request.headers.get("accept") or "") if request is not None else ""
+    except AttributeError:
+        accept = ""
+    return "application/x-ndjson" in accept
 
 
 def build_chatbot_from_env(database=None):
@@ -143,6 +157,65 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
                         pass
         return b
 
+    def stream_answer(call, body, b, t0):
+        """11/8 진행률: 단계마다 한 줄짜리 JSON(NDJSON)을 흘려보내고, 마지막 줄은 {"done": true, ...기존 응답}.
+        챗봇은 따로 실행 줄(thread)에서 돌고, agents/chat_progress 알림을 줄 큐로 받아 내보낸다. 오류도 마지막 줄로 알린다."""
+        import contextvars
+        import queue
+
+        from fastapi.responses import StreamingResponse
+
+        from agents.chat_progress import STAGES, listening
+
+        events: queue.Queue = queue.Queue()
+
+        def worker():
+            with listening(lambda stage: events.put(("stage", stage))):
+                try:
+                    events.put(("done", call()))
+                except ValueError as e:
+                    events.put(("error", 422, str(e), "rejected"))
+                except RuntimeError:
+                    events.put(("error", 503, "챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요", "error"))
+                except Exception:      # 내부 오류 문구는 화면에 내보내지 않는다
+                    events.put(("error", 500, "챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요", "error"))
+
+        ctx = contextvars.copy_context()      # 접속 토큰 등 요청별 값(contextvar)을 그대로 넘긴다
+        threading.Thread(target=ctx.run, args=(worker,), daemon=True, name="chat-stream").start()
+
+        def line(obj) -> bytes:
+            return (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
+
+        def lines():
+            best = STAGES["received"]
+            yield line({"stage": "received", "pct": best})
+            while True:
+                try:
+                    item = events.get(timeout=STREAM_WAIT_S)
+                except queue.Empty:
+                    metrics.record("question", (time.perf_counter() - t0) * 1000, "error")
+                    yield line({"done": True, "error": True, "status_code": 504, "detail": "응답 시간이 길어 요청을 멈췄어요. 잠시 후 다시 시도해 주세요."})
+                    return
+                if item[0] == "stage":
+                    pct = STAGES.get(item[1])
+                    if pct is not None and pct > best:      # 퍼센트는 줄어들지 않는다(다시 쓰기 등으로 앞 단계 알림이 늦게 와도)
+                        best = pct
+                        yield line({"stage": item[1], "pct": pct})
+                elif item[0] == "done":
+                    result = item[1]
+                    metrics.record("question", (time.perf_counter() - t0) * 1000, "ok", result)
+                    b.guidance.record_suggestion(body.get("suggestion_id"), body.get("question"))
+                    yield line({"done": True, **result})
+                    return
+                else:
+                    _, code, detail, outcome = item
+                    metrics.record("question", (time.perf_counter() - t0) * 1000, outcome)
+                    yield line({"done": True, "error": True, "status_code": code, "detail": detail})
+                    return
+
+        return StreamingResponse(lines(), media_type="application/x-ndjson",
+                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
     @app.post("/chat/questions")
     def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None), request: Request = None) -> dict:
         """AI 챗봇 질문. 본문 {question, history?(이전 질문 또는 {q,a} 최대 4개), suggestion_id?, search_context?, mode?("staff": 관리자 화면),
@@ -175,11 +248,15 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
                 extra = {"session_id": sid, "channel": "staff" if staff else (mode or "web")}
         except (TypeError, ValueError):
             extra = {}
-        try:
+        def call():
             if staff:
-                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), staff=True, **extra)
-            else:
-                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), **extra)
+                return b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), staff=True, **extra)
+            return b.ask(body.get("question"), token, body.get("search_context"), body.get("history"), **extra)
+
+        if wants_stream(body, request):
+            return stream_answer(call, body, b, t0)
+        try:
+            result = call()
         except ValueError as e:
             metrics.record("question", (time.perf_counter() - t0) * 1000, "rejected")
             raise HTTPException(status_code=422, detail=str(e)) from None
