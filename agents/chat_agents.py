@@ -16,15 +16,17 @@ import re
 import time
 
 from agents import prompts
+from agents.contracts import PHONE_RE, without_non_phone
 from agents.local_model import ask_local_model
 from agents.observability import step
 
 INTENTS = ("service", "greeting", "thanks", "off_topic")
 WORKERS = ("guidance", "item_search")
 SERVICE_WORDS = re.compile(r"잃어|분실|주웠|주운|습득|찾|맡|받|수령|보관|키오스크|본센터|센터|신분|개인정보|연락처|후보|물건|"
-                           r"지갑|휴대폰|핸드폰|폰|usb|립밤|핸드크림|보조배터리|배터리|로봇|직원|역|운영|시간|예약|대리")
+                           r"지갑|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|폰|usb|립밤|핸드크림|보조배터리|배터리|로봇|직원|역|운영|시간|예약|대리")
 # 물건 검색을 허용할 신호: 물건 종류 낱말 또는 찾기·검색 말(없으면 planner 가 item_search 를 골라도 뺀다 — 실측 11/7: 모델이 거의 항상 둘 다 고름)
-ITEM_WORDS = re.compile(r"지갑|카드지갑|휴대폰|핸드폰|모형폰|폰|usb|유에스비|립밤|핸드크림|보조배터리|배터리|찾아|찾고|찾을|검색|후보")
+# 11/9 휴대폰 낱말은 공용 규칙(contracts.PHONE_RE — 앞말 붙은 '이어폰·헤드폰'의 '폰' 제외)을 쓰고, 검사 전에 휴대폰이 아닌 말을 지운다
+ITEM_WORDS = re.compile(r"지갑|카드지갑|usb|유에스비|립밤|핸드크림|보조배터리|배터리|찾아|찾고|찾을|검색|후보|" + PHONE_RE.pattern)
 GREETING_REPLY = ("안녕하세요! 지하철 분실물 안내 도우미예요. 잃어버린 물건 찾기, 주운 물건 맡기기, 물건 받는 방법을 물어보세요. "
                   "예: \"검정 지갑 잃어버렸어요\", \"본센터에서 어떻게 받아요?\"")
 THANKS_REPLY = "도움이 됐다니 다행이에요. 더 궁금한 점이 있으면 언제든 물어보세요."
@@ -94,7 +96,7 @@ class AgentBrain:
         for s in list(steps) + list(rule_steps or []):
             if s in WORKERS and s not in out:
                 out.append(s)
-        if "item_search" in out and "item_search" not in (rule_steps or []) and not ITEM_WORDS.search(question.lower()):
+        if "item_search" in out and "item_search" not in (rule_steps or []) and not ITEM_WORDS.search(without_non_phone(question)):
             out.remove("item_search")
         if not out:
             out = ["guidance"]

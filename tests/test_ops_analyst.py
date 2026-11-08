@@ -153,7 +153,7 @@ class ChatbotMetricsTests(unittest.TestCase):
 
     def test_chat_only_records(self):
         f = analyze({"returns": [], "live": {}, "chat": _chat_snapshot()}, "chatbot")
-        self.assertEqual(f["findings"][-1], "반환·이야기 기록은 아직 없습니다.")
+        self.assertEqual(f["findings"][-1], "반환·처리 기록은 아직 없습니다.")
         self.assertTrue(f["findings"][0].startswith("챗봇 질문 5건"))
 
     def test_chatbot_focus_route(self):

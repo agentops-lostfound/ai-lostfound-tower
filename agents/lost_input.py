@@ -8,12 +8,12 @@ import secrets
 import threading
 import time
 from datetime import datetime, date, timedelta, timezone
-from agents.contracts import CATEGORIES, DESCRIPTION_FIELDS, UNKNOWN
+from agents.contracts import CATEGORIES, DESCRIPTION_FIELDS, UNKNOWN, mentions_phone, without_non_phone
 from agents.support_security import normalized_text, has_private_pattern
 
 KST = timezone(timedelta(hours=9))
 ALIASES = {"지갑": ("지갑", "wallet"), "USB": ("usb", "유에스비", "유에스비 메모리"),
-           "모형폰": ("휴대폰", "휴대전화", "스마트폰", "모형폰", "핸드폰"),
+           "모형폰": ("휴대폰", "휴대전화", "스마트폰", "모형폰", "핸드폰", "전화기", "아이폰", "갤럭시", "폰"),  # 11/9 맨 '폰'은 mentions_phone(이어폰·헤드폰 제외)
            "립밤": ("립밤",), "핸드크림": ("핸드크림", "핸드 크림"), "보조배터리": ("보조배터리", "보조 배터리")}
 # 11/6: 비전(agents/vision_adapter.py COLOR)과 같은 묶음으로 — light blue→파랑, beige→갈색, purple·orange→기타
 COLORS = {"검정": ("검정", "검은", "검정색", "블랙", "까만"), "흰색": ("흰색", "하얀", "화이트"),
@@ -43,7 +43,11 @@ def text_features(text):
         def present(term):
             # '검은색' and '밝은색' contain '은색' but do not mean silver.
             return bool(re.search(r"(?<![가-힣])은색", text)) if term == "은색" else term in text
-        found = {label for label, terms in aliases.items() if any(present(term) for term in terms)}
+        if field == "category":       # 11/9 '이어폰·헤드폰·에어팟'은 휴대폰이 아님 → 그 말을 지운 글에서 품목을 찾고, '폰'은 공용 규칙으로
+            found = {label for label, terms in aliases.items() if label != "모형폰"
+                     and any(term in without_non_phone(text) for term in terms)} | ({"모형폰"} if mentions_phone(text) else set())
+        else:
+            found = {label for label, terms in aliases.items() if any(present(term) for term in terms)}
         if field == "color" and any(term in text for term in OTHER_COLORS):
             found.add("기타")                  # 11/6 연보라색 → 예전엔 색을 못 알아듣고 색 없이(다른 색 후보까지) 찾았음
         if len(found) == 1 and not re.search(r"아니|말고|않|제외", text):

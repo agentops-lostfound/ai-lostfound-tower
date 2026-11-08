@@ -12,7 +12,7 @@
 import json
 import threading
 import re
-from agents.contracts import category_label
+from agents.contracts import category_label, mentions_phone, without_non_phone
 from agents.local_model import ask_local_model
 from agents.support_security import has_private_pattern
 
@@ -212,7 +212,8 @@ WHERE_A = re.compile(r"역|센터|키오스크|웹|보관함|창구|에서")
 # 11/8 실측: 안내 자료에 없는 돈·책임 질문("습득자한테 사례금 줘야 하나요", "없어지면 누가 책임져요")에 엉뚱한 근거로 답함
 # → 질문의 이 낱말이 답에 없으면 '맞물리지 않음'(다시 쓰기 → 그래도 없으면 자료에 없다고 답함)
 UNCOVERED_Q = re.compile(r"사례금|보상금|사례비|보상|배상|변상|책임|소송|고소|보험")
-ITEM_WORDS = {"지갑": ("지갑",), "모형폰": ("모형폰", "휴대폰", "핸드폰", "폰"), "USB": ("usb",), "립밤": ("립밤",),
+ITEM_WORDS = {"지갑": ("지갑",), "모형폰": ("모형폰", "휴대폰", "핸드폰", "휴대전화", "스마트폰", "전화기", "아이폰", "갤럭시", "폰"),  # 휴대폰은 mentions_phone
+              "USB": ("usb",), "립밤": ("립밤",),
               "핸드크림": ("핸드크림",), "보조배터리": ("보조배터리", "배터리")}
 GAP_LEAD = "안내 자료에서 이 질문에 바로 답할 내용은 찾지 못했어요. 관련 안내: "
 GAP_TAIL = " 정확한 내용은 본센터 직원에게 확인해 주세요."
@@ -220,7 +221,9 @@ GAP_TAIL = " 정확한 내용은 본센터 직원에게 확인해 주세요."
 
 def items_named(text: str) -> set:
     low = (text or "").lower()
-    return {name for name, words in ITEM_WORDS.items() if any(w in low for w in words)}
+    low = without_non_phone(low)                      # 11/9 '이어폰'의 '폰'을 휴대폰으로 세지 않음
+    return {name for name, words in ITEM_WORDS.items() if name != "모형폰" and any(w in low for w in words)} | \
+        ({"모형폰"} if mentions_phone(low) else set())
 
 
 def answer_gap(question: str, answer: str) -> str | None:

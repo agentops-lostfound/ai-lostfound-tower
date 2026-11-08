@@ -25,7 +25,7 @@ import time
 from datetime import date, datetime, timezone
 
 from agents.contracts import (ACTIVE_STATUSES, HANDOVER_DONE, HANDOVER_HOLD, MACHINE_LETTERS, NONE, STAFF_STOP_REASON,
-                              UNKNOWN, make_item_id, robot_result)
+                              UNKNOWN, make_item_id, mentions_phone, robot_result, station_name, without_non_phone)
 from agents.intake import DEMO_PLACES, IntakeError, split_features
 from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa: F401 (RESULT_NAME: 문서용)
 
@@ -84,7 +84,8 @@ def _now_iso() -> str:
 CATEGORY_WORDS = [("보조배터리", "power_bank"), ("배터리", "power_bank"), ("카드지갑", "card_wallet"),
                   ("반지갑", "card_wallet"), ("장지갑", "card_wallet"), ("지갑", "card_wallet"), ("usb", "usb"),
                   ("유에스비", "usb"), ("립밤", "lip_balm"), ("핸드크림", "hand_cream"), ("모형폰", "phone"),
-                  ("휴대폰", "phone"), ("핸드폰", "phone"), ("스마트폰", "phone")]
+                  ("휴대폰", "phone"), ("핸드폰", "phone"), ("스마트폰", "phone"), ("휴대전화", "phone"),
+                  ("전화기", "phone"), ("아이폰", "phone"), ("갤럭시", "phone")]   # 맨 '폰'은 sim_qwen 에서(contracts.mentions_phone)
 COLOR_WORDS = [("검정", "black"), ("검은", "black"), ("까만", "black"), ("블랙", "black"), ("하얀", "white"),
                ("흰", "white"), ("화이트", "white"), ("회색", "gray"), ("그레이", "gray"), ("은색", "silver"),
                ("실버", "silver"), ("빨간", "red"), ("빨강", "red"), ("레드", "red"), ("남색", "navy"),
@@ -120,7 +121,9 @@ def _first(text: str, table) -> str | None:
 def sim_qwen(text: str, query: bool = False) -> dict:
     """설명 글 → Qwen general_items_v1 모양(영어). query=True(분실인 설명)면 말하지 않은 것은 비워 둔다(모름)."""
     text = text or ""
-    cat = _first(text, CATEGORY_WORDS)
+    cat = _first(without_non_phone(text), CATEGORY_WORDS)   # 11/9 '이어폰·헤드폰·에어팟'은 휴대폰이 아님
+    if not cat and mentions_phone(text):                     # 11/9 "파란색 폰 잃어버렸어요" — 앞말 없는 '폰'
+        cat = "phone"
     color = _first(text, COLOR_WORDS)
     material = _first(text, MATERIAL_WORDS)
     words = [w for w in _LATIN.findall(text) if w.lower() != "usb"] + _QUOTED.findall(text)
@@ -597,6 +600,7 @@ class SimWorld:
             for r in self.items.values():
                 pos = SLOTS_MM[r["slot"]] if r["loc"] == LOC_BIN and r["slot"] is not None else None
                 items.append({"item_id": r["item_id"], "machine_id": r["machine_id"], "status": r["status"],
+                              "station": station_name(r["machine_id"], r["item_id"]),   # 11/9 습득 역(사람이 읽는 이름)
                               "loc": r["loc"], "category": r.get("category"), "color": r["features"].get("color"),
                               "place_text": r["place_text"], "mm": list(pos) if pos else None,
                               "slot_id": SLOT_IDS[r["slot"]] if pos else None,

@@ -560,6 +560,7 @@ class TowerService:
         - waiting: 칸 대기 = 역 키오스크에 있는 물건 중 맞는 빈 칸이 없어 회수하지 않는 물건(먼저 접수된 순서).
           본센터에 이미 와 있는 물건이 빈 칸을 먼저 쓰고, 남는 칸을 역 물건이 접수 순서대로 쓴다고 보고 센다
         - shelf: 직원 보관 선반 물건 · suggest: 칸 대기가 있는 묶음에서 가장 오래 보관된 물건(선반으로 옮기기 제안)"""
+        from agents.contracts import station_name
         from agents.storage import group_of, shelf_items, slot_groups
         try:
             layout = self.storage.layout()
@@ -577,7 +578,8 @@ class TowerService:
                 free[g["key"]] -= 1
             elif self._where(r) == "station":
                 waiting.append({"item_id": r["item_id"], "category": r.get("category"), "group": g["key"],
-                                "machine_id": r.get("machine_id"), "received_at": r.get("received_at")})
+                                "machine_id": r.get("machine_id"), "received_at": r.get("received_at"),
+                                "station": station_name(r.get("machine_id"), r["item_id"])})   # 11/9 습득 역(화면 표시)
         queue = list(getattr(getattr(self, "world", None), "wait_queue", None) or [])
         if queue:       # 가상 시연: 접수 시각이 초 단위라 같을 수 있음 → 연출기의 실제 대기 줄 순서를 따른다
             waiting.sort(key=lambda w: queue.index(w["item_id"]) if w["item_id"] in queue else len(queue))

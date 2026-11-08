@@ -84,7 +84,7 @@ class InProcClient:
         if m:
             st = self.svc.board.story(m.group(1))
             if st is None:
-                raise TowerError("없는 이야기 번호")
+                raise TowerError("없는 처리 번호")
             return st
         raise TowerError(f"모르는 경로 {path}")
 

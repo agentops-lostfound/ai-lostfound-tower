@@ -158,6 +158,40 @@ def category_label(cat) -> str:
     return CATEGORY_LABEL.get(str(cat).strip(), str(cat))
 
 
+# 11/9 휴대폰 낱말(사용자 실측: "파란색 폰 잃어버렸어요. 서면역" → "무슨 물건인지 알 수 없어요").
+# 한줄 설명: 사람들이 휴대폰을 부르는 여러 말을 한곳에 모아, 모든 입구(가상 시연·분실인 웹·챗봇·통계)가 똑같이 알아듣게 한다.
+# - 앞말이 붙은 '폰'(이어폰·헤드폰)은 휴대폰이 아니다 → 휴대폰이 아닌 말을 먼저 지운 뒤, 앞에 한글이 붙지 않은 '폰'만 센다
+# - '갤럭시 버즈'·'갤럭시 워치'도 휴대폰이 아님. 품목 값은 '모형폰' 그대로(화면 이름만 '휴대폰')
+PHONE_WORDS = ("모형폰", "휴대폰", "핸드폰", "휴대전화", "스마트폰", "전화기", "아이폰", "갤럭시", "폰")
+# 11/9: '새폰·내폰·폰케이스'도 휴대폰으로 — 앞말이 붙은 '폰'을 다 막지 않고, 휴대폰이 아닌 '…폰' 낱말만 먼저 지운다
+NOT_PHONE_RE = re.compile(r"갤럭시\s*(?:버즈|워치|탭)|이어폰|헤드폰|에어폰|헤드셋|에어팟|버즈|메가폰|인터폰|색소폰|실로폰|마이크로?폰|스피커폰|확성기")
+PHONE_RE = re.compile(r"모형폰|휴대폰|핸드폰|휴대\s*전화|스마트폰|전화기|아이폰|갤럭시|폰(?!트)")
+
+
+def without_non_phone(text) -> str:
+    """'이어폰·헤드폰·에어팟' 같은 휴대폰이 아닌 말을 빈칸으로 바꾼다(품목 낱말을 찾기 전에 쓴다)."""
+    return NOT_PHONE_RE.sub(" ", str(text or "").lower())
+
+
+def mentions_phone(text) -> bool:
+    """글에 휴대폰을 뜻하는 말이 있는가. '파란색 폰'·'아이폰' → True, '이어폰'·'헤드폰'·'에어팟' → False"""
+    return bool(PHONE_RE.search(without_non_phone(text)))
+
+
+# 11/9 습득 역(사용자 요청: "각 물건이 어떤 역에서 습득한 건지 관제탑에서 보이게 해야 바로 검색이 가능할 듯").
+# 물건 번호 앞글자 = 등록기계(MACHINE_LETTERS) → 사람이 읽는 역 이름. 화면(관제·보관함·직원)과 /live/state 가 함께 쓴다
+MACHINE_STATION_NAME = {"KIOSK-A": "해운대역", "KIOSK-C": "서면역", "CENTER": "부산역 본센터"}
+LETTER_STATION_NAME = {MACHINE_LETTERS[m]: name for m, name in MACHINE_STATION_NAME.items()}
+
+
+def station_name(machine_id=None, item_id=None) -> str:
+    """등록기계(없으면 물건 번호 앞글자) → 습득 역 이름. 모르면 빈 글자. 예: ('KIOSK-C') → '서면역', (None, 'A-…') → '해운대역'"""
+    if machine_id in MACHINE_STATION_NAME:
+        return MACHINE_STATION_NAME[machine_id]
+    head = str(item_id or "")[:2]
+    return LETTER_STATION_NAME.get(head[0], "") if len(head) == 2 and head[1] == "-" else ""
+
+
 def public_card(features: dict) -> dict:
     """후보 카드에 보여도 되는 값만 남긴다(비공개 특징 제거)."""
     return {k: v for k, v in features.items() if k not in PRIVATE_FIELDS}

@@ -41,6 +41,9 @@ SLOT_RE = re.compile(r"^[A-Z][0-9]?-[0-9]{1,2}$")
 PHONE_ONLY = ["모형폰"]                                            # 품목 값은 '모형폰', 화면 이름은 '휴대폰'(contracts.category_label)
 NOT_PHONE = [c for c in MVP_CATEGORIES if c not in PHONE_ONLY]    # 지갑·USB·립밤·핸드크림·보조배터리
 LAYOUT = [
+    # 11/9 R1 메모: 비전(YOLO·Qwen)이 가로로 놓인 휴대폰을 잘 못 알아봐서 사선으로 둔다.
+    #   방향 = 탑뷰 화면에서 '\' — 휴대폰 상단(카메라)이 왼쪽 위, 케이블 꽂는 쪽(단자)이 오른쪽 아래
+    #   메모 값은 DB(008 마이그레이션)와 같아야 해서 그대로 두고 방향은 이 주석·docs/design/storage_slots.md 2장에 적는다
     ("R1", "R1 휴대폰 전용", "shelf", PHONE_ONLY, 2, "사선 배치·간격 넓음"),
     ("R2", "R2 그 밖의 물건", "shelf", NOT_PHONE, 2, None),
     ("R3", "R3 그 밖의 물건", "shelf", NOT_PHONE, 2, None),

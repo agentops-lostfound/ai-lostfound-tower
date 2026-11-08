@@ -247,6 +247,9 @@
 
   var CAT_LABEL = { "모형폰": "휴대폰" };   // 품목 값은 서버 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   function catName(c) { return CAT_LABEL[c] || c; }
+  // 11/9 습득 역: 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터) — agents/contracts.py station_name 과 같게
+  var LETTER_ST = { A: "해운대역", S: "서면역", H: "부산역 본센터" };
+  function stationOf(id) { id = String(id || ""); return /^[A-Z]-/.test(id) ? LETTER_ST[id[0]] || "" : ""; }
   function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
   // 11/5 /api/ 주소 체계: 찾기 접수는 /api/lost, 정지는 /api/robot(로그인 없이), 나머지 관리자 API 는 /api/admin
   function route(method, path) {
@@ -279,7 +282,7 @@
     if (!r.data.length) { box.appendChild(el("p", "제출보관함에서 확인을 기다리는 물건이 없습니다", "muted")); if (!xdone) $("xbox").hidden = true; return; }
     r.data.forEach(function (q) {
       var row = el("div", undefined, "qitem" + (xcur && xcur.case_id === q.case_id ? " on" : ""));
-      row.appendChild(el("span", q.case_id + " · 물건 " + q.item_id + " · " + (catName(q.category) || "품목 미정") +
+      row.appendChild(el("span", q.case_id + " · 물건 " + q.item_id + (stationOf(q.item_id) ? "(" + stationOf(q.item_id) + " 습득)" : "") + " · " + (catName(q.category) || "품목 미정") +
                                  (q.claim ? " · " + q.claim.name_masked : "") +
                                  (q.staff_shelf ? " · 직원 보관 선반 " + q.slot + "에서 가져와 확인" : "")));   // 11/9 선반 물건은 로봇이 제출보관함에 두지 않음
       var b = el("button", "확인 시작", "primary");
@@ -290,7 +293,7 @@
   function pick(q) {
     xcur = q; xans = {}; xdone = false;
     var kv = $("xkv"); kv.textContent = "";
-    [["사례", q.case_id], ["물건 번호", q.item_id], ["품목", catName(q.category) || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"],
+    [["사례", q.case_id], ["물건 번호", q.item_id], ["습득 역", stationOf(q.item_id) || "-"], ["품목", catName(q.category) || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"],
      ["물건 위치", q.staff_shelf ? "직원 보관 선반 " + q.slot + " (직원이 가져옴)" : "제출보관함 H-1"]]
       .forEach(function (p) { kv.appendChild(el("b", p[0])); kv.appendChild(el("span", p[1])); });
     var pub = q.public || {};
@@ -360,7 +363,7 @@
   function showClaim(c) {
     current = c;
     var kv = $("claimKv"); kv.textContent = "";
-    [["찾기 번호", c.claim_id], ["가린 이름", c.name_masked], ["물건 번호", c.item_id],
+    [["찾기 번호", c.claim_id], ["가린 이름", c.name_masked], ["물건 번호", c.item_id], ["습득 역", stationOf(c.item_id) || "-"],
      ["방문 예약일", c.visit_date], ["상태", c.status === "booked" ? "예약됨" : c.status]].forEach(function (p) {
       kv.appendChild(el("b", p[0])); kv.appendChild(el("span", p[1]));
     });
@@ -431,6 +434,7 @@
     r.data.forEach(function (x) {
       var tr = el("tr"); var d = DECISION[x.decision] || ["", x.decision];
       [x.case_id, x.claim_id || "—", x.item_id].forEach(function (v) { tr.appendChild(el("td", v)); });
+      if (stationOf(x.item_id)) tr.lastChild.title = stationOf(x.item_id) + " 습득";        // 11/9 물건 번호에 마우스를 올리면 습득 역
       tr.appendChild(el("td", d[1], d[0]));
       tr.appendChild(el("td", x.reason));
       tr.appendChild(el("td", (x.created_at || "").replace("T", " ").slice(0, 16)));
