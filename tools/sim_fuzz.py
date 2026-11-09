@@ -41,9 +41,10 @@ ANSWERS = ["SanDisk", "sandisk", "모름", "Kingston", "", "없어요", "VOVA", 
            "서면역", "해운대", "동래역", "부산역", "검정", "브라운", "분홍", "흰색", "파란색"]
 COMMANDS = ["상태", "도움말", "!도움말", "정지", "원점", "초기화", "help", "안녕", "?", ""]
 LOC_OK = {  # 물건 상태 → 있을 수 있는 실제 위치
-    "등록기계 보관": {"kiosk"}, "회수 중": {"transit"}, "본센터 보관": {"bin"}, "확인 중": {"bin"},
-    "승인·수령 예약": {"bin"}, "반환 중": {"bin", "gripper", "staff", "basket"}, HANDOVER_WAIT: {"basket"},
-    HANDOVER_DONE: {"handed"}, HANDOVER_HOLD: {"bin", "staff", "basket"}}
+    # 11/9: 보관함이 꽉 차면 찾는 사람이 생긴 칸 대기 물건은 직원 보관 선반(shelf)에 둔다 → 선반도 정상 위치
+    "등록기계 보관": {"kiosk"}, "회수 중": {"transit"}, "본센터 보관": {"bin", "shelf"}, "확인 중": {"bin", "shelf"},
+    "승인·수령 예약": {"bin", "shelf"}, "반환 중": {"bin", "gripper", "staff", "basket", "shelf"}, HANDOVER_WAIT: {"basket", "shelf"},
+    HANDOVER_DONE: {"handed"}, HANDOVER_HOLD: {"bin", "staff", "basket", "shelf"}}
 
 
 class InProcClient:
@@ -217,7 +218,10 @@ def run(runs: int, seed: int, timed: int = 0, verbose: bool = False) -> dict:
             svc.sim.wait_idle(60)
         if story:
             st = svc.board.story(story)
-            if not st or not st.get("result"):
+            waiting = st and not st.get("result") and st.get("ids", {}).get("item_id") in svc.world.wait_queue
+            if waiting:                                  # 11/9 칸 대기: 맞는 빈 칸이 생길 때까지 결과 없이 기다리는 것이 정상
+                stats["칸 대기(결과 보류)"] += 1
+            elif not st or not st.get("result"):
                 problems.append((i, kind, f"{story} 결과 없음"))
             else:
                 stats[f"{st['kind']}:{'성공' if st['result']['ok'] else '중단'}"] += 1
