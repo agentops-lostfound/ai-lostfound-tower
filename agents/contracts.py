@@ -14,9 +14,17 @@ UNKNOWN = "확인 불가"          # 사진으로 판단할 수 없을 때(보�
 NONE = "없음"                  # 표시·글자가 없음을 확인했을 때
 PII_MASK = "개인정보 가림"      # 카드·신분증의 이름·번호 자리
 
-# 분실물 품목 6종(11/3 핸드크림·보조배터리 정식 추가) + 없음. 물건 ID 앞글자: W 지갑 · U USB · L 립밤 · P 모형폰 · H 핸드크림 · B 보조배터리
+# 계약 품목 6종(11/3 핸드크림·보조배터리 정식 추가) + 없음. 물건 ID 앞글자: W 지갑 · U USB · L 립밤 · P 모형폰 · H 핸드크림 · B 보조배터리
+# 11/9: 립밤은 운영 품목에서 뺐지만 계약 목록에는 남긴다 — 옛 기록(DB item.category)·비전 클래스(lip_balm)·물건 ID 접두 L 이
+#       이 목록으로 검사되므로, 빼면 이미 들어온 립밤 기록과 Qwen 결과가 '목록에 없는 값'으로 거절된다
 CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배터리", "없음"]
-MVP_CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배터리"]  # 11/5 셀프서비스 MVP: 6종 모두 사용
+# 운영 품목(11/9 사용자 결정): 지금 접수·찾기·보관 칸에서 실제로 다루는 품목. **품목을 더 빼거나 넣을 때는 이 한 줄만 고친다**
+#   → 보관함 정답지(agents/storage.py)·챗봇 안내·가상 시연 문구가 이 목록을 따른다(화면 HTML 은 상수를 따로 둠: 아래 주석)
+#   립밤 제외 이유: YOLO 탑뷰 모델이 립밤을 잘 찾지 못함(vision/DETECTION_STATUS.md)
+#   화면 쪽 같은 목록: web/kiosk/index.html CATS · web/lost/index.html 품목 칩 · web/lost-input/index.html 품목 선택
+ACTIVE_CATEGORIES = ["지갑", "USB", "모형폰", "핸드크림", "보조배터리"]
+MVP_CATEGORIES = ACTIVE_CATEGORIES                  # 예전 이름(11/5 셀프서비스 MVP). 운영 품목과 같다
+RETIRED_CATEGORIES = [c for c in CATEGORIES if c not in ACTIVE_CATEGORIES and c != "없음"]   # 계약에는 있지만 운영하지 않는 품목
 FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]
 PRIVATE_FIELDS = ["mark", "visible_text"]   # 확인 질문용 비공개 특징(후보 카드에 안 보임)
 # 11/4: "분홍" 추가 — 구매한 카드지갑 중 하나가 핑크샌드(임시, 실물 도착 뒤 바뀔 수 있음). 없으면 "기타"로 뭉개져 색으로 구별 못 함
@@ -156,6 +164,27 @@ def category_label(cat) -> str:
     if cat is None:
         return ""
     return CATEGORY_LABEL.get(str(cat).strip(), str(cat))
+
+
+def is_active_category(cat) -> bool:
+    """지금 운영하는 품목인가(11/9). '휴대폰'처럼 화면 이름으로 와도 알아듣는다"""
+    if cat is None:
+        return False
+    cat = str(cat).strip()
+    return cat in ACTIVE_CATEGORIES or any(category_label(c) == cat for c in ACTIVE_CATEGORIES)
+
+
+def active_category_text(sep: str = "·") -> str:
+    """사람에게 보일 운영 품목 목록 글. 예: '지갑·USB·휴대폰·핸드크림·보조배터리'"""
+    return sep.join(category_label(c) for c in ACTIVE_CATEGORIES)
+
+
+def inactive_category_message(cat) -> str:
+    """운영하지 않는 품목 안내(11/9). 예: '립밤은 지금 운영하지 않는 품목이에요 — 지갑·USB·휴대폰·핸드크림·보조배터리 5가지만 다뤄요'"""
+    name = category_label(cat)
+    last = name[-1:]
+    josa = "은" if last and "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28 else "는"
+    return f"{name}{josa} 지금 운영하지 않는 품목이에요 — {active_category_text()} {len(ACTIVE_CATEGORIES)}가지만 다뤄요"
 
 
 # 11/9 휴대폰 낱말(사용자 실측: "파란색 폰 잃어버렸어요. 서면역" → "무슨 물건인지 알 수 없어요").

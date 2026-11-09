@@ -42,7 +42,10 @@ class RandomFindingsTest(unittest.TestCase):
         r = a.ask("어제 해운대역 화장실에서 검정 반지갑 잃어버렸어요 별 스티커 붙어있어요")
         self.assertIn("지갑 분실로 이해했어요", r["answer"])            # 물건을 말했는데 "어떤 물건?"이라고 되묻지 않음
         self.assertNotIn("어떤 물건을 잃어버리셨나요", a.ask("찾기 번호 잃어버렸어요")["answer"])
-        self.assertIn("6가지", a.ask("우산 잃어버렸어요")["answer"])        # 다루는 물건 목록을 알려 줌
+        self.assertIn("5가지", a.ask("우산 잃어버렸어요")["answer"])        # 다루는 물건 목록을 알려 줌(11/9 립밤 뺌)
+        lip = a.ask("어제 서면역에서 립밤 잃어버렸어요")["answer"]          # 11/9 운영하지 않는 품목 → 분실 신고로 안내하지 않음
+        self.assertIn("운영하지 않는 품목", lip)
+        self.assertNotIn("분실로 이해했어요", lip)
 
     def test_grounding_fixes(self):
         para = ["물건을 실제로 받는 곳(회수)은 본센터 키오스크 한 곳이에요."]

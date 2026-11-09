@@ -235,11 +235,11 @@ details.more .robot-note{margin-top:0}
         <span><svg viewBox="0 0 18 18" role="img" aria-label="파란 점선 네모: 로봇이 제출보관함에 놓는 자리" class="c-acc"><rect x="2" y="4" width="14" height="10" rx="3" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/></svg>놓는 자리</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="베이지 띠: 테두리 종이 테이프"><rect x="1.5" y="3.5" width="15" height="11" fill="var(--tape)" stroke="var(--tape-line)"/><rect x="4.5" y="6.5" width="9" height="5" fill="var(--bin)"/></svg>테이프</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="흰 부품과 검정 모터: 로봇팔"><rect x="2" y="6" width="11" height="6" rx="1.5" fill="var(--part)" stroke="var(--part-line)"/><rect x="11" y="4.5" width="5" height="9" rx="1" fill="var(--motor)" stroke="var(--motor-line)"/></svg>로봇팔</span>
-        <span><svg viewBox="0 0 18 18" role="img" aria-label="사선 휴대폰: 상단(점) 왼쪽 위, 단자 오른쪽 아래"><g transform="translate(9 9) rotate(-35)"><rect x="-3.6" y="-8" width="7.2" height="16" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="0" cy="-5.3" r="1.2" fill="currentColor"/><rect x="-1.4" y="6.1" width="2.8" height="1" fill="currentColor"/></g></svg>휴대폰 사선</span>
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="45도 사선 휴대폰: 상단(점) 오른쪽 위, 단자 왼쪽 아래"><g transform="translate(9 9) rotate(45)"><rect x="-3.6" y="-8" width="7.2" height="16" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="0" cy="-5.3" r="1.2" fill="currentColor"/><rect x="-1.4" y="6.1" width="2.8" height="1" fill="currentColor"/></g></svg>휴대폰 사선</span>
         <span><svg viewBox="0 0 22 18" role="img" aria-label="역 배지: 습득 역" class="c-acc"><rect x="1" y="4" width="20" height="10" rx="5" fill="var(--accent-soft)" stroke="currentColor"/></svg>습득 역</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="옅은 원: 집게 높이, 클수록 높음"><circle cx="6" cy="10" r="3" fill="var(--arm)" opacity=".25"/><circle cx="12.5" cy="9" r="5" fill="var(--arm)" opacity=".18"/></svg>집게 높이</span>
       </div>
-      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 사선(상단 왼쪽 위·단자 오른쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2~R4 = 그 밖의 물건 · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
+      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 지갑 · R3 = 보조배터리 · R4 = 핸드크림·USB(둘 중 하나로 정할 예정) · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
       <div class="cap" id="cap" aria-live="polite"></div>
       <div class="places" id="places"></div>
     </div>
@@ -278,7 +278,8 @@ details.more .robot-note{margin-top:0}
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const COLORS = {"검정":"#2b2b2b","흰색":"#f7f7f7","회색":"#a2a8b1","빨강":"#e05252","파랑":"#3d7be0","남색":"#2e3f73",
                   "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
-  const CAT = {"지갑":"지갑","USB":"USB","립밤":"립밤","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리"};
+  // 칸 카드의 품목 글자. 립밤은 11/9 운영 품목에서 뺐지만 옛 기록(이미 보관 중인 물건)이 보이도록 남겨 둠
+  const CAT = {"지갑":"지갑","USB":"USB","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리","립밤":"립밤"};
   const CAT_LABEL = {"모형폰":"휴대폰"};   // 품목 값('모형폰')은 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   const catName = (c) => CAT_LABEL[c] || c || "";
   // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터, agents/contracts.py station_name 과 같게)
@@ -301,13 +302,14 @@ details.more .robot-note{margin-top:0}
   function drawBench(b) {
     // 11/9 실제 규격(사용자 실측): 보관판 500×250(테두리 종이 테이프 15mm) · 로봇 쪽 덧댄 띠(약 66×15, 가운데) ·
     // 제출보관함 H-1(200×200, 테두리 테이프)은 보관판 위쪽 가운데에 붙음 · 로봇은 H-1 의 로봇 쪽 절반에 놓음 ·
-    // R1(왼쪽 두 칸) = 휴대폰 전용(사선, 간격 넓음) · R2~R4 = 그 밖. 칸 이름 R1-1~R4-2 = 보관함 정답지
+    // 11/9 열 배정(015): R1 휴대폰 전용(45도 사선, 간격 넓음) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB(미정이라 둘 다).
+    // 열 이름표·품목은 /live/state 의 rows(보관함 정답지 LAYOUT)를 그대로 따른다. 칸 이름 R1-1~R4-2 = 보관함 정답지
     const svg = $("bench");
     const [W, H] = b.size_mm, [x1, y1, x2, y2] = b.bin_mm;
     const ids = b.slot_ids || b.slots_mm.map((_, i) => String(i + 1));
     const hb = b.hbox_mm || [b.basket_mm[0] - 55, b.basket_mm[1] - 45, b.basket_mm[0] + 55, b.basket_mm[1] + 45];
     const T = b.tape_mm || 15, sh = b.shim_mm;
-    const CATS = {"모형폰": "휴대폰 전용", "USB": "USB", "핸드크림": "크림", "보조배터리": "배터리", "립밤": "립밤", "지갑": "지갑"};
+    const CATS = {"모형폰": "휴대폰 전용", "지갑": "지갑", "보조배터리": "보조배터리", "핸드크림": "핸드크림", "USB": "USB"};
     const tapeBox = (ax, ay, bx, by, cls) =>                 // 테두리 테이프(바깥 띠) + 안쪽 판
       `<rect x="${ax}" y="${ay}" width="${bx-ax}" height="${by-ay}" class="s-tape"/>` +
       `<rect x="${ax+T}" y="${ay+T}" width="${bx-ax-2*T}" height="${by-ay-2*T}" class="${cls}"/>`;
@@ -325,14 +327,14 @@ details.more .robot-note{margin-top:0}
     b.slots_mm.forEach(([sx, sy], i) => {
       const id = ids[i], phone = ((b.rows || {})[id.slice(0, 2)] || []).join() === "모형폰";
       s += `<rect x="${sx-half}" y="${sy-half}" width="${2*half}" height="${2*half}" rx="8" class="s-slot"/>`;
-      // 휴대폰을 사선으로 두는 자리(11/9 사용자 결정: '\' 방향 — 상단(점) 왼쪽 위 · 단자 오른쪽 아래, 가로로 두면 비전 인식률이 떨어짐)
-      if (phone) s += `<g transform="translate(${sx},${sy}) rotate(-35)"><rect x="-14" y="-33" width="28" height="66" rx="5" class="s-ghost"/><circle cy="-26" r="2.6" class="s-ghost-dot"/></g>`;
-      // 칸 이름: 휴대폰 칸은 사선 휴대폰('\')이 왼쪽 위를 덮으므로 오른쪽 위에
-      s += phone ? `<text x="${sx+half-5}" y="${sy-half+13}" text-anchor="end" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`
+      // 휴대폰을 45도 사선으로 두는 자리(11/9 사용자 결정: '/' 방향 — 상단(점) 오른쪽 위 · 단자 왼쪽 아래, 가로로 두면 비전 인식률이 떨어짐)
+      if (phone) s += `<g transform="translate(${sx},${sy}) rotate(45)"><rect x="-14" y="-33" width="28" height="66" rx="5" class="s-ghost"/><circle cy="-26" r="2.6" class="s-ghost-dot"/></g>`;
+      // 칸 이름: 휴대폰 칸은 사선 휴대폰('/')이 오른쪽 위를 덮으므로 왼쪽 위에(다른 칸과 같은 자리)
+      s += phone ? `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`
                  : `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`;
       rowX[id.slice(0, 2)] = sx;
     });
-    // 행 이름표: 받는 품목이 같은 이웃 행은 하나로(R2~R4 그 밖의 물건)
+    // 행 이름표: 받는 품목이 같은 이웃 행은 하나로(품목이 여럿인 열은 '핸드크림·USB'처럼 이어서)
     const codes = Object.keys(rowX), groups = [];
     codes.forEach(c => {
       const key = ((b.rows || {})[c] || []).slice().sort().join();
@@ -341,7 +343,7 @@ details.more .robot-note{margin-top:0}
     });
     groups.forEach(g => {
       const cats = (b.rows || {})[g.codes[0]] || [];
-      const name = cats.length === 1 ? (CATS[cats[0]] || cats[0]) : cats.length ? "그 밖의 물건" : "제한 없음";
+      const name = cats.length === 1 ? (CATS[cats[0]] || cats[0]) : cats.length ? cats.map(catName).join("·") : "제한 없음";
       const xs = g.codes.map(c => rowX[c]), mid = (Math.min(...xs) + Math.max(...xs)) / 2;
       const label = g.codes.length > 1 ? `${g.codes[0]}~${g.codes[g.codes.length-1]}` : g.codes[0];
       s += `<text x="${mid}" y="${y1+T+12}" text-anchor="middle" font-size="12" font-weight="700" class="s-acc">${esc(label)} ${esc(name)}</text>`;
@@ -366,12 +368,12 @@ details.more .robot-note{margin-top:0}
     const attrs = `data-id="${esc(it.item_id)}" data-tip="${esc(full)}" tabindex="0" role="img" aria-label="${esc(full)}"`;
     const light = ["흰색","노랑"].includes(it.color);
     if (it.category === "모형폰" && it.loc === "bin") {
-      // 11/9 휴대폰은 사선으로 놓음(R1): 화면에서 '\' — 상단(카메라 점) 왼쪽 위 · 단자 오른쪽 아래. 가로로 두면 비전(YOLO·Qwen) 인식률이 떨어짐
-      return `<g transform="translate(${x},${y}) rotate(-35)" ${attrs}><title>${esc(full)}</title>`+
+      // 11/9 휴대폰은 45도 사선으로 놓음(R1): 화면에서 '/' — 상단(카메라 점) 오른쪽 위 · 단자 왼쪽 아래. 가로로 두면 비전(YOLO·Qwen) 인식률이 떨어짐
+      return `<g transform="translate(${x},${y}) rotate(45)" ${attrs}><title>${esc(full)}</title>`+
         `<rect x="-16" y="-34" width="32" height="68" rx="6" fill="${c}" stroke="rgba(0,0,0,.3)"/>`+
         `<circle cx="-7" cy="-26" r="3.2" fill="${light?"rgba(0,0,0,.45)":"rgba(255,255,255,.75)"}"/>`+              // 상단: 카메라
         `<rect x="-5" y="29" width="10" height="2.6" rx="1.2" fill="${light?"rgba(0,0,0,.45)":"rgba(255,255,255,.75)"}"/>`+   // 하단: 케이블 꽂는 단자
-        `<g transform="rotate(90)" text-anchor="middle" font-weight="700" fill="${light?"#222":"#fff"}">` +              // 긴 축을 따라 두 줄: 역 · 번호 끝자리
+        `<g transform="rotate(-90)" text-anchor="middle" font-weight="700" fill="${light?"#222":"#fff"}">` +              // 긴 축을 따라 두 줄: 역 · 번호 끝자리('/' 방향이라 왼쪽 아래→오른쪽 위로 읽힘)
         (st ? `<text y="1" font-size="9">${esc(st)}</text><text y="11" font-size="9">${esc(short)}</text>` : `<text y="4" font-size="10">${esc(short)}</text>`) + `</g></g>`;
     }
     const label = CAT[it.category] || "?";
@@ -543,7 +545,7 @@ details.more .robot-note{margin-top:0}
     $("reach").innerHTML = reach && r.scale !== 1 ? `<circle cx="${bx}" cy="${by}" r="${reach}" class="s-reach"/>` : "";
   }
 
-  function renderCap(st) {        // 11/9 칸 사용 현황(휴대폰 x/2 · 그 밖 y/6 · 대기 n · 선반)
+  function renderCap(st) {        // 11/9 칸 사용 현황(열 묶음별 x/2 — 휴대폰·지갑·보조배터리·핸드크림·USB · 대기 n · 선반)
     const box = $("cap");
     if (!st) { box.innerHTML = ""; return; }
     let h = st.groups.map(g => `<span class="chip${g.used >= g.total ? " full" : ""}">${esc(g.label)} <b>${g.used}/${g.total}</b></span>`).join("");

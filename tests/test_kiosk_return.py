@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
 
 class KioskAutoCaptureTest(unittest.TestCase):
-    """11/6 습득자 화면: 찍기 버튼 없이 자동 촬영 + 품목 6종 놓는 법 + 연락처 이용 목적 안내(브라우저 실행은 Playwright 로 확인)"""
+    """11/6 습득자 화면: 찍기 버튼 없이 자동 촬영 + 품목 놓는 법(11/9 운영 품목 5종) + 연락처 이용 목적 안내(브라우저 실행은 Playwright 로 확인)"""
 
     def test_page_has_auto_capture_guide_and_privacy_notice(self):
         from pathlib import Path
@@ -111,8 +111,10 @@ class KioskAutoCaptureTest(unittest.TestCase):
         self.assertNotIn('id="shoot"', html)                      # 찍기 버튼 없음
         for word in ("stillMs: 3000", "getUserMedia", "trueEmpty"):      # 정지 3초(11/8) 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
             self.assertIn(word, html)
-        for cat in ("휴대폰", "지갑", "USB", "립밤", "핸드크림", "보조배터리"):   # 11/8 화면 이름(값은 모형폰 그대로)
+        for cat in ("휴대폰", "지갑", "USB", "핸드크림", "보조배터리"):   # 11/8 화면 이름(값은 모형폰 그대로)
             self.assertIn(f"<b>{cat}", html)
+        self.assertNotIn("립밤", html)                               # 11/9 운영 품목에서 뺌(놓는 법·분실 확인 품목 버튼·시연 물건)
+        self.assertIn("const CATS = ['지갑','USB','모형폰','핸드크림','보조배터리']", html)   # contracts.ACTIVE_CATEGORIES 와 같은 차례
         self.assertIn("'모형폰'", html)                            # 서버로 보내는 품목 값은 계약(CATEGORIES) 그대로
         self.assertNotIn("<b>모형폰", html)
         self.assertIn("다른 목적으로 쓰거나 다른 곳에 주지 않아요", html)

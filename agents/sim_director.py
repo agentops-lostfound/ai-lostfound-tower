@@ -27,7 +27,8 @@ import uuid
 from datetime import date
 
 from agents.claims import ClaimError, MemoryClaimStore, has_pii
-from agents.contracts import DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, UNKNOWN, public_card, show_ko
+from agents.contracts import (DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, UNKNOWN, active_category_text,
+                              inactive_category_message, is_active_category, public_card, show_ko)
 from agents.live import LiveBoard
 from agents.service import Conflict, NotFound, RequestError, TowerService, Unavailable
 from agents.sim_world import (LOC_BIN, LOC_KIOSK, LOC_SHELF, LOC_STAFF, LOC_TRANSIT, MACHINE_STATION, SimRobot, SimTopview,
@@ -130,7 +131,10 @@ class SimDirector:
             raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 서면·해운대 중 하나를 넣어 주세요(등록기계가 있는 역)")
         q = sim_qwen(clean)
         if q["category"] == "unknown":
-            raise RequestError("무슨 물건인지 알 수 없어요 — 지갑·USB·립밤·휴대폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
+            raise RequestError(f"무슨 물건인지 알 수 없어요 — {active_category_text()} 중 하나를 넣어 주세요")
+        from agents.vision_adapter import CATEGORY as QWEN_TO_KO
+        if not is_active_category(QWEN_TO_KO.get(q["category"])):   # 11/9 립밤 등 운영하지 않는 품목은 가상 세계에 만들지 않음
+            raise RequestError(inactive_category_message(QWEN_TO_KO.get(q["category"], q["category"])))
         if has_pii(place):   # 11/4: 이야기(화면 제목)를 만들기 전에 막는다 — 예전에는 제목에 전화번호가 보이고 이야기가 멈춰 있었다
             raise RequestError("장소에 전화번호 같은 개인정보는 쓰지 마세요(연락처는 등록기계에서 따로 받습니다)")
         sid = self.board.new_story("found", f"습득 신고 · {place}")
@@ -169,7 +173,7 @@ class SimDirector:
 
     @staticmethod
     def _group(category: str | None) -> tuple:
-        """품목이 들어갈 행 묶음(휴대폰 → R1, 그 밖 → R2~R4). 같은 묶음끼리만 칸 대기 순서를 지킨다"""
+        """품목이 들어갈 행 묶음(11/9 015: 휴대폰 R1 · 지갑 R2 · 보조배터리 R3 · 핸드크림·USB R4). 같은 묶음끼리만 칸 대기 순서를 지킨다"""
         rows = slot_rows()
         return tuple(sorted(code for code, allowed in rows.items() if category in allowed or not allowed))
 
@@ -388,7 +392,9 @@ class SimDirector:
             raise RequestError("분실 신고에 전화번호·주민등록번호 같은 개인정보는 쓰지 마세요")
         desc = query_features(clean)
         if "category" not in desc:
-            raise RequestError("무엇을 잃어버렸는지 알 수 없어요 — 지갑·USB·립밤·휴대폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
+            raise RequestError(f"무엇을 잃어버렸는지 알 수 없어요 — {active_category_text()} 중 하나를 넣어 주세요")
+        if not is_active_category(desc["category"]):                # 11/9 운영하지 않는 품목(립밤)은 찾기 접수 안 함
+            raise RequestError(inactive_category_message(desc["category"]))
         return self._next(desc, lost_station(clean), tags, set(), opts or {})
 
     def _next(self, desc: dict, station: str | None, tags: set[str], asked: set[str], opts: dict | None = None) -> dict:

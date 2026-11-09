@@ -2,7 +2,7 @@
 
 한줄 설명: **"물건 X 는 보관함 몇 행 몇 번 칸에 있고, 로봇팔은 어느 저장 자세로 가야 하는가"** 를 팀 DB 에 남기고, 비전(김건태) `run_storage_check.py` 가 읽는 storage JSON 으로 내보낸다.
 
-- 표: `center/migrations/007_storage_slots_1106.sql` + 사진 반영 `008`·`009` + 실제 규격·직원 보관 선반 `014_storage_phone_rows_staff_shelf_1109.sql` (관제탑 켤 때 `tools/db_migrate.py --apply` 가 자동 적용, dev 모드로 켜 둔 채 `git pull` 했다면 직접 `--apply`)
+- 표: `center/migrations/007_storage_slots_1106.sql` + 사진 반영 `008`·`009` + 실제 규격·직원 보관 선반 `014_storage_phone_rows_staff_shelf_1109.sql` + 열 배정·립밤 제외 `015_storage_columns_no_lipbalm_1109.sql` (관제탑 켤 때 `tools/db_migrate.py --apply` 가 자동 적용, dev 모드로 켜 둔 채 `git pull` 했다면 직접 `--apply`)
 - 코드: `agents/storage.py` (메모리·PostgreSQL 저장소), 관리자 API `/api/admin/storage*`, 내보내기 `tools/storage_export.py`
 - 시험: `tests/test_storage.py`, `tests/test_storage_full.py`(칸 규칙·꽉 참), `tests/test_service.py`(경로)
 
@@ -28,7 +28,7 @@ YOLO 는 "어디에 무엇이 몇 개 보이나"만 안다. **어느 물건이 �
                  |  [ robot drop zone ]     |   = robot-side half
    +-------------+--------------------------+-------------+
    | tape 15                                              |
-   |  R1 phone only       R2 ~ R4  other items            |
+   |  R1 phone(45deg) R2 wallet  R3 powerbank R4 cream/USB |
    |  R1-2 (\)          R2-2      R3-2      R4-2           |   far row (2)
    |                                                      |
    |  R1-1 (\)          R2-1      R3-1      R4-1           |   near row (1)
@@ -41,17 +41,21 @@ YOLO 는 "어디에 무엇이 몇 개 보이나"만 안다. **어느 물건이 �
 | 보관판 | 가로 500 × 세로 250 | 테두리에 종이 마킹테이프 15mm |
 | 덧댄 띠 | 폭 약 66 × 세로 15 | 로봇 쪽 아래 가운데. 폭 = 로봇 받침 앞 돌출부 두 개의 양 끝 폭 → 받침이 보관판 가운데에 옴 |
 | 제출보관함 H-1 | 200 × 200 | 테두리 테이프. **보관판 위쪽(로봇 반대쪽) 가운데에 딱 붙음**. 로봇은 **로봇 쪽 절반**에 놓는다(실제 크기 팔은 한가운데에 수직으로 못 닿음 — `agents/sim_world.py` `BASKET_MM`) |
-| R1 (왼쪽 두 칸) | 칸 2 | **휴대폰 전용**. 비전 모델(YOLO·Qwen)이 가로로 놓인 휴대폰을 잘 인식하지 못해 사선으로 둔다 → 다른 칸보다 간격이 살짝 넓다. **방향(11/9 사용자 결정)**: 탑뷰 화면에서 `\` — 휴대폰 **상단(카메라)이 왼쪽 위**, **케이블 꽂는 쪽(단자)이 오른쪽 아래** |
-| R2~R4 | 칸 6 | **휴대폰 밖 5종**(지갑·USB·립밤·핸드크림·보조배터리). 행마다 품목을 나누지 않는다 |
+| R1 (왼쪽 두 칸) | 칸 2 | **휴대폰 전용**. 비전 모델(YOLO·Qwen)이 가로로 놓인 휴대폰을 잘 인식하지 못해 **45도 사선**으로 둔다 → 다른 칸보다 간격이 살짝 넓다. **방향(11/9 사용자 결정)**: 탑뷰 화면에서 `/` — 휴대폰 **상단(카메라)이 오른쪽 위**, **케이블 꽂는 쪽(단자)이 왼쪽 아래**(09:51 `\` 에서 바꿈) |
+| R2 | 칸 2 | **지갑**(실물은 카드지갑) |
+| R3 | 칸 2 | **보조배터리** |
+| R4 | 칸 2 | **핸드크림 또는 USB** — 둘 중 무엇을 둘지 아직 미정이라 지금은 둘 다 받는다 |
 | 직원 보관 선반 S | 칸 수 제한 없음(S-1~S-99) | 보관판 밖. 로봇이 집지 않는다(9장) |
 
-- 칸 번호 = `행-번호`(예: `R1-2`). **1 = 로봇에 가까운 줄**, 2 = 먼 줄. 빈 칸 추천·가상 시연은 1번 줄부터 채운다(R2-1 → R3-1 → R4-1 → R2-2 …)
+- 칸 번호 = `행-번호`(예: `R1-2`). **1 = 로봇에 가까운 줄**, 2 = 먼 줄. 빈 칸 추천·가상 시연은 그 품목의 열에서 1번 칸부터 채운다(지갑: R2-1 → R2-2)
+- **11/9 립밤은 운영 품목에서 뺐다**(YOLO 가 립밤을 잘 찾지 못함). 운영 품목은 `agents/contracts.py` `ACTIVE_CATEGORIES` 한 곳에서 정하고, 열 배정은 `agents/storage.py` `ROW_CATEGORIES`. 계약 품목(`CATEGORIES`)에는 옛 기록 때문에 립밤을 남겼다 → 립밤 기록이 새로 들어오면 받는 열이 없어 직원 보관 선반을 추천한다
+- 품목을 하나 더 뺄 때: `ACTIVE_CATEGORIES` 에서 빼고 → 새 마이그레이션(016…)으로 `allowed_categories` 를 바꾸고 → 화면 HTML 품목 목록(키오스크 `CATS`·분실인 웹 칩·lost-input 선택지)과 `docs/guidance` 안내를 고친다. LAYOUT 과 DB 가 다르면 `tests/test_storage.py` 가 실패해서 알려 준다
 - 품목 값은 `모형폰`, 화면 이름은 `휴대폰`(`agents/contracts.py` `category_label`)
 - 바꾸는 법: `storage_section.allowed_categories` 만 고치면 된다(코드 수정 불필요). 굳이 다른 행에 넣을 때는 `override_category: true`
 - 노란 바구니(빛 가림막)는 보관 칸·인계 구역이 아니므로 DB 에 넣지 않는다
-- 가상 시연 그림(`/live`)도 같은 규격으로 그린다: 테이프·덧댄 띠·H-1 놓는 자리·R1 사선 휴대폰(`\`, 카메라 점 = 상단 왼쪽 위 · 단자 = 오른쪽 아래), 팔은 실제 크기(1.0)
+- 가상 시연 그림(`/live`)도 같은 규격으로 그린다: 테이프·덧댄 띠·H-1 놓는 자리·R1 45도 사선 휴대폰(`/`, 카메라 점 = 상단 오른쪽 위 · 단자 = 왼쪽 아래), 팔은 실제 크기(1.0)
 - 칸 카드에는 습득 역 배지(해운대·서면·본센터)가 붙는다. 물건 번호 앞글자 A = 해운대역 · S = 서면역 · H = 부산역 본센터(`agents/contracts.py` `station_name`)
-- 이력: 007 시작값(추정) → 008·009 판 사진 반영(11/6) → **014 실제 규격·사용자 결정(11/9)**
+- 이력: 007 시작값(추정) → 008·009 판 사진 반영(11/6) → 014 실제 규격·사용자 결정(11/9) → **015 열 배정·립밤 제외(11/9)**
 
 ## 3. 표 4개
 | 표 | 무엇 | 핵심 규칙 |
@@ -73,7 +77,7 @@ YOLO 는 "어디에 무엇이 몇 개 보이나"만 안다. **어느 물건이 �
 | POST | `/api/admin/storage/slots/{slot_id}/pose` | `{"pose_name": "pose_1"}` (`null` = 지움) | 저장 자세 연결 |
 | POST | `/api/admin/storage/checks` | `{"section": "R1", "expected_count": 2, "detected_count": 2, "status": "count_match"}` | 개수 확인 기록 |
 | GET | `/api/admin/storage/checks?limit=20` | - | 최근 기록 |
-| GET | `/api/admin/storage/status` | - | 11/9 꽉 참 현황: 묶음별 사용(휴대폰 x/2 · 그 밖 y/6)·칸 대기·선반 물건·선반으로 옮기기 제안 |
+| GET | `/api/admin/storage/status` | - | 11/9 꽉 참 현황: 묶음별 사용(열마다 x/2 — 휴대폰·지갑·보조배터리·핸드크림·USB)·칸 대기·선반 물건·선반으로 옮기기 제안 |
 | POST | `/api/admin/storage/shelf` | `{"item_id": "A-W01"}` | 11/9 직원 보관 선반으로(보관 칸 물건 또는 칸 대기 물건). 반환 중·인계 대기 물건은 409 |
 
 `TOWER_DB=1` 이면 팀 DB, 아니면 관제탑이 켜져 있는 동안만 기억(시연 부품 A-W01~ 로 시험 가능).
@@ -119,11 +123,11 @@ python tools/storage_export.py --out data/storage.json
    물건 고르기 → 품목에 맞는 빈 칸 추천(같은 목록에서 같은 칸을 두 번 추천하지 않음)
    실제로 넣은 뒤 "이 칸에 넣었음" → 상태 본센터 보관 + 칸 기록 + 상태 기록(changed_by=staff)을 거래 하나로
 ```
-- 추천 순서(11/9): 그 품목을 받는 행(휴대폰 → R1, 그 밖 → R2~R4)의 빈 칸 중 로봇에 가까운 1번 줄부터. **휴대폰 칸과 그 밖 칸은 섞지 않는다** → 맞는 칸이 없으면 직원 보관 선반 추천(9장). 품목을 모르면(확인 불가) 추천하지 않고 직원이 사진을 보고 고른다
+- 추천 순서(11/9, 015): 그 품목을 받는 열(휴대폰 R1 · 지갑 R2 · 보조배터리 R3 · 핸드크림·USB R4)의 빈 칸 중 로봇에 가까운 1번 칸부터. **품목이 다른 열은 섞지 않는다** → 맞는 칸이 없으면 직원 보관 선반 추천(9장). 품목을 모르면(확인 불가) 추천하지 않고 직원이 사진을 보고 고른다
 - 다른 행에 넣거나 품목 미확인이면 `override_category` 가 필요하다(화면: 확인 체크, 품목 미확인은 자동)
 - 칸 관리(접힌 메뉴): 칸 비우기, 저장 자세 이름 연결(로봇 티칭 담당)
 - API: `GET /api/admin/storage/arrivals`, `POST /api/admin/storage/arrivals/{item_id}/place` `{"slot_id": "R4-1", "override_category": false}`
-- 시연 데이터 주의: `center/seed_demo.sql` 의 A-W01~W07 은 모두 지갑(옛 가짜 탑뷰 시연용)이다. 11/9 부터 지갑은 R2~R4 여섯 칸 어디든 들어가고, 7번째부터는 선반 추천
+- 시연 데이터 주의: `center/seed_demo.sql` 의 A-W01~W07 은 모두 지갑(옛 가짜 탑뷰 시연용)이다. 11/9(015)부터 지갑은 R2 두 칸에만 들어가고, 3번째부터는 선반 추천
 
 ## 8. 칸 ↔ 로봇 저장 자세 (11/6 김건태 확정, 013)
 한줄 설명: 로봇팔이 칸마다 **미리 티칭해 둔 자세 이름**(`pose_1`~`pose_8`)으로 가서, 거기서부터 집기 모델(SmolVLA)이 집는다. 좌표 계산(IK)은 쓰지 않는다(11/5 김건태 결정).
@@ -131,9 +135,9 @@ python tools/storage_export.py --out data/storage.json
 | 행 | 1(로봇팔 가까운 칸) | 2(먼 칸) |
 | --- | --- | --- |
 | R1 휴대폰 전용 | `pose_1` | `pose_2` |
-| R2 그 밖의 물건 | `pose_3` | `pose_4` |
-| R3 그 밖의 물건 | `pose_5` | `pose_6` |
-| R4 그 밖의 물건 | `pose_7` | `pose_8` |
+| R2 지갑 | `pose_3` | `pose_4` |
+| R3 보조배터리 | `pose_5` | `pose_6` |
+| R4 핸드크림·USB | `pose_7` | `pose_8` |
 | H-1 제출보관함(배출구) | `close` | |
 
 - 반환 한 번의 로봇 동작: **칸 자세(pose_N)** → 집기·들어 올리기(SmolVLA) → **배출구 순서** `outlet_return_1 → close → open → outlet_return_1 → home`(`agents/storage.py` `OUTLET_SEQUENCE`)
@@ -156,10 +160,10 @@ python tools/storage_export.py --out data/storage.json
 ```
 | 경우 | 처리 | 어디서 |
 | --- | --- | --- |
-| (가) 회수 전에 칸 확인 | 품목이 들어갈 묶음(휴대폰 R1 / 그 밖 R2~R4)에 빈 칸이 있어야 회수. 없으면 상태는 `등록기계 보관` 그대로 + 칸 대기 표시 + 관제 경보 `[물건 번호] 보관 칸 없음(휴대폰 2/2) — 회수 대기` | 가상 시연 `agents/sim_director.py` `_collect_store`·`drain_wait`, 실제 DB 모드는 특징 저장 때 같은 경보(`TowerService.notify_slot_wait`) |
+| (가) 회수 전에 칸 확인 | 품목이 들어갈 열(휴대폰 R1 / 지갑 R2 / 보조배터리 R3 / 핸드크림·USB R4)에 빈 칸이 있어야 회수. 없으면 상태는 `등록기계 보관` 그대로 + 칸 대기 표시 + 관제 경보 `[물건 번호] 보관 칸 없음(휴대폰 2/2) — 회수 대기` | 가상 시연 `agents/sim_director.py` `_collect_store`·`drain_wait`, 실제 DB 모드는 특징 저장 때 같은 경보(`TowerService.notify_slot_wait`) |
 | (나) 직원 보관 선반 S | 칸 수 제한 없음(S-1~S-99, 필요할 때 생김). 보관 칸 물건·칸 대기 물건 모두 옮길 수 있다. **분실 신고 후보에 나오고**, 반환할 때 **로봇 단계를 건너뛰고** 인계 대기 → 직원이 선반에서 가져와 교차 검증 후 건넴(분실인 안내: "직원이 가져다 드려요") | `POST /api/admin/storage/shelf`, 반환 흐름 `agents/supervisor.py` `shelf_handover` |
 | (다) 칸 비우기 제안 | 보관 화면 위쪽에 "보관 칸이 다 찼어요 · 대기 N건" + 칸 대기가 있는 묶음에서 **가장 오래 보관된 물건을 선반으로 옮기기** 단추 | `/storage-desk`, `GET /api/admin/storage/status` `suggest` |
-| (라) 표시 | 관제 `/live` 작업대 아래 칸 사용 현황(휴대폰 x/2 · 그 밖 y/6 · 대기 n · 선반 m)과 선반 물건, 등록기계 칸의 `칸 대기` 표시. 디스코드 관제 메시지는 경보·진행 문구가 같다 | `/live`, `/api/admin/live/state` `storage` |
+| (라) 표시 | 관제 `/live` 작업대 아래 칸 사용 현황(열마다 x/2 · 대기 n · 선반 m)과 선반 물건, 등록기계 칸의 `칸 대기` 표시. 디스코드 관제 메시지는 경보·진행 문구가 같다 | `/live`, `/api/admin/live/state` `storage` |
 
 - **실제 DB 모드(TOWER_SIM=0)**: 회수는 사람이 한다. `/api/admin/storage/arrivals` 가 역 물건마다 `slot_wait`(칸 대기 순서 `wait_no`)를 알려 주고, 맞는 칸이 없으면 `recommended.shelf = true`(직원 보관 선반 추천)를 준다. 칸이 비면 같은 목록에서 칸 대기가 풀려 회수할 수 있게 보인다(자동으로 사람을 보내지는 않음)
 - 칸 대기 수 세는 법: 본센터에 이미 와 있는 물건이 빈 칸을 먼저 쓰고, 남은 칸을 역 물건이 **접수 순서대로** 쓴다고 보고, 모자라는 역 물건을 칸 대기로 센다
