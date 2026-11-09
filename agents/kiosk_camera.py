@@ -7,7 +7,7 @@
 (안드로이드 외장 카메라 기능을 켜지 않은 기기). 그래서 웹캠은 PC 에 꽂고 PC 가 영상을 넘겨준다.
 
 설정(.env, 관제탑 PC)
-    TOWER_KIOSK_CAMERAS=KIOSK-A=1,KIOSK-C=2      # 키오스크 기계 번호 = OpenCV 카메라 번호(tools/list_cameras.py 로 확인)
+    TOWER_KIOSK_CAMERAS=KIOSK-A=0,KIOSK-C=1      # 키오스크 기계 번호 = OpenCV 카메라 번호(tools/list_cameras.py 로 확인, 교육원 PC 웹캠 1대 = 0)
     TOWER_KIOSK_CAMERAS=KIOSK-A=fake             # 웹캠 없이 시험 무늬(시험·클라우드용)
 화면: /kiosk?machine=KIOSK-A&cam=server  → 영상 GET /api/kiosk/camera/KIOSK-A.mjpg
 - 카메라는 처음 볼 때 열고, 아무도 안 보면 60초 뒤 닫는다(탑뷰 카메라 등 다른 프로그램과 오래 다투지 않게)

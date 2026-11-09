@@ -104,5 +104,15 @@ class KioskPageTest(unittest.TestCase):
         self.assertIn("!DEMO && !SERVER_CAM && window.isSecureContext === false", html)   # 서버 카메라는 https 없이도
 
 
+
+class StartScriptTest(unittest.TestCase):
+    """11/9 저녁: 키오스크 영상(MJPEG)이 열려 있으면 Ctrl+C 에도 관제탑이 안 꺼지던 문제 — 3초 뒤 강제 종료 옵션"""
+
+    def test_start_tower_has_graceful_timeout(self):
+        bat = (Path(__file__).resolve().parent.parent / "tools" / "start_tower.bat").read_text(encoding="utf-8")
+        self.assertIn("--timeout-graceful-shutdown 3", bat)
+        self.assertIn("%TOWER_GRACE%", bat)
+
+
 if __name__ == "__main__":
     unittest.main()
