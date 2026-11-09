@@ -118,3 +118,21 @@ class LiveCheckModelReadyTest(unittest.TestCase):
         self.assertIn("없어요", model_ready("midm-2.0-mini", ["exaone3.5:2.4b", "mistral:latest"]))
         self.assertEqual(model_ready("midm-2.0-mini", ["midm-2.0-mini:latest"]), "")
         self.assertEqual(model_ready("exaone3.5:2.4b", ["exaone3.5:2.4b"]), "")
+
+
+class LiveCheckModelProbeTest(unittest.TestCase):
+    """11/9 교육원: 모델 목록엔 있는데 대화가 실패해 문항마다 0.1초 — 진짜 오류 문장을 먼저 보여 주는지"""
+
+    def test_ok_http_error_and_bad_reply(self):
+        import io
+        import urllib.error
+        from tools.chat_live_check import model_probe
+        self.assertEqual(model_probe("m", lambda p: {"message": {"content": '{"ok": true}'}}), "")
+
+        def http_400(payload):
+            raise urllib.error.HTTPError("u", 400, "Bad Request", {}, io.BytesIO('{"error":"모델 형식 오류"}'.encode()))
+        why = model_probe("m", http_400)
+        self.assertIn("HTTP 400", why)
+        self.assertIn("모델 형식 오류", why)
+        self.assertIn("JSONDecodeError", model_probe("m", lambda p: {"message": {"content": "그냥 글"}}))
+        self.assertIn("ConnectionRefusedError", model_probe("m", lambda p: (_ for _ in ()).throw(ConnectionRefusedError())))
