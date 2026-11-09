@@ -61,6 +61,22 @@ class DescriptionTests(unittest.TestCase):
         self.assertTrue(result["review_required"])
         self.assertFalse(result["reservation_created"])
 
+    def test_retired_category_lipbalm_is_not_handed_to_search(self):
+        """11/9 립밤은 운영 품목이 아님: 제안은 '확인 불가' + 안내, 직접 립밤으로 확인해도 검색으로 넘기지 않음"""
+        service = DescriptionService()
+        meta = {"lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"}
+        proposal = service.from_text({"text": "흰색 립밤", **meta})
+        self.assertEqual(proposal["description"]["category"], "확인 불가")
+        self.assertIn("운영하지 않는 품목", proposal["warnings"][0])
+        with self.assertRaises(ValueError) as cm:
+            service.confirm(proposal["proposal_id"], {"confirmed": True})          # 품목을 다시 골라야 함
+        self.assertIn("category", str(cm.exception))
+        with self.assertRaises(ValueError) as cm:
+            service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "립밤", "color": "흰색"}})
+        self.assertIn("운영하지 않는 품목", str(cm.exception))
+        handoff = service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "핸드크림", "color": "흰색"}})
+        self.assertEqual(handoff["description"]["category"], "핸드크림")
+
     def test_preview_then_edited_confirmation_without_identity_bypass(self):
         service = DescriptionService()
         proposal = service.from_text({"text": "검정 지갑", "lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"})

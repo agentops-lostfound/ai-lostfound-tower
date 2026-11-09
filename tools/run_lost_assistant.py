@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 def main():
     parser = argparse.ArgumentParser(description='분실물 설명·안내 챗봇 로컬 시연')
-    parser.add_argument('--demo', action='store_true', help='가상 물건 6종이 들어 있는 SQLite DB 사용')
+    parser.add_argument('--demo', action='store_true', help='가상 물건 6개(운영 품목 5종)가 들어 있는 SQLite DB 사용')
     parser.add_argument('--rag-model', help='이미 설치된 로컬 Ollama 모델 이름')
     parser.add_argument('--speech', action='store_true', help='이미 준비된 오프라인 small 음성 모델 사용')
     parser.add_argument('--port', type=int, default=8111)

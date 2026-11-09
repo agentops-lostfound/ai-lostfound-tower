@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = '667daedb8901a687fa02616894052d9b1ee689e9263e5aa39ab56802e9fc8a3e'  # 11/8 변재원: 키오스크 카메라 안내(kiosk_camera, 파일 접수 → 점검 안내) + 품목 화면 이름 모형폰→휴대폰(categories)
+APPROVED_CORPUS_SHA256 = '9093848d79355c7705a93b1e1776653cfe3c49e6fad607c2fb0fe92535351734'  # 11/9 변재원: 운영 품목 5종(categories, 립밤 제외). 이전 11/8: 키오스크 카메라 안내 + 품목 화면 이름 모형폰→휴대폰
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),
@@ -211,7 +211,7 @@ class Guidance:
             topics.add("placement_guide")
         if re.search(r"언제.*(?:도착|옮겨|본센터.*(?:와|가|있))|도착.*(?:언제|시간|걸려|해야)|얼마나.*걸려|바로.*(?:받|찾|가)|회수.*(?:언제|주기|몇시간|마다)|몇시간.*(?:뒤|후).*(?:받|찾)", q):
             topics.add("arrival")
-        if re.search(r"어떤물건|무슨물건|품목|종류|몇종|6종|다루는물건|취급|찾을수있|맡길수있", q):
+        if re.search(r"어떤물건|무슨물건|품목|종류|몇종|[56]종|다루는물건|취급|찾을수있|맡길수있", q):   # 11/9 운영 품목 5종(6종이라 물어도 같은 안내)
             topics.add("categories")
         if re.search(r"키오스크.*(?:어디|위치|있는역|몇개|어느)|어느역|등록기계.*(?:어디|위치)", q):
             topics.add("kiosk_places")

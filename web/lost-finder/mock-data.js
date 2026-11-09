@@ -6,7 +6,7 @@ window.MOCK = {
     { id: "c3", text: "수령 예약을 위해 연락처를 30일간 보관하는 데 동의합니다. (필수)" }
   ],
   fakeOcr: { 이름: "홍길동(가상)", 생년월일: "2000-01-01(가상)", 발급일: "2020-01-01(가상)" },
-  categories: ["지갑", "USB", "립밤", "모형폰", "기타"],
+  categories: ["지갑", "USB", "모형폰", "핸드크림", "보조배터리", "기타"],   // 11/9 운영 품목(contracts.ACTIVE_CATEGORIES) + 기타, 립밤 뺌
   candidates: [
     { id: "L-0001", name: "갈색 가죽 지갑", place: "본센터 보관함", score: 0.91, features: "갈색 · 가죽 · 금색 로고" },
     { id: "L-0002", name: "검은색 지갑", place: "본센터 보관함", score: 0.74, features: "검정 · 천 · 지퍼" },

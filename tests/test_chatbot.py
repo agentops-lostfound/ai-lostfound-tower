@@ -47,9 +47,13 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(result['status'], 'items_not_found')
         self.assertIn('확정한 것은 아닙니다', result['answer'])
 
-    def test_all_six_categories_can_be_queried_in_demo_database(self):
-        for category in ['지갑', '휴대폰', 'USB', '립밤', '보조배터리', '핸드크림']:
+    def test_all_active_categories_can_be_queried_in_demo_database(self):
+        for category in ['지갑', '휴대폰', 'USB', '보조배터리', '핸드크림']:          # 11/9 운영 품목 5종
             self.assertEqual(self.bot.ask(category + ' 찾아줘')['status'], 'items_found', category)
+        result = self.bot.ask('립밤 찾아줘')                                          # 운영하지 않는 품목 → 검색하지 않고 안내
+        self.assertEqual(result['status'], 'search_needs_details')
+        self.assertFalse(result['item_search_performed'])
+        self.assertIn('운영하지 않는 품목', result['answer'])
 
     def test_mixed_question_keeps_both_guidance_and_search(self):
         result = self.bot.ask('검정 지갑 찾아줘. 수령 절차도 알려줘')
