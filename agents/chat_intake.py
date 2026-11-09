@@ -101,6 +101,8 @@ class IntakeSessions:
 
 
 WAIT_RE = re.compile(r"\bL-\d{8}-\d{4}\b")
+# 11/9 채점표: "우산 분실 신고하고 싶어요"가 접수를 시작해 물건 종류를 다시 물었다 → 운영 4종 밖 물건 이름이면 바로 역무실 안내
+OTHER_ITEM = re.compile(r"우산|가방|백팩|배낭|이어폰|에어팟|노트북|태블릿|아이패드|안경|선글라스|교통카드|옷|외투|패딩|모자|목도리|장갑|책|서류|열쇠|키\s|시계|반지|목걸이|인형|텀블러")
 
 
 def detect_start(question: str) -> str | None:
@@ -205,6 +207,11 @@ class IntakeAgent:
             kind = start or detect_start(question)
             if kind is None:
                 return self._out("intake_none", "", None, progress=False)
+            m = OTHER_ITEM.search(question or "")
+            if m and kind in ("lost", "found") and not extract(question, kind).get("category"):
+                where = "역무실에 맡겨 주세요" if kind == "found" else "역무실에 문의해 주세요"
+                return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — 지갑·휴대폰·핸드크림·보조배터리 "
+                                                  f"4가지만 접수해요. {where}.", None, done=True)
             s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True,
                  "version": 0}
             for said in [p for p in (prior or []) if isinstance(p, str)][-3:]:
@@ -231,6 +238,15 @@ class IntakeAgent:
                 s["stage"], s["slots"], s["asked"] = "collect", {k: v for k, v in s["slots"].items() if k == "category"}, None
                 self.sessions.put(sid, s)
                 return self._ask_next(sid, s, note="처음 물건 종류만 남기고 다시 물어볼게요.")
+        if not action and not s.get("fresh") and ((s["kind"] == "found" and LOST_SAY.search(q) and not FOUND_SAY.search(q))
+                                                   or (s["kind"] == "lost" and FOUND_SAY.search(q) and not LOST_SAY.search(q))):
+            # 11/9 채점표: 습득 신고 중 "저도 휴대폰 잃어버렸어요"가 주운 물건 종류를 휴대폰으로 바꿨다 → 다른 종류 이야기는 값으로 쓰지 않음
+            other = "분실 접수" if s["kind"] == "found" else "습득 신고"
+            self.sessions.put(sid, s)
+            out = self._ask_next(sid, s, progress=False)
+            out["answer"] = (f"지금은 {'습득 신고' if s['kind'] == 'found' else '분실 접수'} 중이에요. 이걸 먼저 끝내거나 '취소'한 뒤 "
+                             f"{other}를 따로 시작해 주세요. ") + out["answer"]
+            return out
         before = dict(s["slots"])
         self._fill(s, q, action)
         progressed = s["slots"] != before

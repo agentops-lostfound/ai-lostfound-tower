@@ -62,7 +62,7 @@ STEP_AGENT = {'guidance': 'researcher', 'item_search': 'item_search', 'intake': 
 
 # 직원 관제 질문: 기록을 세고 원인을 찾는 말(STRONG)이 있거나, 문제 낱말 + 기간 낱말이 같이 있을 때만.
 # "본인인증 실패하면?"·"반환 절차 알려줘" 같은 이용 안내 질문은 직원이 물어도 안내 길로 간다.
-OPS_STRONG = re.compile(r'원인|현황|통계|요약|보고|분석|몇건|건수|경보|처리시간|평균시간|p95|성공률|실패율')
+OPS_STRONG = re.compile(r'원인|현황|통계|요약|보고|분석|몇건|건수|경보|처리시간|평균시간|p95|성공률|실패율|보류된|보류중|막혀|막히|병목|사례번호|몇번있|몇회')
 OPS_TOPIC = re.compile(r'실패|보류|거절|느려|오래|로봇|반환|챗봇|집기|정지|알림')
 OPS_WHEN = re.compile(r'오늘|어제|최근|이번|지금까지|요즘|방금')
 HOW_TO = re.compile(r'방법|절차|어떻게하|하면|사용법|이용법')
@@ -326,6 +326,10 @@ class Chatbot:
                 return {'record': rec('검색 조건 부족', 'ask_user', '품목·색을 되물어야 함 → 검색 답(되묻기)을 그대로 보냄')}
             if n and LOST_SAY.search(q) and not FOUND_SAY.search(q):
                 return {'record': rec(f'후보 {n}개', 'offer_intake', '잃어버렸다는 말 + 후보가 보임 → 대화로 분실 접수를 이어 갈 수 있게 버튼 제안'),
+                        'offers': ['분실 접수하기']}
+            if not n and status == 'items_not_found' and LOST_SAY.search(q) and not FOUND_SAY.search(q):
+                # 11/9 채점표·정연우 검토: 후보가 없으면 끝내지 말고 분실 신고(대기 번호)로 이어 가게
+                return {'record': rec('후보 0개', 'offer_intake', '잃어버렸다는 말 + 닮은 습득물 없음 → 분실 접수(대기 번호)로 이어 갈 수 있게 버튼 제안'),
                         'offers': ['분실 접수하기']}
             return {'record': rec(f'후보 {n}개 · {status}', 'continue', '다음 일꾼 또는 정리')}
         if last == 'researcher':
