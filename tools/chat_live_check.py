@@ -157,7 +157,9 @@ def main(argv=None) -> int:
     ok = sum(r["ok"] for r in rows)
     secs = [r["seconds"] for r in rows]
     print(f"\n합계 {ok}/{len(rows)} 통과 · 시간 중앙 {statistics.median(secs):.1f}초 · 최대 {max(secs):.1f}초" if rows else "문항 없음")
-    if rows and statistics.median(secs) < 0.5:
+    # 모델을 부르지 않는 게 정상인 답(대화 접수·인사·정해진 문장·서비스 밖)은 빼고 본다
+    model_secs = [r["seconds"] for r in rows if r["status"] not in ("intake", "coordinator_reply", "fixed_policy_text", "off_topic")]
+    if model_secs and statistics.median(model_secs) < 0.5:
         print("⚠️ 시간 중앙이 0.5초 미만 — 모델이 실제로 불리지 않았을 수 있어요(괄호 안 상태가 모두 규칙 답인지 확인)")
     if args.out:
         Path(args.out).write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
