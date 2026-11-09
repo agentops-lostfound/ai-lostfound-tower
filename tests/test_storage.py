@@ -37,7 +37,7 @@ class Items:
                    "A-W02": {"status": "본센터 보관", "category": "지갑"},
                    "A-W03": {"status": "확인 중", "category": "모형폰"},
                    "A-W04": {"status": "등록기계 보관", "category": "USB"},
-                   "A-W05": {"status": "승인·수령 예약", "category": "립밤"}}
+                   "A-W05": {"status": "승인·수령 예약", "category": "보조배터리"}}
 
     def __call__(self, item_id):
         return self.db.get(item_id)
@@ -55,24 +55,25 @@ class MemoryStorageTest(unittest.TestCase):
         groups = sm.pop("groups")
         self.assertEqual(sm, {"shelf_slots": 8, "used": 0, "free": 8, "slots_without_pose": 8, "staff_shelf": 0})
         self.assertEqual([(g["key"], g["label"], g["rows"], g["used"], g["total"]) for g in groups],
-                         [("phone", "휴대폰", ["R1"], 0, 2), ("other", "그 밖", ["R2", "R3", "R4"], 0, 6)])
+                         [("phone", "휴대폰", ["R1"], 0, 2), ("지갑", "지갑", ["R2"], 0, 2),
+                          ("보조배터리", "보조배터리", ["R3"], 0, 2), ("핸드크림·USB", "핸드크림·USB", ["R4"], 0, 2)])
         self.assertEqual((lay["sections"][5]["kind"], lay["sections"][5]["slots"]), ("staff", []))   # 선반 칸은 필요할 때 생김
         r1 = lay["sections"][0]
         self.assertEqual([x["slot_id"] for x in r1["slots"]], ["R1-1", "R1-2"])
-        self.assertEqual({x["note"] for x in r1["slots"]}, {"사선 배치·간격 넓음"})      # 11/6: 폰은 사선, 간격 넓음
+        self.assertEqual({x["note"] for x in r1["slots"]}, {"45도 사선·상단 오른쪽 위"})   # 11/9: 폰은 45도 사선(탑뷰 '/')
         self.assertEqual(lay["sections"][4]["kind"], "handover")
 
     def test_assign_conflict_move_and_release(self):
-        r = self.s.assign("A-W01", "R4-1")
-        self.assertEqual((r["section"], r["slot"], r["pose_name"]), ("R4", "1", None))
+        r = self.s.assign("A-W01", "R2-1")
+        self.assertEqual((r["section"], r["slot"], r["pose_name"]), ("R2", "1", None))
         with self.assertRaises(StorageConflict):                     # 칸 하나에 물건 하나
-            self.s.assign("A-W02", "R4-1")
-        self.s.assign("A-W01", "R4-2")                                # 같은 물건을 옮기면 예전 칸은 빔
+            self.s.assign("A-W02", "R2-1")
+        self.s.assign("A-W01", "R2-2")                                # 같은 물건을 옮기면 예전 칸은 빔
         lay = {x["slot_id"]: x for sec in self.s.layout()["sections"] for x in sec["slots"]}
-        self.assertIsNone(lay["R4-1"]["item"])
-        self.assertEqual(lay["R4-2"]["item"]["item_id"], "A-W01")
-        self.assertEqual(self.s.release(item_id="A-W01"), {"ok": True, "slot_id": "R4-2", "item_id": "A-W01"})
-        self.assertEqual(self.s.release(slot_id="R4-2"), {"ok": True, "slot_id": "R4-2", "item_id": None})
+        self.assertIsNone(lay["R2-1"]["item"])
+        self.assertEqual(lay["R2-2"]["item"]["item_id"], "A-W01")
+        self.assertEqual(self.s.release(item_id="A-W01"), {"ok": True, "slot_id": "R2-2", "item_id": "A-W01"})
+        self.assertEqual(self.s.release(slot_id="R2-2"), {"ok": True, "slot_id": "R2-2", "item_id": None})
 
     def test_rejects_wrong_category_handover_and_off_shelf_status(self):
         with self.assertRaises(StorageError):                         # 지갑을 모형폰 행에
@@ -121,8 +122,8 @@ class MemoryStorageTest(unittest.TestCase):
                 self.s.set_bounds("R1", bad)
 
     def test_items_leaving_shelf(self):
-        self.s.assign("A-W01", "R4-1")
-        self.s.assign("A-W02", "R4-2")
+        self.s.assign("A-W01", "R2-1")
+        self.s.assign("A-W02", "R2-2")
         self.items.db["A-W01"]["status"] = "반환 중"                  # 로봇이 집는 중: 칸은 유지, 내보내기에서는 빠짐
         self.assertNotIn("A-W01", self.s.export()["inventory"])
         self.assertEqual(self.s.layout()["summary"]["used"], 2)
@@ -130,10 +131,10 @@ class MemoryStorageTest(unittest.TestCase):
         self.assertEqual(self.s.layout()["summary"]["used"], 2)
         self.items.db["A-W01"]["status"] = "인계 완료"                # 건넴 → 칸 비움
         self.items.db["A-W02"]["status"] = "인계 완료"
-        self.assertEqual(self.s.assign("A-W05", "R4-1", override_category=True)["slot_id"], "R4-1")   # 화면 새로고침 없이 바로 넣기
-        self.s.release(slot_id="R4-1")
+        self.assertEqual(self.s.assign("A-W05", "R2-1", override_category=True)["slot_id"], "R2-1")   # 화면 새로고침 없이 바로 넣기
+        self.s.release(slot_id="R2-1")
         self.assertEqual(self.s.layout()["summary"]["used"], 0)
-        self.assertEqual(self.s.assign("A-W03", "R4-1", override_category=True)["slot_id"], "R4-1")
+        self.assertEqual(self.s.assign("A-W03", "R2-1", override_category=True)["slot_id"], "R2-1")
 
     def test_pose_validation(self):
         self.assertEqual(self.s.set_pose("R2-1", "pose_3")["pose_name"], "pose_3")
@@ -167,7 +168,7 @@ class MemoryStorageTest(unittest.TestCase):
 
 
 class PhoneRowAndShelfTest(unittest.TestCase):
-    """11/9 사용자 결정: R1 두 칸 = 휴대폰 전용, R2~R4 여섯 칸 = 그 밖 5종(행 제한 없음), 맞는 칸이 없으면 직원 보관 선반"""
+    """11/9 사용자 결정: R1 두 칸 = 휴대폰 전용(45도 사선) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB, 맞는 칸이 없으면 직원 보관 선반"""
 
     def setUp(self):
         from agents.storage import recommend_slot, shelf_items, slot_groups, group_of
@@ -193,20 +194,48 @@ class PhoneRowAndShelfTest(unittest.TestCase):
         with self.assertRaises(StorageError):
             self.s.assign("A-W21", "R1-1", override_category=False)          # 지갑을 R1 에
 
-    def test_others_any_row_near_robot_first(self):
-        order = []
-        for i in range(1, 7):
-            rec = self.recommend(self.s.layout(), self.db[f"A-W2{i}"]["category"])
-            self.assertFalse(rec["other_row"])
-            order.append(rec["slot_id"])
-            self.s.assign(f"A-W2{i}", rec["slot_id"])                       # 립밤·핸드크림도 R2~R4 어디든
-        self.assertEqual(order, ["R2-1", "R3-1", "R4-1", "R2-2", "R3-2", "R4-2"])   # 로봇 쪽(1번) 먼저
-        self.assertIsNone(self.recommend(self.s.layout(), "USB"))           # 그 밖 6칸이 다 참
-        self.assertEqual(self.recommend(self.s.layout(), "모형폰")["slot_id"], "R1-1")   # 휴대폰 칸은 따로 남음
-        g = {x["key"]: (x["used"], x["total"]) for x in self.groups(self.s.layout())}
-        self.assertEqual(g, {"phone": (0, 2), "other": (6, 6)})
-        self.assertEqual(self.group_of(self.groups(self.s.layout()), "립밤")["key"], "other")
+    def test_each_column_takes_its_category_near_robot_first(self):
+        """11/9(015): 열마다 품목 하나 — R2 지갑 · R3 보조배터리 · R4 핸드크림·USB(미정이라 둘 다). 로봇 쪽(1번) 칸 먼저"""
+        rec = self.recommend(self.s.layout(), "지갑")
+        self.assertEqual((rec["slot_id"], rec["other_row"]), ("R2-1", False))
+        self.s.assign("A-W21", "R2-1")
+        self.assertEqual(self.recommend(self.s.layout(), "지갑")["slot_id"], "R2-2")
+        self.s.assign("A-W26", "R2-2")
+        self.assertIsNone(self.recommend(self.s.layout(), "지갑"))           # 지갑 열이 차면 다른 열로 보내지 않음(칸 대기·선반)
+        self.assertEqual(self.recommend(self.s.layout(), "보조배터리")["slot_id"], "R3-1")
+        self.assertEqual(self.recommend(self.s.layout(), "USB")["slot_id"], "R4-1")
+        self.s.assign("A-W22", "R4-1")
+        self.assertEqual(self.recommend(self.s.layout(), "핸드크림")["slot_id"], "R4-2")   # R4 는 핸드크림·USB 둘 다
+        self.s.assign("A-W24", "R4-2")
+        with self.assertRaises(StorageError):
+            self.s.assign("A-W25", "R2-1", override_category=False)          # 보조배터리를 지갑 열에
+        with self.assertRaises(StorageError):
+            self.s.assign("A-W27", "R3-1")                                   # USB 를 보조배터리 열에
+        g = {x["key"]: (x["rows"], x["used"], x["total"]) for x in self.groups(self.s.layout())}
+        self.assertEqual(g, {"phone": (["R1"], 0, 2), "지갑": (["R2"], 2, 2), "보조배터리": (["R3"], 0, 2),
+                             "핸드크림·USB": (["R4"], 2, 2)})
+        self.assertEqual(self.group_of(self.groups(self.s.layout()), "USB")["key"], "핸드크림·USB")
         self.assertIsNone(self.group_of(self.groups(self.s.layout()), "확인 불가"))
+
+    def test_retired_category_lipbalm_has_no_column(self):
+        """11/9 립밤은 운영 품목이 아님: 받는 열이 없어 추천 칸 없음 → 직원 보관 선반. 이미 들어 있던 립밤 기록은 그대로 읽힘"""
+        self.assertIsNone(self.recommend(self.s.layout(), "립밤"))
+        self.assertIsNone(self.group_of(self.groups(self.s.layout()), "립밤"))
+        with self.assertRaises(StorageError):
+            self.s.assign("A-W23", "R4-1")                                   # 품목 확인을 그대로 하면 어느 열도 안 받음
+        self.assertEqual(self.s.assign("A-W23", "R4-1", override_category=True)["slot_id"], "R4-1")   # 직원이 강제로는 가능
+        self.assertEqual(self.s.move_to_shelf("A-W23")["slot_id"], "S-1")
+
+    def test_layout_follows_active_categories(self):
+        """운영 품목(contracts.ACTIVE_CATEGORIES)이 한 곳에서 정해지고, 모든 운영 품목은 받는 열이 있다"""
+        from agents.contracts import ACTIVE_CATEGORIES, MVP_CATEGORIES, RETIRED_CATEGORIES
+        self.assertEqual(MVP_CATEGORIES, ACTIVE_CATEGORIES)
+        self.assertEqual(RETIRED_CATEGORIES, ["립밤"])
+        rows = {c: a for c, _l, k, a, _n, _note in LAYOUT if k == "shelf"}
+        self.assertTrue(all(rows.values()), rows)                            # 품목이 빠져 빈 열(= 제한 없음)이 되면 안 됨
+        used = [c for a in rows.values() for c in a]
+        self.assertEqual(sorted(used), sorted(ACTIVE_CATEGORIES))
+        self.assertNotIn("립밤", used)
 
     def test_move_to_shelf_from_slot_and_from_kiosk(self):
         self.s.assign("A-W21", "R2-1")
@@ -246,8 +275,9 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
         body14 = "\n".join(line for line in fix14.splitlines() if not line.lstrip().startswith("--"))
         sections += re.findall(r"\('(\w+)',\s*'([^']+)',\s*'(shelf|handover|staff)',\s*'\{([^}]*)\}',\s*(\d+)\)", body14)  # 11/9 구역 S
         got = {c: (lb, k, [x for x in cats.split(",") if x]) for c, lb, k, cats, _ in sections}
-        # 009 → 014 가 바꾼 행(이름·품목)을 007 시작값에 차례로 적용하면 LAYOUT 과 같아야 한다(주석 속 되돌리기 문장은 빼고)
-        for rel in ("009_storage_categories_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql"):
+        # 009 → 014 → 015 가 바꾼 행(이름·품목)을 007 시작값에 차례로 적용하면 LAYOUT 과 같아야 한다(주석 속 되돌리기 문장은 빼고)
+        for rel in ("009_storage_categories_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql",
+                    "015_storage_columns_no_lipbalm_1109.sql"):
             text = (ROOT / "center" / "migrations" / rel).read_text(encoding="utf-8")
             text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
             fixes = re.findall(r"SET label = '([^']+)', allowed_categories = '\{([^}]*)\}'\s*"
@@ -260,9 +290,10 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
                          [(c, lb, k, al) for c, lb, k, al, _, _ in LAYOUT])
         self.assertIn("CHECK (kind IN ('shelf', 'handover', 'staff'))", body14)
         slots = re.findall(r"\('([A-Z]\d?-\d)',\s*'(\w+)',\s*(\d+),\s*(NULL|'[^']*')\)", sql)
-        # 008 → 014 가 바꾼 메모(옛 값 → 새 값)를 007 시작값에 적용하면 LAYOUT 과 같아야 한다
+        # 008 → 014 → 015 가 바꾼 메모(옛 값 → 새 값)를 007 시작값에 적용하면 LAYOUT 과 같아야 한다
         renames = {}
-        for rel in ("008_storage_layout_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql"):
+        for rel in ("008_storage_layout_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql",
+                    "015_storage_columns_no_lipbalm_1109.sql"):
             text = (ROOT / "center" / "migrations" / rel).read_text(encoding="utf-8")
             text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
             for new, old in re.findall(r"SET note = '([^']+)' WHERE .*?note = '([^']+)'", text):
@@ -283,6 +314,18 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
             if "UPDATE storage_section" in u or "UPDATE storage_slot" in u:
                 self.assertIn(" AND ", u, u)                             # 옛 값 조건
         self.assertIn("ON CONFLICT (section_code) DO NOTHING", sql)
+
+    def test_015_has_undo_notes_and_keeps_edited_values(self):
+        """11/9 015: 014 와 같은 방식 — 되돌리기 주석, 옛 값일 때만 UPDATE, 물건 배정(storage_assignment)은 건드리지 않음"""
+        sql = (ROOT / "center" / "migrations" / "015_storage_columns_no_lipbalm_1109.sql").read_text(encoding="utf-8")
+        self.assertIn("되돌리기", sql)
+        body = " ".join(line for line in sql.splitlines() if line.strip() and not line.lstrip().startswith("--"))
+        for u in body.split(";"):
+            if u.strip():
+                self.assertIn("UPDATE storage_", u)
+                self.assertIn(" AND ", u, u)
+        self.assertNotIn("storage_assignment", body)
+        self.assertNotIn("립밤}", body.split("WHERE")[0])                     # 새 값에는 립밤이 없음
 
     def test_on_shelf_and_check_statuses_match_sql(self):
         from agents.storage import CHECK_STATUSES, RELEASE_STATUSES
@@ -400,17 +443,19 @@ class PostgresStorageTest(unittest.TestCase):
 
     def test_round_trip_and_trigger(self):
         import psycopg
-        self.s.assign("A-W01", "R4-1")
+        self.s.assign("A-W01", "R2-1")                                 # 11/9 015: 지갑은 R2 열
         with self.assertRaises(StorageConflict):
-            self.s.assign("A-W02", "R4-1")
+            self.s.assign("A-W02", "R2-1")
         with self.assertRaises(StorageConflict):
-            self.s.assign("A-W04", "R2-1")
+            self.s.assign("A-W04", "R4-1")                             # USB 열이지만 아직 등록기계에 있음
         with self.assertRaises(StorageError):
             self.s.assign("A-W02", "R1-1")
-        self.s.assign("A-W01", "R4-2")
-        self.s.set_pose("R4-2", "pose_2")
+        with self.assertRaises(StorageError):
+            self.s.assign("A-W02", "R4-1")                             # 지갑을 핸드크림·USB 열에
+        self.s.assign("A-W01", "R2-2")
+        self.s.set_pose("R2-2", "pose_2")
         out = self.s.export()
-        self.assertEqual(out["inventory"], {"A-W01": {"section": "R4", "slot": "2"}})
+        self.assertEqual(out["inventory"], {"A-W01": {"section": "R2", "slot": "2"}})
         gunte_load_storage(out)
         with psycopg.connect(self.dsn) as conn:
             conn.execute("UPDATE item SET status='인계 대기' WHERE item_id='A-W01'")

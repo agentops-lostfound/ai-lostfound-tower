@@ -364,7 +364,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     @app.get("/api/admin/storage/status", dependencies=admin)
     def storage_status() -> dict:
-        """11/9 보관함 꽉 참 현황: 묶음별 사용(휴대폰 x/2 · 그 밖 y/6)·칸 대기·직원 보관 선반·선반으로 옮기기 제안"""
+        """11/9 보관함 꽉 참 현황: 묶음별 사용(열마다 x/2)·칸 대기·직원 보관 선반·선반으로 옮기기 제안"""
         return _case(svc.storage_status)
 
     @app.post("/api/admin/storage/shelf", dependencies=admin)
@@ -596,7 +596,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     _brief = {"t": 0.0, "v": None}
 
     def _storage_brief():
-        """11/9 /live 칸 사용 현황(휴대폰 x/2 · 그 밖 y/6 · 대기 n · 선반). 0.4초마다 불리므로 1.5초 동안은 지난 값(팀 DB 부담 줄임)"""
+        """11/9 /live 칸 사용 현황(열마다 x/2 · 대기 n · 선반). 0.4초마다 불리므로 1.5초 동안은 지난 값(팀 DB 부담 줄임)"""
         import time as _t
         now = _t.monotonic()
         if _brief["v"] is None or now - _brief["t"] > 1.5:
@@ -665,7 +665,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         st = board.story(story_id) if board else None
         if st is None:
             raise HTTPException(status_code=404, detail="없는 처리 번호")
-        return {**st, "events": board.since(after, story_id), "seq": board.last_seq}
+        # 11/9 에이전트 대화(내부 판단·칸 좌표)는 로그인 없는 이 주소·분실물 봇에는 내보내지 않는다(관리자 /live 에서만)
+        return {**st, "events": [e for e in board.since(after, story_id) if e.get("channel") != "agent"], "seq": board.last_seq}
 
     @app.post("/sim/reset", dependencies=admin)     # 11/8 무작위 시험: 로그인 없이 시연 전체를 지울 수 있었다
     def sim_reset() -> dict:

@@ -111,11 +111,12 @@ class SimTest(unittest.TestCase):
         svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_BRAIN": "0"})
         d = svc.sim
         d.visit_wait_s = 1
-        d.found("서면역 1번 출구에서 빨간 립밤 주웠어요")
+        # 11/9 립밤은 운영 품목에서 뺌 → 빈 칸이 있는 보조배터리(R3)로 같은 상황을 만든다
+        d.found("서면역 1번 출구에서 빨간 보조배터리 주웠어요")
         d.wait_idle(timeout=20)
-        d.lost("빨간 립밤 잃어버렸어요 서면역")
+        d.lost("빨간 보조배터리 잃어버렸어요 서면역")
         with self.assertRaises(RequestError):
-            d.lost("빨간 립밤 잃어버렸어요 서면역")
+            d.lost("빨간 보조배터리 잃어버렸어요 서면역")
         d.wait_idle(timeout=20)
         unfinished = [st["title"] for st in svc.board.stories.values() if st.get("result") is None
                       and not any(s["state"] == "active" and "키오스크" in (s.get("detail") or "") for s in st["stages"])]

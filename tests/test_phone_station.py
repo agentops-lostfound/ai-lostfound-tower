@@ -101,3 +101,14 @@ class WrongButtonTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PhoneDirectionTest(unittest.TestCase):
+    """11/9 09:51 사용자 결정: R1 휴대폰은 탑뷰 '/' 45도 — 상단(카메라) 오른쪽 위 · 단자 왼쪽 아래"""
+    def test_live_draws_phone_slash(self):
+        from pathlib import Path
+        html = (Path(__file__).resolve().parent.parent / "web/live/index.html").read_text(encoding="utf-8")
+        self.assertNotIn("rotate(-45)", html)                    # '\' 방향(예전)이 남아 있지 않음
+        self.assertGreaterEqual(html.count("rotate(45)"), 3)     # 칸 자리 · 보관된 휴대폰 · 범례
+        from agents.storage import LAYOUT
+        self.assertEqual(next(r for r in LAYOUT if r[0] == "R1")[5], "45도 사선·상단 오른쪽 위")

@@ -7,6 +7,7 @@
     alert    → DISCORD_WEBHOOK_ALERT     (#🚨관제-알림)
     score    → DISCORD_WEBHOOK_SCORE     (#📈평가-점수)
     team     → DISCORD_WEBHOOK_TEAM      (팀 대화 채널, 예: 부산7기 #2조-분실물관리시스템) — 반환 1건당 결과 한 줄만
+    agent    → DISCORD_WEBHOOK_AGENT     (#🤖에이전트-대화, 11/9) — 에이전트 대화 하나가 끝나면 한 번에. 없으면 보내지 않음
                비어 있으면 보내지 않는다(시험 채널로 대신 보내지 않음: 단계별 알림이 팀 대화를 덮지 않게)
     채널별 이름이 비어 있으면 DISCORD_WEBHOOK_URL(시험 채널) 하나로 보내고 제목 앞에 채널 이름을 붙인다.
 dry_run=True(기본)이면 보내지 않고 messages 에만 쌓는다(시험·연습용).
@@ -26,8 +27,9 @@ CHANNELS = {
     "alert": ("DISCORD_WEBHOOK_ALERT", "🚨관제-알림"),
     "score": ("DISCORD_WEBHOOK_SCORE", "📈평가-점수"),
     "team": ("DISCORD_WEBHOOK_TEAM", "2조 팀 채널"),
+    "agent": ("DISCORD_WEBHOOK_AGENT", "🤖에이전트-대화"),   # 11/9 에이전트끼리 주고받은 대화(대화 하나가 끝나면 한 번에)
 }
-NO_FALLBACK = {"team"}   # 웹후크가 없으면 조용히 건너뜀
+NO_FALLBACK = {"team", "agent"}   # 웹후크가 없으면 조용히 건너뜀(에이전트 대화는 /live 에서만 보임)
 FALLBACK_KEY = "DISCORD_WEBHOOK_URL"
 
 # 개인정보로 보이는 글자 모양(이름은 모양으로 못 찾으므로 메시지는 물건 번호로만 만든다)

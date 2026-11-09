@@ -81,6 +81,8 @@ class Ctx:
     match: dict | None = None
     consult: Callable | None = None   # 11/8 관제탑 메인 AI(agents/tower_brain.py): 매칭이 애매할 때 근거를 더 모음. None 이면 예전 그대로
     brain_note: str = ""              # 메인 AI 추천(직원 알림에 붙임)
+    talk: object | None = None        # 11/9 에이전트 대화(agents/agent_talk.py). None 이면 예전 그대로
+    slot_area: Callable | None = None # 11/9 item_id → {"slot_id", "bounds_mm"} (로봇팔 에이전트가 DB 에이전트에게 묻는 칸 범위)
     last_status: str = ""             # 이 흐름이 마지막으로 바꾼 물건 상태
     grasp_started: bool = False       # 로봇이 물건을 집으려고 했는지(했으면 물건 위치를 직원이 확인해야 함)
 
@@ -215,6 +217,12 @@ def locate(c: Ctx) -> bool:
     c.out.matched_index = m["index"]
     c.out.matched_object = c.detections[m["index"]].get("object_id")
     c.step("매칭 완료", f"점수 {m['score']} · 차이 {m['margin']}")
+    if c.talk is not None:
+        try:
+            c.talk.say(c.req.case_id, "매칭 에이전트", "메인 AI", "reply",
+                       f"탑뷰 물건 {len(c.detections)}개 중 {m['index'] + 1}번이 {c.req.item_id} 예요(점수 {m['score']} · 2위와 차이 {m['margin']})")
+        except Exception:
+            pass
     return False
 
 
@@ -254,6 +262,14 @@ def approach(c: Ctx) -> bool:
     target = det.get("center_mm")
     if not valid_point_mm(target):
         return c.finish(DECISION_STAFF, "작업대 좌표 없음(카메라 보정 안 됨) — 로봇을 움직이지 않음", alert=True)
+    if c.talk is not None and c.slot_area is not None:
+        # 11/9 로봇팔 에이전트가 메인 AI 를 거쳐 DB 에이전트에게 칸 범위를 묻고 탑뷰 위치와 맞춰 봄 — 다르면 멈춤(더 조심하는 쪽으로만)
+        try:
+            why = c.talk.robot_check(c.req.case_id, c.req.item_id, target, c.slot_area(c.req.item_id))
+        except Exception:
+            why = ""
+        if why:
+            return c.finish(DECISION_STAFF, why, alert=True)
     gpu = getattr(c.backend, "gpu_acquire", None)      # GPU 사용권(11/4): STT·Qwen 이 GPU 를 쓰는 중이면 기다리고, 못 받으면 직원 확인
     if callable(gpu):
         ok, why = gpu("vla")
@@ -306,18 +322,24 @@ STAGES = [("web_gate", web_gate), ("visit_gate", visit_gate), ("shelf_handover",
           ("approach", approach), ("grasp", grasp), ("deliver", deliver)]
 
 
-def new_ctx(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None, consult: Callable | None = None) -> Ctx:
+def new_ctx(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None, consult: Callable | None = None,
+            talk=None, slot_area: Callable | None = None) -> Ctx:
     c = Ctx(req, backend, reporter, reviewer, Outcome(req.case_id, DECISION_STAFF, ""), time.perf_counter())
-    c.consult = consult
+    c.consult, c.talk, c.slot_area = consult, talk, slot_area
     return c
 
 
 def run_return(req: ReturnRequest, backend, reporter, reviewer: Reviewer | None = None,
-               consult: Callable | None = None) -> Outcome:
+               consult: Callable | None = None, talk=None, slot_area: Callable | None = None) -> Outcome:
     """단계를 순서대로 실행(LangGraph 없이). 그래프판은 agents/graph.py — 같은 단계 함수를 쓴다.
     consult: 관제탑 메인 AI(agents/tower_brain.py TowerBrain.consult). None 이면 매칭이 애매할 때 바로 직원 확인"""
-    c = new_ctx(req, backend, reporter, reviewer, consult)
+    c = new_ctx(req, backend, reporter, reviewer, consult, talk, slot_area)
     for _, stage in STAGES:
         if stage(c):
             break
+    if talk is not None:
+        try:
+            talk.return_done(req.case_id, req.item_id, c.out.decision, c.out.reason)
+        except Exception:
+            pass
     return c.out

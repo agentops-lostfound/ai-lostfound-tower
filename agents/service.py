@@ -185,6 +185,8 @@ class TowerService:
                                          status_setter=self._storage_set_status, poses=SLOT_POSES)
         self.storage = storage
         self.brain = brain                         # 11/8 관제탑 메인 AI(agents/tower_brain.py). None = 매칭이 애매하면 바로 직원 확인
+        self.slot_lookup = None                    # 11/9 칸 범위 조회(가상 시연은 가상 작업대 칸 위치). None = slot_area
+        self.talk = None                           # 11/9 에이전트 대화(agents/agent_talk.py). None = 대화 기록 없이 예전 그대로
 
     def _storage_items(self) -> list[dict]:
         """메모리 보관함 도착 목록용: 등록기계 접수 기록 + 시연 부품(가짜 보관함)의 물건"""
@@ -435,6 +437,8 @@ class TowerService:
             be = GuardedBackend(self.backend_factory(), self._stop_event, self.gpu_lease)
             try:
                 extra = {"consult": self.brain.consult} if self.brain is not None and _accepts(self.flow, "consult") else {}
+                if self.talk is not None and _accepts(self.flow, "talk"):
+                    extra.update(talk=self.talk, slot_area=self.slot_lookup or self.slot_area)
                 out = self.flow(req, be, self.reporter, reviewer=self.reviewer, **extra).to_dict()
             except Exception as e:   # 부품이 약속을 어기고 예외를 던진 경우 → 정지 시도 + 직원 확인
                 out = self._crash(req, be, e)
@@ -556,7 +560,7 @@ class TowerService:
 
     def storage_status(self, limit: int = 200) -> dict:
         """11/9 보관함 꽉 참 현황(직원 화면·관제 /live·디스코드 문구 공통).
-        - groups: 묶음별 사용(휴대폰 x/2 · 그 밖 y/6)과 그 묶음의 칸 대기 수
+        - groups: 묶음별 사용(015: 열마다 x/2 — 휴대폰·지갑·보조배터리·핸드크림·USB)과 그 묶음의 칸 대기 수
         - waiting: 칸 대기 = 역 키오스크에 있는 물건 중 맞는 빈 칸이 없어 회수하지 않는 물건(먼저 접수된 순서).
           본센터에 이미 와 있는 물건이 빈 칸을 먼저 쓰고, 남는 칸을 역 물건이 접수 순서대로 쓴다고 보고 센다
         - shelf: 직원 보관 선반 물건 · suggest: 칸 대기가 있는 묶음에서 가장 오래 보관된 물건(선반으로 옮기기 제안)"""
@@ -654,7 +658,7 @@ class TowerService:
         try:                                                            # 칸 대기 순서는 현황(storage_status)과 같은 규칙으로
             seen: dict[str, int] = {}
             waits = {}
-            for w in self.storage_status()["waiting"]:                  # 묶음(휴대폰·그 밖)마다 1번부터
+            for w in self.storage_status()["waiting"]:                  # 묶음(열 품목)마다 1번부터
                 seen[w["group"]] = seen.get(w["group"], 0) + 1
                 waits[w["item_id"]] = seen[w["group"]]
         except Unavailable:

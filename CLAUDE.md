@@ -5,7 +5,7 @@ Codex 는 같은 내용의 `AGENTS.md` 를 읽는다. 규칙을 바꾸면 두 �
 
 ## 프로젝트
 - AI 분실물 관제탑: 습득물 등록기계 → 본센터(공용 보관함 + 탑뷰 카메라 + SO-101 로봇팔) → 분실인 웹, 이를 관제하는 AI 관제탑
-- MVP: 지갑 1종 → 성공하면 USB·립밤·모형폰·핸드크림·보조배터리(품목 6종, agents/contracts.py CATEGORIES). 업무는 Jira 스페이스 LF — 에픽 LF-1(접수·찾기)·LF-7(센터·데이터)·LF-13(관제탑) 아래 작업(11/4 기준 LF-34까지, 번호는 에픽별 1.x·2.x·3.x 를 이어서)
+- MVP: 지갑 1종 → 성공하면 USB·모형폰·핸드크림·보조배터리. 11/9 립밤 제외(YOLO 인식 어려움) → 운영 품목 5종은 agents/contracts.py ACTIVE_CATEGORIES 한 곳에서만 정함(계약 CATEGORIES 에는 옛 기록용으로 남김). 보관함 열: R1 휴대폰('/' 45도) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB(미정). 업무는 Jira 스페이스 LF — 에픽 LF-1(접수·찾기)·LF-7(센터·데이터)·LF-13(관제탑) 아래 작업(11/4 기준 LF-34까지, 번호는 에픽별 1.x·2.x·3.x 를 이어서)
 - 기준 입·출력 약속: `agents/contracts.py`, `docs/contracts/mcp_tools.md` — 바꾸면 PR에 이유를 적고 팀원 확인
 - 11/6 역할: 화면·관제탑(API·DB·로봇 연결)·챗봇 변재원(11/5 정연우, 11/6 김재민 작업 완료 후 이어받음) · 비전·매칭·집기 김건태 · 로봇팔 이순필. 관제탑 인수인계 `docs/design/tower_handover.md`, 이어받기 기록 `docs/reports/2026-11-06-jaewon-takeover-jaemin.md`
 
@@ -28,6 +28,7 @@ Codex 는 같은 내용의 `AGENTS.md` 를 읽는다. 규칙을 바꾸면 두 �
 - 챗봇 Langfuse 연결(실행 기록·프롬프트): `python tools/langfuse_setup.py --check` → `--push-prompts` → `--test-trace` — 안내 docs/design/chatbot_sllm_rag.md §11
 - 챗봇 실제 모델 회귀 시험(사용자 말투 질문 18개, Ollama 켠 상태): `python tools/chat_live_check.py --model midm-2.0-mini` — 모델·프롬프트·검사기를 고치면 돌린다. 안내 docs/design/chatbot_sllm_rag.md §13
 - 관제탑 메인 AI(매칭이 애매할 때 매칭·보관 칸·비전 에이전트 협업): `.env` TOWER_BRAIN=1, 가상 시연은 분실 메시지 끝에 `#흐린촬영` → `/live` 의 메인 AI 대화 패널 — 안내 docs/design/tower_main_ai.md
+- 에이전트 대화(메인 AI 아래 요청·답·채점·도움·배운 점, 가상 시연은 기본 켜짐·끄기 `TOWER_AGENT_TALK=0`): `/live` 🤖 에이전트 대화 패널 + 디스코드 `DISCORD_WEBHOOK_AGENT`(대화 하나에 한 번) — 안내 docs/design/agent_talk.md
 - 가짜 보관함 시나리오 9개(부품 교체 확인용, 디스코드 요약 `--discord`, 매칭 두 방식 비교 `--compare`): `python tools/mock_scene.py` — 안내 docs/design/swap_guide.md
 - 키오스크 사진 → Qwen 특징 작업자(관제탑과 같은 PC, Qwen 전용 가상환경): `.\.venv-qwen\Scripts\python.exe tools\intake_qwen_worker.py` (연결만 확인 `--check`) — 안내 docs/design/virtual_demo.md §4-5
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`

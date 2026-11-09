@@ -27,7 +27,8 @@ import uuid
 from datetime import date
 
 from agents.claims import ClaimError, MemoryClaimStore, has_pii
-from agents.contracts import DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, UNKNOWN, public_card, show_ko
+from agents.contracts import (DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, UNKNOWN, active_category_text,
+                              inactive_category_message, is_active_category, public_card, show_ko)
 from agents.live import LiveBoard
 from agents.service import Conflict, NotFound, RequestError, TowerService, Unavailable
 from agents.sim_world import (LOC_BIN, LOC_KIOSK, LOC_SHELF, LOC_STAFF, LOC_TRANSIT, MACHINE_STATION, SimRobot, SimTopview,
@@ -130,7 +131,10 @@ class SimDirector:
             raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 서면·해운대 중 하나를 넣어 주세요(등록기계가 있는 역)")
         q = sim_qwen(clean)
         if q["category"] == "unknown":
-            raise RequestError("무슨 물건인지 알 수 없어요 — 지갑·USB·립밤·휴대폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
+            raise RequestError(f"무슨 물건인지 알 수 없어요 — {active_category_text()} 중 하나를 넣어 주세요")
+        from agents.vision_adapter import CATEGORY as QWEN_TO_KO
+        if not is_active_category(QWEN_TO_KO.get(q["category"])):   # 11/9 립밤 등 운영하지 않는 품목은 가상 세계에 만들지 않음
+            raise RequestError(inactive_category_message(QWEN_TO_KO.get(q["category"], q["category"])))
         if has_pii(place):   # 11/4: 이야기(화면 제목)를 만들기 전에 막는다 — 예전에는 제목에 전화번호가 보이고 이야기가 멈춰 있었다
             raise RequestError("장소에 전화번호 같은 개인정보는 쓰지 마세요(연락처는 등록기계에서 따로 받습니다)")
         sid = self.board.new_story("found", f"습득 신고 · {place}")
@@ -162,14 +166,40 @@ class SimDirector:
                 row = w.db_get_item(item_id) or {}
                 self.rep.progress(item_id, "Qwen 특징 분석", f"{_summary(row.get('features', {}))} · 비공개 특징은 확인 질문용으로만 저장")
                 self.board.stage("features", "done", _summary(row.get("features", {})))
+                self._talk_found(item_id, row)
                 self._collect_store(sid, item_id)
             except Exception as e:      # 연출 오류는 경보로 보이고 관제탑은 계속 돈다
                 self.rep.alert(item_id, f"가상 습득 진행 오류({type(e).__name__})", "")
                 self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
 
+    @property
+    def talk(self):
+        return getattr(self.svc, "talk", None)
+
+    def _talk_found(self, item_id: str, row: dict) -> None:
+        """11/9 에이전트 대화: 키오스크 AI → 메인 AI → DB 에이전트 등록 확인(채점·도움 포함). 실패해도 습득 흐름은 계속"""
+        if self.talk is None:
+            return
+        try:
+            place = (self.world.items.get(item_id) or {}).get("place_text") or row.get("place_text") or ""
+            self.talk.found_registered(item_id, row, place)
+        except Exception:
+            pass
+
+    def _talk_slot(self, item_id: str, cat, slot, wait_no=None) -> None:
+        if self.talk is None:
+            return
+        try:
+            allowed = slot_rows().get((slot or "").split("-")[0]) if slot else None
+            self.talk.slot_reserved(item_id, item_id, cat, slot, allowed, wait_no)
+            if not slot:
+                self.talk.flush(item_id, f"습득 {item_id} 에이전트 대화(칸 대기)")
+        except Exception:
+            pass
+
     @staticmethod
     def _group(category: str | None) -> tuple:
-        """품목이 들어갈 행 묶음(휴대폰 → R1, 그 밖 → R2~R4). 같은 묶음끼리만 칸 대기 순서를 지킨다"""
+        """품목이 들어갈 행 묶음(11/9 015: 휴대폰 R1 · 지갑 R2 · 보조배터리 R3 · 핸드크림·USB R4). 같은 묶음끼리만 칸 대기 순서를 지킨다"""
         rows = slot_rows()
         return tuple(sorted(code for code, allowed in rows.items() if category in allowed or not allowed))
 
@@ -192,9 +222,11 @@ class SimDirector:
             pos, mine = w.add_wait(item_id), self._group(cat)
             n = sum(1 for x in list(w.wait_queue)[:pos] if self._group(self._category(x)) == mine)   # 같은 묶음 안 순서
             self.wait_story[item_id] = sid
+            self._talk_slot(item_id, cat, None, n)
             self.svc.notify_slot_wait(item_id, n)       # 경보가 지금 단계를 '실패'로 칠하므로 그 뒤에 '진행(대기)'로 다시 칠함
             self.board.stage("collect", "active", f"칸 대기 {n}번째 — 맞는 빈 칸이 없어 등록기계에 보관")
             return
+        self._talk_slot(item_id, cat, slot)
         self.board.stage("collect", "active", f"등록기계 → 본센터 · {slot} 칸 확보")
         w.sleep(1.5)
         w.db_set_status(item_id, "회수 중", changed_by="staff")
@@ -215,6 +247,11 @@ class SimDirector:
         sid_slot = w.slot_id_of(item_id) or "?"
         self.rep.progress(item_id, "보관함 배치", f"공용 보관함 {sid_slot} 칸 · 탑뷰 카메라 감시 시작")
         self.board.stage("stored", "done", f"{sid_slot} 칸")
+        if self.talk is not None:
+            try:
+                self.talk.stored(item_id, item_id, sid_slot)
+            except Exception:
+                pass
         self.board.finish(sid, f"{item_id} 보관 완료({sid_slot}) — 분실 신고가 오면 반환할 수 있음", True)
 
     def _claimed_to_shelf(self, cid: str, item_id: str) -> None:
@@ -332,6 +369,7 @@ class SimDirector:
                     return
                 self.rep.progress(item_id, "Qwen 특징 분석", f"{_summary(feats)} · 비공개 특징은 확인 질문용으로만 저장")
                 self.board.stage("features", "done", _summary(feats))
+                self._talk_found(item_id, row)
                 self._collect_store(sid, item_id)
             except Exception as e:
                 self.rep.alert(item_id, f"키오스크 습득 진행 오류({type(e).__name__})", "")
@@ -388,7 +426,9 @@ class SimDirector:
             raise RequestError("분실 신고에 전화번호·주민등록번호 같은 개인정보는 쓰지 마세요")
         desc = query_features(clean)
         if "category" not in desc:
-            raise RequestError("무엇을 잃어버렸는지 알 수 없어요 — 지갑·USB·립밤·휴대폰·핸드크림·보조배터리 중 하나를 넣어 주세요")
+            raise RequestError(f"무엇을 잃어버렸는지 알 수 없어요 — {active_category_text()} 중 하나를 넣어 주세요")
+        if not is_active_category(desc["category"]):                # 11/9 운영하지 않는 품목(립밤)은 찾기 접수 안 함
+            raise RequestError(inactive_category_message(desc["category"]))
         return self._next(desc, lost_station(clean), tags, set(), opts or {})
 
     def _next(self, desc: dict, station: str | None, tags: set[str], asked: set[str], opts: dict | None = None) -> dict:
@@ -635,6 +675,8 @@ class SimDirector:
         """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
         11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
         w = self.world
+        if self.talk is not None:                        # 11/9 에이전트가 배운 점도 처음으로(시연을 처음부터 다시 보여 주려고)
+            self.talk.reset()
         waiting, self.qwen_wait = self.qwen_wait, {}    # 11/7 사진 분석을 기다리던 키오스크 이야기는 깨워서 '초기화로 중단'
         for ev in waiting.values():
             ev.set()
@@ -711,6 +753,9 @@ def build_sim_service(env: dict | None = None):
     link_storage(svc, world)
     from agents.tower_brain import build_from_env     # 11/8 관제탑 메인 AI(.env TOWER_BRAIN=1 일 때만)
     svc.brain = build_from_env(slot_lookup=lambda item_id: sim_slot_area(svc, world, item_id))
+    from agents.agent_talk import build_talk             # 11/9 에이전트 대화(가상 시연은 기본 켜짐, TOWER_AGENT_TALK=0 이면 끔)
+    svc.talk = build_talk(svc.reporter, env, sim=True)
+    svc.slot_lookup = lambda item_id: sim_slot_area(svc, world, item_id)
     return svc
 
 

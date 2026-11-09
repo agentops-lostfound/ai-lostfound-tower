@@ -12,7 +12,8 @@
 import json
 import threading
 import re
-from agents.contracts import category_label, mentions_phone, without_non_phone
+from agents.contracts import (ACTIVE_CATEGORIES, active_category_text, category_label, inactive_category_message,
+                              is_active_category, mentions_phone, without_non_phone)
 from agents.local_model import ask_local_model
 from agents.support_security import has_private_pattern
 
@@ -525,13 +526,19 @@ class GroundedRag:
                         'answer': '찾기 번호(C-로 시작)는 분실인 웹이나 키오스크에서 물건을 확인하면 받는 번호예요. '
                                   '잃어버린 번호를 다시 찾는 방법은 아직 안내 자료에 없어요. 본센터 직원에게 확인해 주세요.',
                         'choices': MENU}
+            retired = sorted(n for n in named if not is_active_category(n))
+            if retired:                               # 11/9 운영하지 않는 품목(립밤)은 분실 신고로 안내하지 않음
+                return {**base, 'status': 'answered', 'generation_status': 'fixed_policy_text',
+                        'answer': f"{inactive_category_message(retired[0])}. 다른 물건이면 종류와 색을 알려 주세요. "
+                                  '예: "검정 지갑 잃어버렸어요"',
+                        'choices': LOST_CHOICES}
             if named:
                 return {**base, 'status': 'answered', 'generation_status': 'guided_question',
                         'answer': f"{'·'.join(sorted(category_label(n) for n in named))} 분실로 이해했어요. 후보가 보이면 내 물건 같은지 확인하고 '잃어버린 물건 찾기'에서 "
                                   "분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호를 받고, 그 번호와 신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요.",
                         'choices': LOST_CHOICES}
             return {**base, 'status': 'clarification_needed', 'generation_status': 'guided_question',
-                    'answer': '어떤 물건을 잃어버리셨나요? 이 시연에서는 지갑·휴대폰·USB·립밤·핸드크림·보조배터리 6가지를 찾을 수 있어요. '
+                    'answer': f'어떤 물건을 잃어버리셨나요? 이 시연에서는 {active_category_text()} {len(ACTIVE_CATEGORIES)}가지를 찾을 수 있어요. '
                               '물건 종류와 색을 알려 주세요. 예: "검정 지갑 잃어버렸어요"',
                     'choices': LOST_CHOICES}
         if not hits:

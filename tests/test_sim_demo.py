@@ -294,7 +294,13 @@ class DirectorTest(unittest.TestCase):
         with self.assertRaises(RequestError):
             self.d.found("서면역에서 뭔가 주웠어요")              # 품목 없음
         with self.assertRaises(RequestError):
-            self.d.lost("립밤 잃어버렸어요")                    # 후보 없음
+            self.d.lost("핸드크림 잃어버렸어요")                # 후보 없음
+        with self.assertRaises(RequestError) as cm:
+            self.d.lost("립밤 잃어버렸어요")                    # 11/9 운영하지 않는 품목
+        self.assertIn("운영하지 않는 품목", str(cm.exception))
+        with self.assertRaises(RequestError) as cm:
+            self.d.found("서면역 화장실 앞 립밤 주웠어요")        # 가상 세계에 립밤을 새로 만들지 않음
+        self.assertIn("지갑·USB·휴대폰·핸드크림·보조배터리", str(cm.exception))
         self.assertEqual(self.svc.board.stories, {})            # 실패한 신고는 이야기를 만들지 않음
 
     def test_found_item_lands_in_same_slot_on_answer_sheet(self):
@@ -305,7 +311,7 @@ class DirectorTest(unittest.TestCase):
         lay = self.svc.storage.layout()
         held = {sl["slot_id"]: (sl.get("item") or {}).get("item_id") for sec in lay["sections"] for sl in sec["slots"]}
         self.assertEqual(held[sid], f["item_id"])
-        self.assertEqual(sid, "R2-2")                                      # 11/9 그 밖 칸(R2~R4): 1번 줄이 차 있어 2번 줄 첫 칸
+        self.assertEqual(sid, "R2-2")                                      # 11/9 015 지갑 열(R2): R2-1 은 시연 카드지갑이 있어 2번 칸
 
     def test_reset_restores_seed_and_keeps_claim_numbers(self):
         self.found()

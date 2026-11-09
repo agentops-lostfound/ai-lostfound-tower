@@ -8,7 +8,8 @@ import secrets
 import threading
 import time
 from datetime import datetime, date, timedelta, timezone
-from agents.contracts import CATEGORIES, DESCRIPTION_FIELDS, UNKNOWN, mentions_phone, without_non_phone
+from agents.contracts import (CATEGORIES, DESCRIPTION_FIELDS, UNKNOWN, inactive_category_message, is_active_category,
+                              mentions_phone, without_non_phone)
 from agents.support_security import normalized_text, has_private_pattern
 
 KST = timezone(timedelta(hours=9))
@@ -117,6 +118,11 @@ class DescriptionService:
 
     def _save(self, description, metadata, warnings, source):
         description = validate_description(description)
+        cat = description.get("category")
+        if cat not in (None, UNKNOWN) and not is_active_category(cat):
+            # 11/9 운영하지 않는 품목(립밤): 알아들었다고 안내하고 품목은 '확인 불가'로 → 사용자가 다시 고르기 전에는 검색으로 넘기지 않음
+            description = {**description, "category": UNKNOWN}
+            warnings = [inactive_category_message(cat)] + list(warnings)
         token = secrets.token_urlsafe(24)
         proposal = {"proposal_id": token, "description": description, **metadata,
                     "warnings": warnings, "source": source, "requires_confirmation": True,
@@ -170,6 +176,8 @@ class DescriptionService:
                 raise ValueError("설명 확인 시간이 지났습니다. 다시 입력해주세요")
             proposal = entry[1]
         desc = validate_description(payload.get("description", proposal["description"]))
+        if desc.get("category") not in (None, UNKNOWN) and not is_active_category(desc["category"]):
+            raise ValueError(inactive_category_message(desc["category"]))       # 11/9 운영하지 않는 품목은 검색으로 넘기지 않음
         meta = location({k: payload.get(k, proposal.get(k)) for k in ("lost_date", "lost_line", "lost_station")})
         missing = [k for k in ("lost_date", "lost_line", "lost_station") if not meta.get(k)]
         if desc.get("category") == UNKNOWN:

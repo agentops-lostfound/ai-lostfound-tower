@@ -104,7 +104,7 @@ class DemoCollections:
         rows = [
             ('A-W01', 'KIOSK-A', '지갑', '검정', '등록기계 보관'),
             ('A-W02', 'KIOSK-A', 'USB', '회색', '등록기계 보관'),
-            ('A-W03', 'KIOSK-A', '립밤', '흰색', '등록기계 보관'),
+            ('A-W03', 'KIOSK-A', '지갑', '갈색', '등록기계 보관'),   # 11/9 립밤은 운영 품목에서 뺌 → 갈색 지갑
             (MACHINE_LETTERS['KIOSK-C']+'-W01', 'KIOSK-C', '모형폰', '검정', '등록기계 보관'),
             (MACHINE_LETTERS['KIOSK-C']+'-W02', 'KIOSK-C', '보조배터리', '흰색', '등록기계 보관'),
             (MACHINE_LETTERS['KIOSK-C']+'-W03', 'KIOSK-C', '핸드크림', '흰색', '등록기계 보관')]

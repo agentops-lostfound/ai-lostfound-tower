@@ -142,6 +142,17 @@ class LiveBoard:
                 self.stage(key, "fail", body, sid)
         return ev
 
+    def agent_say(self, frm: str, to: str, kind: str, text: str, score: int | None = None, ref: str = "") -> dict:
+        """11/9 에이전트 대화 한 마디(agents/agent_talk.py). 채널 'agent' 사건으로 쌓아 /live 에이전트 대화 패널이 읽는다"""
+        sid = self.current()
+        with self._lock:
+            self._seq += 1
+            ev = {"seq": self._seq, "t": time.time(), "story": sid, "channel": "agent", "title": f"{frm} → {to}",
+                  "body": text, "stage": None, "agent": {"from": frm, "to": to, "kind": kind, "score": score, "ref": ref}}
+            self._events.append(ev)
+            del self._events[:-MAX_EVENTS]
+        return ev
+
     def since(self, after: int = 0, story: str | None = None, limit: int = 200) -> list[dict]:
         with self._lock:
             evs = [e for e in self._events if e["seq"] > after and (story is None or e["story"] == story)]
