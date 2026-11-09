@@ -351,3 +351,41 @@ class EvalFindingsTest(unittest.TestCase):
         self.assertEqual(svc.sim.candidates({"category": "지갑", "color": "검정"}, "서면"), [])     # 기본 지갑은 갈색
         self.assertTrue(svc.sim.candidates({"category": "지갑", "color": "갈색"}, "서면"))
         self.assertTrue(svc.sim.candidates({"category": "모형폰", "color": "회색"}, None))          # 흰색과 비슷한 색은 남김
+
+
+class EvalFindings2Test(unittest.TestCase):
+    """11/9 채점표 두 번째 묶음: 후보 0개 접수 제안·운영 밖 물건·다른 종류 이야기·직원 관제 낱말"""
+
+    def _bot(self):
+        os.environ["TOWER_SIM"] = "0"
+        from agents.chat_api import build_chatbot_from_env
+        from agents.chat_search import SimTowerItemSearch
+        from agents.sim_director import build_sim_service
+        os.environ.pop("LF_CHAT_RAG_MODEL", None)
+        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        return build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim)
+
+    def test_zero_candidates_offers_lost_intake(self):
+        r = self._bot().ask("검정 지갑 잃어버렸어요", session_id="lf-zero-01")
+        self.assertEqual(r.get("candidates"), [])
+        self.assertIn("분실 접수하기", r["choices"])
+        self.assertIn("offer_intake", [d["decide"] for d in r["decisions"]])
+
+    def test_other_item_is_not_taken(self):
+        r = self._bot().ask("우산 분실 신고하고 싶어요", session_id="lf-other-01")
+        self.assertEqual(r["status"], "intake_failed")
+        self.assertIn("역무실", r["answer"])
+
+    def test_opposite_story_does_not_change_slots(self):
+        b = self._bot()
+        b.ask("습득 신고할게요", session_id="lf-opp-01")
+        b.ask("지갑", session_id="lf-opp-01")
+        r = b.ask("근데 저도 휴대폰을 잃어버렸어요", session_id="lf-opp-01")
+        self.assertIn("먼저 끝내거나", r["answer"])
+        self.assertIn("물건 지갑", r["answer"])
+
+    def test_staff_words(self):
+        from agents.chatbot import is_ops_question
+        for q in ("반환 보류된 거 있어?", "어디서 제일 많이 막혀?", "로봇 잡기 실패 몇 번 있었어?", "실패한 사례 번호만 알려줘"):
+            self.assertTrue(is_ops_question(q), q)
+        self.assertFalse(is_ops_question("보관 기간 알려줘"))

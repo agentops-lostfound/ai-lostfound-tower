@@ -33,7 +33,8 @@ ROBOT_STAGES = {"approach", "grasp", "deliver", "handover"}
 MAX_STEPS = 8          # 감독자 무한 반복 방지
 
 OPS_RE = re.compile(r"반환|실패|보류|원인|현황|통계|요약|보고|로봇|챗봇|집기|정지|경보|알림|처리\s*시간|속도|느려|"
-                    r"몇\s*건|분석|관제|이야기|사례")
+                    r"몇\s*건|분석|관제|이야기|사례|"
+                    r"건수|성공률|실패율|p95|응답\s*시간|막혀|막히|병목|몇\s*번|몇\s*회|기록\s*정리")   # 11/9 채점표: 처리 건수·성공률·p95 를 거절하던 문제
 
 
 # ---------------------------------------------------------------- 조사자(researcher): 관제탑 읽기만
@@ -256,7 +257,7 @@ class OpsAnalyst:
     def planner(self, s: OpsState) -> OpsState:
         q = s["question"]
         focus = ("chatbot" if re.search(r"챗봇|답변|LLMOps|질문\s*처리", q) else "robot" if re.search(r"로봇|집기|정지|팔", q) else "failures" if re.search(r"실패|보류|원인|거절|막", q)
-                 else "speed" if re.search(r"시간|속도|느려|오래", q) else "overall")
+                 else "speed" if re.search(r"시간|속도|느려|오래|p95", q) else "overall")
         used = list(s.get("used_llm", []))
         cfg = self._cfg("ops-planner", 0)
         if cfg:
