@@ -86,6 +86,9 @@ SLOT_POSES = {"R1-1": "pose_1", "R1-2": "pose_2", "R2-1": "pose_3", "R2-2": "pos
               "R3-1": "pose_5", "R3-2": "pose_6", "R4-1": "pose_7", "R4-2": "pose_8", "H-1": "close"}
 # 집은 뒤 배출구(제출보관함)까지: 원복 1단계 → close(배출구 위, 집게 닫힘) → open(집게 열어 놓기) → 원복 1단계 → home
 OUTLET_SEQUENCE = ("outlet_return_1", "close", "open", "outlet_return_1", "home")
+# 11/9 사용자 번호(로봇팔 - DB 연결 문서 docs/contracts/robot_db_target.md): 로봇 가까운 줄 1·3·5·7, 먼 줄 2·4·6·8
+#   탑뷰에서 왼쪽 열(R1)부터 오른쪽 열(R4). 번호 N = 저장 자세 pose_N 의 N(013 마이그레이션·SLOT_POSES 와 같음)
+SLOT_NUMBERS = {"R1-1": 1, "R1-2": 2, "R2-1": 3, "R2-2": 4, "R3-1": 5, "R3-2": 6, "R4-1": 7, "R4-2": 8}
 
 
 class StorageError(ValueError):
@@ -221,6 +224,58 @@ def shelf_suggestion() -> dict:
     """맞는 빈 칸이 없을 때 도착 화면이 보여 줄 추천: 직원 보관 선반(칸 번호는 옮길 때 정해짐)"""
     return {"slot_id": None, "section": SHELF_SECTION, "label": "직원 보관 선반", "pose_name": None,
             "other_row": False, "shelf": True}
+
+
+def _number_row(slot_id: str) -> dict:
+    n = SLOT_NUMBERS.get(slot_id)
+    return {"number": n, "row": None if n is None else ("near" if n % 2 else "far")}
+
+
+def robot_target(layout: dict, item_id: str) -> dict:
+    """물건 번호 → 로봇팔이 갈 곳(11/9, 탑뷰 없이 DB 만으로). 로봇을 움직이지 않고 읽기만 한다.
+
+    ok=True  : {"slot_id", "number"(1~8), "row"(near/far), "column"(R1~R4), "pose_name", "bounds_mm", "outlet_sequence"}
+    ok=False : code = no_slot(칸 기록 없음) · staff_shelf(직원 보관 선반, 로봇 안 씀) · not_robot_slot(인계 구역 등)
+               · no_pose(칸에 저장 자세 이름 없음 — 티칭·보관함 화면에서 연결 필요)
+    pose_expected: 번호대로라면 있어야 할 이름(pose_N). 실제 pose_name 과 다르면 warnings 에 남긴다(화면에서 바꾼 값일 수 있음)"""
+    for sec in layout.get("sections", []):
+        for slot in sec.get("slots", []):
+            if not slot.get("item") or slot["item"].get("item_id") != item_id:
+                continue
+            base = {"item_id": item_id, "slot_id": slot["slot_id"], "column": sec["code"],
+                    "category": slot["item"].get("category"), **_number_row(slot["slot_id"])}
+            if sec.get("kind") == STAFF_KIND:
+                return {"ok": False, "code": "staff_shelf", "reason": "직원 보관 선반 물건 — 로봇을 쓰지 않고 직원이 건넴", **base}
+            if sec.get("kind") != "shelf" or base["number"] is None:
+                return {"ok": False, "code": "not_robot_slot", "reason": f"{slot['slot_id']} 은 로봇이 집는 보관 칸(1~8)이 아님", **base}
+            pose = slot.get("pose_name")
+            expected = f"pose_{base['number']}"
+            if not pose:
+                return {"ok": False, "code": "no_pose", "pose_expected": expected,
+                        "reason": f"{slot['slot_id']}(번호 {base['number']})에 저장 자세 이름이 없음 — 보관함 화면에서 {expected} 연결", **base}
+            warnings = [] if pose == expected else [f"자세 이름 {pose} 이 번호대로의 {expected} 와 다름 — 로봇 PC poses.json 이름과 같은지 확인"]
+            return {"ok": True, "pose_name": pose, "pose_expected": expected, "bounds_mm": sec.get("bounds_mm"),
+                    "outlet_sequence": list(OUTLET_SEQUENCE), "warnings": warnings, **base}
+    return {"ok": False, "code": "no_slot", "item_id": item_id, "number": None, "row": None,
+            "reason": f"물건 {item_id} 의 보관 칸 기록 없음 — 보관함 화면에서 칸에 넣은 기록부터"}
+
+
+def robot_targets(layout: dict) -> list[dict]:
+    """번호 1~8 칸 전체 표(로봇 PC 가 한 번에 읽어 두는 용도): 번호·칸·열·줄·자세 이름·들어 있는 물건 번호·품목"""
+    out = []
+    for sec in layout.get("sections", []):
+        if sec.get("kind") != "shelf":
+            continue
+        for slot in sec.get("slots", []):
+            nr = _number_row(slot["slot_id"])
+            if nr["number"] is None:
+                continue
+            item = slot.get("item") or {}
+            out.append({"slot_id": slot["slot_id"], "column": sec["code"], "label": sec.get("label"), **nr,
+                        "pose_name": slot.get("pose_name"), "pose_expected": f"pose_{nr['number']}",
+                        "item_id": item.get("item_id"), "category": item.get("category"),
+                        "bounds_mm": sec.get("bounds_mm")})
+    return sorted(out, key=lambda r: r["number"])
 
 
 def slot_groups(layout: dict) -> list[dict]:

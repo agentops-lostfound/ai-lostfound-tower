@@ -732,6 +732,13 @@ class SimRobot:
         self._pose(phase="접근 완료 · 집게 열림")
         return robot_result(True)
 
+    def robot_go_pose(self, pose_name, slot_id) -> dict:
+        """11/9 DB 칸 모드(가상): 저장 자세 pose_N 대신 가상 작업대의 그 칸 위치로 사전 접근"""
+        if slot_id not in SLOT_IDS:
+            return robot_result(False, f"가상 작업대에 없는 칸({slot_id})")
+        x, y = SLOTS_MM[SLOT_IDS.index(slot_id)]
+        return self.robot_approach([x, y], [])
+
     def robot_grasp(self) -> dict:
         if (b := self._blocked()):
             return b

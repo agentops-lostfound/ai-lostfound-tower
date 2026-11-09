@@ -10,7 +10,7 @@ import math
 
 # 반환 흐름(supervisor)이 부르는 순서대로. 결과는 모두 {ok, reason} (contracts.robot_result)
 ROBOT_COMMANDS = ("robot_approach", "robot_grasp", "robot_verify_grasp", "robot_deliver", "robot_stop", "robot_home")
-ROBOT_OPTIONAL = ("robot_state",)     # 11/5: 화면(/live·/robot/state)용 상태 읽기 — 없어도 반환 흐름은 돈다
+ROBOT_OPTIONAL = ("robot_state", "robot_go_pose")   # 11/5 robot_state: 화면용 상태 읽기 · 11/9 robot_go_pose(pose_name, slot_id): DB 칸 모드 접근
 
 # SO-101 관절(번호·이름은 sim_world.SO101_JOINTS 와 같다). 각도 °, 집게 %
 JOINT_NAMES = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")
