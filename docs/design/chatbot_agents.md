@@ -30,10 +30,37 @@ flowchart TD
 
 ---
 
-## 1. 교수님 지시(11/7)와 지금 구조 맞춰 보기
-교수님 그림: `__start__ → coordinator → planner → supervisor ⇄ researcher · coder · browser · reporter → __end__`
+## 0. 11/9 팀 결정 — 챗봇은 "혼합 구조"로 간다
+한줄 설명: **말을 이해하고 판단하는 칸(에이전트)은 모델 + 프롬프트, 기록을 남기거나 숫자를 다루는 일(도구)은 코드**로 나눈다.
 
-| 교수님 그림 | 우리 챗봇 | 하는 일 | 모델 사용 |
+| 나눔 | 무엇 | 어디서 바꾸나 |
+|---|---|---|
+| 에이전트 = 모델 + 프롬프트 | coordinator · planner · **supervisor** · researcher · item_search · intake · reporter (+ 관제 분석 6칸) — 13개 모두 자기 프롬프트와 모델 설정(model·temperature·use_llm)을 가진다 | Langfuse **Prompts** 에서 새 버전을 만들어 계속 고친다(코드 배포 없이, 되돌리기는 예전 버전에 `production` 라벨) |
+| 도구 = 코드 | 분실물 후보 검색(DB 읽기 전용) · 접수 창구 호출(확인 버튼 뒤에만) · 숫자 계산 · 근거 검사 · 개인정보 가림 | 저장소 코드 + 시험 |
+| 규칙의 거부권 | 모델은 "규칙이 허용한 값 목록 안에서 고르기"만 — 목록 밖·실패면 규칙 결과 그대로 | `agents/chat_agents.py`, `agents/chatbot.py` `_judge` |
+
+- **왜 이 구조인가**
+  - 칸마다 모델·프롬프트가 있어야 Langfuse 에서 "어느 에이전트가 무엇을 보고 무엇을 정했는지"가 칸별로 보인다(5장)
+  - 접수는 기록을 남기는 행동이라, 작은 모델 하나가 잘못 고르면 엉뚱한 접수가 생긴다 → 실행은 코드가 정해진 기준으로(1장 "왜 supervisor 판단을…")
+  - 틀린 답이 나오면 그 칸의 프롬프트만 고치면 된다 → 채점표(아래)로 어느 칸이 틀렸는지 좁힌다
+- **검토했지만 고르지 않은 안**: 대화 에이전트 1개가 대화·검색·접수를 모두 맡는 단일 에이전트 안. 대화는 자연스럽지만 칸별 기록·칸별 프롬프트 수정·접수 안전장치를 따로 보여 주기 어렵다. 그 안의 좋은 점(자연스러운 말투)은 researcher·intake 프롬프트에 옮겨 담는다
+- **평가 방식(같은 날 결정)**: 사용자 말투 질문 500개(기본 안내 → 검색 → 이어 묻기 → 대화로 접수 끝까지 → 안전·직원 관제)를 문항마다 0/1 로 채점하고, 돌릴 때마다 엑셀에 **단계(Step) 열**을 더해 누적한다. 원본 기록은 `evaluation/runs/*.json` 으로 저장소에 남아 언제든 다시 연다 — 안내 `evaluation/README.md`
+
+| 단계 | 모델 | 코드 | 점수(500) |
+|---|---|---|---|
+| 11/9 01 · 02 | 규칙만 | 채점표 처음 · 보강 | 355 · 373 |
+| 11/9 03 | Mi:dm 2.0 Mini | #166 | 403 |
+| 11/9 06 | Mi:dm 2.0 Mini | #171(프롬프트 13개·단계 지시서) | **459** |
+| 11/9 07 | 규칙만 | #176(남은 실패 41문항 보강) | 500 — Mi:dm 다시 측정은 TBD |
+
+(04·05 는 교육원 PC 가 옛 코드로 다시 돈 것이라 참고용. 규칙만 100% 는 채점표에 맞춘 면이 있으니 Mi:dm 점수와 채점표 밖 질문으로 함께 본다)
+
+---
+
+## 1. DeerFlow(LangManus) 기준 그림(11/7)과 지금 구조 맞춰 보기
+기준 그림: `__start__ → coordinator → planner → supervisor ⇄ researcher · coder · browser · reporter → __end__`
+
+| 기준 그림 | 우리 챗봇 | 하는 일 | 모델 사용 |
 |---|---|---|---|
 | coordinator | coordinator | 들어온 말을 분류: 인사·감사(바로 끝) / 서비스 질문 / 주제 밖 / **접수 대화 중** | Mi:dm(값 4개 중 하나만 고르게 JSON 고정) |
 | planner | planner | 부를 일꾼과 순서를 정함 | Mi:dm(일꾼 이름 목록 안에서만) |
@@ -84,7 +111,7 @@ flowchart TD
 로봇을 움직일지 코드가 정하는 관제탑 원칙(agent_talk.md 4장)과 같다.
 
 ### 1-2. planner 단계별 지시서 → supervisor 가 한 단계씩 이행 (11/9)
-교수님 피드백: "planner 가 순서를 정해 넘겼는데 supervisor 가 그 명령을 이행하는 모습이 안 보인다". 예전 계획은 `["item_search", "guidance"]` 같은 **이름 목록**뿐이었고, 일꾼은 지시 없이 원래 질문만 받았다.
+11/9 검토 의견: "planner 가 순서를 정해 넘겼는데 supervisor 가 그 명령을 이행하는 모습이 안 보인다". 예전 계획은 `["item_search", "guidance"]` 같은 **이름 목록**뿐이었고, 일꾼은 지시 없이 원래 질문만 받았다.
 지금은 planner 가 **단계별 지시서**를 쓰고, supervisor 가 단계마다 "몇 번째 단계를, 어느 에이전트에게, 무슨 지시로, 왜" 넘기는지 남긴다.
 
 ```
@@ -184,7 +211,7 @@ supervisor   → __end__
 
 ---
 
-## 5. Langfuse 에서 보기 (교수님 방식: callback trace)
+## 5. Langfuse 에서 보기 (callback trace 방식)
 ### 5-1. 바로바로 올라오게(11/9)
 - 질문 하나가 끝나면 관제탑이 **뒤에서 바로 보낸다**(flush_soon). 기본 보내기 간격도 1초(`LANGFUSE_FLUSH_INTERVAL`, 기본 5초 → 1초) → 답이 나오고 몇 초 안에 Tracing 에 보인다
 - 기록이 안 보이면 먼저 `http://<관제탑>:8100/chat/health` 의 `langfuse` 를 본다: `{"enabled": true}` 면 켜짐, false 면 `reason` 에 이유(.env 에 없는 이름 · 패키지 없음 · LF_LANGFUSE=0). **키 값은 화면에 나오지 않는다**
@@ -210,7 +237,7 @@ lost-found-chatbot          출력: answer · path · decisions · intake
   └ supervisor              detail: next end — "reporter 가 답을 정리함 → 끝"
 ```
 - 직원 관제 질문이면 `ops_analyst` 칸 안에 **관제 분석 팀** 그래프 `ops-team-graph`(ops-coordinator · ops-planner · ops-supervisor · ops-researcher · ops-analyst · ops-reporter)가 들어간다. 11/9 전에는 안쪽 칸 이름이 바깥(coordinator·planner·supervisor)과 같고 'LangGraph'·'RunnableCallable' 같은 이름이 끼어 나무가 어색했다 → 이름을 나눔
-4. 답이 이상하면: 어느 칸에서 틀렸는지 나무에서 찾고 → 그 칸의 프롬프트를 Prompts 에서 고친다(교수님 지시). supervisor 판단이 이상하면 `agents/chatbot.py` `_judge` 의 기준을 고친다
+4. 답이 이상하면: 어느 칸에서 틀렸는지 나무에서 찾고 → 그 칸의 프롬프트를 Prompts 에서 고친다(11/9 결정: 프롬프트는 Langfuse 에서 버전 관리). supervisor 판단이 이상하면 `agents/chatbot.py` `_judge` 의 기준을 고친다
 - 칸 종류 표시는 콜백이 정해 모두 chain 으로 보인다(Langfuse 콜백은 이름에 agent 가 있어야 agent 로 표시) → 대신 metadata `role` 에 종류를 적었다
 
 ## 6. 시연 순서 (약 3분)

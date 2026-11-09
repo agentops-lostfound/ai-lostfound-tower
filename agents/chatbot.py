@@ -4,7 +4,7 @@
 "오늘 반환 실패 원인 알려줘" 같은 관제 질문을 LangManus 구조 관제 분석 에이전트(agents/ops_analyst.py)로 보낸다.
 분실인 화면에는 이 길이 없다(staff=True 는 chat_api 가 관리자 로그인을 확인한 뒤에만 넘긴다).
 
-11/9 변재원(교수님 피드백 "기본 안내만 하면 supervisor 의 존재 의미가 없다"):
+11/9 변재원(검토 의견 "기본 안내만 하면 supervisor 의 존재 의미가 없다"):
 - 일꾼 intake(대화 접수 — agents/chat_intake.py)를 더해 챗봇으로 분실 접수·습득 신고를 끝까지 한다
 - supervisor 가 일꾼 결과를 보고 다음 행동을 정한다(되묻기·확인 받기·다시 계획·접수 제안·멈춤). 판단마다
   {after, saw, decide, why} 를 decisions 에 남겨 Langfuse 'supervisor' 칸 출력과 응답(decisions)에서 볼 수 있다
@@ -50,7 +50,7 @@ class ChatState(TypedDict, total=False):
     decisions: list      # supervisor 판단 기록
     offers: list         # supervisor 가 붙인 다음 행동 버튼(예: 분실 접수하기)
     reported: bool       # reporter 가 답을 정리했음 → supervisor 가 끝을 정함
-    # 11/9 planner 단계별 지시서(교수님 피드백 "supervisor 가 planner 계획을 이행하는 모습이 안 보임")
+    # 11/9 planner 단계별 지시서(검토 의견 "supervisor 가 planner 계획을 이행하는 모습이 안 보임")
     steps: list          # [{no, agent, task, status(todo·running·done·skipped), by(planner·supervisor), note}]
     task: str            # supervisor 가 지금 일꾼에게 넘긴 지시(일꾼 칸 입력에 보임)
     work_question: str   # 섞인 질문에서 이 일꾼 몫만 떼어 낸 말(없으면 원래 질문)

@@ -1,4 +1,4 @@
-"""Langfuse 실행 기록(trace) 연결 (LF-5 · 11/7 변재원, 이건영 교수님 지시)
+"""Langfuse 실행 기록(trace) 연결 (LF-5 · 11/7 변재원)
 
 한줄 설명: 챗봇이 질문 하나를 처리하는 동안 어떤 에이전트가 어떤 순서로 무엇을 했는지(입력·출력·시간·모델)를
 Langfuse 화면(us.cloud.langfuse.com)에 남긴다. 문제가 난 에이전트를 찾아 프롬프트를 고치는 데 쓴다.
@@ -157,7 +157,7 @@ def callbacks_active(on: bool):
 
 def router(fn, name: str):
     """LangGraph 조건 연결 함수에 이름을 붙이고 Langfuse 에서 DEBUG 단계로 기록되게(langsmith:hidden 태그) 감싼다.
-    11/9 교수님 지적(나무가 어색함): 'route_next_worker'·'RunnableCallable' 같은 칸이 에이전트 사이마다 끼어 있었다"""
+    11/9 검토 의견(나무가 어색함): 'route_next_worker'·'RunnableCallable' 같은 칸이 에이전트 사이마다 끼어 있었다"""
     try:
         from langchain_core.runnables import RunnableLambda
         return RunnableLambda(fn, name=name).with_config(tags=["langsmith:hidden"], run_name=name)

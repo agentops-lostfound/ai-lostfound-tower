@@ -1,6 +1,6 @@
 """챗봇 대화 접수(분실 접수·습득 신고) + 판단하는 supervisor (LF-5 · 11/9 변재원)
 
-교수님 피드백: "기본 안내만 하면 supervisor 의 존재 의미가 없다" → 접수 일꾼(intake)을 더하고 supervisor 가 결과를 보고 판단한다.
+11/9 검토 의견: "기본 안내만 하면 supervisor 의 존재 의미가 없다" → 접수 일꾼(intake)을 더하고 supervisor 가 결과를 보고 판단한다.
 """
 import os
 import unittest
