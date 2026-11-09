@@ -283,6 +283,23 @@ class TowerRobot:
 - 모든 함수는 **오래 걸려도 끝날 때 결과를 돌려준다**(동기). 정지 버튼은 다른 스레드에서 `robot_stop()` 을 부르므로, 이동 중에도 멈출 수 있어야 한다
 - 예외 대신 `robot_result(False, 이유)`. 이유 문장은 직원 알림에 그대로 나간다(개인정보 넣지 않기)
 
+### 9-1. requirements(설치 목록)에 넣을 정보
+한줄 설명: 로봇 부품은 **관제탑 파이썬(`.venv`) 안으로 불러와져(import) 돈다** → 부품이 `import` 하는 패키지는 관제탑 설치 목록에 있어야 한다.
+
+| 어디서 도나 | 설치 목록 파일 | 지금 들어 있는 것 | 로봇 부품 때문에 더 넣을 것 |
+|---|---|---|---|
+| 관제탑 `.venv`(Windows, 관제탑 PC) — **로봇 부품 클래스가 여기서 돈다** | `agents/requirements.txt` | fastapi·uvicorn·psycopg[binary]·numpy·pyyaml·langgraph·langfuse·mcp·Pillow | 부품이 표준 라이브러리 + numpy 만 쓰면 **없음**. 그 밖의 패키지를 `import` 하면 그 이름을 여기에 한 줄씩 |
+| 티칭·제어 창(`robot/teaching_gui.py`, `control_panel.py`) 전용 가상환경 | `robot/requirements-panel.txt` | numpy·opencv-python·websocket-client | 관제탑과 별개(관제탑이 쓰지 않음) |
+| LeRobot·모터 제어(WSL 안 Docker `physical-ai-studio-cuda`) | 컨테이너 안(관제탑 설치 목록에 넣지 않음) | lerobot·feetech 등 | 관제탑 `.venv` 에 lerobot·torch 를 넣지 않는다(6GB GPU·설치 충돌) |
+
+- 11/9 확인(실제 코드 읽음): `robot/vendor_backend.py`·`joint_motion.py`·`panel_core.py`·`owner_bridge.py`·`command_gate.py` 는 **표준 라이브러리만** 쓴다(`subprocess` 로 WSL 작업자를 부름). 이 길로 만들면 관제탑 설치 목록에 더할 것이 없다
+- 단, `robot/panel_transport.py` 의 **Live 모드(Studio 실행 화면에 붙는 길)** 는 함수 안에서 `import websocket` 을 한다(38행) → 부품이 이 길로 Studio 저장 자세를 부르면 `agents/requirements.txt` 에 `websocket-client` 한 줄이 필요하다. `vendor_backend.py`(WSL 작업자) 길이면 필요 없다
+- 넣는 법: 한 줄에 패키지 하나, 위에 `# 로봇 부품(LF-21) — 무엇 때문에` 주석. 버전은 꼭 필요할 때만(`이름>=버전`). 넣은 뒤 관제탑 PC 에서
+  ```powershell
+  .\.venv\Scripts\python.exe -m pip install -r agents\requirements.txt
+  ```
+- 확인: `python -c "from agents.robot_part import load_robot_part; load_robot_part('robot.tower_part:TowerRobot')"` 가 오류 없이 끝나면 설치 목록이 맞다
+
 ---
 
 ## 10. 연결 순서 (김건태님 체크리스트)
