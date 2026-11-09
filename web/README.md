@@ -113,3 +113,4 @@
   4. 상태 확인: `http://10.10.21.21:8100/api/kiosk/cameras` · 한 장 보기 `/api/kiosk/camera/KIOSK-A.jpg`
   - 같은 웹캠을 PC 크롬 키오스크(`127.0.0.1`)가 동시에 쓰면 "다른 프로그램이 사용 중" — 서버 카메라를 쓰는 동안 PC 쪽 키오스크 탭은 닫는다
   - 설정에 없는 기계 번호는 열지 않는다(404, 주소만 바꿔 탑뷰 카메라를 보지 못하게). 아무도 안 보면 60초 뒤 웹캠을 닫는다
+  - 11/9 저녁 보강: 관제탑 창에 `VideoCapture::open(DSHOW) ... can't be used to capture by index` 경고가 쏟아지면 **.env 번호에 카메라가 없다는 뜻**(교육원 PC 웹캠 하나만 꽂으면 보통 `0`). 이제 DirectShow 로 안 열리면 Media Foundation 으로 한 번 더 열고, 실패하면 5초 쉬었다 다시 열어 경고가 쏟아지지 않는다. 영상이 새까마면 MJPG 를 빼고 다시 열고, `/api/kiosk/cameras` 에 `warning` 이 뜬다
