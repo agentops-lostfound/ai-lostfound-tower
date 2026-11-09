@@ -93,11 +93,22 @@ class IntakeSessions:
         with self._lock:
             self._d.pop(sid or "", None)
 
+    def lock(self, sid: str | None):
+        """대화 하나의 걸음을 한 번에 하나씩(11/9 정연우 검토: [접수할게요] 연속 클릭 → 중복 접수 막기)"""
+        with self._lock:
+            locks = self.__dict__.setdefault("_locks", {})
+            return locks.setdefault(sid or "", threading.Lock())
+
+
+WAIT_RE = re.compile(r"\bL-\d{8}-\d{4}\b")
+
 
 def detect_start(question: str) -> str | None:
     """접수를 시작하려는 말인지: "lost" | "found" | None. 단순 분실 이야기("지갑 잃어버렸어요")는 검색·안내 길이고,
     접수·신고·맡기기 말이 같이 있을 때만 접수 길로 간다(supervisor 가 검색 뒤 '접수할까요?'를 따로 제안)"""
     q = re.sub(r"\s+", " ", question or "")
+    if WAIT_RE.search(q):
+        return "status"                       # 11/9 분실 신고 대기 번호 조회
     # "주운 물건은 어디에 맡기나요?"처럼 방법을 묻는 말은 안내로(supervisor 가 '습득 신고하기' 버튼을 제안) — 하고 싶다는 말이 있을 때만 바로 시작
     if HOW_ASK.search(q) and not WANT.search(q):
         return None
@@ -154,18 +165,47 @@ class IntakeAgent:
         self.sessions = sessions or IntakeSessions()
 
     def active(self, sid: str | None) -> dict | None:
-        return self.sessions.get(sid)
+        """진행 중인 접수 대화(끝난 접수의 1분 기억은 제외)"""
+        s = self.sessions.get(sid)
+        return s if s and s.get("stage") != "done" else None
+
+    def wants(self, sid: str | None, question: str) -> bool:
+        """이번 말을 접수 일꾼이 받아야 하나: 진행 중이거나, 방금 끝난 접수에 확인을 또 누름(같은 결과를 돌려주려고)"""
+        s = self.sessions.get(sid)
+        if not s:
+            return False
+        return s.get("stage") != "done" or bool(YES.match((question or "").strip()))
 
     # ---------- 한 걸음 ----------
     def step(self, sid: str | None, question: str, start: str | None = None, action: dict | None = None,
              prior: list | None = None) -> dict:
-        """prior: 앞 대화의 사용자 말(최근 몇 개). 접수를 새로 시작할 때 이미 말한 품목·색·역을 다시 묻지 않게 미리 채운다"""
+        """prior: 앞 대화의 사용자 말(최근 몇 개). 접수를 새로 시작할 때 이미 말한 품목·색·역을 다시 묻지 않게 미리 채운다.
+        같은 대화의 걸음은 한 번에 하나씩(잠금) — 확인 버튼을 두 번 눌러도 접수는 한 번"""
+        lk = self.sessions.lock(sid)
+        if not lk.acquire(timeout=60):
+            return self._out("intake_failed", "앞 요청을 처리하는 중이에요. 잠시 뒤 다시 눌러 주세요.", None, done=True)
+        try:
+            return self._step(sid, question, start, action, prior)
+        finally:
+            lk.release()
+
+    def _step(self, sid, question, start=None, action=None, prior=None) -> dict:
         s = self.sessions.get(sid)
+        if s is not None and s.get("stage") == "done":
+            if YES.match((question or "").strip()):        # 끝난 접수에 확인을 또 누름 → 같은 결과(새로 접수하지 않음)
+                last = dict(s["last"])
+                last["answer"] = "이미 접수했어요. " + last["answer"]
+                return last
+            self.sessions.drop(sid)
+            s = None
+        if s is None and (start == "status" or (start is None and detect_start(question) == "status")):
+            return self._status(question)
         if s is None:
             kind = start or detect_start(question)
             if kind is None:
                 return self._out("intake_none", "", None, progress=False)
-            s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True}
+            s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True,
+                 "version": 0}
             for said in [p for p in (prior or []) if isinstance(p, str)][-3:]:
                 if (kind == "lost" and FOUND_SAY.search(said)) or (kind == "found" and LOST_SAY.search(said)):
                     continue                     # 반대 이야기(주운 이야기 → 분실 접수)는 가져오지 않음
@@ -183,6 +223,8 @@ class IntakeAgent:
             return self._quiz_answer(sid, s, q)
         if s["stage"] == "confirm":
             if YES.match(q):
+                if s.get("confirm_version") != s.get("version", 0):     # 보여 준 요약과 지금 초안이 다름 → 다시 확인
+                    return self._confirm(sid, s, note="내용이 바뀌어 다시 확인할게요.")
                 return self._commit(sid, s)
             if FIX.match(q):
                 s["stage"], s["slots"], s["asked"] = "collect", {k: v for k, v in s["slots"].items() if k == "category"}, None
@@ -191,6 +233,8 @@ class IntakeAgent:
         before = dict(s["slots"])
         self._fill(s, q, action)
         progressed = s["slots"] != before
+        if progressed:            # 11/9 초안 번호: 값이 바뀌면 올라가고, 확인은 그 번호의 초안에만 유효
+            s["version"] = s.get("version", 0) + 1
         if s["stage"] == "confirm" and not progressed and not YES.match(q):
             self.sessions.put(sid, s)
             return self._confirm(sid, s, note="접수하려면 [접수할게요], 고치려면 [고칠게요]를 눌러 주세요.", progress=False)
@@ -277,6 +321,8 @@ class IntakeAgent:
         return out
 
     def _confirm(self, sid: str, s: dict, note: str = "", progress: bool = True) -> dict:
+        s["confirm_version"] = s.get("version", 0)
+        self.sessions.put(sid, s)
         what = "분실 접수" if s["kind"] == "lost" else "습득 신고"
         tail = (" 접수하면 찾기 번호가 나오고, 부산역 본센터 키오스크에서 찾기 번호와 신분증으로 받을 수 있어요."
                 if s["kind"] == "lost" else " 접수하면 접수 번호가 나와요. 물건은 그 역 키오스크(습득물 등록기계) 상자에 넣어 주세요.")
@@ -297,6 +343,27 @@ class IntakeAgent:
                 parts.append(f"{SLOT_KO[k]} {v}")
         return " · ".join(parts)
 
+    def _finish(self, sid: str, s: dict, out: dict) -> dict:
+        """접수 결과를 1분 동안 기억(같은 확인이 또 와도 다시 접수하지 않고 같은 결과)"""
+        self.sessions.put(sid, {"kind": s["kind"], "stage": "done", "last": out, "slots": {}, "log": []})
+        return out
+
+    def _status(self, question: str) -> dict:
+        wid = WAIT_RE.search(question or "").group(0)
+        st = self.desk.wait_status(wid) if self.desk is not None and hasattr(self.desk, "wait_status") else {"state": "unknown"}
+        info = {"kind": "status", "stage": "done", "wait_id": wid, "state": st.get("state")}
+        if st.get("state") == "matched":
+            ans = (f"대기 번호 {wid} 는 닮은 습득물({st.get('item_id')})이 들어와 찾기 번호 {st['claim_id']} 로 이어졌어요. "
+                   "부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호와 같은 신분 정보를 넣어 주세요.")
+            info["claim_id"] = st["claim_id"]
+        elif st.get("state") == "waiting":
+            ans = f"대기 번호 {wid} 는 아직 닮은 습득물이 들어오지 않았어요. 들어오면 자동으로 찾기 번호가 만들어져요."
+        else:
+            ans = f"대기 번호 {wid} 를 찾지 못했어요(관제탑을 다시 켜면 지워져요). 번호를 확인해 주세요."
+        return {"status": "intake_status", "answer": ans, "sources": [], "candidates": [], "choices": [],
+                "item_search_performed": False, "generation_used": False, "generation_status": "intake",
+                "method": "conversational_intake", "scope": "대화 접수", "intake": info}
+
     # ---------- 진짜 접수 ----------
     def _commit(self, sid: str, s: dict) -> dict:
         if self.desk is None:
@@ -312,10 +379,9 @@ class IntakeAgent:
                 color = "" if sl.get("color") in (None, "모름") else sl["color"] + " "
                 text = f"{sl['station']}역 {place}에서 {color}{category_label(sl['category'])} 주웠어요".replace("  ", " ")
                 rec = self.desk.found(text)
-                self.sessions.drop(sid)
-                return self._out("intake_done", f"습득 신고를 접수했어요. 접수 번호 {rec['item_id']} · {rec.get('place_text') or sl['station']}. "
+                return self._finish(sid, s, self._out("intake_done", f"습득 신고를 접수했어요. 접수 번호 {rec['item_id']} · {rec.get('place_text') or sl['station']}. "
                                  f"물건은 {sl['station']}역 키오스크 상자에 넣어 주세요. 사진 분석 → 본센터 회수까지는 관제탑이 이어서 처리해요.",
-                                 s, done=True, ids={"item_id": rec["item_id"], "story_id": rec.get("story_id")})
+                                 s, done=True, ids={"item_id": rec["item_id"], "story_id": rec.get("story_id")}))
             text = self._lost_text(sl)
             ident = sl["identity"]
             res = self.desk.lost(text, {"visit": "kiosk", "name_masked": ident["name_masked"], "id_no_masked": ident["id_no_masked"]})
@@ -344,16 +410,20 @@ class IntakeAgent:
             self.sessions.put(sid, s)
             return self._out("intake_question", f"후보가 {len(res.get('candidates') or [])}개 있어요. {res['question']} (모르면 '모름')",
                              s, choices=["모름", "취소"])
-        self.sessions.drop(sid)
+        if res.get("waiting"):                 # 11/9 닮은 습득물이 아직 없음 → 대기로 받아 둠(분실인이 먼저 신고)
+            wid = res["wait_id"]
+            return self._finish(sid, s, self._out("intake_done", f"분실 신고를 대기로 받아 두었어요. 대기 번호 {wid}. 아직 닮은 습득물이 들어오지 않았는데, "
+                                "들어오면 자동으로 찾기 번호가 만들어져요. 이 창에 대기 번호를 넣으면 상태를 알려 드려요.",
+                                s, done=True, ids={"wait_id": wid, "story_id": res.get("story_id")}))
         if res.get("staff"):
-            return self._out("intake_done", "닮은 후보가 여러 개라 자동으로 고르지 않았어요. 부산역 본센터 역무실에서 직원이 함께 확인해 드려요.",
-                             s, done=True, ids={"story_id": res.get("story_id")})
+            return self._finish(sid, s, self._out("intake_done", "닮은 후보가 여러 개라 자동으로 고르지 않았어요. 부산역 본센터 역무실에서 직원이 함께 확인해 드려요.",
+                                s, done=True, ids={"story_id": res.get("story_id")}))
         cid = res["claim_id"]
         passed = res.get("quiz_passed")
-        return self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 "
+        return self._finish(sid, s, self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 "
                          f"찾기 번호와 같은 신분 정보를 넣으면 로봇팔이 물건을 꺼내 드려요."
                          + ("" if passed else " 확인 질문이 맞지 않아 방문 때 직원이 한 번 더 확인해요."),
-                         s, done=True, ids={"claim_id": cid, "story_id": res.get("story_id"), "item_id": res.get("item_id")})
+                         s, done=True, ids={"claim_id": cid, "story_id": res.get("story_id"), "item_id": res.get("item_id")}))
 
     def _quiz_answer(self, sid: str, s: dict, q: str) -> dict:
         try:
@@ -372,7 +442,7 @@ class IntakeAgent:
             info = {"kind": s["kind"], "stage": "done" if done else s["stage"],
                     "filled": [k for k in self._order(s) if k in s["slots"]],
                     "missing": [k for k in self._order(s) if k not in s["slots"]],
-                    "asked": None if done else s.get("asked"), "progress": progress,
+                    "asked": None if done else s.get("asked"), "progress": progress, "draft_version": s.get("version", 0),
                     "filled_by": s["log"][-3:], **(ids or {})}
         return {"status": status, "answer": answer, "sources": [], "candidates": [], "choices": choices or [],
                 "item_search_performed": False, "generation_used": False, "generation_status": "intake",

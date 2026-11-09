@@ -242,3 +242,86 @@ class ApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixesTest(unittest.TestCase):
+    """11/9 정연우 검토 반영: 분실인 먼저 신고(대기) · 확인 중복 클릭 · 초안 번호"""
+
+    def test_double_confirm_registers_once(self):
+        desk = FakeDesk()
+        a = IntakeAgent(desk=desk)
+        for q in ("주운 물건 신고하고 싶어요", "흰색 보조배터리", "해운대", "승강장"):
+            a.step("d1", q)
+        first = a.step("d1", "접수할게요")
+        again = a.step("d1", "접수할게요")                   # 두 번째 클릭
+        self.assertEqual([c[0] for c in desk.calls], ["found"])
+        self.assertIn("이미 접수했어요", again["answer"])
+        self.assertIn(first["intake"]["item_id"], again["answer"])
+        self.assertIsNone(a.active("d1"))                     # 끝난 접수는 진행 중이 아님
+        self.assertTrue(a.wants("d1", "접수할게요"))
+        self.assertFalse(a.wants("d1", "본센터 어디예요?"))
+
+    def test_concurrent_confirm_registers_once(self):
+        import threading
+        import time as _t
+
+        class SlowDesk(FakeDesk):
+            def found(self, text):
+                _t.sleep(0.2)
+                return super().found(text)
+        desk = SlowDesk()
+        a = IntakeAgent(desk=desk)
+        for q in ("주운 물건 신고하고 싶어요", "흰색 보조배터리", "해운대", "승강장"):
+            a.step("d2", q)
+        ts = [threading.Thread(target=a.step, args=("d2", "접수할게요")) for _ in range(3)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        self.assertEqual(len([c for c in desk.calls if c[0] == "found"]), 1)
+
+    def test_changed_draft_needs_new_confirm(self):
+        desk = FakeDesk()
+        a = IntakeAgent(desk=desk)
+        for q in ("주운 물건 신고하고 싶어요", "흰색 보조배터리", "해운대", "승강장"):
+            r = a.step("d3", q)
+        v1 = r["intake"]["draft_version"]
+        r = a.step("d3", "아 서면이었어요")                     # 확인 대기 중 값이 바뀜
+        self.assertEqual(r["status"], "intake_confirm")
+        self.assertGreater(r["intake"]["draft_version"], v1)
+        self.assertIn("역 서면", r["answer"])
+        self.assertEqual(desk.calls, [])
+
+    def test_lost_first_then_found_links_claim(self):
+        os.environ["TOWER_SIM"] = "0"
+        from agents.chat_api import build_chatbot_from_env
+        from agents.chat_search import SimTowerItemSearch
+        from agents.sim_director import build_sim_service
+        os.environ.pop("LF_CHAT_RAG_MODEL", None)
+        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        bot = build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim)
+        for q, act in (("서면에서 빨간 핸드크림 잃어버린 거 접수해 주세요", None), ("오늘", None), ("없어요", None),
+                       ("본인 확인 정보를 입력했어요", ID), ("접수할게요", None)):
+            r = bot.ask(q, session_id="lf-wait", intake_action=act)
+        self.assertEqual(r["status"], "intake_done", r["answer"])
+        wid = r["intake"]["wait_id"]
+        self.assertRegex(wid, r"^L-\d{8}-\d{4}$")
+        r = bot.ask(f"{wid} 어떻게 됐어요?", session_id="lf-other")
+        self.assertIn("아직", r["answer"])
+        for q in ("주운 물건 신고하고 싶어요", "서면 5번 출구 앞에서 빨간 핸드크림", "접수할게요"):
+            f = bot.ask(q, session_id="lf-found")
+        self.assertEqual(f["status"], "intake_done", f["answer"])
+        svc.sim.wait_idle(60)
+        st = svc.sim.wait_status(wid)
+        self.assertEqual(st["state"], "matched", st)
+        self.assertEqual(st["item_id"], f["intake"]["item_id"])
+        r = bot.ask(f"{wid} 어떻게 됐어요?", session_id="lf-other2")
+        self.assertIn(st["claim_id"], r["answer"])
+
+    def test_web_lost_without_identity_still_rejects(self):
+        os.environ["TOWER_SIM"] = "0"
+        from agents.sim_director import build_sim_service
+        from agents.service import RequestError
+        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        with self.assertRaises(RequestError):                 # 디스코드 봇처럼 본인 정보 없는 신고는 예전대로 거절
+            svc.sim.lost("서면에서 빨간 핸드크림 잃어버렸어요")

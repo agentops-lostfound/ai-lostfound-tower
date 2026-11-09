@@ -96,6 +96,10 @@ class SimDirector:
         self._threads: list[threading.Thread] = []
         # 11/9 칸 대기: 물건 번호 → 습득 이야기 번호(칸이 비면 그 이야기를 이어서 회수)
         self.wait_story: dict[str, str] = {}
+        # 11/9 분실인이 먼저 신고(닮은 습득물이 아직 없음) → 대기 번호로 받아 두고, 습득물이 들어오면 찾기 요청으로 잇는다(정연우 검토)
+        self.waiting_lost: dict[str, dict] = {}
+        self._wait_lock = threading.Lock()
+        self._wait_no = 0
         self._drain_lock = threading.Lock()
         self._drain_again = False
         world.on_freed = self.kick_wait
@@ -167,6 +171,8 @@ class SimDirector:
                 self.rep.progress(item_id, "Qwen 특징 분석", f"{_summary(row.get('features', {}))} · 비공개 특징은 확인 질문용으로만 저장")
                 self.board.stage("features", "done", _summary(row.get("features", {})))
                 self._talk_found(item_id, row)
+                if self.waiting_lost:                  # 11/9 먼저 들어온 분실 신고 중 닮은 것이 있으면 찾기 요청으로 잇기
+                    self._spawn(self._match_waiting, item_id)
                 self._collect_store(sid, item_id)
             except Exception as e:      # 연출 오류는 경보로 보이고 관제탑은 계속 돈다
                 self.rep.alert(item_id, f"가상 습득 진행 오류({type(e).__name__})", "")
@@ -436,6 +442,8 @@ class SimDirector:
         11/4 무작위 시험: 색을 말하지 않으면 같은 점수 후보 중 번호순 첫 물건을 마음대로 골랐다 → 먼저 색을 물어 좁힌다"""
         cands = self.candidates(desc, station)
         if not cands:
+            if (opts or {}).get("visit") == "kiosk" and (opts or {}).get("id_no_masked"):
+                return self._wait_lost(desc, station, tags, opts)       # 본인 확인 정보를 받은 웹·챗봇 신고는 대기로 받아 둠
             raise RequestError("닮은 습득물이 아직 없어요 — 습득 신고가 먼저 들어와야 해요(또는 색·품목을 다시 확인)")
         ties = [c for c in cands if c["score"] == cands[0]["score"]]
         if len(ties) > 1 and "color" not in desc and "color" not in asked:
@@ -474,6 +482,59 @@ class SimDirector:
         if not out and any(_known(desc.get(k)) for k in ("visible_text", "mark")):
             return ties[:1]          # 말한 글자·표시가 어느 후보와도 맞지 않음 → 그대로 확인 질문으로(미통과 → 반환 안 함)
         return out or ties
+
+    # ----- 11/9 분실인 먼저 신고 → 대기 → 습득물이 들어오면 연결 -----
+    def _wait_lost(self, desc: dict, station: str | None, tags: set[str], opts: dict) -> dict:
+        with self._wait_lock:
+            self._wait_no += 1
+            wid = f"L-{date.today():%Y%m%d}-{self._wait_no:04d}"
+        sid = self.board.new_story("lost", f"분실 신고 대기 · {_summary(desc)}")
+        with self.board.bind(sid):
+            self.board.stage("claim", "active", "닮은 습득물이 아직 없음 — 들어오면 찾기 요청으로 자동 연결")
+            self.rep.progress(wid, "분실 신고 대기", f"{_summary(desc)}{' · ' + station + '역' if station else ''} · 습득물을 기다림")
+        with self._wait_lock:
+            self.waiting_lost[wid] = {"desc": dict(desc), "station": station, "tags": set(tags), "opts": dict(opts),
+                                      "story_id": sid, "t": time.time(), "claim_id": None, "item_id": None}
+        return {"waiting": True, "wait_id": wid, "story_id": sid, "candidates": [],
+                "visit": "kiosk", "message": "닮은 습득물이 아직 없어 분실 신고를 대기로 받아 두었어요"}
+
+    def _match_waiting(self, item_id: str) -> None:
+        """새 습득물(특징 분석 끝)과 닮은 대기 분실 신고를 먼저 들어온 순서로 하나만 찾기 요청으로 잇는다.
+        확인 질문은 대기 신고 때 말한 특징으로만 채점(말하지 않은 칸은 미통과 → 방문 때 직원 확인). 로봇·반환은 기존 흐름 그대로"""
+        with self._wait_lock:
+            waits = sorted(((k, v) for k, v in self.waiting_lost.items() if v["claim_id"] is None), key=lambda kv: kv[1]["t"])
+        for wid, w in waits:
+            cands = [c for c in self.candidates(w["desc"], w["station"]) if c["item_id"] == item_id]
+            if not cands:
+                continue
+            with self._wait_lock:
+                if w["claim_id"] is not None:
+                    continue
+                w["claim_id"] = "연결 중"
+            try:
+                res = self._claim(w["desc"], w["station"], cands, w["tags"], w["opts"])
+            except Exception as e:
+                with self._wait_lock:
+                    w["claim_id"] = None
+                self.rep.alert(wid, f"대기 분실 신고 연결 실패({type(e).__name__})", f"물건 {item_id}")
+                continue
+            with self._wait_lock:
+                w["claim_id"], w["item_id"] = res["claim_id"], item_id
+            with self.board.bind(w["story_id"]):
+                self.board.stage("claim", "done", f"습득물 {item_id} 들어옴 → 찾기 번호 {res['claim_id']}")
+                self.rep.progress(wid, "대기 분실 신고 연결", f"습득물 {item_id} → 찾기 번호 {res['claim_id']}")
+                self.board.finish(w["story_id"], f"찾기 번호 {res['claim_id']} 로 이어짐(진행은 새 이야기 {res['story_id']})", True)
+            return
+
+    def wait_status(self, wid: str) -> dict:
+        """대기 번호 상태: waiting(아직) | matched(찾기 번호 생김) | unknown"""
+        with self._wait_lock:
+            w = self.waiting_lost.get(wid)
+            if w is None:
+                return {"wait_id": wid, "state": "unknown"}
+            if w["claim_id"] and w["claim_id"] != "연결 중":
+                return {"wait_id": wid, "state": "matched", "claim_id": w["claim_id"], "item_id": w["item_id"], "story_id": w["story_id"]}
+            return {"wait_id": wid, "state": "waiting", "story_id": w["story_id"]}
 
     def _staff_pick(self, desc: dict, ties: list[dict]) -> dict:
         """후보를 사진·답으로 구별할 수 없음 → 찾기 요청을 자동으로 만들지 않고 본센터 직원이 후보를 함께 확인(로봇 안 움직임)."""
@@ -677,6 +738,8 @@ class SimDirector:
         w = self.world
         if self.talk is not None:                        # 11/9 에이전트가 배운 점도 처음으로(시연을 처음부터 다시 보여 주려고)
             self.talk.reset()
+        with self._wait_lock:                            # 11/9 대기 분실 신고도 처음으로
+            self.waiting_lost.clear()
         waiting, self.qwen_wait = self.qwen_wait, {}    # 11/7 사진 분석을 기다리던 키오스크 이야기는 깨워서 '초기화로 중단'
         for ev in waiting.values():
             ev.set()

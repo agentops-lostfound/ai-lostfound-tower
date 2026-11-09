@@ -52,6 +52,9 @@ button:hover{background:var(--ui-primary-hover)}
 button:disabled,button:disabled:hover{background:var(--ui-fill);color:var(--ui-text-3);cursor:default}
 button.ghost{background:var(--ui-fill);color:var(--ui-text)}
 button.ghost:hover{background:var(--ui-fill-hover)}
+/* 11/9 정연우 검토: 습득 등록 중 이전 화면으로 · 접수 번호 복사 */
+button.back{align-self:flex-start;width:auto;padding:10px 18px;font-size:.9em;margin-bottom:4px}
+button.copy{align-self:center;width:auto;padding:10px 22px;font-size:.9em}
 button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:4px solid var(--ui-primary);outline-offset:3px}
 .row{display:flex;gap:14px}
 .row button{flex:1}
@@ -364,6 +367,7 @@ body.demo-mode #stn{flex:1 1 auto}
     </div>
   </section>
   <section id="s2" data-scroll-hint>
+    <button type="button" class="ghost back" id="back2" aria-label="이전 화면(다시 찍기)">← 이전</button>
     <h1>어디에서 발견하셨나요?</h1>
     <div class="chips" id="chips"></div>
     <button type="button" class="ghost" id="morePlaces" hidden>↻ 다른 장소 보기</button>
@@ -373,6 +377,7 @@ body.demo-mode #stn{flex:1 1 auto}
     <button id="next2" disabled>다음</button>
   </section>
   <section id="s3" data-scroll-hint>
+    <button type="button" class="ghost back" id="back3" aria-label="이전 화면(장소 고르기)">← 이전</button>
     <h1>연락처를 남기시겠어요?</h1>
     <p class="sub">안 남겨도 접수돼요 (선택)</p>
     <input type="text" id="cname" maxlength="20" placeholder="이름" autocomplete="off">
@@ -390,6 +395,7 @@ body.demo-mode #stn{flex:1 1 auto}
     <h1 class="center">접수되었습니다</h1>
     <p class="sub center">접수 번호</p>
     <div class="receipt" id="rno"></div>
+    <button type="button" class="ghost copy" id="copyNo">접수 번호 복사</button>
     <p class="sub center"><span class="cdnum" id="count">10</span>초 뒤 처음 화면으로</p>
     <div class="bar" aria-hidden="true"><i id="homeBar"></i></div>
     <button class="ghost" id="home">지금 처음으로</button>
@@ -733,6 +739,14 @@ function gotPhoto(blob) {     // 찍힌 사진(실제 카메라·시연 모드 �
   stopCam(); loadPlaces(); go(2);
 }
 $('#retake').onclick = () => { go(1); startCam(); };
+$('#back2').onclick = () => { go(1); startCam(); };          // 11/9 이전: 장소 화면 → 다시 찍기
+$('#back3').onclick = () => { $('#err').classList.remove('on'); go(2); };   // 11/9 이전: 연락처 화면 → 장소 고르기(입력한 장소는 그대로)
+$('#copyNo').onclick = async () => {                      // 11/9 접수 번호 복사(복사가 막힌 기기면 번호를 선택해 둠)
+  const no = $('#rno').textContent.trim(); if (!no) return;
+  try { await navigator.clipboard.writeText(no); $('#copyNo').textContent = '복사했어요'; }
+  catch (e) { const r = document.createRange(); r.selectNodeContents($('#rno')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); $('#copyNo').textContent = '번호를 길게 눌러 복사하세요'; }
+  setTimeout(() => { $('#copyNo').textContent = '접수 번호 복사'; }, 2000);
+};
 // 11/6 추천 장소: 많이 고른 순으로 6개씩 보여 주고, 원하는 곳이 없으면 "다른 장소 보기"로 다음 6개(끝나면 처음부터)
 const PLACE_PAGE = 6;
 let placeNames = [], placePage = 0;
