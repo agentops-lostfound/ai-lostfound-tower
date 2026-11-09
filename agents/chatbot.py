@@ -57,6 +57,11 @@ class ChatState(TypedDict, total=False):
 
 
 # 계획 이름(planner·supervisor 가 쓰는 짧은 이름) → 그래프 칸(에이전트) 이름. Langfuse 나무의 칸 이름과 같게 보여 준다
+# 11/9 인사만 있는 말(규칙). 물음·부탁이 섞이면 인사로 보지 않는다
+GREET_RE = re.compile(r"(?:(?:안녕(?:하세요|하세용)?|반가워(?:요)?|반갑습니다|반갑네요|좋은\s*(?:아침|저녁|하루|오후)(?:입니다|이에요|에요|예요|요)?"
+                      r"|하이|헬로|ㅎㅇ|(?:여기\s*)?처음\s*왔(?:어요|어|습니다|네요)(?:\s*사이트\s*사용법)?)[\s!.~,ㅎㅋ^]*)+")
+
+
 STEP_AGENT = {'guidance': 'researcher', 'item_search': 'item_search', 'intake': 'intake', 'ops': 'ops_analyst'}
 
 
@@ -159,6 +164,8 @@ class Chatbot:
                 got = self.brain.coordinate(state['question'], state.get('questions'))
                 if got is not None:
                     intent, routing = got[0], ('model' if got[1] else 'rule')
+            if intent not in ('greeting', 'thanks') and not state.get('ops_turn') and GREET_RE.fullmatch(state['question'].strip()):
+                intent, routing = 'greeting', 'rule'      # 11/9 채점표: "안녕! 반가워요", "좋은 아침입니다", "처음 왔어요" — 모델이 없거나 놓쳐도 인사로
             out = {'intent': intent, 'routing': routing, 'path': ['coordinator']}
             if intent in ('greeting', 'thanks'):
                 out['result'] = {**self.guidance._response('answered', GREETING_REPLY if intent == 'greeting' else THANKS_REPLY, []),
@@ -172,8 +179,9 @@ class Chatbot:
         """규칙이 분명하게 찾은 일꾼(planner 가 지울 수 없음)"""
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
-        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞)', q)
-        search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|가는법|가는길|받는순서|순서'
+                                  r'|남겨야|남기나|남겨요|적어야|써야|연락처', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)   # 11/9 접수 중 "연락처도 남겨야 해요?"
+        search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
         from agents.guidance import off_topic
         if off_topic(q):          # 11/9 서비스 밖 질문은 물건 검색을 강제하지 않음
             return {'guidance': True, 'item_search': False}
@@ -195,6 +203,10 @@ class Chatbot:
                     sig = self._signals(state)
                     must = [w for w in ('item_search', 'guidance') if sig[w]]
                     got = self.brain.plan(state['question'], state.get('questions'), must)
+                    from agents.guidance import off_topic
+                    if got and 'item_search' in got and off_topic(state['question']):
+                        # 11/9 Mi:dm 채점(461~464): "지갑 사고 싶은데", "보조배터리 추천해줘", "휴대폰 요금제" 에 모델이 검색을 더함 → 서비스 밖이면 뺌
+                        got = [w for w in got if w != 'item_search'] or ['guidance']
                     if got and 'item_search' in got and not sig['item_search']:
                         # 11/9 채점표(Mi:dm): "어떤 물건을 찾을 수 있어요?"·"후보가 뭐예요?"에 모델이 물건 검색을 더해
                         # "찾는 물건 한 종류와 색상을 알려주세요"가 붙음 → 규칙이 물건 종류를 읽지 못했으면 모델이 더한 검색은 뺌
@@ -388,10 +400,37 @@ class Chatbot:
                               if (k == 'category' and need_cat) or (k == 'color' and not f.get('color') and COLOR_HINT.search(state['question']))}
                     if filled:
                         ctx = {**(ctx or {}), **filled}
-            res = self.search.ask(state.get('work_question') or state['question'], _search_access.get(), ctx)
+            sq = state.get('work_question') or state['question']
+            from agents.chat_conversation import split_targets
+            targets = [] if filled else split_targets(sq)
+            if targets:                                        # 11/9 물건 여러 개("파란 폰이랑 흰 보조배터리") → 하나씩 찾아 합침
+                res = self._multi_search(targets, ctx)
+            else:
+                res = self.search.ask(sq, _search_access.get(), ctx)
             obs.update(output={'status': res.get('status'), 'candidates': len(res.get('candidates') or []),
+                               **({'targets': [f"{c}·{col or '모든 색'}" for c, col in targets]} if targets else {}),
                                **({'llm_filled': filled} if filled else {})})
         return {'results': {**(state.get('results') or {}), 'item_search': res}, 'path': state.get('path', []) + ['item_search'], 'last': 'item_search'}
+
+    def _multi_search(self, targets, ctx):
+        """물건 여러 개를 하나씩 검색(읽기 전용)해 답 하나로. 후보 번호는 1부터 이어 붙임(화면 표시용)"""
+        base = {k: v for k, v in (ctx or {}).items() if k not in ('category', 'color')}
+        parts, cands, first = [], [], None
+        for cat, col in targets[:3]:
+            name = '휴대폰' if cat == '모형폰' else cat
+            r = self.search.ask(f"{col or ''} {cat} 찾아줘".strip(), _search_access.get(), base or None)
+            first = first or r
+            found = r.get('candidates') or []
+            for c in found:
+                cands.append({**c, 'candidate_no': len(cands) + 1})
+            parts.append(f"· {col or '모든 색'} {name}: " + (f"후보 {len(found)}개" if found else "조건에 맞는 후보 없음"))
+        n = len(cands)
+        head = f"말씀하신 물건 {len(parts)}가지를 하나씩 찾았어요."
+        tail = ("본인 물건으로 확정된 건 아니에요. 내 물건 같다면 '잃어버린 물건 찾기' 화면에서 분실 신고를 해 주세요."
+                if n else "분실물이 없다고 확정한 것은 아닙니다. 색이나 물건 종류를 바꿔 보세요.")
+        return {**(first or {}), 'candidates': cands, 'status': 'items_found' if n else 'items_not_found',
+                'answer': '\n'.join([head, *parts, '', tail, '(가상 시연 관제탑 목록 — 실제 습득물이 아닙니다)']),
+                'multi_search': [f"{c}·{col or '모든 색'}" for c, col in targets[:3]], 'item_search_performed': True}
 
     def _intake_worker(self, state):
         """11/9 대화 접수 일꾼: 빈칸 하나 묻기 → 확인 → 접수 창구 호출(agents/chat_intake.py)"""
@@ -470,8 +509,8 @@ class Chatbot:
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
         # Process/help questions stay in guidance, even when they mention searching.
-        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
-        search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|가는법|가는길|받는순서|순서', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
+        search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
         direct_search = search_intent(q)
         from agents.guidance import off_topic
         if off_topic(q):          # 11/9 "맛집 찾아줘" 가 '찾아' 때문에 물건 검색으로 가던 것 → 안내 길(정해진 문장)
