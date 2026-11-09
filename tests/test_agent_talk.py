@@ -163,7 +163,7 @@ class DemoToolTest(unittest.TestCase):
             self.assertEqual(agent_talk_demo.main([]), 0)
         out = buf.getvalue()
         self.assertEqual(out.count("── T"), 3)
-        self.assertIn("되돌아보기", "".join(["되돌아보기"]) if "reflect" in out else "")
+        self.assertIn("reflect", out)                       # 도움 뒤 되돌아보기
         self.assertIn("범위 안", out)
 
     def test_send_without_webhook_stops(self):
