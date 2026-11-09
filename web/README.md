@@ -106,3 +106,10 @@
 - 키오스크 PC 에서 `http://127.0.0.1:8080/kiosk?machine=KIOSK-A` (해운대) · `KIOSK-C` (서면) · `CENTER` (부산역 본센터). 처음 한 번 주소 끝에 `&camsetup=1` 을 붙여 목록에서 포토박스 캠(이름에 USB·Webcam·FHD)을 고르면 그 PC 브라우저에 기억된다. 번호 고정 `&cam=2`, 이름 일부 `&cam=webcam`
 - **브라우저는 https 또는 localhost(127.0.0.1)에서만 카메라를 준다.** 관제탑 PC 자신이 키오스크면 `127.0.0.1` 로 열면 된다. 다른 PC 에서 `http://10.10.21.21:8080/kiosk` 로 열면 카메라가 막힌다 → 그 PC 크롬 `chrome://flags/#unsafely-treat-insecure-origin-as-secure` 에 `http://10.10.21.21:8080` 입력 → Enabled → Relaunch (교육원 내부 시연에서만)
 - 11/6 교육원 PC(10.10.21.21)에서 USB 캠 "USB CAMERA (1124:2925)" 인식·자동 촬영·접수(H-20261106-0009)까지 확인함
+- **11/9 태블릿 키오스크 다시 가능 — 서버 카메라(`&cam=server`)**: 태블릿은 화면만, 웹캠은 관제탑 PC 에 꽂는다. PC 가 웹캠을 읽어 영상(MJPEG `/api/kiosk/camera/{기계}.mjpg`)을 보내고, 키오스크 화면은 그 영상으로 물건 감지·3초·자동 촬영을 똑같이 한다. 태블릿 크롬이 카메라를 직접 열지 않으므로 **https 설정·태블릿 웹캠 지원과 상관없음**
+  1. 관제탑 PC: `python tools/list_cameras.py` → 상자 위 웹캠 번호 확인(사진이 `data/camera_check/` 에 저장됨)
+  2. `.env` 에 `TOWER_KIOSK_CAMERAS=KIOSK-A=1`(기계=번호, 여러 대면 쉼표 `KIOSK-A=1,KIOSK-C=2`) → 관제탑 다시 켜기
+  3. 태블릿 크롬: `http://10.10.21.21:8100/kiosk?machine=KIOSK-A&cam=server` — 머리말에 "PC 카메라 연결됨"
+  4. 상태 확인: `http://10.10.21.21:8100/api/kiosk/cameras` · 한 장 보기 `/api/kiosk/camera/KIOSK-A.jpg`
+  - 같은 웹캠을 PC 크롬 키오스크(`127.0.0.1`)가 동시에 쓰면 "다른 프로그램이 사용 중" — 서버 카메라를 쓰는 동안 PC 쪽 키오스크 탭은 닫는다
+  - 설정에 없는 기계 번호는 열지 않는다(404, 주소만 바꿔 탑뷰 카메라를 보지 못하게). 아무도 안 보면 60초 뒤 웹캠을 닫는다

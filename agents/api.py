@@ -735,6 +735,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         # 11/9 대화 접수: 챗봇이 분실 접수·습득 신고를 가상 시연 창구(svc.sim — /sim/found·/sim/lost 와 같은 함수)로 끝까지 한다
         chatbot = LazyChatbot(lambda: build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim))
     add_chat_routes(app, chatbot, staff_allowed=staff_allowed, ops_source=ops_source)
+    # 11/9 키오스크 서버 카메라: 태블릿은 화면만, 웹캠은 관제탑 PC(.env TOWER_KIOSK_CAMERAS) → /kiosk?…&cam=server
+    try:
+        from agents.kiosk_camera import add_camera_routes
+        add_camera_routes(app)
+    except ImportError:          # 시험용 가짜 fastapi(응답 클래스 없음)에서는 건너뜀
+        pass
     return app
 
 
