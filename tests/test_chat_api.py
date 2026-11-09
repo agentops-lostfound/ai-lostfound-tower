@@ -66,6 +66,7 @@ class ChatRoutesTest(unittest.TestCase):
         responses.HTMLResponse = lambda content: types.SimpleNamespace(body=content)
         responses.FileResponse = lambda path, **k: types.SimpleNamespace(path=path, **k)
         self._saved = {k: sys.modules.get(k) for k in ("fastapi", "fastapi.responses")}
+        self._had_chat_api = "agents.chat_api" in sys.modules
         sys.modules["fastapi"], sys.modules["fastapi.responses"] = fake, responses
         self.HTTPException, self.app = HTTPException, App()
 
@@ -75,6 +76,10 @@ class ChatRoutesTest(unittest.TestCase):
                 sys.modules.pop(k, None)
             else:
                 sys.modules[k] = v
+        # 11/9: 가짜 fastapi 가 있는 동안 처음 불러온 agents.chat_api 는 Request=None 을 붙잡고 남는다
+        # → 뒤에 도는 진짜 FastAPI 시험(진행률 스트림·직원 401)이 요청 정보를 못 받아 실패하던 것. 이 시험이 불러온 것이면 비운다
+        if not getattr(self, "_had_chat_api", True):
+            sys.modules.pop("agents.chat_api", None)
 
     def code(self, fn, *a):
         with self.assertRaises(self.HTTPException) as cm:
