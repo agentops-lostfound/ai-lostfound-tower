@@ -2,7 +2,17 @@
 
 ## 팀원용 빠른 순서
 
-**흐름: main 받기 → Studio·장비 준비 → 압축 확인·해제 → 점검 → 설치 → 화면 확인.**
+**흐름: 공유 브랜치 받기 → Studio·장비 준비 → 압축 확인·해제 → 점검 → 설치 또는 기존 설치 갱신 → 화면 확인.**
+
+11/9 후속 공유본은 **`LF-21-geontae-tower-robot-part`** 브랜치에 시퀀스 시험 화면·DB 연결부·자세 JSON·도착 마진 5 설치 압축본을 함께 담는다. PR #157의 기존 공유 파일도 포함하므로 두 브랜치를 따로 받을 필요가 없다. main 병합 전에는 아래 브랜치를 받는다.
+
+```powershell
+git fetch origin
+git switch LF-21-geontae-tower-robot-part
+git pull --ff-only
+```
+
+시퀀스 시험 화면의 Python 준비·실행·조작은 [시퀀스 사용법](../../robot/README-sequence.md)을 따른다. 새 압축본은 소스와 해시를 검증한 설치 준비본이며, 이 PC에서 실행 중인 Studio에는 아직 적용하지 않았다.
 
 이 안내는 Windows PowerShell + WSL `Ubuntu-24.04` + 실행 중인 Studio 컨테이너 `physical-ai-studio-cuda` 기준이다.
 지원 대상은 아래 [다른 PC에서 준비하기](#다른-pc에서-준비하기)에 적힌 Studio revision과 기존 v4 backend, 같은 Follower 등록 ID·장비 조건이다.
@@ -106,6 +116,25 @@ if ($LASTEXITCODE -ne 0) { throw 'Studio 설치 실패: 오류를 확인하세�
 
 ## 상황별 처리
 
+### 저장 자세 기능이 이미 설치된 PC의 도착 마진 갱신
+
+같은 확장이 설치돼 있고 도착 기준만 1.5 또는 3인 경우, 새 압축본을 **새 경로에 해제**한 뒤 아래 도구를 사용한다. 기존 `bundle/`은 자동으로 덮어쓰지 않는다. 아래 예시의 `bundle/` 경로는 새 압축본을 푼 실제 경로로 바꾼다.
+
+Studio에서 녹화와 로봇 runtime 연결을 정상 종료하고, 다른 창에서 자동 재연결하지 않도록 한다. Studio 서버와 컨테이너는 유지한다.
+이 도구는 같은 backend·대상 팔 자세인지 해시로 확인하고, 도착 마진 이외의 소스 수정이 있으면 거부한다. 기본은 읽기 점검이며 `--apply`만 단일 모듈을 백업 후 교체한다. 컨테이너 재시작·로봇 연결·이동은 요청하지 않는다.
+
+```powershell
+# 읽기 점검
+wsl -d Ubuntu-24.04 --cd "$PWD" -- python3 -m robot.studio_extension.update_arrival --bundle outputs/studio_pose_integration/bundle
+if ($LASTEXITCODE -ne 0) { throw '마진 갱신 점검 실패' }
+# 준비 후 적용
+wsl -d Ubuntu-24.04 --cd "$PWD" -- python3 -m robot.studio_extension.update_arrival --bundle outputs/studio_pose_integration/bundle --apply
+if ($LASTEXITCODE -ne 0) { throw '마진 갱신 실패: Studio 재연결 전에 오류 확인' }
+```
+
+적용 후 출력된 백업 경로를 보관하고, 준비됐을 때 Studio에서 직접 로봇을 재연결한다. 도착은 팔 5개 관절이 각각 ±5 normalized 안에서 0.3초 유지될 때 판정한다. 추종 한도 10·3/4/5초 보간은 유지하며, 시간 경과만으로 도착 처리하거나 실패시키지 않는다. 실물 위치·경로 검증은 별도다.
+동시에 다른 클라이언트가 세션을 만들지 않게 해야 하며 이 갱신기는 다중 클라이언트 동시 제어를 보장하지 않는다.
+
 | 상황·오류 | 다음 행동 |
 |---|---|
 | pull 후 압축본이 없음 | 공유 PR의 main 병합 여부, 현재 브랜치와 pull 성공 여부 확인 |
@@ -134,7 +163,7 @@ wsl -d Ubuntu-24.04 --cd "$PWD" -- python3 robot/studio_extension/install.py --b
 | 경로 | 내용 |
 |---|---|
 | `robot/studio_extension/` | 확장 코드, UI 소스, 설치기, 테스트 |
-| `outputs/studio_pose_integration/bundle.tar.xz` | 현재 PC에 적용한 backend와 배포 UI, 파일별 SHA256 목록을 담은 설치 묶음 |
+| `outputs/studio_pose_integration/bundle.tar.xz` | 도착 마진 5 backend와 배포 UI, 파일별 SHA256 목록을 담은 검증된 설치 준비 묶음 |
 | `outputs/studio_pose_integration/bundle.tar.xz.sha256` | 압축본 SHA256 |
 | `outputs/robot_panel_live/poses.json` | 현재 장비에서 티칭한 12개 자세 |
 

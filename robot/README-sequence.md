@@ -8,6 +8,23 @@ pose_N → outlet_return_1 → close → open → outlet_return_1 → home
 
 ## 켜기
 
+팀 공유 브랜치: `LF-21-geontae-tower-robot-part`. main 병합 전에는 이 브랜치를 받는다. 본인 작업은 먼저 보관하고, Git 명령이 실패하면 다음 명령을 실행하지 않는다.
+
+```powershell
+git fetch origin
+git switch LF-21-geontae-tower-robot-part
+git pull --ff-only
+```
+
+처음 받는 PC에서는 Python 3.12를 준비하고, `.venv`가 없을 때 `py -3.12 -m venv .venv`로 만든다.
+시험 화면과 모의 실행에는 `numpy`만 추가로 필요하다. 관제탑 전체를 사용할 때는 `agents/requirements.txt`도 설치한다.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install numpy
+```
+
+저장 자세 JSON 12개와 Studio 설치 압축본도 이 브랜치에 포함돼 있다. 실제 팔을 쓸 PC는 [Studio 설치·기존 설치 갱신](../docs/handoff/studio-shared-install.md)을 먼저 따른다. 코드 pull만으로 실행 중인 Studio가 갱신되지는 않는다.
+
 저장소 `team-repo`의 PowerShell에서 실행한다. Studio 로봇 연결은 유지한다. 이 도구는 기존 runtime에만 붙고 별도 serial 연결·Studio 재시작·DB 상태 변경을 하지 않는다.
 
 ```powershell
@@ -58,4 +75,4 @@ pose_N → outlet_return_1 → close → open → outlet_return_1 → home
 사용자 승인으로 도착 허용오차를 1.5 → 3 normalized로 적용했지만 이후 어깨 상하 오차 약 3.44가 남았고, 사용자는 위치 차이 또는 걸림·진동을 보고했다.
 당시 시험은 현재 위치 HOLD로 종료했고 배출구 단계는 실행하지 않았다. 이 도구를 만든 것이 실물 경로 문제를 해결하거나 6단계 성공을 검증했다는 뜻은 아니다.
 새 화면의 기본 5초는 이동 속도 설정이며, 기존 추종 오차 한도 10은 유지된다. 녹화 시작의 별도 어프로치 근접 조건(현재 2)은 바꾸지 않았다.
-후속 요청으로 로컬 코드의 도착 마진을 3 → 5로 넓혔다. 현재 실행 중인 Studio에는 세션 재연결 후 반영해야 하며, 변경 후 실물 동작은 아직 검증하지 않았다.
+후속 요청으로 소스와 공유 설치 압축본의 도착 마진을 3 → 5로 넓혔다. 이 PC에서 실행 중인 Studio는 아직 3이며, 갱신·세션 재연결 후 반영해야 한다. 변경 후 실물 동작은 아직 검증하지 않았다.
