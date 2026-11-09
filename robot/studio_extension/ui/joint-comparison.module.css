@@ -1,0 +1,62 @@
+.panel {
+    border: 1px solid #425465;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #18232e;
+    color: #f0f4f8;
+}
+
+.heading {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.scroll {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    text-align: right;
+}
+
+.caption {
+    caption-side: bottom;
+    padding-top: 6px;
+    color: #bac8d6;
+    text-align: left;
+    font-size: 12px;
+}
+
+.table th,
+.table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #344353;
+}
+
+.table th:first-child {
+    text-align: left;
+    white-space: nowrap;
+}
+
+.table small {
+    display: block;
+    font-size: 11px;
+    font-weight: normal;
+    opacity: 0.85;
+}
+
+.matched {
+    color: #78e6b1;
+}
+
+.pending {
+    color: #ffd58a;
+}
