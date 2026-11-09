@@ -325,3 +325,29 @@ class ReviewFixesTest(unittest.TestCase):
         svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
         with self.assertRaises(RequestError):                 # 디스코드 봇처럼 본인 정보 없는 신고는 예전대로 거절
             svc.sim.lost("서면에서 빨간 핸드크림 잃어버렸어요")
+
+
+class EvalFindingsTest(unittest.TestCase):
+    """11/9 질문 500개 채점표(evaluation/chat_eval.py)가 찾은 문제 3가지"""
+
+    def test_split_sentence_starts_intake(self):
+        from agents.chat_intake import detect_start
+        self.assertEqual(detect_start("서면 5번 출구 앞에서 검정 카드지갑 주웠어요. 신고할게요"), "found")
+        self.assertEqual(detect_start("어제 갈색 지갑 잃어버렸어요. 접수해 주세요"), "lost")
+        self.assertIsNone(detect_start("지갑 주웠어요. 신고는 어떻게 해요?"))          # 방법을 묻는 말은 안내로
+
+    def test_correction_is_not_free_text_answer(self):
+        from agents.chat_intake import extract
+        out = extract("아 오늘 아침이었어요", "lost", want="detail")
+        self.assertEqual(out.get("when"), "오늘 아침")
+        self.assertNotIn("detail", out)
+        self.assertNotIn("place", extract("아니 해운대에서 주웠어요", "found", want="place"))
+        self.assertEqual(extract("뒷면에 고양이 그림", "lost", want="detail").get("detail"), "고양이 그림")
+
+    def test_far_color_is_not_a_candidate(self):
+        os.environ["TOWER_SIM"] = "0"
+        from agents.sim_director import build_sim_service
+        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        self.assertEqual(svc.sim.candidates({"category": "지갑", "color": "검정"}, "서면"), [])     # 기본 지갑은 갈색
+        self.assertTrue(svc.sim.candidates({"category": "지갑", "color": "갈색"}, "서면"))
+        self.assertTrue(svc.sim.candidates({"category": "모형폰", "color": "회색"}, None))          # 흰색과 비슷한 색은 남김

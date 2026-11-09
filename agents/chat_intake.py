@@ -23,9 +23,9 @@ MASK_RE = re.compile(r"^[^\s*]{1,8}\*{0,8}[^\s*]?$")
 ID_MASK_RE = re.compile(r"^\*{6}-[1-4]\*{6}$")
 
 START_LOST = re.compile(r"분실\s*(?:접수|신고)|잃어버린\s*물건\s*(?:접수|신고|등록)|찾기\s*(?:접수|신청|요청)|접수\s*해\s*주|신고\s*해\s*주|"
-                        r"(?:잃어버|잃었|분실)[^.?!]{0,12}(?:접수|신고|등록)")
+                        r"(?:잃어버|잃었|분실)[^?!]{0,16}(?:접수|신고|등록)")   # 11/9 채점표: "…잃어버렸어요. 신고할게요"처럼 문장이 나뉘어도
 START_FOUND = re.compile(r"습득\s*(?:신고|접수|등록)|주운\s*물건\s*(?:신고|접수|등록|맡기)|"
-                         r"(?:주웠|주운|주워|습득)[^.?!]{0,14}(?:신고|접수|등록|맡기|맡길|맡겨)")
+                         r"(?:주웠|주운|주워|습득)[^?!]{0,18}(?:신고|접수|등록|맡기|맡길|맡겨)")
 HOW_ASK = re.compile(r"어디|어떻게|방법|절차|나요\s*\??\s*$|까요\s*\??\s*$|[?？]\s*$")
 WANT = re.compile(r"싶|해\s*주|할게|하려고|해줘|부탁|접수하기|신고하기|시작")
 LOST_SAY = re.compile(r"잃어버|잃었|잊어버|분실|두고\s*내|놓고\s*내")
@@ -151,7 +151,8 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
             out["place"] = re.sub(r"\s+", " ", pm.group(1)).strip()
     if want and UNKNOWN_SAY.match(t.strip()):
         out[want] = "없음" if want == "detail" and re.match(r"^(?:없어요|없음)", t.strip()) else "모름"
-    elif want in ("detail", "place") and want not in out and len(t.strip()) <= 30 and not LOST_SAY.search(t):
+    elif want in ("detail", "place") and not out and len(t.strip()) <= 30 and not LOST_SAY.search(t):
+        # 11/9 채점표: "아 오늘 아침이었어요"(때 고치기)가 특징 칸에도 통째로 들어갔다 → 이 말에서 다른 칸을 읽었으면 자유 답으로 쓰지 않음
         out[want] = t.strip().rstrip(".!요").strip() or "모름"
     return out
 
