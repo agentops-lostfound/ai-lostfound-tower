@@ -61,6 +61,11 @@
 - 계약 검사 도구: `agents/robot_api.py` (`validate_robot_state`, `ROBOT_COMMANDS`)
 - 화면: `GET /robot/state` (11/5 추가) → `/live` 로봇 카드가 진짜 부품일 때도 관절 값을 보여 줄 수 있게
 
+## 6. DB 칸 모드(11/9 추가) — 탑뷰 없이 칸 저장 자세로
+- `.env TOWER_ROBOT_TARGET=db` 면 반환 흐름이 `robot_approach` 대신 선택 함수 **`robot_go_pose(pose_name, slot_id)`** 를 부른다(번호 1~8 → `pose_1~8`)
+- 로봇 부품 꽂기 `.env TOWER_ROBOT_PART=모듈:클래스`, 읽는 주소 `GET /api/admin/storage/robot-target/{item_id}` · `/robot-targets`
+- 전체 설명·뼈대 코드·체크리스트: `docs/contracts/robot_db_target.md`
+
 ## TBD
 - 로봇 서비스(의미 명령 → 관절 목표)의 위치·담당
 - OwnerBridge `status` 에 관절 값(°) 칸 추가 여부

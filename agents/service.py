@@ -29,7 +29,13 @@ from agents.supervisor import Outcome, ReturnRequest, run_return
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 # 직원 정지 버튼을 누른 뒤 막을 로봇 동작(정지·원점 복귀는 막지 않음)
-ROBOT_MOVES = ("robot_approach", "robot_grasp", "robot_verify_grasp", "robot_deliver")
+ROBOT_MOVES = ("robot_approach", "robot_go_pose", "robot_grasp", "robot_verify_grasp", "robot_deliver")   # 11/9 robot_go_pose(DB 칸 모드)
+
+
+def robot_target_mode() -> str:
+    """11/9 로봇이 물건 위치를 어디서 얻나: "db"(보관함 정답지 칸·저장 자세, 탑뷰 없이) | "vision"(기본, 탑뷰 매칭 좌표)
+    .env TOWER_ROBOT_TARGET=db 로 켠다. 모르는 값은 vision(예전 그대로)"""
+    return "db" if str(os.environ.get("TOWER_ROBOT_TARGET") or "").strip().lower() == "db" else "vision"
 
 
 class GuardedBackend:
@@ -78,7 +84,8 @@ class GuardedBackend:
             return attr(*a, **k)
         return guarded
 # staff_shelf(11/9)는 화면이 보내는 관문이 아니라 서버가 보관함 정답지로 정하는 칸 → 요청 본문에서 받지 않는다
-GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id", "item_id", "staff_shelf")]
+# robot_target(11/9 DB 칸 모드)도 서버가 보관함 정답지로 정한다 → 요청 본문에서 받지 않는다
+GATE_FIELDS = [f.name for f in fields(ReturnRequest) if f.name not in ("case_id", "item_id", "staff_shelf", "robot_target")]
 ALLOWED = {"case_id", "item_id", *GATE_FIELDS}
 VISIT_GATES = ["visitor_id_match", "inner_feature_ok", "staff_confirmed"]   # 본센터 방문 때 직원 화면이 채움
 # 11/6 인계 교차 검증 3가지(키 → 화면 이름). docs/design/handover_cross_check.md
@@ -423,6 +430,8 @@ class TowerService:
             shelf = bool(slot and slot.get("staff_shelf"))
             if shelf:                               # 11/9 직원 보관 선반 물건 → 로봇 단계를 건너뛰고 직원이 건넴
                 req = replace(req, staff_shelf=True)
+            elif robot_target_mode() == "db":       # 11/9 DB 칸 모드: 탑뷰 없이 칸 저장 자세로(칸·자세가 없으면 흐름이 직원 확인으로 끝냄)
+                req = replace(req, robot_target=self.robot_target(req.item_id))
             # 11/8: 정지 신호는 직원이 '원점 복귀'를 눌러 성공했을 때만 지운다(전에는 새 반환이 시작될 때마다 지워 정지가 풀렸다)
             # 11/9: 선반 물건은 로봇을 움직이지 않으므로 정지 중에도 직원 인계는 할 수 있다
             if self._stop_event.is_set() and not shelf:
@@ -796,6 +805,23 @@ class TowerService:
         except Exception:
             return None
         return None
+
+    def robot_target(self, item_id: str) -> dict:
+        """물건 번호 → 로봇팔이 갈 칸·번호(1~8)·저장 자세(11/9, docs/contracts/robot_db_target.md). 읽기만 한다"""
+        from agents.storage import robot_target
+        try:
+            layout = self.storage.layout()
+        except Exception as e:
+            return {"ok": False, "code": "db_error", "item_id": item_id, "number": None, "row": None,
+                    "reason": f"보관함 정답지 읽기 실패({type(e).__name__})"}
+        return robot_target(layout, item_id)
+
+    def robot_targets(self) -> dict:
+        """번호 1~8 칸 전체 표 + 지금 모드(db/vision) + 배출구 순서 — 로봇 PC 가 한 번에 읽어 두는 용도"""
+        from agents.storage import OUTLET_SEQUENCE, robot_targets
+        return {"mode": robot_target_mode(), "slots": robot_targets(self.storage.layout()),
+                "outlet_sequence": list(OUTLET_SEQUENCE),
+                "numbering": "로봇 가까운 줄 1·3·5·7, 먼 줄 2·4·6·8 (탑뷰 왼쪽 R1 → 오른쪽 R4), 번호 N = 저장 자세 pose_N"}
 
     def slot_of(self, item_id: str) -> dict | None:
         """물건이 기록된 보관 칸 {"slot_id", "pose_name", "staff_shelf"} 또는 None(기록 없음·DB 오류).

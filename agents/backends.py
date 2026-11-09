@@ -72,6 +72,13 @@ class CompositeBackend:
             robot = self._route.get("robot_stop")
             if robot is not None and callable(getattr(robot, "robot_state", None)):
                 return robot.robot_state
+        if name == "robot_go_pose":               # 11/9 선택 함수(DB 칸 모드, docs/contracts/robot_db_target.md)
+            robot = self._route.get("robot_stop")
+            if robot is not None:                 # 진짜 로봇이 꽂혀 있으면 그 부품 것만 — 없으면 가짜로 '성공'하지 않게 AttributeError
+                fn = getattr(robot, "robot_go_pose", None)
+                if callable(fn):
+                    return fn
+                raise AttributeError("robot_go_pose")
         # 시험용 확인 함수(robot_moved 등)는 가짜 부품 쪽 것을 쓴다
         return getattr(self.fallback, name)
 

@@ -47,6 +47,7 @@ class ReturnRequest:
     inner_feature_ok: bool = True     # 직원이 안쪽 특징 확인
     staff_confirmed: bool = True      # 직원 최종 확인 버튼
     staff_shelf: bool = False         # 11/9 물건이 직원 보관 선반(S-n)에 있음 — 화면이 보내지 못하고 서버가 보관함 정답지로 정함
+    robot_target: dict | None = None  # 11/9 DB 칸 모드(.env TOWER_ROBOT_TARGET=db): storage.robot_target 결과. 있으면 탑뷰 없이 저장 자세로 접근
 
 
 @dataclass
@@ -188,7 +189,12 @@ def shelf_handover(c: Ctx) -> bool:
 
 
 def locate(c: Ctx) -> bool:
-    """3. 탑뷰 촬영 → 매칭(불확실하면 자동 반환 안 함)"""
+    """3. 탑뷰 촬영 → 매칭(불확실하면 자동 반환 안 함)
+    11/9 DB 칸 모드(req.robot_target 있음): 탑뷰·매칭을 건너뛰고 보관함 정답지(DB)의 칸·저장 자세를 쓴다 — 접근 단계에서 확인"""
+    t = c.req.robot_target
+    if t is not None:
+        c.step("DB 칸 위치 사용(탑뷰 없음)", f"{t.get('slot_id') or '칸 없음'} · 번호 {t.get('number') or '-'} · 자세 {t.get('pose_name') or '없음'}")
+        return False
     dets = c.backend.vision_topview()
     c.detections = [d for d in dets if not validate_detection(d)]
     c.step("탑뷰 촬영", f"물건 {len(c.detections)}개 검출")
@@ -255,9 +261,45 @@ def lookalike(c: Ctx, picked: dict) -> str:
     return f"닮은 물건 보관 중({', '.join(twins[:3])}) — 사진으로 구별 불가, 직원이 안쪽 특징 확인"
 
 
+def _ready_to_move(c: Ctx) -> bool:
+    """로봇을 움직이기 직전 공통 확인: GPU 사용권 → 상태 '반환 중' 기록. 실패면 c.finish 하고 True(끝)"""
+    gpu = getattr(c.backend, "gpu_acquire", None)      # GPU 사용권(11/4): STT·Qwen 이 GPU 를 쓰는 중이면 기다리고, 못 받으면 직원 확인
+    if callable(gpu):
+        ok, why = gpu("vla")
+        if not ok:
+            return c.finish(DECISION_STAFF, f"GPU 사용권 없음 — 로봇을 움직이지 않음: {why}", alert=True)
+        if not why:                                     # 사용권 기능이 꺼져 있으면(why="꺼짐") 단계로 남기지 않음
+            c.step("GPU 사용권 받음")
+    if not _set_status(c, "반환 중"):
+        return c.finish(DECISION_STAFF, "상태 기록 실패 — 로봇을 움직이지 않음", alert=True)
+    return False
+
+
+def approach_db(c: Ctx) -> bool:
+    """4'. DB 칸 모드 사전 접근(11/9): 칸의 저장 자세(pose_N)로 이동. 탑뷰 좌표를 쓰지 않는다.
+    안전: 칸·자세가 없거나 로봇 부품에 robot_go_pose 가 없으면 로봇을 움직이지 않고 직원 확인"""
+    t = c.req.robot_target or {}
+    if not t.get("ok") or not t.get("pose_name"):
+        return c.finish(DECISION_STAFF, f"DB 칸 위치 없음 — 로봇을 움직이지 않음: {t.get('reason') or '칸 정보 없음'}", alert=True)
+    go = getattr(c.backend, "robot_go_pose", None)
+    if not callable(go):
+        return c.finish(DECISION_STAFF, "로봇 부품에 robot_go_pose 없음(DB 칸 모드 미지원) — 로봇을 움직이지 않음", alert=True)
+    if _ready_to_move(c):
+        return True
+    r = go(t["pose_name"], t["slot_id"])
+    if not isinstance(r, dict) or not r.get("ok"):
+        note = _stop(c)
+        why = r.get("reason") if isinstance(r, dict) else "결과 모양 오류"
+        return c.finish(DECISION_STOPPED, f"저장 자세 이동 실패({t['pose_name']}): {why}{note}", alert=True)
+    c.step("사전 접근 완료", f"{t['slot_id']} · {t['pose_name']}")
+    return False
+
+
 def approach(c: Ctx) -> bool:
     """4. 사전 접근(일반 위치 제어). 로봇에는 작업대 mm 좌표 + 탑뷰 픽셀을 함께 넘긴다(11/4 결정)
     이동 기준은 mm. 픽셀은 로봇 부품이 화면 기준 확인·기록에 쓸 수 있게 참고로만 준다"""
+    if c.req.robot_target is not None:
+        return approach_db(c)
     det = c.detections[c.match["index"]]
     target = det.get("center_mm")
     if not valid_point_mm(target):
@@ -270,15 +312,8 @@ def approach(c: Ctx) -> bool:
             why = ""
         if why:
             return c.finish(DECISION_STAFF, why, alert=True)
-    gpu = getattr(c.backend, "gpu_acquire", None)      # GPU 사용권(11/4): STT·Qwen 이 GPU 를 쓰는 중이면 기다리고, 못 받으면 직원 확인
-    if callable(gpu):
-        ok, why = gpu("vla")
-        if not ok:
-            return c.finish(DECISION_STAFF, f"GPU 사용권 없음 — 로봇을 움직이지 않음: {why}", alert=True)
-        if not why:                                     # 사용권 기능이 꺼져 있으면(why="꺼짐") 단계로 남기지 않음
-            c.step("GPU 사용권 받음")
-    if not _set_status(c, "반환 중"):
-        return c.finish(DECISION_STAFF, "상태 기록 실패 — 로봇을 움직이지 않음", alert=True)
+    if _ready_to_move(c):
+        return True
     px = det.get("center") or []
     r = c.backend.robot_approach([float(target[0]), float(target[1])], [float(v) for v in px])
     if not r["ok"]:
