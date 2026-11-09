@@ -302,7 +302,8 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             b = holder.get()
         except RuntimeError:
             return {"ready": False, "error": holder.error}
-        return {"ready": True, "rag_model_configured": bool(getattr(b.rag, "model", None)),
+        from agents.observability import status as langfuse_status
+        return {"ready": True, "rag_model_configured": bool(getattr(b.rag, "model", None)), "langfuse": langfuse_status(),
                 "search_mode": b.search.mode, "staff_ops": staff_ready,
                 "orchestration": "langgraph_guidance_item_search_and_staff_ops" if staff_ready else "langgraph_guidance_and_item_search"}
 

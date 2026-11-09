@@ -104,9 +104,11 @@ class Chatbot:
 
         def route_next_worker(s):
             return s['next']
-        graph.add_conditional_edges('coordinator', route_after_coordinator, {'end': END, 'planner': 'planner'})
+        from agents.observability import router
+        # 11/9 Langfuse 나무: 길 고르기 함수(라우터)는 '판단'이 아니라 supervisor 결정을 따라가는 연결선 → 알아보기 쉬운 이름 + DEBUG 단계로 낮춤
+        graph.add_conditional_edges('coordinator', router(route_after_coordinator, 'edge: planner or end'), {'end': END, 'planner': 'planner'})
         graph.add_edge('planner', 'supervisor')
-        graph.add_conditional_edges('supervisor', route_next_worker,
+        graph.add_conditional_edges('supervisor', router(route_next_worker, 'edge: go to next'),
                                     {'guidance': 'researcher', 'item_search': 'item_search', 'ops': 'ops_analyst',
                                      'intake': 'intake', 'reporter': 'reporter', 'end': END})
         # 11/9 DeerFlow 그림과 같은 모양: reporter 도 supervisor 아래 일꾼 — 정리가 끝나면 supervisor 가 끝(__end__)을 정한다
@@ -381,8 +383,11 @@ class Chatbot:
                 out = self._ask(question, access_token, context, history, staff, session_id, intake_action)
                 root.update(output={'answer': out.get('answer', '')[:800], 'agent': out.get('agent'),
                                     'path': out.get('agent_path'), 'routing': out.get('routing'),
-                                    'generation_status': out.get('generation_status')})
-                return out
+                                    'generation_status': out.get('generation_status'),
+                                    'decisions': out.get('decisions'), 'intake': out.get('intake')})
+        from agents.observability import flush_soon
+        flush_soon()                 # 11/9 질문 하나가 끝나면 바로 Langfuse 로(관제탑을 끌 때까지 기다리지 않음)
+        return out
 
     def _ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, intake_action=None):
         question = checked_text(question, '질문', 500)

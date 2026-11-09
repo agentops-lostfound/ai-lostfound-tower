@@ -64,7 +64,11 @@ def client():
         _TRIED = True
         try:
             from langfuse import Langfuse
-            _CLIENT = Langfuse(mask=mask, environment=(os.environ.get("LANGFUSE_ENV") or "dev").strip() or "dev")
+            env = (os.environ.get("LANGFUSE_ENV") or "dev").strip() or "dev"
+            try:      # 11/9 대화가 바로바로 보이게: 1초마다 보냄(기본 5초)
+                _CLIENT = Langfuse(mask=mask, environment=env, flush_interval=float(os.environ.get("LANGFUSE_FLUSH_INTERVAL") or 1))
+            except TypeError:
+                _CLIENT = Langfuse(mask=mask, environment=env)
         except Exception:
             _CLIENT = None
         return _CLIENT
@@ -151,11 +155,52 @@ def callbacks_active(on: bool):
         _CALLBACK_ON.reset(token)
 
 
+def router(fn, name: str):
+    """LangGraph 조건 연결 함수에 이름을 붙이고 Langfuse 에서 DEBUG 단계로 기록되게(langsmith:hidden 태그) 감싼다.
+    11/9 교수님 지적(나무가 어색함): 'route_next_worker'·'RunnableCallable' 같은 칸이 에이전트 사이마다 끼어 있었다"""
+    try:
+        from langchain_core.runnables import RunnableLambda
+        return RunnableLambda(fn, name=name).with_config(tags=["langsmith:hidden"], run_name=name)
+    except Exception:
+        return fn
+
+
+# 칸 이름 → 역할(Langfuse 칸 metadata 'role' 에 남김: 나무만 보고도 무슨 에이전트인지 알게)
+ROLES = {
+    "coordinator": "agent · 접수 담당(말 분류)", "planner": "agent · 계획 담당(일꾼 순서)",
+    "supervisor": "agent · 감독(일꾼 결과를 보고 다음 행동 판단)", "researcher": "retriever+generation · 안내 문서 답",
+    "item_search": "tool · 분실물 후보 검색(읽기 전용)", "intake": "agent · 대화 접수(분실 접수·습득 신고)",
+    "ops_analyst": "agent · 관제 분석 팀(직원 전용)", "reporter": "agent · 결과 정리",
+}
+
+
+class _Current:
+    """콜백이 만든 지금 칸(span)에 metadata 로 판단·요약을 덧붙인다(출력은 콜백이 칸의 반환값으로 기록)"""
+    def __init__(self, c, name):
+        self._c, self._name = c, name
+
+    def update(self, **kw):
+        meta = {"role": ROLES.get(self._name, "agent")}
+        if "output" in kw:
+            meta["detail"] = kw["output"]
+        try:
+            self._c.update_current_span(metadata=meta)
+        except Exception:
+            pass
+        return self
+
+    def __bool__(self):
+        return True
+
+
 @contextlib.contextmanager
 def node_step(name: str, as_type: str = "agent", **kw):
-    """그래프 칸 기록: 콜백이 켜져 있으면 콜백이 이미 기록하므로 건너뛰고, 아니면 step 으로 직접 기록"""
+    """그래프 칸 기록: 콜백이 켜져 있으면 콜백이 칸을 만들므로 그 칸에 역할·판단(metadata)만 덧붙이고, 아니면 step 으로 직접 기록"""
     if _CALLBACK_ON.get():
-        yield NOOP
+        c = client()
+        cur = _Current(c, name) if c is not None else NOOP
+        cur.update()
+        yield cur
         return
     with step(name, as_type=as_type, **kw) as obs:
         yield obs
@@ -189,4 +234,30 @@ def flush() -> None:
             c.flush()
 
 
-__all__ = ["client", "enabled", "mask", "mask_text", "step", "node_step", "graph_callbacks", "callbacks_active", "conversation", "flush", "NOOP", "reset_for_tests"]
+def flush_soon() -> None:
+    """11/9 질문 하나가 끝나면 뒤에서 바로 보냄(답을 늦추지 않게 별도 실행 줄). 기록이 꺼져 있으면 아무 일 없음"""
+    if client() is None:
+        return
+    import threading
+    threading.Thread(target=flush, daemon=True, name="langfuse-flush").start()
+
+
+def status() -> dict:
+    """/chat/health 용: 기록이 켜졌는지와 꺼진 이유(키 값은 절대 넣지 않음)"""
+    if (os.environ.get("LF_LANGFUSE") or "1").strip() == "0":
+        return {"enabled": False, "reason": "LF_LANGFUSE=0(끔)"}
+    missing = [k for k in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL") if not (os.environ.get(k) or "").strip()]
+    if missing:
+        return {"enabled": False, "reason": ".env 에 없음: " + ", ".join(missing)}
+    try:
+        import langfuse  # noqa: F401
+    except ImportError:
+        return {"enabled": False, "reason": "langfuse 패키지 없음(pip install -r agents/requirements.txt)"}
+    if client() is None:
+        return {"enabled": False, "reason": "클라이언트를 만들지 못함"}
+    return {"enabled": True, "reason": "", "callback": bool(graph_callbacks()),
+            "host": (os.environ.get("LANGFUSE_BASE_URL") or "").strip()}
+
+
+__all__ = ["client", "enabled", "mask", "mask_text", "step", "node_step", "graph_callbacks", "callbacks_active", "conversation", "flush",
+           "flush_soon", "status", "router", "ROLES", "NOOP", "reset_for_tests"]
