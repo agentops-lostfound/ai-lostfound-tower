@@ -29,7 +29,7 @@ COMMENT ON COLUMN item.place_id IS '고른 추천 장소(place 참조, 직접 �
 COMMENT ON COLUMN item.place_text IS '습득 장소 글자(고른 장소 또는 직접 입력, 필수)';
 COMMENT ON COLUMN item.received_at IS '접수한 시각';
 COMMENT ON COLUMN item.status IS '현재 상태: 등록기계 보관·회수 중·본센터 보관·확인 중·승인·수령 예약·반환 중·인계 대기·인계 완료·반환 보류';
-COMMENT ON COLUMN item.category IS '품목(지갑·USB·립밤·모형폰·핸드크림·보조배터리, 판단 불가면 확인 불가)';
+COMMENT ON COLUMN item.category IS '품목. 11/9 운영 4종: 지갑(카드지갑)·모형폰(목업폰)·핸드크림·보조배터리. USB·립밤은 옛 기록용으로만 허용, 판단 불가면 확인 불가';
 COMMENT ON COLUMN item.features IS '공개 특징 JSON(color·shape·material·confidence). 분실인 화면에 보여도 되는 것';
 COMMENT ON COLUMN item.private_features IS '비공개 특징 JSON(mark·visible_text). 확인 질문의 정답이라 후보 카드·MCP에 안 보임';
 COMMENT ON COLUMN item.photo_path IS '접수 사진 파일 위치(사진 자체는 DB 밖에 저장)';
@@ -116,7 +116,7 @@ COMMENT ON COLUMN return_step.detail IS '단계 설명';
 COMMENT ON COLUMN return_step.at IS '단계 시각';
 
 -- ========== 보관함(구역·칸·배정·재고 점검) ==========
-COMMENT ON TABLE storage_section IS '본센터 보관함 구역(행 R1~R4, 직원 선반 S, 인계 구역 H)';
+COMMENT ON TABLE storage_section IS '본센터 보관함 구역(열 R1~R4 = 탑뷰 왼쪽→오른쪽: 휴대폰·카드지갑·보조배터리·핸드크림, 직원 선반 S, 인계 구역 H)';
 COMMENT ON COLUMN storage_section.section_code IS '구역 코드. 예: R1, H, S';
 COMMENT ON COLUMN storage_section.label IS '구역 이름(화면 표시용)';
 COMMENT ON COLUMN storage_section.kind IS '구역 종류: shelf(보관 선반)·handover(인계 구역)·staff(직원 보관 선반, 로봇 안 씀)';
@@ -127,8 +127,8 @@ COMMENT ON COLUMN storage_section.sort_order IS '화면에 보여 줄 순서';
 COMMENT ON TABLE storage_slot IS '보관함 칸(구역 안의 자리). 로봇이 집거나 놓는 저장 자세와 연결';
 COMMENT ON COLUMN storage_slot.slot_id IS '칸 번호. 예: R1-1, H-1';
 COMMENT ON COLUMN storage_slot.section_code IS '속한 구역(storage_section 참조)';
-COMMENT ON COLUMN storage_slot.slot_no IS '구역 안의 칸 순서(1부터)';
-COMMENT ON COLUMN storage_slot.pose_name IS '로봇 저장 자세 이름(티칭 전에는 비어 있음)';
+COMMENT ON COLUMN storage_slot.slot_no IS '구역 안의 칸 순서: 1 = 로봇 가까운 칸, 2 = 먼 칸';
+COMMENT ON COLUMN storage_slot.pose_name IS '로봇 저장 자세 이름(티칭 전에는 비어 있음). 칸 번호 N(가까운 줄 1·3·5·7, 먼 줄 2·4·6·8) = pose_N, H-1 = close';
 COMMENT ON COLUMN storage_slot.note IS '칸 메모. 예: 45도 사선 배치';
 
 COMMENT ON TABLE storage_assignment IS '어느 칸에 어느 물건이 들어 있는지(한 칸에 한 물건, 인계 완료되면 자동으로 지워짐)';
