@@ -129,26 +129,33 @@ supervisor   → __end__
 ---
 
 ## 5. Langfuse 에서 보기 (교수님 방식: callback trace)
+### 5-1. 바로바로 올라오게(11/9)
+- 질문 하나가 끝나면 관제탑이 **뒤에서 바로 보낸다**(flush_soon). 기본 보내기 간격도 1초(`LANGFUSE_FLUSH_INTERVAL`, 기본 5초 → 1초) → 답이 나오고 몇 초 안에 Tracing 에 보인다
+- 기록이 안 보이면 먼저 `http://<관제탑>:8100/chat/health` 의 `langfuse` 를 본다: `{"enabled": true}` 면 켜짐, false 면 `reason` 에 이유(.env 에 없는 이름 · 패키지 없음 · LF_LANGFUSE=0). **키 값은 화면에 나오지 않는다**
+- 11/9 교육원 관제탑: 11/9 0시 33분(집 PC) 뒤로 기록이 하나도 없었다 → 교육원 PC `.env` 에 Langfuse 키가 없어서로 추정 — `/chat/health` 로 확인 후 `.env` 에 `LANGFUSE_PUBLIC_KEY`·`LANGFUSE_SECRET_KEY`·`LANGFUSE_BASE_URL` 을 넣고 관제탑 재시작
+
+### 5-2. 나무 읽는 법
 1. https://us.cloud.langfuse.com → 프로젝트 `ai-lostfound-tower` → **Tracing**
-2. 이름 `lost-found-chatbot` 한 줄 = 질문 하나. 같은 화면 대화는 **Sessions** 에서 한 묶음(session_id)
-3. 줄을 누르면 나무(Tree):
+2. 이름 `lost-found-chatbot` 한 줄 = 질문 하나(출력에 답·지나간 칸·supervisor 판단·접수 상태). 같은 화면 대화는 **Sessions** 에서 한 묶음
+3. 줄을 누르면 나무(Tree). 칸을 누르면 **Metadata 의 `role`(무슨 에이전트인지)·`detail`(판단·요약)**이 보인다
 ```
-lost-found-chatbot          질문·답·지나간 칸(path)·판단(decisions)
+lost-found-chatbot          출력: answer · path · decisions · intake
 └ chatbot-graph
-  ├ coordinator             출력: intent(service·greeting·…·intake), why
-  │ └ coordinator-llm       Mi:dm 호출(프롬프트 chat-coordinator 버전 연결)
-  ├ planner                 출력: plan, routing(model·rule)
-  │ └ planner-llm
-  ├ supervisor              출력: next, plan, decision{after, saw, decide, why}   ← 판단 근거
-  ├ intake                  출력: status, kind, filled, missing, asked, filled_by(rule·model·form·earlier_message)
+  ├ coordinator             role: 접수 담당 · detail: intent(service·greeting·…·intake), why
+  │ └ edge: planner or end  (연결선 — DEBUG 단계, 판단 아님)
+  ├ planner                 role: 계획 담당 · detail: plan, routing(model·rule)
+  │ └ planner-llm           Mi:dm 호출(프롬프트 chat-planner 버전 연결)
+  ├ supervisor              role: 감독 · detail: next + decision{after, saw, decide, why}   ← 판단 근거
+  │ └ edge: go to next
+  ├ intake                  role: 대화 접수 · detail: status, kind, filled, missing, asked, filled_by(rule·model·form·earlier_message)
   │ └ intake-extract-llm    (규칙이 못 읽었을 때만) Mi:dm 빈칸 채우기
   ├ researcher / item_search …
-  ├ reporter
-  └ supervisor              next: end
+  ├ reporter                role: 결과 정리
+  └ supervisor              detail: next end — "reporter 가 답을 정리함 → 끝"
 ```
+- 직원 관제 질문이면 `ops_analyst` 칸 안에 **관제 분석 팀** 그래프 `ops-team-graph`(ops-coordinator · ops-planner · ops-supervisor · ops-researcher · ops-analyst · ops-reporter)가 들어간다. 11/9 전에는 안쪽 칸 이름이 바깥(coordinator·planner·supervisor)과 같고 'LangGraph'·'RunnableCallable' 같은 이름이 끼어 나무가 어색했다 → 이름을 나눔
 4. 답이 이상하면: 어느 칸에서 틀렸는지 나무에서 찾고 → 그 칸의 프롬프트를 Prompts 에서 고친다(교수님 지시). supervisor 판단이 이상하면 `agents/chatbot.py` `_judge` 의 기준을 고친다
-
----
+- 칸 종류 표시는 콜백이 정해 모두 chain 으로 보인다(Langfuse 콜백은 이름에 agent 가 있어야 agent 로 표시) → 대신 metadata `role` 에 종류를 적었다
 
 ## 6. 시연 순서 (약 3분)
 화면 `/lost` 또는 키오스크 → 💬

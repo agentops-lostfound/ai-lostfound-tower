@@ -297,20 +297,25 @@ class OpsAnalyst:
     def _build(self):
         from langgraph.graph import END, START, StateGraph
         g = StateGraph(OpsState)
+        # 11/9 Langfuse 나무에서 챗봇 바깥 칸(coordinator·planner·supervisor)과 이름이 겹쳐 헷갈림 → 관제 분석 팀 칸은 ops- 를 붙인다
         for name in ("coordinator", "planner", "supervisor", "researcher", "analyst", "reporter"):
-            g.add_node(name, getattr(self, name))
-        g.add_edge(START, "coordinator")
-        g.add_conditional_edges("coordinator", lambda s: "planner" if s.get("accepted") else "end",
-                                {"planner": "planner", "end": END})
-        g.add_edge("planner", "supervisor")
-        g.add_conditional_edges("supervisor", self.route,
-                                {"researcher": "researcher", "analyst": "analyst", "reporter": "reporter", "end": END})
+            g.add_node(f"ops-{name}", getattr(self, name))
+        g.add_edge(START, "ops-coordinator")
+
+        def ops_route_after_coordinator(s):
+            return "planner" if s.get("accepted") else "end"
+        from agents.observability import router
+        g.add_conditional_edges("ops-coordinator", router(ops_route_after_coordinator, "edge: ops-planner or end"),
+                                {"planner": "ops-planner", "end": END})
+        g.add_edge("ops-planner", "ops-supervisor")
+        g.add_conditional_edges("ops-supervisor", router(self.route, "edge: ops go to next"),
+                                {"researcher": "ops-researcher", "analyst": "ops-analyst", "reporter": "ops-reporter", "end": END})
         for name in ("researcher", "analyst", "reporter"):
-            g.add_edge(name, "supervisor")
+            g.add_edge(f"ops-{name}", "ops-supervisor")
         return g.compile()
 
     def run(self, question: str) -> dict:
-        s = self.graph.invoke({"question": question}, config={"recursion_limit": 30})
+        s = self.graph.invoke({"question": question}, config={"recursion_limit": 30, "run_name": "ops-team-graph"})
         return {"report": s.get("report", ""), "focus": s.get("focus"), "facts": s.get("facts"),
                 "used_llm": s.get("used_llm", []), "accepted": s.get("accepted", False)}
 
