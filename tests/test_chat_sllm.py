@@ -77,8 +77,11 @@ class GenerationGuardTest(unittest.TestCase):
             {"mode": "clarify", "passage_ids": [], "follow_up": "물건을 받으러 오시는 건가요, 맡기러 오시는 건가요?",
              "choices": ["받으러 왔어요", "맡기러 왔어요"]}))
         r = rag.ask("카드지갑 찾으러 가도 돼요?")
-        self.assertEqual((r["status"], r["generation_status"]), ("clarification_needed", "generated_clarification"))
-        self.assertEqual(r["choices"], ["받으러 왔어요", "맡기러 왔어요"])
+        # 11/9: 모델이 만든 되묻기·버튼은 쓰지 않는다(답할 수 있는 질문을 되묻고 버튼 글자가 깨졌음) — 되묻기는 문서 주제 버튼(정해진 글)
+        self.assertEqual(r["status"], "clarification_needed")
+        self.assertNotEqual(r["generation_status"], "generated_clarification")
+        self.assertNotIn("받으러 왔어요", r["choices"])
+        self.assertTrue(r["choices"])
 
     def test_bad_model_output_never_reaches_user(self):
         for out in ({"mode": "clarify", "passage_ids": [], "follow_up": "전화번호 010-1234-5678 알려주세요", "choices": []},

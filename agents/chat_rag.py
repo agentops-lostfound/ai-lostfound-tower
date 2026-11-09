@@ -543,7 +543,9 @@ class GroundedRag:
             tried = True
             try:
                 passages = [{'id': i, 'topic': h['topic'], 'text': h['text']} for i, h in enumerate(hits)]
-                parsed = self._generate(question, passages, allow_clarify=True, history=history)
+                # 11/9 실제 모델 시험: 모델이 답할 수 있는 질문을 되물음("본센터가 어디인지 말씀해 주시겠어요?")·버튼 글자 깨짐("있요")
+                # → 모델에게는 답만 쓰게 하고, 되묻기는 아래 문서 주제 버튼(정해진 글)으로만 한다
+                parsed = self._generate(question, passages, allow_clarify=False, history=history)
                 docs = [d for d in self.guidance.documents if d['topic'] in {passages[i]['topic'] for i in parsed['passage_ids']}]
                 if parsed['mode'] == 'clarify':
                     return {**base, 'status': 'clarification_needed', 'answer': parsed['follow_up'],

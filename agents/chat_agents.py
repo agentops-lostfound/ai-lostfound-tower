@@ -32,6 +32,10 @@ GREETING_REPLY = ("안녕하세요! 지하철 분실물 안내 도우미예요. 
 THANKS_REPLY = "도움이 됐다니 다행이에요. 더 궁금한 점이 있으면 언제든 물어보세요."
 
 
+# 습득자 쪽 질문(맡기기·놓는 법): 분실물 후보 검색이 필요 없다
+FOUND_SIDE = re.compile(r"주웠|주운|주워|맡기|맡겨|맡길|넣어|넣는|넣으|놓는|놓아|놓으|두는|습득|올려")
+
+
 class AgentBrain:
     def __init__(self, model: str, request=None, timeout: float = 30.0):
         self.model = model
@@ -96,8 +100,9 @@ class AgentBrain:
         for s in list(steps) + list(rule_steps or []):
             if s in WORKERS and s not in out:
                 out.append(s)
-        if "item_search" in out and "item_search" not in (rule_steps or []) and not ITEM_WORDS.search(without_non_phone(question)):
-            out.remove("item_search")
+        if "item_search" in out and "item_search" not in (rule_steps or []) and (
+                not ITEM_WORDS.search(without_non_phone(question)) or FOUND_SIDE.search(re.sub(r"\s+", "", question))):
+            out.remove("item_search")        # 11/9 실제 모델 시험: "휴대폰은 상자에 어떻게 넣어요?"(습득자 질문)에 분실물 검색을 붙임
         if not out:
             out = ["guidance"]
         if "item_search" in out and "guidance" in out:       # 찾기 결과를 먼저, 안내를 뒤에(화면 읽기 순서)

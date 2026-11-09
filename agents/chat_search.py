@@ -1,4 +1,5 @@
 """Read-only, parameterized candidate lookup. Demo data never represents real finds."""
+import re
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -197,17 +198,18 @@ class SearchAgent:
         except Exception:
             return response('search_unavailable', '물건 DB를 조회하지 못했어요. 잠시 후 다시 시도해주세요.')
         demo = self.mode in DEMO_MODES
-        prefix = ('가상 시연 관제탑의 물건 목록에서 찾았어요(실제 습득물 아님).\n\n' if self.mode == 'sim_tower'
-                  else '시연용 가상 DB 조회 결과입니다. 실제 습득물이 아닙니다.\n\n' if demo else '')
-        answer = (f'조건에 맞는 후보 {len(candidates)}개를 찾았어요. 본인 물건으로 확정된 결과는 아닙니다.'
-                  if candidates else '이번 조회 조건에 맞는 후보가 없어요. 색상이나 물건 종류를 확인해주세요. 전체 분실물의 존재 여부를 확정한 것은 아닙니다.')
-        applied = [f"품목({category_label(desc['category'])})"]
+        # 11/9 실제 모델 시험: 답마다 고지 문구 3줄이 붙어 길었다 → 핵심(찾음/없음)을 먼저, 고지는 끝에 한 줄
+        suffix = ('\n(가상 시연 관제탑 목록 — 실제 습득물이 아닙니다)' if self.mode == 'sim_tower'
+                  else '\n(시연용 가상 DB — 실제 습득물이 아닙니다)' if demo else '')
+        answer = (f'후보 {len(candidates)}개를 찾았어요. 본인 물건으로 확정된 건 아니에요.'
+                  if candidates else '조건에 맞는 후보가 없어요. 색이나 물건 종류를 바꿔 보세요. 분실물이 없다고 확정한 것은 아닙니다.')
+        applied = [category_label(desc['category'])]
         if desc.get('color') == '기타':
-            applied.append('색상(기타 — 보라·주황처럼 목록 밖 색은 함께 찾음)')
+            applied.append('목록 밖 색(보라·주황 등)')
         elif desc.get('color'):
-            applied.append(f"색상({desc['color']})")
+            applied.append(desc['color'])
         else:
-            applied.append('색상 없음(모든 색)')
+            applied.append('모든 색')
         if desc.get('lost_date'):
             applied.append('분실 날짜 이후 접수')
         if desc.get('lost_station') and self.mode == 'sim_tower':
@@ -218,11 +220,13 @@ class SearchAgent:
             applied.append('입력한 역')
         elif desc.get('lost_line'):
             applied.append('입력한 호선')
-        answer += '\n이번 조회 조건: ' + ' · '.join(applied) + '. 키링 등 추가 특징은 아직 검색에 반영하지 않았습니다.'
+        answer += '\n찾은 조건: ' + ' · '.join(applied)
+        if re.search(r'키링|열쇠고리|스티커|흠집|긁힌|케이스|고리|이니셜|무늬|그림|로고', question or ''):
+            answer += '\n키링 같은 추가 특징은 아직 검색에 반영하지 않았어요.'
         if candidates and self.mode == 'sim_tower':
             answer += ("\n\n내 물건 같다면 '잃어버린 물건 찾기' 화면에서 분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호가 나오고, "
                        "부산역 본센터 키오스크에서 그 번호와 신분 확인으로 물건을 받을 수 있어요.")
-        return response('items_found' if candidates else 'items_not_found', prefix + answer,
+        return response('items_found' if candidates else 'items_not_found', answer + suffix,
                         candidates=[{'candidate_no': i, 'category': c['category'], 'color': c['color']} for i, c in enumerate(candidates, 1)],
                         search_result_id=reference, item_search_performed=True,
                         search_filter=desc,

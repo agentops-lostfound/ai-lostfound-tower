@@ -182,6 +182,9 @@ class Chatbot:
         r = state.get('results') or {}
         if 'ops' in r:
             return {'result': r['ops'], 'route': 'ops', 'path': state.get('path', []) + ['reporter']}
+        if 'guidance' in r and 'item_search' in r and r['guidance'].get('status') == 'item_search_not_supported':
+            # 11/9 실제 모델 시험("갈색이에요" 이어 묻기): 검색을 해 놓고 앞에 "이 챗봇은 검색하지 않습니다"가 붙어 모순 → 검색 결과만
+            return {'result': r['item_search'], 'route': 'search', 'path': state.get('path', []) + ['reporter']}
         if 'guidance' in r and 'item_search' in r:
             guide, search = r['guidance'], r['item_search']
             result = {**search, 'answer': guide['answer'] + '\n\n' + search['answer'],
@@ -256,6 +259,8 @@ class Chatbot:
 
     def _ask(self, question, access_token=None, context=None, history=None, staff=False):
         question = checked_text(question, '질문', 500)
+        from agents.guidance import fix_typos
+        question = fix_typos(question)          # 11/9 '지깝 일어버림' 같은 흔한 오타(앞 대화 해석·검색·모델 모두 바로잡힌 글을 봄)
         context = checked_context(context)
         turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
         history = checked_history(history)

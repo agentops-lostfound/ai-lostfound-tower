@@ -73,7 +73,7 @@ class SearchAnswerTest(unittest.TestCase):
         out = self.agent.ask("연보라색 지갑 찾아줘")
         self.assertEqual(out["search_filter"]["color"], "기타")
         self.assertNotIn("검정", [c["color"] for c in out["candidates"]])       # 예전: 색 없이 찾아 검정 지갑 후보
-        self.assertIn("색상(기타", out["answer"])
+        self.assertIn("목록 밖 색", out["answer"])
 
     def test_two_colors_get_specific_question(self):
         out = self.agent.ask("검정이랑 빨간 지갑 찾아줘")
@@ -81,8 +81,8 @@ class SearchAnswerTest(unittest.TestCase):
         self.assertIn("가장 넓게 보이는 색 하나", out["answer"])
 
     def test_applied_conditions_show_values(self):
-        self.assertIn("품목(지갑) · 색상(검정)", self.agent.ask("검정 지갑 찾아줘")["answer"])
-        self.assertIn("색상 없음(모든 색)", self.agent.ask("지갑 찾아줘")["answer"])
+        self.assertIn("찾은 조건: 지갑 · 검정", self.agent.ask("검정 지갑 찾아줘")["answer"])
+        self.assertIn("지갑 · 모든 색", self.agent.ask("지갑 찾아줘")["answer"])
 
 
 class HistoryToModelTest(unittest.TestCase):

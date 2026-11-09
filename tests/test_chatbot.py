@@ -37,6 +37,8 @@ class ChatbotTests(unittest.TestCase):
         self.assertEqual(result['candidates'], [{'candidate_no': 1, 'category': '지갑', 'color': '검정'}])
         self.assertNotIn('DEMO-001', str(result))
         self.assertFalse(result['reservation_created'])
+        self.assertNotIn('추가 특징', result['answer'])        # 11/9 특징을 말하지 않으면 안내 줄도 없음(답 길이 줄임)
+        result = self.bot.ask('키링 달린 검정 지갑 찾아줘')
         self.assertIn('추가 특징', result['answer'])
         self.assertIn('반영하지', result['answer'])
 

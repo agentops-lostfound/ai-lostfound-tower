@@ -56,6 +56,7 @@ python -m unittest discover -s tests
 - 시험 사례 10개: `python evaluation/run_cases.py`
 - 관제 분석·보고 에이전트(LangManus 구조): `python tools/ops_report.py "오늘 반환 실패 원인 알려줘"` (로컬 모델 `--model`, 관제탑 없이 `--from-json`) — 안내 docs/design/ops_analyst.md
 - 챗봇 Langfuse 연결(실행 기록·프롬프트): `python tools/langfuse_setup.py --check` → `--push-prompts` → `--test-trace` — 안내 docs/design/chatbot_sllm_rag.md §11
+- 챗봇 실제 모델 회귀 시험(사용자 말투 질문 18개, Ollama 켠 상태): `python tools/chat_live_check.py --model midm-2.0-mini` — 모델·프롬프트·검사기를 고치면 돌린다. 안내 docs/design/chatbot_sllm_rag.md §13
 - 관제탑 메인 AI(매칭이 애매할 때 매칭·보관 칸·비전 에이전트 협업): `.env` TOWER_BRAIN=1, 가상 시연은 분실 메시지 끝에 `#흐린촬영` → `/live` 의 메인 AI 대화 패널 — 안내 docs/design/tower_main_ai.md
 - 가짜 보관함 시나리오 9개(부품 교체 확인용, 디스코드 요약 `--discord`, 매칭 두 방식 비교 `--compare`): `python tools/mock_scene.py` — 안내 docs/design/swap_guide.md
 - 키오스크 사진 → Qwen 특징 작업자(관제탑과 같은 PC, Qwen 전용 가상환경): `.\.venv-qwen\Scripts\python.exe tools\intake_qwen_worker.py` (연결만 확인 `--check`) — 안내 docs/design/virtual_demo.md §4-5

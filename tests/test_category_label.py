@@ -117,7 +117,7 @@ class ChatTextTest(unittest.TestCase):
             out = agent.ask(q)
             self.assertEqual(out["status"], "items_found", q)
             self.assertEqual([c["category"] for c in out["candidates"]], ["모형폰"])   # JSON 값은 그대로(화면이 바꿔 보임)
-            self.assertIn("품목(휴대폰)", out["answer"])
+            self.assertIn("찾은 조건: 휴대폰", out["answer"])
             self.assertNotIn("모형폰", out["answer"])
         self.assertNotIn("모형폰", agent.ask("우산 찾아줘")["answer"])
 
