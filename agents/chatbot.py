@@ -397,7 +397,7 @@ class Chatbot:
         turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
         history = checked_history(history)
         ops_turn = bool(staff and self.ops is not None and is_ops_question(question))
-        intake_active = bool(not ops_turn and self.intake.active(session_id))
+        intake_active = bool(not ops_turn and self.intake.wants(session_id, question))
         intake_start = '' if ops_turn or intake_active else (detect_start(question) or '')
         if ops_turn:            # 관제 질문은 앞 대화와 합치지 않고 그대로 분석한다
             resolved = False

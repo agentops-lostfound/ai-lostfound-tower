@@ -581,6 +581,19 @@
       m.append(row);
     }
 
+    // 11/9 접수 번호 복사(정연우 검토): 접수 완료 답의 찾기·접수·대기 번호
+    var ik = res.intake || {};
+    var no = res.status === "intake_done" || res.status === "intake_status" ? (ik.claim_id || ik.wait_id || ik.item_id || "") : "";
+    if (no && /^[A-Z]-\d{8}-\d{4}$/.test(no)) {
+      var cp = el("button", "choice", no + " 복사");
+      cp.type = "button";
+      cp.addEventListener("click", function () {
+        var ok = function () { cp.textContent = "복사했어요"; setTimeout(function () { cp.textContent = no + " 복사"; }, 2000); };
+        try { navigator.clipboard.writeText(no).then(ok, function () { cp.textContent = no; }); } catch (e) { cp.textContent = no; }
+      });
+      var crow = el("div", "choices"); crow.append(cp); m.append(crow);
+    }
+
     // 11/9 대화 접수: 본인 확인 — 이름·성별 숫자는 이 화면에서 가려서(홍*동 · ******-1******) 보내고 원래 값은 보내지 않는다
     if (res.form && res.form.kind === "identity") m.append(identityForm());
 
