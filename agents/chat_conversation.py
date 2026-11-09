@@ -3,7 +3,7 @@ import re
 from agents.lost_input import checked_text, text_features
 from agents.search_context import search_context
 
-TOPIC_LABELS = {'finder_privacy': '습득자 연락처 공개 여부', 'kiosk_camera': '키오스크 카메라 고장',   # 11/9 버튼에 영어 주제 이름이 나가던 것
+TOPIC_LABELS = {'finder_privacy': '습득자 연락처 공개 여부', 'kiosk_camera': '키오스크 카메라 고장', 'chat_intake': '챗봇으로 접수하기',   # 11/9 버튼에 영어 주제 이름이 나가던 것
                 'consent': '본인인증', 'pickup': '수령 절차', 'masked_identity': '분실인 개인정보',
                 'finder_contact': '습득자 연락처', 'site_help': '사이트 사용법',
                 'flow': '분실물 확인', 'center_pickup': '본센터 받는 순서',

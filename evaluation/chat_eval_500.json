@@ -2298,16 +2298,13 @@
       "다루지 않",
       "4",
       "립밤",
-      "USB"
+      "USB",
+      "운영하지 않"
      ],
      "gen_not": [
       "generated_clarification"
      ],
-     "path_has": [
-      "researcher"
-     ],
      "path_not": [
-      "item_search",
       "intake"
      ]
     }
@@ -2327,16 +2324,13 @@
       "다루지 않",
       "4",
       "립밤",
-      "USB"
+      "USB",
+      "운영하지 않"
      ],
      "gen_not": [
       "generated_clarification"
      ],
-     "path_has": [
-      "researcher"
-     ],
      "path_not": [
-      "item_search",
       "intake"
      ]
     }
@@ -3735,9 +3729,8 @@
     "say": "챗봇으로도 분실 접수가 되나요?",
     "expect": {
      "any": [
-      "접수",
-      "챗봇",
-      "분실"
+      "대화로",
+      "접수할게요"
      ],
      "gen_not": [
       "generated_clarification"

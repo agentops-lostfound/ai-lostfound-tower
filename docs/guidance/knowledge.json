@@ -1,202 +1,210 @@
 [
-  {
-    "topic": "pickup",
-    "title": "물건 받으러 가기 전 — 11/6 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#물건-받으러-가기-전",
-    "evidence": "분실인 웹이나 키오스크에서 물건을 확인해 찾기 번호를 받은 뒤, 신분증을 가지고 부산역 본센터 키오스크로 간다.",
-    "answer": "분실인 웹이나 키오스크에서 물건을 확인해 찾기 번호를 받은 뒤, 신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요. 본센터 키오스크에서 신분 확인과 물건 확인 질문을 마치면 로봇팔이 물건을 꺼내 드려요."
-  },
-  {
-    "topic": "consent",
-    "title": "동의·본인인증 실패 처리 — 프로젝트 유스케이스 UC-1",
-    "path": "docs/design/usecases.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/bb36df80d8f3dd21b2f2264d0669bedd9cdc2a91/docs/design/usecases.md#uc-1-분실물-반환-처리",
-    "evidence": "동의 거부·본인인증 실패 → 반환 거절(안내 후 종료)",
-    "answer": "프로젝트 설계에서는 동의를 거부하거나 본인인증에 실패하면 반환 절차를 진행하지 않고 안내 후 종료합니다."
-  },
-  {
-    "topic": "masked_identity",
-    "title": "분실인 신분정보 — DB 설계 표 목록",
-    "path": "docs/design/database.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/bb36df80d8f3dd21b2f2264d0669bedd9cdc2a91/docs/design/database.md#3-표-목록",
-    "evidence": "동의 시각·가린 이름·가린 번호·설명 JSON·잃어버린 호선·역·날짜",
-    "answer": "프로젝트 DB 설계에서 분실인 찾기 요청에는 동의 시각, 가린 이름·번호, 물건 설명과 분실 날짜·장소를 기록합니다. 이 설명만으로 신분증 원본의 보관 여부나 전체 보유·파기 기간을 확정할 수는 없습니다."
-  },
-  {
-    "topic": "finder_contact",
-    "title": "습득자 연락처 보관 — DB 설계 확정 사항",
-    "path": "docs/design/database.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/bb36df80d8f3dd21b2f2264d0669bedd9cdc2a91/docs/design/database.md#6-확정-사항-113-변재원",
-    "evidence": "인계 완료된 뒤 30일",
-    "answer": "프로젝트 DB 설계의 습득자 연락처 규칙은 물건이 인계 완료된 뒤 30일이 지나면 지우는 것입니다. 그 사이 반환 보류 등으로 상태가 바뀌면 남깁니다. 이 규칙은 물건을 주워 맡긴 사람의 연락처에만 해당하며, 분실물 자체나 분실인 신분정보의 보관기간이 아닙니다."
-  },
-  {
-    "topic": "finder_privacy",
-    "title": "습득자 연락처는 분실인에게 알리지 않음 — DB 설계 확정 사항",
-    "path": "docs/design/database.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/design/database.md#1-원칙",
-    "evidence": "로 떼어 직원만 열람",
-    "answer": "습득자(물건을 주운 사람)의 연락처는 분실인에게 알려 드리지 않아요. 프로젝트 DB 설계에서 습득자 연락처는 따로 떼어 보관하고 직원만 볼 수 있으며, 물건이 인계 완료된 뒤 30일이 지나면 지웁니다."
-  },
-  {
-    "topic": "site_help",
-    "title": "로컬 분실물 도우미 사용 안내",
-    "path": "docs/guidance/site-help.md",
-    "url": "/guidance/documents/site-help",
-    "evidence": "왼쪽 물건 설명에 품목·색·특징을 적고 분실 날짜·호선·역을 입력한 뒤 설명 정리하기를 누릅니다. 아래에 나타나는 내용을 확인하거나 수정할 수 있습니다.\n\n설명 방법을 물건 사진으로 바꾸면 물건 하나가 보이는 사진을 올릴 수 있습니다. 사진에서 분실 날짜와 장소를 추측하지 않습니다.\n\n녹음 파일 입력이나 채팅의 음성 질문 버튼으로 말한 내용을 글자로 바꿀 수 있습니다. 인식된 글을 확인한 뒤 직접 전송합니다. 마이크가 없으면 글로 입력하면 됩니다.\n\n안내 채팅은 문서에 있는 절차를 근거와 함께 안내합니다. 물건 검색은 연결된 DB의 후보 조회이며 본인 물건 확정·접수·예약·반환 승인을 뜻하지 않습니다. 시연용 가상 DB 결과는 실제 습득물이 아닙니다.\n\n설명을 확인한 뒤 이 설명으로 후보 검색 버튼을 누르면 확인한 품목·색상·분실 날짜·호선·역이 검색에 사용됩니다. 날짜를 넣으면 그 날짜 이후 접수부터 확인하고, 입력한 역을 먼저 찾아 결과가 없을 때만 같은 호선으로 넓힙니다. 채팅의 조건 지우기로 확인한 조건을 해제할 수 있습니다. 후보에는 후보 번호·품목·색상을 표시하며 실제 접수 번호·접수 역·일치 점수는 표시하지 않습니다. 실제 DB 검색은 서버가 본인인증·필수 동의를 확인할 연결이 준비되어야 사용할 수 있습니다.",
-    "answer": "왼쪽 물건 설명에 품목·색·특징을 적고 분실 날짜·호선·역을 입력한 뒤 설명 정리하기를 누릅니다. 아래에 나타나는 내용을 확인하거나 수정할 수 있습니다.\n\n설명 방법을 물건 사진으로 바꾸면 물건 하나가 보이는 사진을 올릴 수 있습니다. 사진에서 분실 날짜와 장소를 추측하지 않습니다.\n\n녹음 파일 입력이나 채팅의 음성 질문 버튼으로 말한 내용을 글자로 바꿀 수 있습니다. 인식된 글을 확인한 뒤 직접 전송합니다. 마이크가 없으면 글로 입력하면 됩니다.\n\n안내 채팅은 문서에 있는 절차를 근거와 함께 안내합니다. 물건 검색은 연결된 DB의 후보 조회이며 본인 물건 확정·접수·예약·반환 승인을 뜻하지 않습니다. 시연용 가상 DB 결과는 실제 습득물이 아닙니다.\n\n설명을 확인한 뒤 이 설명으로 후보 검색 버튼을 누르면 확인한 품목·색상·분실 날짜·호선·역이 검색에 사용됩니다. 날짜를 넣으면 그 날짜 이후 접수부터 확인하고, 입력한 역을 먼저 찾아 결과가 없을 때만 같은 호선으로 넓힙니다. 채팅의 조건 지우기로 확인한 조건을 해제할 수 있습니다. 후보에는 후보 번호·품목·색상을 표시하며 실제 접수 번호·접수 역·일치 점수는 표시하지 않습니다. 실제 DB 검색은 서버가 본인인증·필수 동의를 확인할 연결이 준비되어야 사용할 수 있습니다."
-  },
-  {
-    "topic": "flow",
-    "title": "분실 확인과 물건 받는 곳 — 11/5 팀 결정",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#분실-확인과-물건-받기",
-    "evidence": "분실 확인은 모든 역 키오스크, 분실인 웹, 챗봇에서 할 수 있다.",
-    "answer": "분실물 확인은 모든 역 키오스크, 분실인 웹, 이 챗봇에서 할 수 있어요. 물건을 실제로 받는 곳(회수)은 본센터 키오스크 한 곳이에요. 일반 역 키오스크나 웹에서 물건이 확인되면 본센터 방문을 안내해 드려요."
-  },
-  {
-    "topic": "center_pickup",
-    "title": "본센터에서 받는 순서 — 11/6 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#본센터에서-받는-순서",
-    "evidence": "직원이 실물 신분증과 물건을 한 번 더 확인한 뒤 물건을 건넨다. 맞지 않으면 건네지 않고 물건을 보관함에 다시 넣는다.",
-    "answer": "본센터 키오스크에서 ① 셀프 신분 확인을 하고 ② 물건 특징을 묻는 확인 질문에 답하면, ③ 로봇팔이 보관함에서 물건을 꺼내 제출보관함(물건 받는 칸)에 놓아요. ④ 마지막으로 직원이 실물 신분증과 물건을 한 번 더 확인한 뒤 건네 드려요. 맞지 않으면 물건을 건네지 않고 보관함에 다시 넣어요."
-  },
-  {
-    "topic": "found_report",
-    "title": "습득 신고 방법 — 습득물 등록기계 화면(11/6 자동 촬영)",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
-    "evidence": "안내대로 물건을 상자 가운데에 두면 자동으로 사진을 찍고, 주운 장소를 고르면 접수 번호가 나온다.",
-    "answer": "주운 물건은 가까운 역 키오스크(습득물 등록기계)에서 신고해 주세요. 화면 안내대로 물건을 상자 가운데에 두고 손을 빼면 자동으로 사진을 찍어요. 이어서 주운 장소를 고르면 접수 번호가 나와요. 연락처는 남기지 않아도 되고, 물건 종류·색은 사진을 보고 시스템이 채워요. 현금이나 위험물은 역무실로 가져가 주세요."
-  },
-  {
-    "topic": "kiosk_camera",
-    "title": "키오스크 카메라를 쓸 수 없을 때 — 서비스 안내(습득 신고)",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
-    "evidence": "키오스크 카메라를 쓸 수 없으면 화면에 '카메라 점검 중 · 역무실에 알려 주세요' 안내가 뜬다. 이때는 역무실에 알리면 직원이 확인한다.",
-    "answer": "키오스크 카메라를 쓸 수 없으면 화면에 '카메라 점검 중 · 역무실에 알려 주세요' 안내가 떠요. 역무실에 알려 주시면 직원이 확인해 드려요. 사진 파일로는 접수하지 않고, 분실접수·회수 메뉴는 그대로 쓸 수 있어요."
-  },
-  {
-    "topic": "categories",
-    "title": "다루는 물건 4종 — 팀 운영 품목",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#다루는-물건",
-    "evidence": "지금 다루는 물건은 카드지갑·휴대폰(목업폰)·핸드크림·보조배터리 4종이다.",
-    "answer": "지금 이 서비스가 다루는 물건은 카드지갑, 휴대폰(목업폰), 핸드크림, 보조배터리 4종이에요. 립밤·USB를 포함해 다른 물건은 아직 다루지 않아요."
-  },
-  {
-    "topic": "kiosk_places",
-    "title": "키오스크 위치 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#키오스크-위치-시연-기준",
-    "evidence": "시연 기준 역 키오스크는 KIOSK-A 해운대역, KIOSK-C 서면역이다. 본센터는 부산역에 있고 본센터 키오스크 번호는 CENTER 이다.",
-    "answer": "역 키오스크는 해운대역(KIOSK-A)과 서면역(KIOSK-C)에 있어요. 물건을 받는 본센터는 부산역에 있어요(본센터 키오스크 CENTER)."
-  },
-  {
-    "topic": "privacy_input",
-    "title": "설명·장소 칸의 개인정보 — 입력 규칙",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#개인정보-입력",
-    "evidence": "장소·설명 칸에 전화번호·주민번호·이메일을 쓰면 접수하지 않는다.",
-    "answer": "물건 설명이나 장소 칸에는 전화번호·주민번호·이메일을 적지 말아 주세요. 적으면 접수되지 않아요. 연락처는 연락처 칸에만 적으면 돼요."
-  },
-  {
-    "topic": "candidate_scope",
-    "title": "검색 후보의 뜻 — 공개 범위",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오며 본인 물건이라는 확정이 아니다.",
-    "answer": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오고, 본인 물건이라는 확정이 아니에요. 실제로 받으려면 본센터 키오스크에서 신분 확인과 물건 확인 질문을 통과해야 해요."
-  },
-  {
-    "topic": "hours",
-    "title": "운영시간 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "본센터 키오스크는 평일 09:00~18:00에 열고 주말·공휴일은 쉰다. 역 키오스크의 습득 신고는 지하철 운행 시간 동안 할 수 있다.",
-    "answer": "본센터 키오스크(물건 받는 곳)는 평일 09:00~18:00에 열고 주말·공휴일은 쉬어요. 역 키오스크에서 하는 습득 신고는 지하철 운행 시간 동안 할 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "retention",
-    "title": "보관 기간 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "물건은 본센터에서 14일 동안 보관한 뒤 경찰(LOST112)로 넘긴다. 분실인 신분 확인 정보는 물건을 건넨 뒤 30일이 지나면 지운다.",
-    "answer": "물건은 본센터에서 14일 동안 보관한 뒤 경찰(LOST112)로 넘겨요. 분실인 신분 확인 정보는 물건을 건넨 뒤 30일이 지나면 지워요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "proxy_pickup",
-    "title": "대리수령 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "본센터 키오스크에서 본인이 직접 신분 확인을 하므로 대리수령은 받지 않는다.",
-    "answer": "본센터 키오스크에서 본인이 직접 신분 확인을 하기 때문에 대리수령은 받지 않아요. 물건 주인이 직접 방문해 주세요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "delivery",
-    "title": "배송·우편 수령 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "택배·우편으로 보내지 않고 본센터 방문 수령만 한다.",
-    "answer": "택배나 우편으로는 보내 드리지 않고, 본센터에 방문해서 받는 방법만 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "fee",
-    "title": "수령 비용 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "물건을 받을 때 내는 돈은 없다.",
-    "answer": "물건을 받을 때 내는 비용은 없어요(무료). (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "id_document",
-    "title": "신분증 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "신분증이 없으면 물건을 받을 수 없다. 주민등록증·운전면허증·여권을 인정한다(시연은 가상 신분증 사용).",
-    "answer": "신분증이 없으면 물건을 받을 수 없어요. 주민등록증·운전면허증·여권을 인정해요(시연에서는 가상 신분증을 써요). (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "reservation_change",
-    "title": "예약 취소·변경 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "분실인 웹에서 찾기 번호로 취소하고, 바꾸려면 취소 후 다시 신청한다. 예약한 날에 오지 않으면 예약은 자동으로 취소된다.",
-    "answer": "예약은 분실인 웹에서 찾기 번호로 취소할 수 있어요. 날짜를 바꾸려면 취소한 뒤 다시 신청해 주세요. 예약한 날에 오지 않으면 예약은 자동으로 취소돼요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "center_contact",
-    "title": "센터 위치·연락처 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "본센터는 부산역에 있는 시연용 가상 센터라 실제 주소와 전화번호는 없다.",
-    "answer": "본센터는 부산역에 있어요. 다만 시연용 가상 센터라 실제 주소와 전화번호는 없어요. 물건 확인과 방문 안내는 키오스크·분실인 웹·이 챗봇에서 받을 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "privacy_policy",
-    "title": "개인정보 처리 요약 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
-    "evidence": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 쓰며, 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않는다.",
-    "answer": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 써요. 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않아요. 전체 처리방침이 아니라 시연용 요약이에요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  },
-  {
-    "topic": "placement_guide",
-    "title": "키오스크 상자에 물건 놓는 법 — 11/6 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#물건-놓는-법",
-    "evidence": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 한다. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 둔다.",
-    "answer": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 놓아 주세요. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요. 놓은 뒤 손을 빼고 3초 정도 기다리면 자동으로 찍혀요."
-  },
-  {
-    "topic": "arrival",
-    "title": "본센터 도착 시간 — 시연 기준",
-    "path": "docs/guidance/service-guide.md",
-    "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#시연-운영-기준-116-확정-프로젝트-시연용--실제-기관-안내-아님",
-    "evidence": "본센터 도착: 역 키오스크에 맡긴 물건은 직원이 1시간마다 본센터로 옮기며, 본센터에 도착하기 전에는 받을 수 없다.",
-    "answer": "역 키오스크에 맡겨진 물건은 직원이 1시간마다 부산역 본센터로 옮겨요. 본센터에 도착하기 전에는 받을 수 없으니, 습득 신고 뒤 1시간 정도 지나서 방문해 주세요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
-  }
+ {
+  "topic": "pickup",
+  "title": "물건 받으러 가기 전 — 11/6 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#물건-받으러-가기-전",
+  "evidence": "분실인 웹이나 키오스크에서 물건을 확인해 찾기 번호를 받은 뒤, 신분증을 가지고 부산역 본센터 키오스크로 간다.",
+  "answer": "분실인 웹이나 키오스크에서 물건을 확인해 찾기 번호를 받은 뒤, 신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요. 본센터 키오스크에서 신분 확인과 물건 확인 질문을 마치면 로봇팔이 물건을 꺼내 드려요."
+ },
+ {
+  "topic": "consent",
+  "title": "동의·본인인증 실패 처리 — 프로젝트 유스케이스 UC-1",
+  "path": "docs/design/usecases.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/bb36df80d8f3dd21b2f2264d0669bedd9cdc2a91/docs/design/usecases.md#uc-1-분실물-반환-처리",
+  "evidence": "동의 거부·본인인증 실패 → 반환 거절(안내 후 종료)",
+  "answer": "프로젝트 설계에서는 동의를 거부하거나 본인인증에 실패하면 반환 절차를 진행하지 않고 안내 후 종료합니다."
+ },
+ {
+  "topic": "masked_identity",
+  "title": "분실인 신분정보 — DB 설계 표 목록",
+  "path": "docs/design/database.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/bb36df80d8f3dd21b2f2264d0669bedd9cdc2a91/docs/design/database.md#3-표-목록",
+  "evidence": "동의 시각·가린 이름·가린 번호·설명 JSON·잃어버린 호선·역·날짜",
+  "answer": "프로젝트 DB 설계에서 분실인 찾기 요청에는 동의 시각, 가린 이름·번호, 물건 설명과 분실 날짜·장소를 기록합니다. 이 설명만으로 신분증 원본의 보관 여부나 전체 보유·파기 기간을 확정할 수는 없습니다."
+ },
+ {
+  "topic": "finder_contact",
+  "title": "습득자 연락처 보관 — DB 설계 확정 사항",
+  "path": "docs/design/database.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/bb36df80d8f3dd21b2f2264d0669bedd9cdc2a91/docs/design/database.md#6-확정-사항-113-변재원",
+  "evidence": "인계 완료된 뒤 30일",
+  "answer": "프로젝트 DB 설계의 습득자 연락처 규칙은 물건이 인계 완료된 뒤 30일이 지나면 지우는 것입니다. 그 사이 반환 보류 등으로 상태가 바뀌면 남깁니다. 이 규칙은 물건을 주워 맡긴 사람의 연락처에만 해당하며, 분실물 자체나 분실인 신분정보의 보관기간이 아닙니다."
+ },
+ {
+  "topic": "finder_privacy",
+  "title": "습득자 연락처는 분실인에게 알리지 않음 — DB 설계 확정 사항",
+  "path": "docs/design/database.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/design/database.md#1-원칙",
+  "evidence": "로 떼어 직원만 열람",
+  "answer": "습득자(물건을 주운 사람)의 연락처는 분실인에게 알려 드리지 않아요. 프로젝트 DB 설계에서 습득자 연락처는 따로 떼어 보관하고 직원만 볼 수 있으며, 물건이 인계 완료된 뒤 30일이 지나면 지웁니다."
+ },
+ {
+  "topic": "site_help",
+  "title": "로컬 분실물 도우미 사용 안내",
+  "path": "docs/guidance/site-help.md",
+  "url": "/guidance/documents/site-help",
+  "evidence": "왼쪽 물건 설명에 품목·색·특징을 적고 분실 날짜·호선·역을 입력한 뒤 설명 정리하기를 누릅니다. 아래에 나타나는 내용을 확인하거나 수정할 수 있습니다.\n\n설명 방법을 물건 사진으로 바꾸면 물건 하나가 보이는 사진을 올릴 수 있습니다. 사진에서 분실 날짜와 장소를 추측하지 않습니다.\n\n녹음 파일 입력이나 채팅의 음성 질문 버튼으로 말한 내용을 글자로 바꿀 수 있습니다. 인식된 글을 확인한 뒤 직접 전송합니다. 마이크가 없으면 글로 입력하면 됩니다.\n\n안내 채팅은 문서에 있는 절차를 근거와 함께 안내합니다. 물건 검색은 연결된 DB의 후보 조회이며 본인 물건 확정·접수·예약·반환 승인을 뜻하지 않습니다. 시연용 가상 DB 결과는 실제 습득물이 아닙니다.\n\n설명을 확인한 뒤 이 설명으로 후보 검색 버튼을 누르면 확인한 품목·색상·분실 날짜·호선·역이 검색에 사용됩니다. 날짜를 넣으면 그 날짜 이후 접수부터 확인하고, 입력한 역을 먼저 찾아 결과가 없을 때만 같은 호선으로 넓힙니다. 채팅의 조건 지우기로 확인한 조건을 해제할 수 있습니다. 후보에는 후보 번호·품목·색상을 표시하며 실제 접수 번호·접수 역·일치 점수는 표시하지 않습니다. 실제 DB 검색은 서버가 본인인증·필수 동의를 확인할 연결이 준비되어야 사용할 수 있습니다.",
+  "answer": "왼쪽 물건 설명에 품목·색·특징을 적고 분실 날짜·호선·역을 입력한 뒤 설명 정리하기를 누릅니다. 아래에 나타나는 내용을 확인하거나 수정할 수 있습니다.\n\n설명 방법을 물건 사진으로 바꾸면 물건 하나가 보이는 사진을 올릴 수 있습니다. 사진에서 분실 날짜와 장소를 추측하지 않습니다.\n\n녹음 파일 입력이나 채팅의 음성 질문 버튼으로 말한 내용을 글자로 바꿀 수 있습니다. 인식된 글을 확인한 뒤 직접 전송합니다. 마이크가 없으면 글로 입력하면 됩니다.\n\n안내 채팅은 문서에 있는 절차를 근거와 함께 안내합니다. 물건 검색은 연결된 DB의 후보 조회이며 본인 물건 확정·접수·예약·반환 승인을 뜻하지 않습니다. 시연용 가상 DB 결과는 실제 습득물이 아닙니다.\n\n설명을 확인한 뒤 이 설명으로 후보 검색 버튼을 누르면 확인한 품목·색상·분실 날짜·호선·역이 검색에 사용됩니다. 날짜를 넣으면 그 날짜 이후 접수부터 확인하고, 입력한 역을 먼저 찾아 결과가 없을 때만 같은 호선으로 넓힙니다. 채팅의 조건 지우기로 확인한 조건을 해제할 수 있습니다. 후보에는 후보 번호·품목·색상을 표시하며 실제 접수 번호·접수 역·일치 점수는 표시하지 않습니다. 실제 DB 검색은 서버가 본인인증·필수 동의를 확인할 연결이 준비되어야 사용할 수 있습니다."
+ },
+ {
+  "topic": "flow",
+  "title": "분실 확인과 물건 받는 곳 — 11/5 팀 결정",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#분실-확인과-물건-받기",
+  "evidence": "분실 확인은 모든 역 키오스크, 분실인 웹, 챗봇에서 할 수 있다.",
+  "answer": "분실물 확인은 모든 역 키오스크, 분실인 웹, 이 챗봇에서 할 수 있어요. 물건을 실제로 받는 곳(회수)은 본센터 키오스크 한 곳이에요. 일반 역 키오스크나 웹에서 물건이 확인되면 본센터 방문을 안내해 드려요."
+ },
+ {
+  "topic": "center_pickup",
+  "title": "본센터에서 받는 순서 — 11/6 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#본센터에서-받는-순서",
+  "evidence": "직원이 실물 신분증과 물건을 한 번 더 확인한 뒤 물건을 건넨다. 맞지 않으면 건네지 않고 물건을 보관함에 다시 넣는다.",
+  "answer": "본센터 키오스크에서 ① 셀프 신분 확인을 하고 ② 물건 특징을 묻는 확인 질문에 답하면, ③ 로봇팔이 보관함에서 물건을 꺼내 제출보관함(물건 받는 칸)에 놓아요. ④ 마지막으로 직원이 실물 신분증과 물건을 한 번 더 확인한 뒤 건네 드려요. 맞지 않으면 물건을 건네지 않고 보관함에 다시 넣어요."
+ },
+ {
+  "topic": "found_report",
+  "title": "습득 신고 방법 — 습득물 등록기계 화면(11/6 자동 촬영)",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
+  "evidence": "안내대로 물건을 상자 가운데에 두면 자동으로 사진을 찍고, 주운 장소를 고르면 접수 번호가 나온다.",
+  "answer": "주운 물건은 가까운 역 키오스크(습득물 등록기계)에서 신고해 주세요. 화면 안내대로 물건을 상자 가운데에 두고 손을 빼면 자동으로 사진을 찍어요. 이어서 주운 장소를 고르면 접수 번호가 나와요. 연락처는 남기지 않아도 되고, 물건 종류·색은 사진을 보고 시스템이 채워요. 현금이나 위험물은 역무실로 가져가 주세요."
+ },
+ {
+  "topic": "kiosk_camera",
+  "title": "키오스크 카메라를 쓸 수 없을 때 — 서비스 안내(습득 신고)",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#습득-신고",
+  "evidence": "키오스크 카메라를 쓸 수 없으면 화면에 '카메라 점검 중 · 역무실에 알려 주세요' 안내가 뜬다. 이때는 역무실에 알리면 직원이 확인한다.",
+  "answer": "키오스크 카메라를 쓸 수 없으면 화면에 '카메라 점검 중 · 역무실에 알려 주세요' 안내가 떠요. 역무실에 알려 주시면 직원이 확인해 드려요. 사진 파일로는 접수하지 않고, 분실접수·회수 메뉴는 그대로 쓸 수 있어요."
+ },
+ {
+  "topic": "categories",
+  "title": "다루는 물건 4종 — 팀 운영 품목",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#다루는-물건",
+  "evidence": "지금 다루는 물건은 카드지갑·휴대폰(목업폰)·핸드크림·보조배터리 4종이다.",
+  "answer": "지금 이 서비스가 다루는 물건은 카드지갑, 휴대폰(목업폰), 핸드크림, 보조배터리 4종이에요. 립밤·USB를 포함해 다른 물건은 아직 다루지 않아요."
+ },
+ {
+  "topic": "kiosk_places",
+  "title": "키오스크 위치 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#키오스크-위치-시연-기준",
+  "evidence": "시연 기준 역 키오스크는 KIOSK-A 해운대역, KIOSK-C 서면역이다. 본센터는 부산역에 있고 본센터 키오스크 번호는 CENTER 이다.",
+  "answer": "역 키오스크는 해운대역(KIOSK-A)과 서면역(KIOSK-C)에 있어요. 물건을 받는 본센터는 부산역에 있어요(본센터 키오스크 CENTER)."
+ },
+ {
+  "topic": "privacy_input",
+  "title": "설명·장소 칸의 개인정보 — 입력 규칙",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#개인정보-입력",
+  "evidence": "장소·설명 칸에 전화번호·주민번호·이메일을 쓰면 접수하지 않는다.",
+  "answer": "물건 설명이나 장소 칸에는 전화번호·주민번호·이메일을 적지 말아 주세요. 적으면 접수되지 않아요. 연락처는 연락처 칸에만 적으면 돼요."
+ },
+ {
+  "topic": "candidate_scope",
+  "title": "검색 후보의 뜻 — 공개 범위",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오며 본인 물건이라는 확정이 아니다.",
+  "answer": "챗봇이 보여 주는 후보에는 후보 번호·품목·색상만 나오고, 본인 물건이라는 확정이 아니에요. 실제로 받으려면 본센터 키오스크에서 신분 확인과 물건 확인 질문을 통과해야 해요."
+ },
+ {
+  "topic": "hours",
+  "title": "운영시간 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "본센터 키오스크는 평일 09:00~18:00에 열고 주말·공휴일은 쉰다. 역 키오스크의 습득 신고는 지하철 운행 시간 동안 할 수 있다.",
+  "answer": "본센터 키오스크(물건 받는 곳)는 평일 09:00~18:00에 열고 주말·공휴일은 쉬어요. 역 키오스크에서 하는 습득 신고는 지하철 운행 시간 동안 할 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "retention",
+  "title": "보관 기간 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "물건은 본센터에서 14일 동안 보관한 뒤 경찰(LOST112)로 넘긴다. 분실인 신분 확인 정보는 물건을 건넨 뒤 30일이 지나면 지운다.",
+  "answer": "물건은 본센터에서 14일 동안 보관한 뒤 경찰(LOST112)로 넘겨요. 분실인 신분 확인 정보는 물건을 건넨 뒤 30일이 지나면 지워요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "proxy_pickup",
+  "title": "대리수령 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "본센터 키오스크에서 본인이 직접 신분 확인을 하므로 대리수령은 받지 않는다.",
+  "answer": "본센터 키오스크에서 본인이 직접 신분 확인을 하기 때문에 대리수령은 받지 않아요. 물건 주인이 직접 방문해 주세요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "delivery",
+  "title": "배송·우편 수령 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "택배·우편으로 보내지 않고 본센터 방문 수령만 한다.",
+  "answer": "택배나 우편으로는 보내 드리지 않고, 본센터에 방문해서 받는 방법만 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "fee",
+  "title": "수령 비용 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "물건을 받을 때 내는 돈은 없다.",
+  "answer": "물건을 받을 때 내는 비용은 없어요(무료). (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "id_document",
+  "title": "신분증 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "신분증이 없으면 물건을 받을 수 없다. 주민등록증·운전면허증·여권을 인정한다(시연은 가상 신분증 사용).",
+  "answer": "신분증이 없으면 물건을 받을 수 없어요. 주민등록증·운전면허증·여권을 인정해요(시연에서는 가상 신분증을 써요). (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "reservation_change",
+  "title": "예약 취소·변경 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "분실인 웹에서 찾기 번호로 취소하고, 바꾸려면 취소 후 다시 신청한다. 예약한 날에 오지 않으면 예약은 자동으로 취소된다.",
+  "answer": "예약은 분실인 웹에서 찾기 번호로 취소할 수 있어요. 날짜를 바꾸려면 취소한 뒤 다시 신청해 주세요. 예약한 날에 오지 않으면 예약은 자동으로 취소돼요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "center_contact",
+  "title": "센터 위치·연락처 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "본센터는 부산역에 있는 시연용 가상 센터라 실제 주소와 전화번호는 없다.",
+  "answer": "본센터는 부산역에 있어요. 다만 시연용 가상 센터라 실제 주소와 전화번호는 없어요. 물건 확인과 방문 안내는 키오스크·분실인 웹·이 챗봇에서 받을 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "privacy_policy",
+  "title": "개인정보 처리 요약 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#검색-후보의-뜻",
+  "evidence": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 쓰며, 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않는다.",
+  "answer": "가린 이름·가린 신분 번호·물건 설명만 받고, 본인 확인과 반환에만 써요. 물건을 건넨 뒤 30일이 지나면 지우고, 다른 곳에 주지 않아요. 전체 처리방침이 아니라 시연용 요약이에요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "placement_guide",
+  "title": "키오스크 상자에 물건 놓는 법 — 11/6 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#물건-놓는-법",
+  "evidence": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 한다. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 둔다.",
+  "answer": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 놓아 주세요. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요. 놓은 뒤 손을 빼고 3초 정도 기다리면 자동으로 찍혀요."
+ },
+ {
+  "topic": "arrival",
+  "title": "본센터 도착 시간 — 시연 기준",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#시연-운영-기준-116-확정-프로젝트-시연용--실제-기관-안내-아님",
+  "evidence": "본센터 도착: 역 키오스크에 맡긴 물건은 직원이 1시간마다 본센터로 옮기며, 본센터에 도착하기 전에는 받을 수 없다.",
+  "answer": "역 키오스크에 맡겨진 물건은 직원이 1시간마다 부산역 본센터로 옮겨요. 본센터에 도착하기 전에는 받을 수 없으니, 습득 신고 뒤 1시간 정도 지나서 방문해 주세요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
+ },
+ {
+  "topic": "chat_intake",
+  "title": "챗봇으로 접수하기 — 11/9 대화 접수",
+  "path": "docs/guidance/service-guide.md",
+  "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#챗봇으로-접수하기",
+  "evidence": "챗봇에서도 대화로 분실 접수와 습득 신고를 할 수 있다.",
+  "answer": "이 챗봇에서도 대화로 분실 접수와 습득 신고를 할 수 있어요. '분실 접수하고 싶어요'라고 말하거나 [분실 접수하기]·[습득 신고하기] 버튼을 누르면 물건·색·역을 하나씩 여쭤보고, 요약을 확인한 뒤 [접수할게요]를 눌러야 접수돼요."
+ }
 ]
