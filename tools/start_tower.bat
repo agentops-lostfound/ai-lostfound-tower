@@ -32,5 +32,8 @@ if "%TOWER_HOST%"=="0.0.0.0" echo [WARN] LAN mode: anyone on this network can op
 if defined TOWER_RELOAD echo [DEV] Auto restart on code change (virtual demo memory resets each restart). Use plain start_tower.bat for the final demo.
 echo [2/2] 관제탑 API 켜기: http://127.0.0.1:8100/docs  (끄기: Ctrl+C 또는 창 닫기)
 rem --no-access-log: 요청마다 쓰는 로그를 끈다. 이 창 안을 클릭하면 Windows 가 '선택' 모드로 바꿔, 로그를 쓰는 순간 API 가 멈춘다(11/3 겪음). 멈췄으면 Esc
-python -m uvicorn agents.api:app --host %TOWER_HOST% --port 8100 --no-access-log %TOWER_RELOAD%
+rem 11/9 Ctrl+C hang fix: kiosk camera stream (MJPEG) never ends, so uvicorn waited forever. Force close after 3s if supported.
+set TOWER_GRACE=
+python -m uvicorn --help 2>nul | findstr /c:"timeout-graceful-shutdown" >nul && set TOWER_GRACE=--timeout-graceful-shutdown 3
+python -m uvicorn agents.api:app --host %TOWER_HOST% --port 8100 --no-access-log %TOWER_RELOAD% %TOWER_GRACE%
 pause

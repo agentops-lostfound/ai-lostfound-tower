@@ -108,9 +108,10 @@
 - 11/6 교육원 PC(10.10.21.21)에서 USB 캠 "USB CAMERA (1124:2925)" 인식·자동 촬영·접수(H-20261106-0009)까지 확인함
 - **11/9 태블릿 키오스크 다시 가능 — 서버 카메라(`&cam=server`)**: 태블릿은 화면만, 웹캠은 관제탑 PC 에 꽂는다. PC 가 웹캠을 읽어 영상(MJPEG `/api/kiosk/camera/{기계}.mjpg`)을 보내고, 키오스크 화면은 그 영상으로 물건 감지·3초·자동 촬영을 똑같이 한다. 태블릿 크롬이 카메라를 직접 열지 않으므로 **https 설정·태블릿 웹캠 지원과 상관없음**
   1. 관제탑 PC: `python tools/list_cameras.py` → 상자 위 웹캠 번호 확인(사진이 `data/camera_check/` 에 저장됨)
-  2. `.env` 에 `TOWER_KIOSK_CAMERAS=KIOSK-A=1`(기계=번호, 여러 대면 쉼표 `KIOSK-A=1,KIOSK-C=2`) → 관제탑 다시 켜기
+  2. `.env` 에 `TOWER_KIOSK_CAMERAS=KIOSK-A=0`(기계=번호, 1번 단계에서 "영상이 보이는 번호" — 교육원 PC 웹캠 1대면 0, 여러 대면 쉼표 `KIOSK-A=0,KIOSK-C=1`) → 관제탑 다시 켜기
   3. 태블릿 크롬: `http://10.10.21.21:8100/kiosk?machine=KIOSK-A&cam=server` — 머리말에 "PC 카메라 연결됨"
   4. 상태 확인: `http://10.10.21.21:8100/api/kiosk/cameras` · 한 장 보기 `/api/kiosk/camera/KIOSK-A.jpg`
   - 같은 웹캠을 PC 크롬 키오스크(`127.0.0.1`)가 동시에 쓰면 "다른 프로그램이 사용 중" — 서버 카메라를 쓰는 동안 PC 쪽 키오스크 탭은 닫는다
   - 설정에 없는 기계 번호는 열지 않는다(404, 주소만 바꿔 탑뷰 카메라를 보지 못하게). 아무도 안 보면 60초 뒤 웹캠을 닫는다
+  - 끌 때: Ctrl+C 한 번이면 3초 안에 꺼진다(11/9 저녁 — 키오스크 영상 연결이 끝나지 않아 `Waiting for connections to close` 에서 멈추던 것을 `--timeout-graceful-shutdown 3` 으로 막음, `tools/start_tower.bat`)
   - 11/9 저녁 보강: 관제탑 창에 `VideoCapture::open(DSHOW) ... can't be used to capture by index` 경고가 쏟아지면 **.env 번호에 카메라가 없다는 뜻**(교육원 PC 웹캠 하나만 꽂으면 보통 `0`). 이제 DirectShow 로 안 열리면 Media Foundation 으로 한 번 더 열고, 실패하면 5초 쉬었다 다시 열어 경고가 쏟아지지 않는다. 영상이 새까마면 MJPG 를 빼고 다시 열고, `/api/kiosk/cameras` 에 `warning` 이 뜬다
