@@ -6,6 +6,8 @@
 
 | 작업일 | 보고서 |
 |---|---|
+| 2026-11-05 | [SO-101 버튼형 티칭 GUI·외부 제어 연동과 실물 시험](2026-11-05-teaching-gui-verification.md) |
+| 2026-11-05 | [기존 SO-101 제어 라이브러리 검토·공식 dry-run](2026-11-05-existing-so101-control-review.md) |
 | 2026-11-05 | [Physical AI Studio·텔레옵 설정과 1280×720 비전 시험](2026-11-05-studio-topview-status.md) |
 | 2026-11-05 | [회전축 기준 설치 좌표 변환 미리보기](2026-11-05-installation-coordinates.md) |
 | 2026-11-04 | [최신 기준: YOLO26m·책상 배치·스티커 정보 제외·통합 실행](2026-11-04-current-baseline.md) |
