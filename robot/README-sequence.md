@@ -6,6 +6,11 @@
 pose_N → outlet_return_1 → close → open → outlet_return_1 → home
 ```
 
+실제 VLA 연결 시 목표 흐름은 `pose_N → VLA 접근·집기 → 같은 pose_N으로 복귀 → 배출구 순서`다.
+현재 에피소드는 아래에서 집기까지만 포함하며, 들기·어프로치 복귀는 별도 로봇 제어가 담당한다.
+`TowerRobot.robot_grasp()`에 정책 완료 후 복귀 연결부를 준비했지만, 실제 정책 어댑터와 파지·경로 검증은 아직 없다. [연결 신호와 구현 범위](../docs/handoff/2026-11-09-tower-robot-part.md#최신-학습-범위-변경-vla는-아래에서-집기까지만)를 참고한다.
+이 화면의 6단계는 VLA가 없는 빈 집게 시험이며 해당 집기·복귀 구간을 검증하지 않는다.
+
 ## 켜기
 
 팀 공유 브랜치: `LF-21-geontae-tower-robot-part`. main 병합 전에는 이 브랜치를 받는다. 본인 작업은 먼저 보관하고, Git 명령이 실패하면 다음 명령을 실행하지 않는다.

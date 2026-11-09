@@ -41,7 +41,7 @@ class PartTests(unittest.TestCase):
 
     def test_invalid_targets_do_not_move(self):
         for pose, slot in [('pose_9', 'R1-1'), ('home', 'R1-1'), ('pose_1', 'H-1'),
-                           ('pose_1', 'S-1'), (None, 'R1-1'), ('pose_1', None)]:
+                           ('pose_1', 'S-1'), (None, 'R1-1'), ('pose_1', None), ('pose_8', 'R1-1')]:
             self.assertFalse(self.part.robot_go_pose(pose, slot)['ok'])
         self.motion.move.assert_not_called()
 
@@ -151,6 +151,18 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(command['duration_seconds'], 3)
         self.assertTrue(command['include_gripper'])
         self.assertNotIn('disconnect', [r['event'] for r in pipe.sent])
+
+    def test_post_grasp_return_preserves_gripper_command(self):
+        pipe = FakePipe()
+        self.transport(pipe).move('pose_1', 3, threading.Event(), include_gripper=False)
+        command = next(row['data'] for row in pipe.sent if row['event'] == 'move_saved_pose')
+        self.assertIs(command['include_gripper'], False)
+        self.assertTrue(pipe.closed)
+
+    def test_invalid_gripper_option_does_not_open_connection(self):
+        with patch('subprocess.Popen') as start, self.assertRaises(ValueError):
+            StudioPoseTransport(FOLLOWER).move('pose_1', 3, threading.Event(), include_gripper='false')
+        start.assert_not_called()
 
     def test_errors_stale_observations_and_foreign_control_stop(self):
         for scenario in ('error', 'stale', 'foreign'):

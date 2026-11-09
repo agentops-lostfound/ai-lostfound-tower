@@ -231,6 +231,21 @@ class RuntimeTests(unittest.TestCase):
         self.move(pose="open", include_gripper=True)
         self.assertEqual(self.source._pose_move.target[5], 77)
 
+    def test_post_grasp_return_keeps_closure_goal_not_contact_opening(self):
+        self.source._pose_last_output[5] = 3.7
+        self.current[5] = 42.0
+        self.send('move_saved_pose', pose='pose_1', follower_id='test-follower',
+                  approved=True, token='owner', include_gripper=False)
+        self.step(follow=False)
+        self.assertAlmostEqual(self.source._pose_move.target[5], 3.7, places=5)
+        for _ in range(40):
+            self.send('saved_pose_heartbeat', token='owner')
+            result = self.step(follow=False)
+            self.current[:5] = result[:5]
+        self.assertEqual(self.source._pose_status, 'arrived')
+        self.assertAlmostEqual(float(self.source._hold_target[5]), 3.7, places=5)
+        self.assertEqual(self.current[5], 42.0)
+
     def test_measured_arrival_not_just_target_ack(self):
         self.move()
         self.current[:5] = [-5.5,0,0,0,0]

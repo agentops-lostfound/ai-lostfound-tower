@@ -122,7 +122,9 @@ class StudioPoseTransport:
                 return False
         return False
 
-    def move(self, pose, duration, cancelled):
+    def move(self, pose, duration, cancelled, *, include_gripper=True):
+        if type(include_gripper) is not bool:
+            raise ValueError('include_gripper must be a boolean')
         sock = self._open()
         sent = False
         try:
@@ -138,7 +140,7 @@ class StudioPoseTransport:
                 self._send(sock, 'move_saved_pose', {
                     'pose': pose, 'follower_id': self.follower, 'token': token,
                     'approved': True, 'return_to_approach': False,
-                    'include_gripper': True, 'duration_seconds': duration})
+                    'include_gripper': include_gripper, 'duration_seconds': duration})
             last_observation = self.clock()
             heartbeat_at = self.clock()
             requested_at = self.clock()
