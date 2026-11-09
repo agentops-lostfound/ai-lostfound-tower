@@ -58,12 +58,15 @@ def _flag(name: str) -> bool:
 def _with_vision_file(backend_factory):
     """환경값으로 진짜 부품을 바꿔 끼운다(build_service 에 직접 넘긴 부품(시험용)에는 쓰지 않는다).
     - TOWER_VISION_FILE: 탑뷰 부품 → 결과 파일(김건태 LF-3 result_with_qwen.json)
-    - TOWER_MATCHER=policy: 매칭 부품 → 김건태 matching/policy.py (agents/matcher_part.py)"""
+    - TOWER_MATCHER=policy: 매칭 부품 → 김건태 matching/policy.py (agents/matcher_part.py)
+    - TOWER_ROBOT_PART=모듈:클래스: 로봇팔 부품(11/9, agents/robot_part.py) — 한 번만 만들어 요청마다 같은 부품을 쓴다"""
     from agents.matcher_part import matcher_part_from_env
+    from agents.robot_part import robot_part_from_env
     from agents.vision_adapter import vision_part_from_env
     part = vision_part_from_env()
     matcher = matcher_part_from_env()
-    if part is None and matcher is None:
+    robot = robot_part_from_env()
+    if part is None and matcher is None and robot is None:
         return backend_factory
     from agents.backends import CompositeBackend
     base = backend_factory or demo_backend_factory()
@@ -72,7 +75,7 @@ def _with_vision_file(backend_factory):
         be = base()
         route = getattr(be, "_route", {})
         db = route.get("db_get_item")
-        return CompositeBackend(vision=part, matcher=matcher, db=db, fallback=getattr(be, "fallback", be))
+        return CompositeBackend(vision=part, matcher=matcher, db=db, robot=robot, fallback=getattr(be, "fallback", be))
     return make
 
 
@@ -481,6 +484,17 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """로봇 티칭으로 정한 저장 자세 이름을 칸에 연결. 본문 {"pose_name": "pose_1"} (null = 지움)"""
         p = _body(payload)
         return _storage(lambda: svc.storage.set_pose(slot_id, p.get("pose_name")))
+
+    @app.get("/api/admin/storage/robot-targets", dependencies=admin)
+    def storage_robot_targets() -> dict:
+        """11/9 로봇 PC 용: 번호 1~8 칸 전체(번호·칸·자세 이름·물건) + 모드 + 배출구 순서 — docs/contracts/robot_db_target.md"""
+        return _storage(svc.robot_targets)
+
+    @app.get("/api/admin/storage/robot-target/{item_id}", dependencies=admin)
+    def storage_robot_target(item_id: str) -> dict:
+        """11/9 물건 번호 → 로봇이 갈 칸·번호·저장 자세. 읽기만 함(로봇을 움직이지 않음). 칸·자세가 없으면 ok=false 와 이유"""
+        from agents.storage import check_item_id
+        return _storage(lambda: svc.robot_target(check_item_id(item_id)))
 
     @app.post("/api/admin/storage/checks", dependencies=admin)
     def storage_record_check(payload: dict = Body(...)) -> dict:

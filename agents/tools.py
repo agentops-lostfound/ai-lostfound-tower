@@ -149,6 +149,12 @@ class MockBackend:
         self.last_approach_px = center_px
         return robot_result(self.approach_ok, "접근 실패")
 
+    def robot_go_pose(self, pose_name, slot_id) -> dict:
+        """11/9 DB 칸 모드 접근(가짜): 저장 자세 이름으로 이동. 결과는 approach_ok 를 따른다"""
+        self.calls.append("robot_go_pose")
+        self.last_pose = (pose_name, slot_id)
+        return robot_result(self.approach_ok, "저장 자세 이동 실패")
+
     def robot_grasp(self) -> dict:
         self.calls.append("robot_grasp")
         ok = self.grasp_plan[self._grasp_no] if self._grasp_no < len(self.grasp_plan) else False
