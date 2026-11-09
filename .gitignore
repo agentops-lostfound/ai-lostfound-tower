@@ -24,6 +24,8 @@ logs/
 *.log
 outputs/
 runs/
+# 11/9 챗봇 채점표 원본 기록은 영구 보관(evaluation/runs/*.json)
+!evaluation/runs/
 
 # 노드
 node_modules/
