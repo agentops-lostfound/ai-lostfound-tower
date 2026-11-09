@@ -64,6 +64,19 @@ def _known(v) -> bool:
     return isinstance(v, str) and v.strip() not in ("", UNKNOWN, NONE)
 
 
+# 11/9 채점표(evaluation/chat_eval.py)에서 찾음: 검정 지갑 분실 신고가 갈색 지갑 후보로 찾기 번호가 됐다(품목 1점 + 색 0점 = 0.5 로 문턱 통과).
+# 사진으로 본 색은 비슷한 색끼리 헷갈릴 수 있어(검정↔남색, 흰색↔회색) 그 묶음 안에서는 후보로 남기고, 아주 다른 색만 뺀다
+NEAR_COLORS = ({"검정", "남색", "회색"}, {"흰색", "회색", "은색", "베이지"}, {"갈색", "베이지", "주황"}, {"파랑", "남색", "하늘"},
+               {"빨강", "분홍", "주황"}, {"초록", "연두"}, {"노랑", "주황", "베이지"})
+
+
+def _far_color(a, b) -> bool:
+    """둘 다 아는 색인데 비슷한 색 묶음에도 같이 없으면 True(후보에서 뺌)"""
+    if not (_known(a) and _known(b)) or a == b:
+        return False
+    return not any(a in g and b in g for g in NEAR_COLORS)
+
+
 def _same_text(a: str, b: str) -> bool:
     wa, wb = (set(re.findall(r"[0-9a-z가-힣]+", (s or "").lower())) for s in (a, b))
     wa.discard("sticker"), wb.discard("sticker")
@@ -391,6 +404,8 @@ class SimDirector:
             rec = self.world._record(r)
             f = rec["features"]
             if desc.get("category") and f.get("category") != desc["category"]:
+                continue
+            if _far_color(desc.get("color"), f.get("color")):
                 continue
             keys = [k for k in PUBLIC_COMPARE if k in desc]
             # 11/4 무작위 시험: 물건 쪽 칸을 모르면 비교에서 빼서, 색 미상 물건이 색이 정확히 맞는 물건과 같은 점수였다 → 모르는 칸은 0.5
