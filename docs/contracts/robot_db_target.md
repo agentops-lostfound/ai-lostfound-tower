@@ -292,8 +292,8 @@ class TowerRobot:
 | 티칭·제어 창(`robot/teaching_gui.py`, `control_panel.py`) 전용 가상환경 | `robot/requirements-panel.txt` | numpy·opencv-python·websocket-client | 관제탑과 별개(관제탑이 쓰지 않음) |
 | LeRobot·모터 제어(WSL 안 Docker `physical-ai-studio-cuda`) | 컨테이너 안(관제탑 설치 목록에 넣지 않음) | lerobot·feetech 등 | 관제탑 `.venv` 에 lerobot·torch 를 넣지 않는다(6GB GPU·설치 충돌) |
 
-- 11/9 확인(실제 코드 읽음): `robot/vendor_backend.py`·`joint_motion.py`·`panel_core.py`·`panel_transport.py`·`owner_bridge.py`·`command_gate.py` 는 **표준 라이브러리만** 쓴다(`subprocess` 로 WSL 작업자를 부름). 이 길로 만들면 관제탑 설치 목록에 더할 것이 없다
-- `robot/panel_transport.py` 도 표준 라이브러리만 쓴다(`urllib`). `websocket-client` 는 제어 창 전용 목록에만 있고 관제탑 쪽 로봇 코드는 쓰지 않는다
+- 11/9 확인(실제 코드 읽음): `robot/vendor_backend.py`·`joint_motion.py`·`panel_core.py`·`owner_bridge.py`·`command_gate.py` 는 **표준 라이브러리만** 쓴다(`subprocess` 로 WSL 작업자를 부름). 이 길로 만들면 관제탑 설치 목록에 더할 것이 없다
+- 단, `robot/panel_transport.py` 의 **Live 모드(Studio 실행 화면에 붙는 길)** 는 함수 안에서 `import websocket` 을 한다(38행) → 부품이 이 길로 Studio 저장 자세를 부르면 `agents/requirements.txt` 에 `websocket-client` 한 줄이 필요하다. `vendor_backend.py`(WSL 작업자) 길이면 필요 없다
 - 넣는 법: 한 줄에 패키지 하나, 위에 `# 로봇 부품(LF-21) — 무엇 때문에` 주석. 버전은 꼭 필요할 때만(`이름>=버전`). 넣은 뒤 관제탑 PC 에서
   ```powershell
   .\.venv\Scripts\python.exe -m pip install -r agents\requirements.txt
