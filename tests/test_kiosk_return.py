@@ -111,10 +111,12 @@ class KioskAutoCaptureTest(unittest.TestCase):
         self.assertNotIn('id="shoot"', html)                      # 찍기 버튼 없음
         for word in ("stillMs: 3000", "getUserMedia", "trueEmpty"):      # 정지 3초(11/8) 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
             self.assertIn(word, html)
-        for cat in ("휴대폰", "지갑", "USB", "핸드크림", "보조배터리"):   # 11/8 화면 이름(값은 모형폰 그대로)
+        for cat in ("휴대폰", "지갑", "핸드크림", "보조배터리"):          # 11/8 화면 이름(값은 모형폰 그대로), 11/9 품목 4종
             self.assertIn(f"<b>{cat}", html)
         self.assertNotIn("립밤", html)                               # 11/9 운영 품목에서 뺌(놓는 법·분실 확인 품목 버튼·시연 물건)
-        self.assertIn("const CATS = ['지갑','USB','모형폰','핸드크림','보조배터리']", html)   # contracts.ACTIVE_CATEGORIES 와 같은 차례
+        self.assertNotIn("<b>USB", html)                              # 11/9 10:06 품목 4종 고정(USB 뺌)
+        from agents.contracts import ACTIVE_CATEGORIES
+        self.assertIn("const CATS = [" + ",".join(f"'{c}'" for c in ACTIVE_CATEGORIES) + "]", html)   # contracts.ACTIVE_CATEGORIES 와 같은 차례
         self.assertIn("'모형폰'", html)                            # 서버로 보내는 품목 값은 계약(CATEGORIES) 그대로
         self.assertNotIn("<b>모형폰", html)
         self.assertIn("다른 목적으로 쓰거나 다른 곳에 주지 않아요", html)

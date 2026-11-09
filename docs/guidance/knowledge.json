@@ -81,11 +81,11 @@
   },
   {
     "topic": "categories",
-    "title": "다루는 물건 5종 — 팀 운영 품목",
+    "title": "다루는 물건 4종 — 팀 운영 품목",
     "path": "docs/guidance/service-guide.md",
     "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#다루는-물건",
-    "evidence": "지금 다루는 물건은 지갑·USB·휴대폰·핸드크림·보조배터리 5종이다.",
-    "answer": "지금 이 서비스가 다루는 물건은 지갑, USB, 휴대폰, 핸드크림, 보조배터리 5종이에요. 립밤을 포함해 다른 물건은 아직 다루지 않아요."
+    "evidence": "지금 다루는 물건은 카드지갑·휴대폰(목업폰)·핸드크림·보조배터리 4종이다.",
+    "answer": "지금 이 서비스가 다루는 물건은 카드지갑, 휴대폰(목업폰), 핸드크림, 보조배터리 4종이에요. 립밤·USB를 포함해 다른 물건은 아직 다루지 않아요."
   },
   {
     "topic": "kiosk_places",

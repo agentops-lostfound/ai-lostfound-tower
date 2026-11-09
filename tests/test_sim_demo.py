@@ -195,7 +195,9 @@ class DirectorTest(unittest.TestCase):
             self.d.kiosk_return({"machine_id": "CENTER", "claim_id": "C-20261107-0999", "id_no_masked": "******-3******"})
 
     def test_quiz_question_then_wrong_answer_is_rejected(self):
-        r = self.d.lost("은색 USB 잃어버렸어요")
+        # 11/9 품목 4종: 글자 있는 핸드크림을 습득 신고한 뒤 찾기 → 글자(로고) 확인 질문에 틀린 답
+        self.found("서면역 3번 출구에서 흰색 핸드크림 BOUQUET GARNI 글자 있음 주웠어요")
+        r = self.d.lost("흰색 핸드크림 잃어버렸어요")
         self.assertIn("pending_id", r)
         out = self.d.answer(r["pending_id"], "Kingston")
         self.assertFalse(out["quiz_passed"])
@@ -204,7 +206,7 @@ class DirectorTest(unittest.TestCase):
         self.assertFalse(st["result"]["ok"])
         self.assertIn("rejected", st["result"]["text"])
         self.assertEqual(self.svc.world.arm["holding"], None)
-        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 5)   # 로봇 안 움직임
+        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 6)   # 로봇 안 움직임(시연 5 + 핸드크림)
 
     def test_calibration_fail_tag_sends_to_staff(self):
         self.found()
@@ -238,21 +240,20 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(self.svc.world.items[r["item_id"]]["loc"], "handed")
 
     def test_purchased_items_scenes(self):
-        """실제 구매 목록 기준(11/4, 11/7 5개): 갈색 지갑은 색으로 바로 찾고, 같은 제품 USB 2개는 직원 확인"""
+        """실제 구매 목록 기준(11/4, 11/7 5개, 11/9 품목 4종): 갈색 지갑은 색으로 바로 찾고, 같은 제품 보조배터리 2개는 직원 확인"""
         from agents.sim_world import SEED_ITEMS
         self.assertEqual(len(SEED_ITEMS), 5)
         r = self.lost("갈색 카드지갑 잃어버렸어요")
         self.assertTrue(story_of(self.svc, r["story_id"])["result"]["ok"])
         self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "갈색")
-        p = self.d.lost("은색 USB 잃어버렸어요")
-        out = self.d.answer(p["pending_id"], "SanDisk")
-        self.assertTrue(out.get("staff"))                               # 똑같은 USB 2개 → 고르지 않고 직원 확인
-        self.assertEqual(len(out["candidates"]), 2)
-        self.assertTrue(self.d.wait_idle())
+        out = self.lost("흰색 보조배터리 잃어버렸어요")                  # 똑같은 보조배터리 2개 → 고르지 않고 직원 확인
         res = story_of(self.svc, out["story_id"])["result"]
         self.assertFalse(res["ok"])
         self.assertIn("staff_check", res["text"])
-        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["category"] == "USB" and i["loc"] == "bin"), 2)
+        self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["category"] == "보조배터리" and i["loc"] == "bin"), 2)
+        with self.assertRaises(RequestError) as cm:
+            self.d.lost("은색 USB 잃어버렸어요")                       # 11/9 USB 는 운영 품목이 아님
+        self.assertIn("운영하지 않는 품목", str(cm.exception))
 
     def test_lookalike_ignores_other_categories(self):
         """11/4 무작위 시험 발견: 흰색 목업폰을 찾을 때 흰색 보조배터리·핸드크림을 '닮은 물건'으로 세면 안 됨
@@ -278,7 +279,7 @@ class DirectorTest(unittest.TestCase):
     def test_pii_rejected_in_place_and_description(self):
         with self.assertRaises(RequestError):
             self.d.found("서면역 010-1234-5678 에 떨어져 있었어요 검정 지갑")
-        p = self.d.lost("은색 USB 잃어버렸어요")
+        p = self.d.lost("보조배터리 잃어버렸어요")                     # 후보 2개 → 색 질문
         with self.assertRaises(RequestError):
             self.d.answer(p["pending_id"], "010-9999-8888")
 
@@ -300,7 +301,7 @@ class DirectorTest(unittest.TestCase):
         self.assertIn("운영하지 않는 품목", str(cm.exception))
         with self.assertRaises(RequestError) as cm:
             self.d.found("서면역 화장실 앞 립밤 주웠어요")        # 가상 세계에 립밤을 새로 만들지 않음
-        self.assertIn("지갑·USB·휴대폰·핸드크림·보조배터리", str(cm.exception))
+        self.assertIn("지갑·휴대폰·핸드크림·보조배터리", str(cm.exception))
         self.assertEqual(self.svc.board.stories, {})            # 실패한 신고는 이야기를 만들지 않음
 
     def test_found_item_lands_in_same_slot_on_answer_sheet(self):

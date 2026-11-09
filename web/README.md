@@ -42,7 +42,7 @@
 ## 3. 지켜야 할 약속
 - 요청·응답 형식: `agents/contracts.py`, `docs/contracts/mcp_tools.md`, 등록기계 API 는 `intake/README.md`
 - 찾기 요청(`POST /claims`)은 동의·신분 인증 결과·가린 이름·특징 설명·확인 질문이 필요하다(전화번호 원문을 받지 않는다)
-- 물건 종류는 운영 품목 5종: 지갑 · USB · 휴대폰 · 핸드크림 · 보조배터리 (`agents/contracts.py` ACTIVE_CATEGORIES = MVP_CATEGORIES). 11/9 립밤은 운영에서 뺐다(YOLO 인식이 어려움) — 계약 CATEGORIES 에는 옛 기록 때문에 남아 있다
+- 물건 종류는 운영 품목 4종: 카드지갑 · 휴대폰(목업폰) · 핸드크림 · 보조배터리 (`agents/contracts.py` ACTIVE_CATEGORIES = MVP_CATEGORIES). 11/9 립밤(YOLO 인식이 어려움)·USB 는 운영에서 뺐다 — 계약 CATEGORIES 에는 옛 기록 때문에 남아 있다
   - 11/8: 화면에는 **휴대폰**으로 보인다. 품목 값(계약·DB·비전·매칭·API JSON)은 `모형폰` 그대로라, 서버 값을 화면에 보일 때는 표시 사전 `{모형폰: "휴대폰"}`(파이썬은 `agents/contracts.py` `category_label()`)을 거친다. 사용자 입력은 `모형폰`·`휴대폰` 둘 다 알아듣는다
 - 개인정보(전화번호·주민번호·이메일)는 장소·설명 칸에 쓰면 관제탑이 거절한다
 - 로봇 관련 화면 요소(정지·원점·관절 값)는 `docs/contracts/robot_api.md` 기준
