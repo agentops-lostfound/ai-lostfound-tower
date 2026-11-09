@@ -41,16 +41,20 @@ class AgentBrain:
         self.model = model
         self.request = request or (lambda payload: ask_local_model(payload, timeout=timeout))
 
-    def _ask(self, name: str, prompt_name: str, schema: dict, user: dict) -> dict | None:
+    def _ask(self, name: str, agent: str, schema: dict, user: dict) -> dict | None:
+        """agent: 그래프 칸 이름(prompts.AGENT_PROMPTS). 11/9 칸마다 Langfuse config 의 model·temperature·use_llm 을 따른다"""
+        cfg = prompts.settings(agent, model=self.model, temperature=0)
+        if not cfg["use_llm"] or not cfg["model"]:
+            return None                               # 이 칸은 모델을 쓰지 않음 → 규칙
         from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로, agents/chat_progress.py)
         notify("route")
-        system, prompt_obj = prompts.get(prompt_name)
-        payload = {"model": self.model, "stream": False, "format": schema,
+        system, prompt_obj = prompts.for_agent(agent)
+        payload = {"model": cfg["model"], "stream": False, "format": schema,
                    "messages": [{"role": "system", "content": system},
                                 {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
-                   "options": {"temperature": 0, "num_predict": 64, "num_ctx": 4096}, "keep_alive": "5m"}
-        with step(name, as_type="generation", model=self.model, input=payload["messages"], prompt=prompt_obj,
-                  model_parameters={"temperature": 0, "num_predict": 64}) as gen:
+                   "options": {"temperature": cfg["temperature"], "num_predict": 64, "num_ctx": 4096}, "keep_alive": "5m"}
+        with step(name, as_type="generation", model=cfg["model"], input=payload["messages"], prompt=prompt_obj,
+                  model_parameters={"temperature": cfg["temperature"], "num_predict": 64}) as gen:
             started = time.perf_counter()
             try:
                 out = self.request(payload)
@@ -68,7 +72,7 @@ class AgentBrain:
             return "service", False
         schema = {"type": "object", "additionalProperties": False, "required": ["intent"],
                   "properties": {"intent": {"type": "string", "enum": list(INTENTS)}}}
-        parsed = self._ask("coordinator-llm", "chat-coordinator", schema,
+        parsed = self._ask("coordinator-llm", "coordinator", schema,
                            {"previous_questions": [h for h in (history or []) if isinstance(h, str)][-2:], "message": question})
         intent = (parsed or {}).get("intent")
         if intent not in INTENTS:
@@ -91,7 +95,7 @@ class AgentBrain:
         schema = {"type": "object", "additionalProperties": False, "required": ["steps"],
                   "properties": {"steps": {"type": "array", "minItems": 1, "maxItems": 2,
                                            "items": {"type": "string", "enum": list(WORKERS)}}}}
-        parsed = self._ask("planner-llm", "chat-planner", schema,
+        parsed = self._ask("planner-llm", "planner", schema,
                            {"previous_questions": [h for h in (history or []) if isinstance(h, str)][-4:], "question": question})
         steps = (parsed or {}).get("steps")
         if not isinstance(steps, list) or not steps or any(s not in WORKERS for s in steps):
@@ -112,7 +116,19 @@ class AgentBrain:
 
     def extract_slots(self, question: str, kind: str, schema: dict) -> dict | None:
         """11/9 대화 접수: 규칙이 못 읽은 빈칸(품목·색·역)을 고를 값 목록(schema enum) 안에서만 채움. 값 검사는 부르는 쪽(chat_intake)이 다시 함"""
-        return self._ask("intake-extract-llm", "chat-intake-extract", schema, {"kind": kind, "message": question})
+        return self._ask("intake-extract-llm", "intake", schema, {"kind": kind, "message": question})
+
+    def choose(self, agent: str, allowed: list, rule: str, context: dict) -> str | None:
+        """11/9 규칙 칸 보조(use_llm 기본 끔): 규칙이 허용한 값(allowed) 안에서 하나만 고르게 한다(JSON 스키마 고정).
+        목록 밖·실패·꺼짐이면 None → 부르는 쪽이 규칙 결과(rule)를 그대로 쓴다(규칙이 거부권)"""
+        allowed = [a for a in allowed if isinstance(a, str)]
+        if len(allowed) < 2 or rule not in allowed:
+            return None
+        schema = {"type": "object", "additionalProperties": False, "required": ["choice"],
+                  "properties": {"choice": {"type": "string", "enum": allowed}}}
+        parsed = self._ask(f"{agent}-llm", agent, schema, {"allowed": allowed, "rule_next": rule, **context})
+        choice = (parsed or {}).get("choice")
+        return choice if choice in allowed else None
 
 
 __all__ = ["AgentBrain", "GREETING_REPLY", "THANKS_REPLY", "INTENTS", "WORKERS"]

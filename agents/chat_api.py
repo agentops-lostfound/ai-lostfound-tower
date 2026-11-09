@@ -303,7 +303,9 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
         except RuntimeError:
             return {"ready": False, "error": holder.error}
         from agents.observability import status as langfuse_status
+        from agents.prompts import status as prompt_status          # 11/9 프롬프트 N개 중 Langfuse 에서 읽힌 M개(키 값 없음)
         return {"ready": True, "rag_model_configured": bool(getattr(b.rag, "model", None)), "langfuse": langfuse_status(),
+                "prompts": prompt_status(),
                 "search_mode": b.search.mode, "staff_ops": staff_ready,
                 "orchestration": "langgraph_guidance_item_search_and_staff_ops" if staff_ready else "langgraph_guidance_and_item_search"}
 

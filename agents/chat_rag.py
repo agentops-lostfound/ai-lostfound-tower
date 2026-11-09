@@ -394,16 +394,20 @@ class GroundedRag:
         questions = [h for h in history if isinstance(h, str)]
         from agents import prompts
         from agents.observability import step
-        system, prompt_obj = prompts.get('chat-guidance-answer', clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
-        payload = {'model': self.model, 'stream': False, 'format': schema,
+        # 11/9 칸별 설정(chat-researcher config): use_llm 끔이면 ValueError → 부른 쪽이 문서 문장으로 답함
+        cfg = prompts.settings('researcher', model=self.model, temperature=0)
+        if not cfg['use_llm'] or not cfg['model']:
+            raise ValueError('use_llm off')
+        system, prompt_obj = prompts.for_agent('researcher', clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
+        payload = {'model': cfg['model'], 'stream': False, 'format': schema,
             'messages': [{'role': 'system', 'content': system},
                          {'role': 'user', 'content': json.dumps({**({'previous_questions': questions} if questions else {}),
                                                                   **({'previous_turns': turns} if turns else {}),
                                                                   'question': question, 'retrieved_passages': passages,
                                                                   **({'feedback': feedback} if feedback else {})}, ensure_ascii=False)}],
-            'options': {'temperature': 0, 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
-        with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=self.model, input=payload['messages'], prompt=prompt_obj,
-                  model_parameters={'temperature': 0, 'num_predict': 400}) as gen:
+            'options': {'temperature': cfg['temperature'], 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
+        with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=cfg['model'], input=payload['messages'], prompt=prompt_obj,
+                  model_parameters={'temperature': cfg['temperature'], 'num_predict': 400}) as gen:
             from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로)
             notify('rewrite' if feedback else 'write')
             generated = self.request(payload)

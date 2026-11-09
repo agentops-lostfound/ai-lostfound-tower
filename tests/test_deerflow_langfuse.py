@@ -117,7 +117,7 @@ class LangfuseHooksTest(unittest.TestCase):
         from agents import observability, prompts
         with mock.patch.dict(os.environ, {"LANGFUSE_PUBLIC_KEY": ""}):
             observability.reset_for_tests()
-            text, obj = prompts.get("chat-guidance-answer", clarify_rule="")
+            text, obj = prompts.get("chat-researcher", clarify_rule="")
             self.assertIsNone(obj)
             self.assertNotIn("{{clarify_rule}}", text)
             self.assertIn("JSON 만 출력한다", text)
@@ -132,7 +132,7 @@ class LangfuseHooksTest(unittest.TestCase):
             def get_prompt(self, name, **kw):
                 return FakePrompt()
         with mock.patch.object(observability, "client", lambda: FakeClient()):
-            text, obj = prompts.get("chat-guidance-answer", clarify_rule="되묻기")
+            text, obj = prompts.get("chat-researcher", clarify_rule="되묻기")
         self.assertEqual(text, "langfuse 버전 프롬프트 되묻기")
         self.assertIsNotNone(obj)
 

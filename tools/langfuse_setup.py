@@ -56,7 +56,10 @@ def main(argv=None) -> int:
     if not ok:
         return 1
     if args.push_prompts:
-        for name, text in prompts.DEFAULTS.items():
+        # 11/9 agent 1개 = 프롬프트 1개(prompts.AGENT_PROMPTS 13개). config(use_llm 기본값)도 같이 올림 — 옛 이름(chat-guidance-answer·
+        # chat-intake-extract)은 더 읽지 않으므로 Langfuse 화면에서 보관(archive)해도 된다
+        for agent, name in prompts.AGENT_PROMPTS.items():
+            text = prompts.DEFAULTS[name]
             exists = True
             try:
                 c.get_prompt(name, label="production", type="text", max_retries=0, fetch_timeout_seconds=5, cache_ttl_seconds=0)
@@ -65,9 +68,9 @@ def main(argv=None) -> int:
             if exists and not args.force:
                 print(f"  {name}: 이미 있음(건너뜀)")
                 continue
-            c.create_prompt(name=name, prompt=text, labels=["production"], type="text",
+            c.create_prompt(name=name, prompt=text, labels=["production"], type="text", config=dict(prompts.DEFAULT_CONFIG[name]),
                             commit_message="agents/prompts.py 기본값(tools/langfuse_setup.py)")
-            print(f"  {name}: 올림{'(새 버전)' if exists else ''}")
+            print(f"  {name} ({agent}): 올림{'(새 버전)' if exists else ''} · use_llm={prompts.DEFAULT_CONFIG[name]['use_llm']}")
     if args.test_trace:
         with observability.conversation(session_id="setup-check-0001", tags=["setup"]):
             with observability.step("langfuse-setup-check", as_type="chain", input={"question": "연결 시험 010-1234-5678"}) as obs:

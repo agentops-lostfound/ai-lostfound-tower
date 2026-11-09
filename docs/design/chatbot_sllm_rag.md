@@ -222,7 +222,7 @@ start -> coordinator --(greeting/thanks)--> end
    python tools/langfuse_setup.py --test-trace
    ```
    - `--check`: "키 확인: OK" 가 나오면 성공(키 값은 출력하지 않음)
-   - `--push-prompts`: 왼쪽 **Prompts** 에 `chat-coordinator` · `chat-planner` · `chat-guidance-answer` 가 라벨 `production` 으로 생김
+   - `--push-prompts`: 왼쪽 **Prompts** 에 프롬프트 13개(`chat-coordinator` · `chat-planner` · `chat-researcher` 등, 목록은 chatbot_agents.md 1-1장)가 라벨 `production` 으로 생김 (11/9 이름 변경: chat-guidance-answer → chat-researcher)
    - `--test-trace`: 왼쪽 **Tracing → Traces** 에 `langfuse-setup-check` 가 보이고 전화번호가 `[전화번호]` 로 가려져 있으면 정상
 
 ### 11-3. 기록(trace) 보는 법
@@ -256,7 +256,7 @@ start -> coordinator --(greeting/thanks)--> end
 | 인증이 안돼요 | "인증 실패 = 동의 거부로 처리"로 섞음 |
 | 물건 수령 절차 알려줘(앞 대화 있음) | 앞 답의 "직원이 실물 신분증을 한 번 더 확인"을 근거처럼 씀 |
 
-**어떻게** (`agents/chat_rag.py` `_generate`, 프롬프트 `chat-guidance-answer`)
+**어떻게** (`agents/chat_rag.py` `_generate`, 프롬프트 `chat-researcher`, 11/9 전 이름 chat-guidance-answer)
 - 출력 형식: `{"mode":"answer","passage_ids":[…],"sentences":[{"evidence":"근거 구절(80자 안)","sentence":"답 문장"}]}` 1~3문장
 - 문장마다 코드 검사 4가지 — 하나라도 걸리면 그 문장만 빼고, 남은 문장이 없으면 문서 문장으로 답
   1. evidence 가 실제 근거 문단에 글자 그대로 있는가(끝 몇 글자만 다르면 앞부분 70% 이상이 맞을 때 그 부분까지 인정. 앞 대화의 답을 옮겨 온 구절은 여기서 걸림)
