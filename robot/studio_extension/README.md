@@ -76,7 +76,9 @@ HOLD 구간은 기존 RecordingCallback이 기록하지 않으므로 저장 자�
 - `bundle/` — 설치 입력. `bundle.json`에 파일별 SHA256 및 설치 전 backend 해시.
 - `ui/` — 최초 조사 때 사용한 다른 revision의 UI. **설치·재빌드에 사용하지 말 것.**
 
-`outputs/`는 Git에서 제외되므로 다른 PC에는 이 문서·`robot/studio_extension/`와 `bundle/`을 함께 전달한다.
+Git에는 `outputs/studio_pose_integration/bundle.tar.xz`와 SHA256 파일, `outputs/robot_panel_live/poses.json`을 예외로 포함한다.
+다른 PC에서는 [공유 파일과 설치 순서](../../docs/handoff/studio-shared-install.md)에 따라 압축을 풀어 `bundle/`을 만든 뒤 아래 설치기를 사용한다.
+나머지 `outputs/` 실행 결과·백업·빌드 작업 폴더는 계속 제외한다.
 장치·보정이 다른 팔에 이 자세 파일을 그대로 적용하면 안 된다.
 
 ## 설치 준비 및 적용
