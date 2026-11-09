@@ -130,5 +130,18 @@ class AgentBrain:
         choice = (parsed or {}).get("choice")
         return choice if choice in allowed else None
 
+    def search_slots(self, question: str) -> dict | None:
+        """11/9 item_search 일꾼(use_llm 켰을 때): 규칙이 못 읽은 품목·색을 운영 품목·색 목록 안에서만 고른다.
+        목록 밖·'모름'·실패면 None. 색은 말에 색 낱말이 있을 때만 받는다(부르는 쪽 검사, intake 와 같은 원칙)"""
+        from agents.contracts import ACTIVE_CATEGORIES, COLORS
+        schema = {"type": "object", "additionalProperties": False, "required": ["category", "color"],
+                  "properties": {"category": {"type": "string", "enum": list(ACTIVE_CATEGORIES) + ["모름"]},
+                                 "color": {"type": "string", "enum": [c for c in COLORS if c != "기타"] + ["모름"]}}}
+        parsed = self._ask("item-search-llm", "item_search", schema, {"message": question})
+        if not isinstance(parsed, dict):
+            return None
+        out = {k: v for k, v in parsed.items() if k in ("category", "color") and isinstance(v, str) and v != "모름"}
+        return out or None
+
 
 __all__ = ["AgentBrain", "GREETING_REPLY", "THANKS_REPLY", "INTENTS", "WORKERS"]

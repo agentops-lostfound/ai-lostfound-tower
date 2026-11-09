@@ -251,7 +251,7 @@ class RuleVetoTest(unittest.TestCase):
             self.assertIn("researcher", r["agent_path"], bad)
             self.assertNotIn("intake", r["agent_path"], bad)
             self.assertFalse(any(d["decide"].startswith("model_next") for d in r["decisions"]), bad)
-        self.assertEqual(r["reporter_llm"], "hook_only")                     # reporter 는 훅만
+        self.assertIn(r.get("report_order"), ("guidance_first", "search_first"))   # 11/9 reporter 는 순서만 모델이 고름(내용은 그대로)
 
     def test_supervisor_choice_inside_list_is_used_and_recorded(self):
         r = self._ask("reporter")
@@ -299,3 +299,71 @@ class RuleVetoTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlanStepsTest(unittest.TestCase):
+    """11/9 planner 단계별 지시서 → supervisor 가 한 단계씩 넘기고(task), 끝나면 완료·건너뜀을 적는다"""
+
+    def tearDown(self):
+        from agents import observability
+        observability.reset_for_tests()
+
+    def test_steps_follow_plan_and_tasks_reach_workers(self):
+        from agents import observability
+        seen = {}
+
+        class Obs:
+            def __init__(self, name):
+                self.name = name
+
+            def update(self, **kw):
+                seen.setdefault(self.name, []).append(kw.get("output"))
+
+        class CM:
+            def __init__(self, name, kw):
+                self.name = name
+                seen.setdefault(name + ":in", []).append(kw.get("input"))
+
+            def __enter__(self):
+                return Obs(self.name)
+
+            def __exit__(self, *a):
+                return False
+
+        class FakeClient:
+            def start_as_current_observation(self, name, as_type="span", **kw):
+                return CM(name, kw)
+
+            def update_current_span(self, **kw):
+                pass
+        with mock.patch.dict(os.environ, {**NO_LANGFUSE, "LF_LANGFUSE_CALLBACK": "0"}), \
+                mock.patch.object(observability, "client", lambda: FakeClient()):
+            r = bot().ask("갈색 지갑 찾아줘 그리고 받을 때 뭐 필요해?")
+        self.assertEqual([x.split("]")[0] for x in r["plan_steps"]], ["1. [완료", "2. [완료"])
+        self.assertIn("품목 지갑 · 색 갈색", r["plan_steps"][0])
+        self.assertIn("researcher", r["plan_steps"][1])
+        runs = [o["run_step"] for o in seen["supervisor"] if o and o.get("run_step")]
+        self.assertEqual([x["step"] for x in runs], ["1/2", "2/2", "report"])
+        self.assertEqual(runs[0]["why"], "planner 계획 순서")
+        self.assertIn("품목 지갑", seen["item_search:in"][0]["task"])          # 일꾼 입력에 지시가 보임
+
+    def test_supervisor_added_step_and_skipped_on_stop(self):
+        from agents.chat_intake import IntakeAgent
+        b = bot()
+        b.intake = IntakeAgent()
+        b.ask("분실 접수하고 싶어요", session_id="s-steps-0001")
+        r = b.ask("본센터 몇 시까지 해요?", session_id="s-steps-0001")
+        self.assertEqual(len(r["plan_steps"]), 2)
+        self.assertIn("researcher", r["plan_steps"][1])                       # supervisor 가 더한 안내 단계
+
+    def test_item_search_model_fills_only_listed_values(self):
+        from agents.chat_agents import AgentBrain
+        answers = {"coordinator": {"intent": "service"}, "planner": {"steps": ["item_search"]},
+                   "item_search": {"category": "보조배터리", "color": "흰색"}}
+        with mock.patch.dict(os.environ, {**NO_LANGFUSE, "LF_AGENT_ITEM_SEARCH_USE_LLM": "1"}):
+            r = bot(AgentBrain("m", request=model(answers, []))).ask("밧데리 흰색 찾아줘")
+        self.assertEqual(r["status"], "items_not_found" if not r.get("candidates") else r["status"])
+        self.assertIn("보조배터리", r["answer"])                                   # 규칙이 못 읽은 '밧데리'를 모델이 품목으로
+        with mock.patch.dict(os.environ, {**NO_LANGFUSE, "LF_AGENT_ITEM_SEARCH_USE_LLM": "1"}):
+            r = bot(AgentBrain("m", request=model({**answers, "item_search": {"category": "보조배터리", "color": "빨강"}}, []))).ask("밧데리 찾아줘")
+        self.assertNotIn("빨강", r["answer"])                                       # 말에 색이 없으면 모델 색은 버림
