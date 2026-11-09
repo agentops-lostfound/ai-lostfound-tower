@@ -1,6 +1,7 @@
 """Bounded user-turn context. No assistant claims, identity state or stored transcripts."""
 import re
-from agents.lost_input import checked_text, text_features
+import unicodedata
+from agents.lost_input import checked_text, text_features, ALIASES, COLORS
 from agents.search_context import search_context
 
 TOPIC_LABELS = {'consent': '본인인증', 'pickup': '수령 절차', 'masked_identity': '분실인 개인정보',
@@ -12,11 +13,22 @@ TOPIC_LABELS = {'consent': '본인인증', 'pickup': '수령 절차', 'masked_id
 
 
 def is_referential(q):
-    return bool(re.fullmatch(r'(?:(?:그럼|그러면))?(?:그건|그거|실패하면|안되면|어떻게해|어떻게|왜|필수야|꼭해야돼|어떡해)(?:요)?[?？.!]*', compact(q)))
+    return bool(re.fullmatch(r'(?:(?:그럼|그러면))?(?:(?:그건|그거)(?:못하면|안되면|실패하면|어떻게)?|실패하면|안되면|어떻게해|어떻게|왜|필수야|꼭해야돼|어떡해)(?:요)?[?？.!]*', compact(q)))
 
 
 def compact(text):
     return re.sub(r'\s+', '', text).lower()
+
+
+def brief_reaction(question):
+    """Only complete, non-actionable reactions; never absorb a new search request."""
+    q = compact(unicodedata.normalize('NFKC', question))
+    suffix = r'[ㅋㅎㅠㅜ\u1100-\u11ff!?？.~…]*'
+    if re.fullmatch(r'(?:까비|아쉽(?:다|네|네요|군|군요)?|아깝(?:다|네|네요)?|쩝|힝|에휴|허탈하네)' + suffix, q):
+        return 'disappointment'
+    if re.fullmatch(unicodedata.normalize('NFKC', r'(?:ㅇㅋ|ㅇㅇ|오케이|알겠(?:어|어요|다|습니다)|그렇구나|그렇군요|넵|네|응)') + suffix, q):
+        return 'acknowledgement'
+    return None
 
 
 def natural_question(question):
@@ -26,6 +38,7 @@ def natural_question(question):
         (r'글로\s*(?:만\s*)?(?:적|작성)', '설명 입력'),
         (r'타이핑|텍스트|글로\s*(쓸|쓰|입력)|말\s*안\s*하고', '설명 입력'),
         (r'본인\s*확인', '본인인증'),
+        (r'신원\s*(?:검사|확인)|신분\s*확인', '본인인증'),
         (r'내\s*정보', '내 개인정보'),
         (r'받으러\s*(가|갈)|뭘\s*챙겨|뭐\s*챙겨', '수령 준비물'),
         (r'몇\s*시.*(?:끝|마감)|언제.*(?:열어|닫아)', '운영시간'),
@@ -52,7 +65,13 @@ def search_intent(question):
     item = features.get('category') not in (None, '확인 불가', '없음')
     direct = bool(re.search(r'찾아(?:줘|주|줄)|검색해|후보.*보여', q))
     implicit = item and bool(re.search(r'잃어버|분실했|분실한|있나요|있어|있나|있니|있습니까|어딨', q))
-    return direct or implicit
+    # Short descriptions are useful search requests even without "찾아줘".
+    terms = [term.replace(' ', '') for aliases in (*ALIASES.values(), *COLORS.values()) for term in aliases]
+    terms += ['반지갑', '장지갑', '가죽', '직사각형', '원통형', '원형']
+    tokens = '|'.join(re.escape(term) for term in sorted(set(terms), key=len, reverse=True))
+    description = item and bool(re.fullmatch(
+        r'(?:(?:' + tokens + r'|[가-힣]{1,6}색))+(?:이요|이에요|입니다|인데요|요)?[?？.!]*', q))
+    return direct or implicit or description
 
 
 def resolve_turn(question, history, context, guidance):
@@ -60,6 +79,8 @@ def resolve_turn(question, history, context, guidance):
     question = natural_question(question)
     previous, inherited = None, {}
     for turn in history:
+        if brief_reaction(turn):
+            continue
         current = natural_question(turn)
         if previous and is_referential(current) and guidance.ask(current)['status'] == 'not_found':
             topics = [s['topic'] for s in guidance.ask(previous)['sources']]

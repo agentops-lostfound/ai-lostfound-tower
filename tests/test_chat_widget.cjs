@@ -32,6 +32,26 @@ function setup(questionFetch,otherFetch){
 }
 const ok=answer=>({ok:true,json:async()=>({answer,agent:'guidance',status:'answered',sources:[]})});
 
+test('model dialogue includes assistant replies and clear removes both roles',async()=>{
+ const s=setup(()=>Promise.resolve(ok('모델의 실제 답변')));s.open();await tick();s.send('첫 질문');await tick();s.send('그럼?');await tick();
+ assert.deepEqual(s.calls[1].body.turns,[{role:'user',content:'첫 질문'},{role:'assistant',content:'모델의 실제 답변'}]);
+ s.clear();s.send('새 대화');await tick();assert.deepEqual(s.calls[2].body.turns,[]);
+});
+
+test('color limits are labelled as service limits rather than unclear user questions',async()=>{
+ for(const [issue,label] of [['multiple','복수 색상 검색 미지원'],['unsupported','현재 미지원 색상']]){
+  const s=setup(()=>Promise.resolve({ok:true,json:async()=>({answer:'이 색상 조건은 지원하지 않습니다',agent:'guidance',status:'clarification_needed',sources:[],color_issue:issue})}));
+  s.open();await tick();s.send('색상 설명');await tick();
+  assert.ok(s.root.querySelectorAll('.badge').some(n=>n.textContent===label));
+ }
+});
+
+test('unsupported requests show an explicit scope badge instead of asking for more detail',async()=>{
+ const s=setup(()=>Promise.resolve({ok:true,json:async()=>({answer:'지원하는 기능이 아닙니다',agent:'guidance',status:'unsupported',sources:[]})}));
+ s.open();await tick();s.send('노래 불러줘');await tick();
+ assert.ok(s.root.querySelectorAll('.badge').some(n=>n.textContent==='지원 범위 밖의 요청'));
+});
+
 test('closing while waiting never restores focus to the hidden input',async()=>{
  let resolve;const s=setup(()=>new Promise(r=>{resolve=r;}));const external={focus(){s.doc.activeElement=this;}};external.focus();s.open();await tick();
  s.send('사진 입력 방법');s.window.LostFoundChat.close();assert.equal(s.doc.activeElement,external);

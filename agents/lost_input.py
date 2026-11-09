@@ -16,8 +16,8 @@ ALIASES = {"지갑": ("지갑", "wallet"), "USB": ("usb", "유에스비", "유�
            "모형폰": ("휴대폰", "휴대전화", "스마트폰", "모형폰", "핸드폰"),
            "립밤": ("립밤",), "핸드크림": ("핸드크림", "핸드 크림"), "보조배터리": ("보조배터리", "보조 배터리")}
 COLORS = {"검정": ("검정", "검은", "검정색", "블랙"), "흰색": ("흰색", "하얀", "화이트"),
-          "회색": ("회색", "은색", "실버"), "빨강": ("빨간", "빨강"), "파랑": ("파란", "파랑"),
-          "남색": ("남색",), "갈색": ("갈색",), "초록": ("초록",), "노랑": ("노란", "노랑"),
+          "회색": ("회색", "은색", "실버"), "빨강": ("빨간", "빨강", "적색", "레드", "red"), "파랑": ("파란", "파랑", "청색", "블루", "blue"),
+          "남색": ("남색",), "갈색": ("갈색",), "초록": ("초록", "녹색", "그린", "green"), "노랑": ("노란", "노랑", "황색", "옐로", "yellow"),
           "분홍": ("분홍", "핑크")}
 
 
@@ -46,6 +46,12 @@ def text_features(text):
             label = "품목" if field == "category" else "색상"
             warnings.append(f"{label}을 하나로 정하기 어렵습니다. 아래 내용을 직접 확인해주세요")
     desc.setdefault("category", UNKNOWN)
+    # An unrecognized color must not broaden a query to all colors.
+    color_terms = re.findall(r'[가-힣a-z]+색', re.sub(r'검색|탐색', '', text))
+    unsupported = re.search(r'보라|퍼플|민트|베이지|주황|오렌지|연두|카키|자주색|청록|금색|골드|아이보리', text)
+    if unsupported or any(not any(alias in term for aliases in COLORS.values() for alias in aliases)
+                          for term in color_terms):
+        warnings.append('색상을 검색 조건으로 확정하지 못했습니다. 지원하는 색상으로 확인해주세요')
     shapes = [s for s in ("반지갑", "장지갑", "직사각형", "원통형", "원형") if s in text]
     if len(shapes) == 1:
         desc["shape"] = shapes[0]

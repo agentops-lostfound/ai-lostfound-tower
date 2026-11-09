@@ -29,9 +29,8 @@ WIDGET_DIR = os.path.join(ROOT, "web", "chat-widget")
 
 def build_chatbot_from_env():
     """환경값으로 챗봇을 만든다. 실제 DB 설정이 있으면 가상 DB 로 바꿔 대신하지 않는다(정연우 원칙 유지)."""
-    from agents.chat_rag import GroundedRag
-    from agents.chat_search import DemoItemDatabase, PostgresItemSearch, SearchAgent
-    from agents.chatbot import Chatbot
+    from agents.chat_factory import build_chatbot
+    from agents.chat_search import DemoItemDatabase, PostgresItemSearch
     from agents.guidance import Guidance
     guide = Guidance()
     database = None
@@ -41,8 +40,8 @@ def build_chatbot_from_env():
         demo = (os.environ.get("TOWER_CHAT_DEMO_DB") or "").strip()
         if demo != "0":
             database = DemoItemDatabase(demo or os.path.join(ROOT, ".cache", "chat-demo.sqlite3"))
-    rag = GroundedRag(guide, model=os.environ.get("LF_CHAT_RAG_MODEL") or None)
-    return Chatbot(guide, rag=rag, search=SearchAgent(database))
+    return build_chatbot(guide, database, engine=os.environ.get('LF_CHAT_ENGINE'),
+                         model=os.environ.get('LF_CHAT_MODEL'), rag_model=os.environ.get('LF_CHAT_RAG_MODEL'))
 
 
 class LazyChatbot:
@@ -86,7 +85,10 @@ def add_chat_routes(app, chatbot=None) -> None:
         b = bot()
         token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
         try:
-            result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"))
+            if getattr(b, 'supports_turns', False) is True:
+                result = b.ask(body.get('question'), token, body.get('search_context'), body.get('history'), turns=body.get('turns'))
+            else:
+                result = b.ask(body.get("question"), token, body.get("search_context"), body.get("history"))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
         except RuntimeError:
@@ -107,6 +109,7 @@ def add_chat_routes(app, chatbot=None) -> None:
         except RuntimeError:
             return {"ready": False, "error": holder.error}
         return {"ready": True, "rag_model_configured": bool(getattr(b.rag, "model", None)),
+                'engine': getattr(b, 'engine', 'legacy'), 'model': getattr(b.rag, 'model', None),
                 "search_mode": b.search.mode, "orchestration": "langgraph_guidance_and_item_search"}
 
     @app.get("/chat-widget/widget.js", include_in_schema=False)

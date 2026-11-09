@@ -76,7 +76,7 @@
   ].join("\n");
 
   var host, root, wrap, panel, launcher, log, form, input, sendBtn, countEl, modeEl, dotEl, statusEl;
-  var busy = false, history = [], suggestions = [], lastFocus = null, loadedOnce = false;
+  var busy = false, history = [], dialogue = [], suggestions = [], lastFocus = null, loadedOnce = false;
   var activeRequest = null, conversationVersion = 0, statusLoading = false;
 
   function el(tag, cls, text) {
@@ -226,8 +226,11 @@
   }
 
   function badgeText(res) {
+    var colorLabels = {multiple: "복수 색상 검색 미지원", unsupported: "현재 미지원 색상", negation: "색상 정정 확인", ambiguous: "색상 표현 확인"};
+    if (colorLabels[res.color_issue]) return colorLabels[res.color_issue];
+    if (res.status === "unsupported") return "지원 범위 밖의 요청";
     if (res.agent === "search" || res.agent === "both") return res.database_mode === "demo_sqlite" ? "가상 DB 시연" : "물건 검색 안내";
-    if (res.generation_used) return "문서 검색 + AI 답변";
+    if (res.generation_used) return res.sources && res.sources.length ? "문서 근거 + AI 답변" : "AI 대화";
     if (res.status === "answered") return res.sources && res.sources.length ? "문서 근거 안내" : "대화 안내";
     if (res.status === "partial" || res.status === "policy_pending") return "확정 안내가 필요한 내용";
     return "질문을 조금 더 구체적으로";
@@ -282,7 +285,7 @@
     input.setAttribute("aria-busy", String(v));
   }
 
-  function send(text, suggestionId, retryHistory) {
+  function send(text, suggestionId, retryHistory, retryTurns) {
     var q = (text || "").trim();
     if (busy || !q) return;
     if (q.length > MAX_LEN) { statusEl.textContent = "질문을 500자 이하로 줄여 주세요. 입력한 내용은 그대로 남겨 뒀어요."; return; }
@@ -294,13 +297,14 @@
     var pending = line("bot pending", "질문을 확인하고 있어요…");
     setBusy(true);
     statusEl.textContent = "답변 준비 중";
-    var body = { question: q, history: (retryHistory || history).slice(-MAX_HISTORY) };
+    var body = { question: q, history: (retryHistory || history).slice(-MAX_HISTORY), turns: (retryTurns || dialogue).slice(-8) };
     if (suggestionId) body.suggestion_id = suggestionId;
     var request = { controller: new AbortController(), version: conversationVersion };
     activeRequest = request;
     api("/chat/questions", body, request.controller).then(function (res) {
       if (activeRequest !== request) return;
       history = body.history.concat([q]).slice(-MAX_HISTORY);
+      dialogue = body.turns.concat([{role: "user", content: q}, {role: "assistant", content: res.answer.slice(0,1500)}]).slice(-8);
       pending.remove();
       var m = line("bot", res.answer || "답변을 만들지 못했어요. 질문을 조금 바꿔 다시 물어봐 주세요.");
       addExtras(m, res);
@@ -312,7 +316,7 @@
       var m = line("bot error", err.message);
       var retry = el("button", "retry", "다시 보내기");
       retry.type = "button";
-      retry.addEventListener("click", function () { if (busy || request.version !== conversationVersion) return; m.remove(); userLine.remove(); send(q, suggestionId, body.history); });
+      retry.addEventListener("click", function () { if (busy || request.version !== conversationVersion) return; m.remove(); userLine.remove(); send(q, suggestionId, body.history, body.turns); });
       m.append(retry);
       statusEl.textContent = "전송하지 못했어요";
     }).finally(function () {
@@ -330,6 +334,7 @@
     if (previous) previous.controller.abort();
     setBusy(false);
     history = [];
+    dialogue = [];
     input.value = "";
     input.dispatchEvent(new Event("input"));
     log.replaceChildren();

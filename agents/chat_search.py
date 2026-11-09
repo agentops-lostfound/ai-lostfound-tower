@@ -139,6 +139,8 @@ class SearchAgent:
             if not self._authorized(access_token):
                 return response('authentication_required', '실제 물건 조회에는 기존 찾기 절차의 본인인증·필수 동의 연결이 필요해요. 현재 채팅에서는 인증을 대신하지 않습니다.')
         desc, warnings = search_context(question, context)
+        if any('색상' in warning for warning in warnings):
+            return response('search_needs_details', '말씀하신 색상을 하나의 검색 조건으로 확정하지 못했어요. 색상을 빼고 검색하지는 않았습니다. 검정·흰색·회색·빨강·파랑·남색·초록·노랑·갈색·분홍 중 한 가지로 알려주세요.')
         if desc['category'] not in CATEGORIES or desc['category'] == '없음' or warnings:
             return response('search_needs_details', '찾는 물건 한 종류와 색상을 알려주세요. 예: 검정 지갑 찾아줘. 지갑·휴대폰·USB·립밤·보조배터리·핸드크림을 구분할 수 있어요.')
         if self.mode != 'demo_sqlite' and not all(desc.get(k) for k in ('lost_date', 'lost_line', 'lost_station')):
@@ -160,9 +162,9 @@ class SearchAgent:
         prefix = '시연용 가상 DB 조회 결과입니다. 실제 습득물이 아닙니다.\n\n' if demo else ''
         answer = (f'조건에 맞는 후보 {len(candidates)}개를 찾았어요. 본인 물건으로 확정된 결과는 아닙니다.'
                   if candidates else '이번 조회 조건에 맞는 후보가 없어요. 색상이나 물건 종류를 확인해주세요. 전체 분실물의 존재 여부를 확정한 것은 아닙니다.')
-        applied = ['품목']
+        applied = ['품목: ' + desc['category']]
         if desc.get('color'):
-            applied.append('색상')
+            applied.append('색상: ' + desc['color'])
         if desc.get('lost_date'):
             applied.append('분실 날짜 이후 접수')
         if desc.get('lost_station') and desc.get('lost_line'):
@@ -171,7 +173,7 @@ class SearchAgent:
             applied.append('입력한 역')
         elif desc.get('lost_line'):
             applied.append('입력한 호선')
-        answer += '\n이번 조회 조건: ' + ' · '.join(applied) + '. 키링 등 추가 특징은 아직 검색에 반영하지 않았습니다.'
+        answer += '\n이번 조회 조건: ' + ' · '.join(applied) + '. 반지갑·장지갑 같은 형태와 키링 등 추가 특징은 아직 검색에 반영하지 않았습니다.'
         return response('items_found' if candidates else 'items_not_found', prefix + answer,
                         candidates=[{'candidate_no': i, 'category': c['category'], 'color': c['color']} for i, c in enumerate(candidates, 1)],
                         search_result_id=reference, item_search_performed=True,

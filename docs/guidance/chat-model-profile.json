@@ -1,0 +1,17 @@
+{
+  "model": "qwen3:4b-instruct-2507-q4_K_M",
+  "digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+  "quantization": "Q4_K_M",
+  "engine": "model_rag",
+  "num_ctx": 6144,
+  "think": false,
+  "temperature": 0.2,
+  "seed": 42,
+  "size_bytes": 2497293803,
+  "required_engine_flag": "LF_CHAT_ENGINE=model",
+  "selected_on": "2026-11-06",
+  "sources": [
+    "https://github.com/QwenLM/Qwen3",
+    "https://ollama.com/library/qwen3:4b-instruct-2507-q4_K_M"
+  ]
+}

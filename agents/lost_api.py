@@ -74,12 +74,22 @@ def create_app(service=None, guidance=None, chatbot=None, request_policy=None):
         return {"status": "ok", "photo_configured": service.photo_extractor is not None,
                 "speech_configured": service.transcriber is not None, "guidance_rag": "project_documents_with_policy_gaps",
                 "chat_rag_model_configured": bool(chatbot.rag.model), "chat_search_mode": chatbot.search.mode,
+                "chat_engine": getattr(chatbot, 'engine', 'legacy'), "chat_model": chatbot.rag.model,
                 "chat_orchestration": "langgraph_guidance_and_item_search"}
 
     @app.post("/chat/questions")
     def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None)):
         token = authorization[7:] if authorization and authorization.startswith('Bearer ') else None
-        result = run(lambda: chatbot.ask(body.get('question'), token, body.get('search_context'), body.get('history')))
+        try:
+            if getattr(chatbot, 'supports_turns', False) is True:
+                result = chatbot.ask(body.get('question'), token, body.get('search_context'), body.get('history'), turns=body.get('turns'))
+            else:
+                result = chatbot.ask(body.get('question'), token, body.get('search_context'), body.get('history'))
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        except RuntimeError:
+            # Match the tower chat route: internal model/DB details are not user guidance.
+            raise HTTPException(503, '챗봇을 처리하지 못했어요. 잠시 후 다시 시도해주세요') from None
         guidance.record_suggestion(body.get('suggestion_id'), body.get('question'))
         return result
 
@@ -164,9 +174,8 @@ def from_environment():
             from agents.chat_speech_worker import BoundedSpeechWorker
             return BoundedSpeechWorker()
     from agents.guidance import Guidance
-    from agents.chatbot import Chatbot
-    from agents.chat_rag import GroundedRag
-    from agents.chat_search import SearchAgent, DemoItemDatabase, PostgresItemSearch
+    from agents.chat_factory import build_chatbot
+    from agents.chat_search import DemoItemDatabase, PostgresItemSearch
     guide = Guidance()
     database = None
     # Explicit mode: never fall back from a real DB error to invented demo results.
@@ -174,8 +183,8 @@ def from_environment():
         database = PostgresItemSearch(os.environ['LF_CHAT_DATABASE_URL'])
     elif os.environ.get('LF_CHAT_DEMO_DB'):
         database = DemoItemDatabase(os.environ['LF_CHAT_DEMO_DB'])
-    chatbot = Chatbot(guide, rag=GroundedRag(guide, model=os.environ.get('LF_CHAT_RAG_MODEL')),
-                      search=SearchAgent(database))
+    chatbot = build_chatbot(guide, database, engine=os.environ.get('LF_CHAT_ENGINE'),
+                            model=os.environ.get('LF_CHAT_MODEL'), rag_model=os.environ.get('LF_CHAT_RAG_MODEL'))
     return create_app(DescriptionService(photo_extractor=photo, transcriber=speech), guide, chatbot)
 
 
