@@ -665,7 +665,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         st = board.story(story_id) if board else None
         if st is None:
             raise HTTPException(status_code=404, detail="없는 처리 번호")
-        return {**st, "events": board.since(after, story_id), "seq": board.last_seq}
+        # 11/9 에이전트 대화(내부 판단·칸 좌표)는 로그인 없는 이 주소·분실물 봇에는 내보내지 않는다(관리자 /live 에서만)
+        return {**st, "events": [e for e in board.since(after, story_id) if e.get("channel") != "agent"], "seq": board.last_seq}
 
     @app.post("/sim/reset", dependencies=admin)     # 11/8 무작위 시험: 로그인 없이 시연 전체를 지울 수 있었다
     def sim_reset() -> dict:

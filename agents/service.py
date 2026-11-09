@@ -185,6 +185,8 @@ class TowerService:
                                          status_setter=self._storage_set_status, poses=SLOT_POSES)
         self.storage = storage
         self.brain = brain                         # 11/8 관제탑 메인 AI(agents/tower_brain.py). None = 매칭이 애매하면 바로 직원 확인
+        self.slot_lookup = None                    # 11/9 칸 범위 조회(가상 시연은 가상 작업대 칸 위치). None = slot_area
+        self.talk = None                           # 11/9 에이전트 대화(agents/agent_talk.py). None = 대화 기록 없이 예전 그대로
 
     def _storage_items(self) -> list[dict]:
         """메모리 보관함 도착 목록용: 등록기계 접수 기록 + 시연 부품(가짜 보관함)의 물건"""
@@ -435,6 +437,8 @@ class TowerService:
             be = GuardedBackend(self.backend_factory(), self._stop_event, self.gpu_lease)
             try:
                 extra = {"consult": self.brain.consult} if self.brain is not None and _accepts(self.flow, "consult") else {}
+                if self.talk is not None and _accepts(self.flow, "talk"):
+                    extra.update(talk=self.talk, slot_area=self.slot_lookup or self.slot_area)
                 out = self.flow(req, be, self.reporter, reviewer=self.reviewer, **extra).to_dict()
             except Exception as e:   # 부품이 약속을 어기고 예외를 던진 경우 → 정지 시도 + 직원 확인
                 out = self._crash(req, be, e)

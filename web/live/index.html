@@ -111,6 +111,12 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .chat li{padding:8px 12px;border-radius:14px;background:var(--soft);font-size:13px;overflow-wrap:anywhere;max-width:92%}
 .chat li.main{background:var(--team-soft);justify-self:start;border-bottom-left-radius:4px} .chat li.agent{background:var(--ok-soft);justify-self:end;border-bottom-right-radius:4px}
 .chat li .who{display:block;font-weight:700;font-size:11.5px;color:var(--sub)}
+/* 11/9 에이전트 대화: 말한 쪽 → 받는 쪽, 종류 표시, 점수 칩. 메인 AI 는 왼쪽(보라), 다른 에이전트는 오른쪽(초록), 채점·도움은 노랑 */
+.chat li.grader{background:var(--warn-soft);justify-self:end;border-bottom-right-radius:4px}
+.chat li.sep{background:none;justify-self:stretch;max-width:none;padding:2px 0;color:var(--sub);font-size:11.5px;font-weight:700;border-top:1px dashed var(--line, #d0d5dd);border-radius:0}
+.chat li .score{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;font-weight:800;font-size:11.5px;font-variant-numeric:tabular-nums;background:var(--ok-soft)}
+.chat li .score.mid{background:var(--warn-soft)} .chat li .score.low{background:var(--bad-soft)}
+.legend span{white-space:nowrap}
 /* 시험 입력 */
 .try textarea{width:100%;min-height:64px;resize:vertical;font:500 14px/1.5 var(--ui-font);border:1.5px solid transparent;border-radius:12px;padding:10px 12px;background:var(--soft);color:var(--ink);outline:none}
 .try textarea:focus,.try .q input:focus{border-color:var(--accent);background:var(--panel)}
@@ -255,7 +261,10 @@ details.more .robot-note{margin-top:0}
       <details class="more"><summary>ⓘ 자세히</summary><div class="robot-note" id="robotNote"></div></details>
     </div>
     <div class="card" id="brainCard" hidden>
-      <h2>🤖 관제탑 메인 AI · 에이전트 대화</h2>
+      <h2>🤖 에이전트 대화 <span class="icons" title="메인 AI 가 요청을 나누고 답을 확인한다. 채점 에이전트가 답마다 점수를 매기고 부족하면 돕는다">메인 AI 아래</span></h2>
+      <div class="icons legend" style="margin:-4px 0 8px">
+        <span>📨 요청</span><span>💬 답</span><span>🧮 점수</span><span>🤝 도움</span><span>💭 되돌아보기</span><span>📚 배운 점</span><span>✅ 결정</span>
+      </div>
       <ul class="chat" id="brain" data-scroll-hint="새 대화 아래에"></ul>
     </div>
     <div class="card">
@@ -576,10 +585,39 @@ details.more .robot-note{margin-top:0}
     }).join("");
   }
 
+  // 11/9 에이전트 대화(agents/agent_talk.py) — 채널 'agent' 사건 하나 = 말 하나
+  const KIND_KO = {request: "📨 요청", reply: "💬 답", check: "🔎 확인", score: "🧮 점수", coach: "🤝 도움", reflect: "💭 되돌아보기",
+                   retry: "🔁 다시 답", decide: "✅ 결정", learn: "📚 배운 점 반영"};
+  let talkSeen = false, lastTalkStory = null;
+  function addTalk(e, t) {
+    const a = e.agent || {}, box = $("brain");
+    talkSeen = true;
+    if (e.story !== lastTalkStory) {                // 이야기(습득·반환)가 바뀌면 구분선
+      lastTalkStory = e.story;
+      const sep = document.createElement("li");
+      sep.className = "sep";
+      sep.textContent = `${e.story || ""} ${a.ref || ""}`.trim();
+      box.append(sep);
+    }
+    const c = document.createElement("li");
+    c.className = a.from === "메인 AI" ? "main" : (a.from === "채점 에이전트" ? "grader" : "agent");
+    const sc = typeof a.score === "number" ? `<span class="score ${a.score >= 80 ? "" : a.score >= 60 ? "mid" : "low"}">${a.score}점</span>` : "";
+    c.innerHTML = `<span class="who">${esc(a.from || "")} → ${esc(a.to || "")} · ${esc(KIND_KO[a.kind] || a.kind || "")} · ${t}</span>${esc(e.body)}${sc}`;
+    box.append(c);
+    while (box.children.length > 120) box.firstChild.remove();
+    box.scrollTop = box.scrollHeight;
+    $("brainCard").hidden = false;
+  }
+
   function addEvents(evs) {
     const log = $("log");
     for (const e of evs) {
       if (e.channel === "stage") continue;
+      if (e.channel === "agent") {                  // 관제 메시지 목록(= 디스코드 관제 채널)에는 넣지 않음
+        const dt = new Date(e.t * 1000), p2 = n => String(n).padStart(2, "0");
+        addTalk(e, `${p2(dt.getHours())}:${p2(dt.getMinutes())}:${p2(dt.getSeconds())}`);
+        continue;
+      }
       if (e.channel === "alert") lastAlert = e;
       const li = document.createElement("li");
       li.className = e.channel;
@@ -588,7 +626,7 @@ details.more .robot-note{margin-top:0}
       li.innerHTML = `<span class="t">${t}${e.story ? " " + esc(e.story) : ""}</span>${esc(e.title)}${e.body && e.channel !== "result" ? `<span class="b">${esc(e.body)}</span>` : ""}`;
       log.prepend(li);
       const m = /🤖\s*(.+)$/.exec(e.title || "");
-      if (m) {                                   // 메인 AI·에이전트 대화는 따로 말풍선으로(위에서부터 순서대로)
+      if (m && !talkSeen) {                      // 에이전트 대화가 꺼져 있을 때만(켜져 있으면 같은 말이 'agent' 사건으로 옴)
         const box = $("brain"), c = document.createElement("li");
         c.className = m[1].startsWith("메인 AI") ? "main" : "agent";
         c.innerHTML = `<span class="who">${esc(m[1])} · ${t}</span>${esc(e.body)}`;

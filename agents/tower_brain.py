@@ -314,6 +314,12 @@ class TowerBrain:
             self._reporter.progress(self._ctx.req.case_id, f"🤖 {who}", text)
         except Exception:
             pass
+        talk = getattr(self._ctx, "talk", None)       # 11/9 에이전트 대화 패널·채널에도(메인 AI 아래 같은 대화)
+        if talk is not None:
+            try:
+                talk.brain_said(self._ctx.req.case_id, who, text)
+            except Exception:
+                pass
 
 
 def build_from_env(slot_lookup=None) -> TowerBrain | None:
