@@ -206,6 +206,15 @@ class Chatbot:
                 decisions.append({'after': last, 'saw': f'일꾼 {len(done)}번', 'decide': 'finish', 'why': '호출 상한 — 여기서 정리'})
             else:
                 nxt = next((w for w in plan if w not in done), 'reporter')
+                # 11/9 use_llm(기본 끔, Langfuse chat-supervisor config): 계획에 남은 안내·검색 칸과 정리(reporter) 안에서만 모델이 고름.
+                # 접수(intake)·관제(ops)·멈춤(stop)·상한은 규칙만 — 목록 밖·실패면 규칙 값 그대로
+                if self.brain is not None and nxt in ('guidance', 'item_search', 'reporter'):
+                    allowed = [w for w in plan if w not in done and w in ('guidance', 'item_search')] + (['reporter'] if done else [])
+                    got = self.brain.choose('supervisor', allowed, nxt, {'question': state.get('question'), 'done': list(done), 'last': last})
+                    if got and got != nxt:
+                        decisions.append({'after': last, 'saw': f'규칙 다음 칸 {nxt}', 'decide': f'model_next:{got}',
+                                          'why': '모델이 허용 목록 안에서 다른 칸을 고름(chat-supervisor use_llm)'})
+                        nxt = got
             obs.update(output={'next': nxt, 'plan': plan, 'decision': decisions[-1] if decisions else None})
         return {'next': nxt, 'plan': plan, 'decisions': decisions, 'offers': offers, 'stop': stop,
                 'path': state.get('path', []) + ['supervisor']}
@@ -265,7 +274,10 @@ class Chatbot:
         with node_step('item_search', as_type='tool', input={'question': state['question']}) as obs:
             notify('search')
             res = self.search.ask(state['question'], _search_access.get(), state.get('search_context'))
-            obs.update(output={'status': res.get('status'), 'candidates': len(res.get('candidates') or [])})
+            # 11/9 use_llm 훅만(chat-item-search, 기본 끔): 켜도 검색은 규칙(읽기 전용) 그대로 — 기록에 표시만
+            from agents import prompts
+            hook = self.brain is not None and prompts.settings('item_search')['use_llm']
+            obs.update(output={'status': res.get('status'), 'candidates': len(res.get('candidates') or []), **({'llm': 'hook_only'} if hook else {})})
         return {'results': {**(state.get('results') or {}), 'item_search': res}, 'path': state.get('path', []) + ['item_search'], 'last': 'item_search'}
 
     def _intake_worker(self, state):
@@ -296,6 +308,10 @@ class Chatbot:
         if offers:
             res = {**res, 'choices': (list(res.get('choices') or []) + offers)[:4]}
         out['result'] = {**res, 'decisions': state.get('decisions') or []}
+        # 11/9 use_llm 훅만(chat-reporter, 기본 끔): 켜도 합치기·버튼은 규칙 그대로 — 응답에 표시만
+        from agents import prompts
+        if self.brain is not None and prompts.settings('reporter')['use_llm']:
+            out['result']['reporter_llm'] = 'hook_only'
         out['reported'] = True
         out['last'] = 'reporter'
         return out

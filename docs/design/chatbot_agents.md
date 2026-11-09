@@ -45,8 +45,38 @@ flowchart TD
 | reporter | reporter | 일꾼 결과를 하나로 합치고 다음 행동 버튼을 붙임 → supervisor 에게 돌려줌 | 없음 |
 
 - 그래프는 LangGraph 로 만들었다. `Chatbot(Guidance()).graph.get_graph().draw_mermaid()` 를 그리면 위 그림과 같은 모양이 나온다(reporter 도 supervisor 아래 일꾼, 끝은 supervisor 가 정함)
-- 프롬프트는 Langfuse Prompts 에서 이름으로 관리: `chat-coordinator` · `chat-planner` · `chat-intake-extract`(11/9) · `chat-guidance-answer`
+- 프롬프트는 Langfuse Prompts 에서 이름으로 관리 — **agent 1개 = 프롬프트 1개 = 모델 설정 1개**, 13개(1-1장)
 - 실행 기록은 callback 방식으로 Langfuse Tracing 에 에이전트(칸)별로 남는다(5장)
+
+### 1-1. agent ↔ 프롬프트 ↔ 모델 설정 (11/9, `agents/prompts.py` AGENT_PROMPTS)
+그래프 칸(agent) 하나는 Langfuse 프롬프트 하나만 부른다(`prompts.for_agent(칸)`). 연결이 안 되면 코드 기본값(DEFAULTS)으로 그대로 동작한다.
+
+| 그래프 칸(agent) | Langfuse 프롬프트 | use_llm 기본 | 모델(코드 기본값) | 켰을 때 모델이 하는 일 |
+|---|---|---|---|---|
+| coordinator | `chat-coordinator` | 켬 | LF_CHAT_AGENT_MODEL → LF_CHAT_RAG_MODEL | intent 4개 중 하나 |
+| planner | `chat-planner` | 켬 | 〃 | 일꾼 순서(guidance·item_search) |
+| supervisor | `chat-supervisor` | **끔** | 〃 | **실제 구현**: 계획에 남은 guidance·item_search 와 reporter 중 다음 칸 하나. intake·ops·멈춤·상한은 규칙만 |
+| researcher | `chat-researcher` (옛 `chat-guidance-answer`) | 켬 | LF_CHAT_RAG_MODEL | 안내 답 쓰기(근거 검사는 코드) |
+| item_search | `chat-item-search` | **끔** | — | **훅만**: 검색은 규칙(읽기 전용), 켜면 기록에 `llm: hook_only` |
+| intake | `chat-intake` (옛 `chat-intake-extract`) | 켬 | LF_CHAT_AGENT_MODEL → LF_CHAT_RAG_MODEL | 규칙이 못 읽은 품목·색 |
+| reporter | `chat-reporter` | **끔** | — | **훅만**: 합치기·버튼은 규칙, 켜면 응답에 `reporter_llm: hook_only` |
+| ops-coordinator | `ops-coordinator` | **끔** | OPS_ANALYST_MODEL → LF_CHAT_RAG_MODEL | **실제 구현**: 관제 낱말이 없을 때만 ops / not_ops (길이 검사는 규칙) |
+| ops-planner | `ops-planner` | 켬 | 〃 | 초점 5개 중 하나 |
+| ops-supervisor | `ops-supervisor` | **끔** | 〃 | **훅만**: 순서는 규칙(researcher→analyst→reporter), 켜면 `llm_hooks` 에 표시 |
+| ops-researcher | `ops-researcher` | **끔** | 〃 | **훅만**: 읽는 곳(GET)은 고정, 켜면 `llm_hooks` 에 표시 |
+| ops-analyst | `ops-analyst` | **끔** | 〃 | **실제 구현**: 코드가 계산한 findings 중 가장 중요한 것 번호 하나 → 맨 앞으로(숫자는 그대로) |
+| ops-reporter | `ops-reporter` | 켬 | 〃 | 보고서 문장(숫자 검사는 코드) |
+
+(챗봇의 `ops_analyst` 칸은 관제 분석 그래프를 감싸는 껍데기라 프롬프트가 없다)
+
+- **모델 설정 우선순위**: Langfuse 프롬프트 **config**(`model` · `temperature` · `use_llm`) → 환경값 `LF_AGENT_<칸>_<MODEL|TEMPERATURE|USE_LLM>`(예 `LF_AGENT_SUPERVISOR_USE_LLM=1`, `LF_AGENT_OPS_ANALYST_MODEL=…`) → 코드 기본값(위 표). 이상한 값(빈 글·범위 밖 temperature·참거짓 아님)은 건너뜀
+- 코드에 모델이 아예 설정되지 않은 칸(LF_CHAT_RAG_MODEL 비움 등)은 config 에 model 이 있어도 켜지지 않는다(Ollama 를 안 쓰는 PC 보호)
+- **규칙이 거부권**: 규칙 칸을 켜도 모델은 '규칙이 허용한 값 목록 안에서 고르기'(JSON 스키마 고정)만 한다. 목록 밖·실패·꺼짐이면 규칙 결과 그대로. 접수 실행('확인 버튼 뒤에만 접수')과 숫자 계산은 언제나 코드
+- **use_llm 켜는 법**: Langfuse → Prompts → 예 `chat-supervisor` → New version → Config 에 `{"use_llm": true}`(필요하면 `"model": "midm-2.0-mini", "temperature": 0`) → 라벨 `production` → 1분 안에 반영(SDK 기억 60초). 되돌리기는 예전 버전에 `production` 라벨을 옮김. PC 에서만 시험하려면 `.env` 의 `LF_AGENT_SUPERVISOR_USE_LLM=1`
+- 처음 한 번 `python tools/langfuse_setup.py --push-prompts` 로 13개 + config(use_llm 기본값)를 올린다(이미 있는 이름은 건너뜀, `--force` 는 새 버전으로 덮어씀)
+- `/chat/health` 의 `prompts`: `{"total": 13, "from_langfuse": M, "checked": K}` — 관제탑을 켠 뒤 불린 K개 중 Langfuse 버전을 읽은 M개(키 값은 나오지 않음)
+- **옛 이름 정리**: `chat-guidance-answer` → `chat-researcher`, `chat-intake-extract` → `chat-intake`. 코드는 옛 이름을 읽지 않는다(새 이름이 없으면 코드 기본값). 옛 이름에서 화면으로 고친 글이 있으면 새 이름의 New version 으로 옮긴 뒤 옛 이름은 Langfuse 에서 보관(archive)
+- 시험: `tests/test_agent_prompts.py`(1:1 표 · config model 반영 · 기본값 동작 같음 · 목록 밖 값은 규칙으로)
 
 ### 왜 supervisor 판단을 모델이 아니라 규칙이 하나
 접수는 **기록을 남기는 행동**이다. 작은 모델(Mi:dm 2.0 Mini)이 "접수해도 된다"를 잘못 고르면 엉뚱한 접수가 생긴다.
@@ -185,7 +215,7 @@ lost-found-chatbot          출력: answer · path · decisions · intake
 ### 7-1. 11/9 팀 검토에서 발표 뒤로 미룬 것
 | 항목 | 미룬 이유 |
 |---|---|
-| supervisor 다음 행동을 모델이 제안하고 코드가 검사하는 방식 | 지금 규칙 판단이 실제 모델 회귀 시험을 통과 중, 발표 전 바꾸면 위험 |
+| supervisor 다음 행동을 모델이 제안하고 코드가 검사하는 방식 | 지금 규칙 판단이 실제 모델 회귀 시험을 통과 중, 발표 전 바꾸면 위험 → 11/9 스위치만 넣음(`chat-supervisor` use_llm, 기본 끔, 1-1장) |
 | LangGraph checkpointer 로 대화 상태 저장(관제탑을 다시 켜도 이어짐) | 저장소(DB) 설계가 함께 필요 |
 | 한 대화에서 여러 접수 동시 진행 | 화면·상태 설계가 커짐 |
 | 대화 번호(session_id) 위조 방지(서명된 토큰) | 지금은 가상 시연 범위, 실제 운영 전에 필요 |
