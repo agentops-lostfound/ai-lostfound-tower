@@ -17,6 +17,9 @@ KEYS = tuple(name + ".pos" for name in JOINTS)
 MOVE_DURATION_SECONDS = 3.0
 TRACKING_LAG_SECONDS = 0.15
 ARM_FOLLOWING_ERROR_LIMIT = 10.0
+# Residual motor error is expected even when re-requesting the current pose.
+# This is per arm joint in normalized units, independent of the tracking limit.
+ARM_ARRIVAL_TOLERANCE = 5.0
 
 
 def vector(values):
@@ -85,7 +88,7 @@ class PoseMove:
         if now > self.command_history[-1][0]:
             self.command_history.append((now, self.command.copy()))
         self.command_complete = bool(np.max(np.abs(self.target - self.command)) < 1e-5)
-        arrived = self.command_complete and np.max(np.abs(self.target[:5] - measured[:5])) <= 1.5
+        arrived = self.command_complete and np.max(np.abs(self.target[:5] - measured[:5])) <= ARM_ARRIVAL_TOLERANCE
         if arrived:
             self.settled_since = now if self.settled_since is None else self.settled_since
         else:

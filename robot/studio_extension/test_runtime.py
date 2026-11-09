@@ -129,7 +129,7 @@ class RuntimeTests(unittest.TestCase):
 
     def hold_unconfirmed_target(self):
         self.move()
-        self.current[0] = -2
+        self.current[0] = -5.5
         for _ in range(33):
             self.send("saved_pose_heartbeat", token="owner")
             self.step(follow=False)
@@ -233,7 +233,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_measured_arrival_not_just_target_ack(self):
         self.move()
-        self.current[:5] = [-2,0,0,0,0]
+        self.current[:5] = [-5.5,0,0,0,0]
         for _ in range(10):
             self.send("saved_pose_heartbeat", token="owner")
             self.step(follow=False)
