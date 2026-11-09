@@ -73,7 +73,7 @@ class ConversationTests(unittest.TestCase):
         self.assertFalse(result['item_search_performed'])
         self.assertNotIn('지갑', result['answer'])
         result = self.bot.ask('내일 부산 날씨는?', history=['수령 절차 알려줘'])
-        self.assertEqual(result['status'], 'not_found')
+        self.assertEqual(result['status'], 'unsupported')
 
     def test_explicit_retry_and_multiple_color_changes_keep_item(self):
         for q in ['파란색으로 다시 찾아줘', '다시 찾아줘']:
