@@ -111,7 +111,9 @@ class VisionSwitchTest(unittest.TestCase):
         from agents import api
         with tempfile.TemporaryDirectory() as tmp:
             path = ms.write_report(tmp)
-            env = {"TOWER_VISION_FILE": str(path.parent), "TOWER_VISION_MAX_AGE": "0", "TOWER_DB": "0", "TOWER_SEND": "0"}
+            # 11/9 교육원 PC: 앞 시험이 .env 를 읽어 TOWER_SIM=1 이 남아 있으면 가상 세계로 조립돼 실패 → 여기서 끈다
+            env = {"TOWER_VISION_FILE": str(path.parent), "TOWER_VISION_MAX_AGE": "0", "TOWER_DB": "0", "TOWER_SEND": "0",
+                   "TOWER_SIM": "0"}
             with mock.patch.dict(os.environ, env), mock.patch("tools.envfile.load_env", lambda *a, **k: None):
                 svc = api.build_service()
                 be = svc.backend_factory()

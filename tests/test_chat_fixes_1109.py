@@ -109,3 +109,12 @@ class PlannerFoundSideTest(unittest.TestCase):
         self.assertEqual(brain.plan("지갑 주웠는데 어디 맡겨요?", [], ["guidance"]), ["guidance"])
         self.assertIn("item_search", brain.plan("지갑 놓고 내렸어요 어떻게 해요", [], ["guidance"]))   # 잃어버린 쪽은 그대로
         self.assertIn("item_search", brain.plan("휴대폰 넣어 둔 가방 잃어버림", [], ["item_search", "guidance"]))  # 규칙이 정한 검색은 못 뺌
+
+
+class LiveCheckModelReadyTest(unittest.TestCase):
+    def test_missing_model_is_reported(self):
+        from tools.chat_live_check import model_ready
+        self.assertIn("Ollama 에 연결할 수 없어요", model_ready("midm-2.0-mini", None))
+        self.assertIn("없어요", model_ready("midm-2.0-mini", ["exaone3.5:2.4b", "mistral:latest"]))
+        self.assertEqual(model_ready("midm-2.0-mini", ["midm-2.0-mini:latest"]), "")
+        self.assertEqual(model_ready("exaone3.5:2.4b", ["exaone3.5:2.4b"]), "")

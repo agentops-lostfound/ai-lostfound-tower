@@ -54,6 +54,26 @@ def check(item: dict, res: dict) -> list[str]:
     return why
 
 
+def installed_models(base: str = "http://127.0.0.1:11434") -> list[str] | None:
+    """Ollama 에 설치된 모델 이름들(Ollama 가 꺼져 있으면 None)"""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(base + "/api/tags", timeout=5) as r:
+            return [m.get("name", "") for m in json.loads(r.read().decode("utf-8")).get("models", [])]
+    except Exception:
+        return None
+
+
+def model_ready(name: str, names: list[str] | None) -> str:
+    """시험을 시작해도 되면 "", 아니면 이유. 11/9 교육원 PC: 모델이 없는데도 문서 문장으로 '통과'(0.0초)처럼 보였다"""
+    if names is None:
+        return "Ollama 에 연결할 수 없어요 — Ollama 를 켜고(작업 표시줄 라마 아이콘) 다시 실행하세요"
+    if name not in names and f"{name}:latest" not in names:
+        return (f"Ollama 에 '{name}' 모델이 없어요(설치된 것: {', '.join(names) or '없음'}) — "
+                "설치 안내 docs/ollama/README.md 2-B")
+    return ""
+
+
 def run(bot, items: list[dict]) -> list[dict]:
     rows = []
     for no, item in items:
@@ -90,6 +110,10 @@ def main(argv=None) -> int:
         os.environ["LF_CHAT_RAG_MODEL"] = args.model
     if not os.environ.get("LF_CHAT_RAG_MODEL"):
         print("모델 이름이 없습니다 — --model midm-2.0-mini 처럼 주거나 .env 의 LF_CHAT_RAG_MODEL 을 채우세요")
+        return 2
+    why = model_ready(os.environ["LF_CHAT_RAG_MODEL"], installed_models())
+    if why:
+        print(why)
         return 2
     os.environ.setdefault("LF_LANGFUSE", "0")           # 시험 실행이 Langfuse 기록을 어지럽히지 않게
     from agents.chat_api import build_chatbot_from_env
