@@ -16,6 +16,48 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(parse_config(None), {})
 
 
+class _Closed:
+    def isOpened(self):
+        return False
+
+    def release(self):
+        pass
+
+
+class FeedRetryTest(unittest.TestCase):
+    """11/9 저녁: 웹캠이 안 열릴 때 화면이 0.1초마다 다시 열어 경고가 쏟아지던 문제 — 실패 뒤 5초는 다시 열지 않음"""
+
+    def test_failed_open_waits_before_retry(self):
+        from agents import kiosk_camera as kc
+        now = [100.0]
+        calls = []
+
+        def opener(src):
+            calls.append(src)
+            return _Closed()
+        f = kc.CameraFeed(1, opener=opener, clock=lambda: now[0])
+        f.touch()
+        f._thread.join(2)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("list_cameras", f.error)
+        for _ in range(20):                       # 쉬는 동안 여러 번 touch 해도 다시 열지 않음
+            f.touch()
+        self.assertEqual(len(calls), 1)
+        now[0] += kc.RETRY_S + 0.1                # 5초 지나면 다시 시도
+        f.touch()
+        f._thread.join(2)
+        self.assertEqual(len(calls), 2)
+
+    def test_dark_check(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy 필요")
+        from agents.kiosk_camera import is_dark
+        self.assertTrue(is_dark(np.zeros((4, 4, 3), np.uint8)))
+        self.assertFalse(is_dark(np.full((4, 4, 3), 120, np.uint8)))
+
+
 class RoutesTest(unittest.TestCase):
     def setUp(self):
         try:

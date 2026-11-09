@@ -12,6 +12,8 @@
 화면: /kiosk?machine=KIOSK-A&cam=server  → 영상 GET /api/kiosk/camera/KIOSK-A.mjpg
 - 카메라는 처음 볼 때 열고, 아무도 안 보면 60초 뒤 닫는다(탑뷰 카메라 등 다른 프로그램과 오래 다투지 않게)
 - 설정에 없는 기계 번호는 열지 않는다(404) — 주소만 바꿔 다른 카메라(탑뷰)를 훔쳐보지 못하게
+- 11/9 저녁: 윈도우 DirectShow 로 안 열리면 Media Foundation 으로 한 번 더 연다. 처음 영상이 계속 새까마면 MJPG 를 빼고 다시 연다.
+  열기에 실패하면 5초 동안은 다시 열지 않는다(화면이 0.1초마다 다시 열어 경고 줄이 쏟아지던 문제)
 """
 from __future__ import annotations
 
@@ -20,6 +22,9 @@ import threading
 import time
 
 IDLE_CLOSE_S = 60.0
+RETRY_S = 5.0          # 열기 실패 뒤 다시 열기까지 기다리는 시간
+DARK_LEVEL = 16        # 이 밝기(0~255) 아래면 새까만 영상으로 봄
+DARK_FRAMES = 30       # 처음 이만큼 계속 새까마면 MJPG 를 빼고 다시 연다
 FPS = 10
 WIDTH, HEIGHT = 1280, 720
 
@@ -65,19 +70,40 @@ class FakeSource:
         pass
 
 
-def _open(src):
+def _backends() -> list:
+    import cv2
+    if os.name == "nt":                                   # 윈도우: DirectShow 가 USB 웹캠을 빨리 열고, 안 되면 Media Foundation
+        return [cv2.CAP_DSHOW, cv2.CAP_MSMF]
+    return [cv2.CAP_ANY]
+
+
+def _open(src, mjpg: bool = True):
+    """카메라 열기. 여러 방식(backend)을 차례로 시도해 처음 열리는 것을 돌려준다(모두 실패하면 닫힌 카메라)"""
     if src == "fake":
         return FakeSource()
     import cv2
-    backend = cv2.CAP_DSHOW if os.name == "nt" else cv2.CAP_ANY       # 윈도우는 DirectShow 가 USB 웹캠을 빨리 연다
-    cap = cv2.VideoCapture(src, backend)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
-    try:
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))   # 1080p 웹캠은 MJPG 로 받아야 초당 프레임이 나옴
-    except Exception:
-        pass
+    cap = None
+    for backend in _backends():
+        cap = cv2.VideoCapture(src, backend)
+        if not cap.isOpened():
+            cap.release()
+            continue
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
+        if mjpg:
+            try:
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))   # 1080p 웹캠은 MJPG 로 받아야 초당 프레임이 나옴
+            except Exception:
+                pass
+        return cap
     return cap
+
+
+def is_dark(frame) -> bool:
+    try:
+        return int(frame.max()) < DARK_LEVEL
+    except Exception:
+        return False
 
 
 class CameraFeed:
@@ -89,13 +115,17 @@ class CameraFeed:
         self._jpeg: bytes | None = None
         self._seen = 0.0
         self._thread: threading.Thread | None = None
+        self._failed_at = None
         self.error = ""
+        self.dark = False
 
     def touch(self) -> None:
         """누군가 보고 있음 → 없으면 읽기 시작"""
         with self._lock:
             self._seen = self._clock()
             if self._thread is None or not self._thread.is_alive():
+                if self.error and self._failed_at is not None and self._clock() - self._failed_at < RETRY_S:
+                    return                                # 방금 실패 — 잠깐 쉬었다가 다시 연다
                 self.error = ""
                 self._thread = threading.Thread(target=self._run, daemon=True, name=f"kiosk-cam-{self.src}")
                 self._thread.start()
@@ -104,32 +134,47 @@ class CameraFeed:
         with self._lock:
             return self._jpeg
 
+    def _fail(self, msg: str) -> None:
+        self.error = msg
+        self._failed_at = self._clock()
+
     def _run(self) -> None:
         import cv2
         cap = None
         try:
             cap = self._opener(self.src)
             if not cap.isOpened():
-                self.error = "카메라를 열 수 없음(번호·USB 연결·다른 프로그램 사용 중 확인)"
+                self._fail("카메라를 열 수 없음(번호·USB 연결·다른 프로그램 사용 중 확인 — python tools/list_cameras.py)")
                 return
-            fails = 0
+            fails, dark_run, reopened = 0, 0, False
             while self._clock() - self._seen < IDLE_CLOSE_S:
                 ok, frame = cap.read()
                 if not ok or frame is None:
                     fails += 1
                     if fails > 20:
-                        self.error = "카메라 영상이 들어오지 않음"
+                        self._fail("카메라 영상이 들어오지 않음")
                         return
                     time.sleep(0.1)
                     continue
                 fails = 0
+                if is_dark(frame):
+                    dark_run += 1
+                    if dark_run == DARK_FRAMES and not reopened and self.src != "fake":
+                        reopened = True                   # 일부 웹캠은 MJPG 로 열면 검은 화면 → 기본 형식으로 다시 연다
+                        cap.release()
+                        cap = _open(self.src, mjpg=False) if self._opener is _open else self._opener(self.src)
+                        dark_run = 0
+                        continue
+                else:
+                    dark_run = 0
+                self.dark = dark_run >= DARK_FRAMES
                 ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
                 if ok:
                     with self._lock:
                         self._jpeg = buf.tobytes()
                 time.sleep(1.0 / FPS)
         except Exception as e:                        # 오류 문구만 남김(경로·내부 정보는 화면에 안 나감)
-            self.error = f"카메라 오류({type(e).__name__})"
+            self._fail(f"카메라 오류({type(e).__name__})")
         finally:
             if cap is not None:
                 try:
@@ -150,7 +195,8 @@ class KioskCameras:
 
     def status(self) -> dict:
         return {name: {"source": "fake" if f.src == "fake" else "usb", "streaming": f.latest() is not None,
-                       **({"error": f.error} if f.error else {})} for name, f in self._feeds.items()}
+                       **({"error": f.error} if f.error else {}),
+                       **({"warning": "영상이 새까맘(렌즈 가림·조명·다른 카메라 번호 확인)"} if f.dark else {})} for name, f in self._feeds.items()}
 
 
 def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
@@ -211,4 +257,4 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
     return cams
 
 
-__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "add_camera_routes"]
+__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "add_camera_routes", "is_dark"]
