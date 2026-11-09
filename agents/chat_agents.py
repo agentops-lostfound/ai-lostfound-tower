@@ -110,4 +110,9 @@ class AgentBrain:
         return out
 
 
+    def extract_slots(self, question: str, kind: str, schema: dict) -> dict | None:
+        """11/9 대화 접수: 규칙이 못 읽은 빈칸(품목·색·역)을 고를 값 목록(schema enum) 안에서만 채움. 값 검사는 부르는 쪽(chat_intake)이 다시 함"""
+        return self._ask("intake-extract-llm", "chat-intake-extract", schema, {"kind": kind, "message": question})
+
+
 __all__ = ["AgentBrain", "GREETING_REPLY", "THANKS_REPLY", "INTENTS", "WORKERS"]

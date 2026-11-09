@@ -104,7 +104,7 @@ def run(bot, items: list[dict]) -> list[dict]:
     for no, item in items:
         t0 = time.perf_counter()
         try:
-            res = bot.ask(item["q"], None, None, item.get("history") or [])
+            res = bot.ask(item["q"], None, None, item.get("history") or [], session_id=f"live-check-{no:03d}")
         except Exception as e:              # 한 문항이 예외여도 나머지는 돈다
             res = {"answer": "", "generation_status": f"예외 {type(e).__name__}"}
         sec = round(time.perf_counter() - t0, 2)
