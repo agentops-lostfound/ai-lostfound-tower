@@ -19,7 +19,10 @@ TOPIC_LABELS = {'finder_privacy': '습득자 연락처 공개 여부', 'kiosk_ca
 
 
 def is_referential(q):
-    return bool(re.fullmatch(r'(?:(?:그럼|그러면))?(?:그건|그거|실패하면|안되면|어떻게해|어떻게|왜|필수야|꼭해야돼|어떡해)(?:요)?[?？.!]*', compact(q)))
+    # 11/9 채점표: "그 다음엔 어디로 가요?"(보관 기간 뒤), "그 전에 못 가면요?" — 앞 주제를 이어 묻는 말
+    c = compact(q)
+    return bool(re.fullmatch(r'(?:(?:그럼|그러면))?(?:그건|그거|실패하면|안되면|어떻게해|어떻게|왜|필수야|꼭해야돼|어떡해)(?:요)?[?？.!]*', c)
+                or re.match(r'(?:그럼|그러면)?(?:그다음|그다음엔|그다음에는|그후|그후엔|그뒤|그뒤엔|그전에|그전엔|그때까지|그안에)', c))
 
 
 def compact(text):
@@ -40,7 +43,7 @@ def natural_question(question):
     result = question
     for pattern, replacement in replacements:
         result = re.sub(pattern, replacement, result)
-    if re.search(r'뭐부터|어디서부터|처음.*(?:왔|이용)|어떻게.*시작', result):
+    if re.search(r'뭐부터|어디서부터|처음.*(?:왔|이용)|어떻게.*시작', result) and not re.fullmatch(r'\s*(?:여기\s*)?처음\s*왔(?:어요|어|습니다|네요)[\s!.~ㅎ]*', result):
         result += ' 사이트 사용법'
     return result if len(result) <= 500 else question
 
@@ -67,12 +70,46 @@ def checked_turns(history):
     return out
 
 
+SPLIT_RE = re.compile(r'이랑|랑|하고|그리고|인지|아니면|또는|혹은|[,，/]')
+
+
+def split_targets(question):
+    """11/9 채점표: "파란 폰이랑 흰 보조배터리", "아마 갈색, 아니면 검정" — 물건(품목·색) 여러 개를 나눠 [(품목, 색|None)].
+    둘 이상일 때만 돌려줌(하나면 []). 품목이 빠진 조각은 문장 전체에 품목이 하나뿐일 때만 그 품목으로 채움"""
+    if not isinstance(question, str) or not question.strip():
+        return []
+    from agents.lost_input import ALIASES
+    from agents.contracts import mentions_phone
+    text = question.lower()
+    cats = {c for c, terms in ALIASES.items() if c != '모형폰' and any(t in text for t in terms)} | ({'모형폰'} if mentions_phone(text) else set())
+    out = []
+    for seg in SPLIT_RE.split(question):
+        if not seg.strip():
+            continue
+        try:
+            f, _ = text_features(seg)
+        except ValueError:
+            continue
+        cat = f.get('category') if f.get('category') not in (None, '확인 불가', '없음') else None
+        col = f.get('color')
+        if not cat and col and len(cats) == 1:
+            cat = next(iter(cats))
+        if cat and (cat, col) not in out:
+            out.append((cat, col))
+    if len({c for c, _ in out}) == 1 and any(col is None for _, col in out):
+        out = [x for x in out if x[1] is not None]          # "지갑 … 갈색, 검정" → 색 있는 조각만
+    return out if len(out) >= 2 else []
+
+
 def search_intent(question):
     q = compact(question)
     features, _ = text_features(question)
-    item = features.get('category') not in (None, '확인 불가', '없음')
+    item = features.get('category') not in (None, '확인 불가', '없음') or bool(split_targets(question))
     direct = bool(re.search(r'찾아(?:줘|주|줄|봐)|찾고|검색해|후보.*보여', q))
-    implicit = item and bool(re.search(r'잃어버|잃었|분실했|분실한|두고\s?내|놓고\s?내|두고\s?온|있나요|있어|있나|있니|있습니까|있는지|있을까|어딨|들어왔|보관\s?중|보관하고', q))
+    # 11/9 '지갑 찾아요'도 검색 — 단 "어떻게 찾아요?", "찾는 거 웹으로도 돼요?" 같은 방법 질문은 아님
+    direct = direct or bool(re.search(r'찾아(?:요|용)|찾는(?:데|중)|찾습니다', q) and not re.search(r'어떻게|어디서|어디|방법|웹|챗봇|키오스크|되나|돼요|되요', q))
+    # 11/9 채점표: "지갑 안에 신분증이 다 들어 있어서 없는데요" 는 신분증 이야기 — 물건 검색 아님
+    implicit = item and not re.search(r'신분증|면허증|여권', q) and bool(re.search(r'잃어버|잃었|분실했|분실한|두고\s?내|놓고\s?내|두고\s?온|있나요|있어|있나|있니|있습니까|있는지|있을까|있으면|어딨|들어왔|보관\s?중|보관하고', q))
     return direct or implicit
 
 
@@ -80,9 +117,28 @@ def search_intent(question):
 NOT_SEARCH = r'어떻게|방법|절차|기간|운영|인증|수령|사진|보관|개인정보|날씨|예약|맡겨|맡기|주웠|주운|어디'
 
 
+def corrected_question(question):
+    """11/9 채점표: "아니 파란색이요", "지갑 말고 보조배터리요. 흰색" → 고쳐 말한 뒤쪽(새 조건)만. 조건이 없으면 그대로"""
+    from agents.lost_input import correction_tail
+    tail = correction_tail(question.lower()) if isinstance(question, str) else None
+    if not tail:
+        return question
+    try:
+        f, _ = text_features(question, corrected=True)
+    except ValueError:
+        return question
+    keep = [v for k, v in f.items() if k in ('color', 'category') and v not in (None, '확인 불가', '없음')]
+    if not keep:
+        return question
+    names = {'모형폰': '휴대폰'}
+    cat = f.get('category') if f.get('category') not in (None, '확인 불가', '없음') else ''
+    core = ' '.join(x for x in (f.get('color') or '', names.get(cat, cat)) if x)
+    return core + (' 찾아줘' if re.search(r'찾아|검색|잃어버|잃었', tail) else '')
+
+
 def resolve_turn(question, history, context, guidance):
     """Resolve only an elliptical follow-up; unrelated/new questions stay independent."""
-    question = natural_question(question)
+    question = corrected_question(natural_question(question))
     previous, inherited = None, {}
     for turn in history:
         current = natural_question(turn)
@@ -101,9 +157,14 @@ def resolve_turn(question, history, context, guidance):
             inherited = {}
     q = compact(question)
     features, warnings = text_features(question)
-    fragment = bool(re.fullmatch(r'(?:그럼|그러면|이번엔|이번에는|그건|그거|아니)?[가-힣a-z0-9 ]{0,24}[?？.!]*', q))
+    # 11/9 채점표: "아 잘못 말했어요, 갈색이에요"·"아니 파란색이요" — 쉼표·고쳐 말하기가 있어도 짧은 조건 말이면 이어서 찾기
+    from agents.lost_input import CORRECTION
+    correction = bool(CORRECTION.search(question)) or bool(re.search(r'잘못말', q))
+    bare = re.sub(r'[,，~]', '', q)
+    fragment = bool(re.fullmatch(r'(?:그럼|그러면|이번엔|이번에는|그건|그거|아니|아)?[가-힣a-z0-9 ]{0,24}[?？.!]*', bare)) \
+        or (correction and len(bare) <= 32 and not re.search(r'[?？]', bare))
     has_attribute = any(features.get(k) not in (None, '확인 불가', '없음') for k in ('category', 'color'))
-    elliptical = bool(re.match(r'^(그럼|그러면|그건|그거|이번엔|이번에는)', q) or (has_attribute and re.fullmatch(r'.{1,20}(?:은|는|으로)[?？.!]*', q)))
+    elliptical = bool(re.match(r'^(그럼|그러면|그건|그거|이번엔|이번에는)', q) or (has_attribute and re.fullmatch(r'.{1,20}(?:은|는|으로)(?:요)?[?？.!]*', q)))   # 11/9 '지갑은요?'
     inherited = inherited or context
     retry_search = bool(re.fullmatch(r'(?:그럼|그러면)?(?:다시|한번더)(?:찾아줘|찾아주세요|검색해줘)[?？.!]*', q))
     fragment_search = (fragment and has_attribute) or (search_intent(question) and features.get('category') == '확인 불가') or retry_search
@@ -120,12 +181,20 @@ def resolve_turn(question, history, context, guidance):
     referential = is_referential(q)
     if referential and previous and not has_attribute:
         current = guidance.ask(question)
-        if current['status'] == 'not_found':
+        sequel = bool(re.match(r'(?:그럼|그러면)?(?:그다음|그후|그뒤|그전|그때까지|그안에)', q))   # 앞 주제의 다음·이전 단계를 묻는 말은 답이 있어도 앞 주제로
+        if current['status'] == 'not_found' or sequel:
             prior = guidance.ask(previous)
             topics = [s['topic'] for s in prior['sources']]
             if len(topics) == 1 and topics[0] in TOPIC_LABELS:
                 resolved = TOPIC_LABELS[topics[0]] + ' ' + question
                 return resolved, context, True
     if elliptical and not search_intent(question) and guidance.ask(question)['status'] == 'not_found':
+        # 11/9 채점표: "그럼 다시 시도할 수는 있어요?"(본인인증 뒤), "지갑은요?"(물건 놓는 법 뒤) — 앞 주제가 하나면 그 주제로 이어 묻기
+        if previous:
+            topics = [s['topic'] for s in guidance.ask(previous)['sources']]
+            if len(topics) == 1 and topics[0] in TOPIC_LABELS:
+                resolved = TOPIC_LABELS[topics[0]] + ' ' + question
+                if guidance.ask(resolved)['status'] != 'not_found':
+                    return resolved, context, True
         return question, context, None
     return question, context, False

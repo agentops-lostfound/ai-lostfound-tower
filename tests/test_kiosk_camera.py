@@ -66,8 +66,16 @@ class RoutesTest(unittest.TestCase):
         except ImportError:
             self.skipTest("fastapi 필요")
         app = FastAPI()
-        add_camera_routes(app, KioskCameras({"KIOSK-A": "fake"}))
+        self.cams = KioskCameras({"KIOSK-A": "fake"})
+        add_camera_routes(app, self.cams)
         self.c = TestClient(app)
+
+    def tearDown(self):
+        # 뒤에서 도는 카메라 읽기 줄을 멈추고 기다림 — 시험이 끝날 때 줄이 살아 있으면 CI 가 종료 중 비정상 종료(134)할 수 있음
+        for f in self.cams._feeds.values():
+            f._seen = -1e9
+            if f._thread is not None:
+                f._thread.join(3)
 
     def test_jpg_and_status(self):
         r = self.c.get("/api/kiosk/camera/KIOSK-A.jpg")
