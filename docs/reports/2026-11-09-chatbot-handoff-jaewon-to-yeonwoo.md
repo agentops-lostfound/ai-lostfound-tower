@@ -33,6 +33,7 @@
 ---
 
 ## 2. 구조
+> **11/9 오후 갱신**: 일꾼 **intake(대화 접수)** 가 생겨 챗봇으로 분실 접수·습득 신고를 끝까지 하고, supervisor 가 일꾼 결과를 보고 판단(되묻기·확인·다시 계획·접수 제안)한다. 최신 구조·질문별 흐름·Langfuse 보는 법은 **docs/design/chatbot_agents.md** 를 먼저 읽는다(아래 그림은 11/9 오전 기준).
 
 ```
 질문 ─▶ coordinator(접수) ──인사·감사──▶ 짧은 답으로 끝
@@ -122,7 +123,7 @@
 1. **교육원 GPU 실측**: `chat_live_check` 를 관제탑 PC 에서 돌려 시간(중앙·최대) 기록 → `docs/design/chatbot_sllm_rag.md` 13-4 에 추가
 2. **연우 PR #148·#149 정리**(11/5 15:40 main 에서 갈라짐 → 챗봇 핵심 4파일 `chat_api`·`chat_rag`·`chat_search`·`chatbot` 과 충돌). 그대로 합치지 말고:
    - 새 브랜치를 main 에서 만들고, 살릴 부분(`agents/model_chatbot.py` Qwen3 대화 모델, `chat_search_turns.py`, 대화 기록 보고서 등)만 옮겨 담는다
-   - 4장 안전장치 시험과 `chat_live_check` 18/18 이 그대로 통과해야 한다. 끝나면 #148·#149 는 닫는다(내용은 새 PR 로)
+   - 4장 안전장치 시험·`tests/test_chat_intake.py`·`chat_live_check`(20문항)이 그대로 통과해야 한다. 끝나면 #148·#149 는 닫는다(내용은 새 PR 로)
 3. 회귀 문항 늘리기: `evaluation/chat_live_questions.json` 에 연우가 찾은 허점 질문을 추가(형식: `q`, `history`, `any`, `not`, `status_not`)
 4. 알려진 한계(설계 문서 12장): 근거 낱말을 섞어 뜻만 바꾼 문장은 못 거름 · 맞게 부정으로 바꿔 쓴 문장이 가끔 빠짐
 5. 답 길이·말투 다듬기(검색 답은 11/9 에 고지 3줄 → 1줄로 줄임)

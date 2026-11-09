@@ -41,10 +41,12 @@
   var SIZES = KIOSK ? { small: [460, 640], large: [620, 860] } : { small: [360, 520], large: [480, 720] };
   var MIN_W = KIOSK ? 380 : 300, MIN_H = KIOSK ? 420 : 340;
   var WIN_KEY = "lf-chat-win:" + location.pathname;
+  // 11/9 창 투명도(사용자 요청): 머리말 조절바로 35~100%. 화면마다 기억(localStorage, 이 브라우저에서만)
+  var OPACITY_KEY = "lf-chat-opacity:" + location.pathname, OPACITY_MIN = 35;
   // 11/8 진행률: 서버 단계(agents/chat_progress.py STAGES 와 같은 값)와 화면 글
-  var STAGE_PCT = { received: 5, route: 12, retrieve: 22, search: 28, analyze: 30, write: 35, check: 80, rewrite: 84, recheck: 92 };
+  var STAGE_PCT = { received: 5, route: 12, retrieve: 22, intake: 25, search: 28, analyze: 30, write: 35, check: 80, rewrite: 84, recheck: 92 };
   var STAGE_NEXT = { write: "check", rewrite: "recheck" };   // 반드시 뒤따르는 단계 — 그 전까지는 시간으로 채워도 다음 단계 값을 넘지 않음
-  var STAGE_TEXT = { received: "질문 받음", route: "질문 이해", retrieve: "안내 자료 찾기", search: "물건 찾기", analyze: "관제 기록 분석", write: "답 쓰기", check: "근거 확인", rewrite: "다시 쓰기", recheck: "다시 확인" };
+  var STAGE_TEXT = { received: "질문 받음", route: "질문 이해", retrieve: "안내 자료 찾기", intake: "접수 내용 확인", search: "물건 찾기", analyze: "관제 기록 분석", write: "답 쓰기", check: "근거 확인", rewrite: "다시 쓰기", recheck: "다시 확인" };
   var SHOW_AFTER_MS = 300, DEFAULT_EST_MS = 3000;
   var SPACER = opt("spacer", "auto") !== "off";   // data-spacer="off" 면 페이지 끝 빈 칸을 만들지 않음
   var MAX_LEN = 500, MAX_HISTORY = 4, MAX_MESSAGES = 40, MAX_ANSWER = 300;
@@ -98,7 +100,18 @@
     ".launcher.tuck{transform:translateY(calc(100% + 32px));opacity:0;pointer-events:none}",
     ".wrap.open .launcher{display:none}",
     ".launcher:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}",
-    ".panel{position:fixed;left:0;top:0;z-index:2147483001;width:360px;height:520px;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:0;border-radius:20px;box-shadow:var(--ring),var(--shadow);overflow:hidden;font-size:15px;line-height:1.55;transition:opacity .15s}",
+    ".panel{position:fixed;left:0;top:0;z-index:2147483001;width:360px;height:520px;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);border:0;border-radius:20px;box-shadow:var(--ring),var(--shadow);overflow:hidden;font-size:15px;line-height:1.55;transition:opacity .15s;opacity:var(--lf-op,1)}",
+    "/* 11/9 투명도 조절바(머리말) */",
+    ".opac{width:44px;accent-color:var(--accent);cursor:pointer;margin:0 2px;flex:none}",
+    ".wrap.kiosk .opac{width:72px}",
+    "@media (max-width:360px){.opac{width:44px}}",
+    "/* 11/9 대화 접수: 본인 확인 입력칸(가린 값만 보냄) */",
+    ".idform{display:flex;flex-direction:column;gap:8px;margin-top:4px;padding:12px;border-radius:14px;background:var(--accent-soft)}",
+    ".idform label{display:flex;flex-direction:column;gap:4px;font-size:.88em;font-weight:600}",
+    ".idform input,.idform select{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line,#ccd);background:var(--bg);color:var(--fg);min-width:0}",
+    ".idform .note{font-size:.8em;opacity:.8}",
+    ".idform button{font:inherit;font-weight:700;padding:9px 14px;border-radius:12px;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer}",
+    ".idform button:disabled{opacity:.4;cursor:default}",
     ".panel[hidden],.launcher[hidden]{display:none}",
     "/* 끄는 동안 반투명: 창 아래 화면을 보면서 놓을 자리를 고른다 */",
     ".wrap.dragging .panel,.wrap.resizing .panel{opacity:.55;transition:none;user-select:none;-webkit-user-select:none}",
@@ -143,7 +156,7 @@
     "header .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 18%,transparent);flex:none}",
     "header .dot.off{background:var(--faint);box-shadow:none}",
     "header .dot{margin-right:6px}",
-    "header h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;color:var(--fg)}",
+    "header h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
     "header .mode{display:block;font-size:12.5px;font-weight:500;color:var(--faint);letter-spacing:0;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
     "/* 11/9 머리줄 단추는 손가락으로 누르기 쉽게 44px(키오스크 56px) */",
     ".icon{border:0;background:transparent;color:var(--muted);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:15px;flex:none;display:grid;place-items:center;padding:0;transition:background-color .15s}",
@@ -275,10 +288,26 @@
     close.setAttribute("aria-label", "챗봇 닫기");
     close.title = "닫기";
     close.addEventListener("click", function () { closePanel(); });
-    tools.append(themeBtn, minBtn, sizeBtn, close);
+    var opac = el("input", "opac");
+    opac.type = "range"; opac.min = String(OPACITY_MIN); opac.max = "100"; opac.step = "5";
+    opac.setAttribute("aria-label", "창 투명도");
+    opac.title = "창 투명도(왼쪽으로 갈수록 투명)";
+    var startOp = 100;
+    try { startOp = Math.max(OPACITY_MIN, Math.min(100, parseInt(localStorage.getItem(OPACITY_KEY) || "100", 10) || 100)); } catch (e) { startOp = 100; }
+    opac.value = String(startOp);
+    function applyOpacity(v) { try { wrap.style.setProperty("--lf-op", String(v / 100)); } catch (e) { /* 오래된 브라우저: 투명도만 못 바꿈 */ } }
+    applyOpacity(startOp);
+    opac.addEventListener("input", function () {
+      var v = Math.max(OPACITY_MIN, Math.min(100, parseInt(opac.value, 10) || 100));
+      applyOpacity(v);
+      try { localStorage.setItem(OPACITY_KEY, String(v)); } catch (e) { /* 기억 못 해도 지금 화면엔 적용 */ }
+    });
+    opac.addEventListener("pointerdown", function (e) { e.stopPropagation(); });   // 조절바를 끌 때 창이 같이 움직이지 않게
+    tools.append(opac, themeBtn, minBtn, sizeBtn, close);
     header.append(dotEl, h2, tools);
     header.addEventListener("pointerdown", function (e) {
       if (e.button > 0 || (e.target && e.target.closest && e.target.closest("button"))) return;
+      if (e.target && e.target.closest && e.target.closest("input")) return;
       startDrag(e, "move");
     });
     // 구석 손잡이: 화면 가운데 쪽 구석에 붙는다(창이 오른쪽 아래면 왼쪽 위)
@@ -505,6 +534,11 @@
   }
 
   function badgeText(res) {
+    if (res.agent === "intake") {      // 11/9 대화 접수
+      var st = { intake_question: "접수 중 · 하나씩 여쭤봐요", intake_confirm: "접수 전 확인", intake_done: "접수 완료",
+                 intake_cancelled: "접수 취소", intake_failed: "접수 못 함", intake_unavailable: "접수 창구 없음" };
+      return st[res.status] || "대화 접수";
+    }
     if (res.agent === "ops") return res.ops_used_llm && res.ops_used_llm.length ? "관제 분석 · AI 보고" : "관제 분석 · 계산 보고";
     if (res.agent === "search" || res.agent === "both") return res.database_mode === "demo_sqlite" ? "가상 DB 시연" : "물건 검색 안내";
     if (res.generation_status === "off_topic") return "분실물 서비스 안내만 해요";   // 11/9 날씨·맛집 같은 서비스 밖 질문
@@ -546,6 +580,22 @@
       });
       m.append(row);
     }
+
+    // 11/9 접수 번호 복사(정연우 검토): 접수 완료 답의 찾기·접수·대기 번호
+    var ik = res.intake || {};
+    var no = res.status === "intake_done" || res.status === "intake_status" ? (ik.claim_id || ik.wait_id || ik.item_id || "") : "";
+    if (no && /^[A-Z]-\d{8}-\d{4}$/.test(no)) {
+      var cp = el("button", "choice", no + " 복사");
+      cp.type = "button";
+      cp.addEventListener("click", function () {
+        var ok = function () { cp.textContent = "복사했어요"; setTimeout(function () { cp.textContent = no + " 복사"; }, 2000); };
+        try { navigator.clipboard.writeText(no).then(ok, function () { cp.textContent = no; }); } catch (e) { cp.textContent = no; }
+      });
+      var crow = el("div", "choices"); crow.append(cp); m.append(crow);
+    }
+
+    // 11/9 대화 접수: 본인 확인 — 이름·성별 숫자는 이 화면에서 가려서(홍*동 · ******-1******) 보내고 원래 값은 보내지 않는다
+    if (res.form && res.form.kind === "identity") m.append(identityForm());
 
     var sources = res.sources || [];
     if (sources.length) {
@@ -679,7 +729,44 @@
     input.setAttribute("aria-busy", String(v));
   }
 
-  function send(text, suggestionId, retryHistory) {
+  function maskName(n) {
+    n = String(n || "").trim();
+    if (!n) return "";
+    if (n.length === 1) return n + "*";
+    if (n.length === 2) return n[0] + "*";
+    return n[0] + new Array(n.length - 1).join("*") + n[n.length - 1];
+  }
+
+  function identityForm() {
+    var f = el("form", "idform");
+    var l1 = el("label", null, "이름");
+    var nm = el("input"); nm.type = "text"; nm.maxLength = 10; nm.autocomplete = "off"; nm.placeholder = "예: 홍길동";
+    l1.append(nm);
+    var l2 = el("label", null, "주민등록번호 뒷자리 첫 숫자");
+    var g = el("select");
+    ["", "1", "2", "3", "4"].forEach(function (v) { var o = el("option", null, v ? v : "고르세요"); o.value = v; g.append(o); });
+    l2.append(g);
+    var note = el("div", "note", "보내기 전에 이 화면에서 가려요: 홍*동 · ******-1******");
+    var go = el("button", null, "가려서 보내기");
+    go.type = "submit"; go.disabled = true;
+    function ok() { return nm.value.trim().length >= 1 && !/[0-9*\s]/.test(nm.value.trim()) && /^[1-4]$/.test(g.value); }
+    function upd() {
+      go.disabled = !ok();
+      note.textContent = ok() ? "보낼 값: " + maskName(nm.value) + " · ******-" + g.value + "******" : "보내기 전에 이 화면에서 가려요: 홍*동 · ******-1******";
+    }
+    nm.addEventListener("input", upd); g.addEventListener("change", upd);
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (!ok() || busy) return;
+      var action = { type: "identity", name_masked: maskName(nm.value), id_no_masked: "******-" + g.value + "******" };
+      nm.value = ""; nm.disabled = true; g.disabled = true; go.disabled = true;     // 원래 이름은 화면에도 남기지 않음
+      send("본인 확인 정보를 입력했어요", null, null, action);
+    });
+    f.append(l1, l2, note, go);
+    return f;
+  }
+
+  function send(text, suggestionId, retryHistory, intakeAction) {
     var q = (text || "").trim();
     if (busy || !q) return;
     if (q.length > MAX_LEN) { statusEl.textContent = "질문을 500자 이하로 줄여 주세요. 입력한 내용은 그대로 남겨 뒀어요."; return; }
@@ -694,6 +781,7 @@
     statusEl.textContent = "답변 준비 중";
     var body = { question: q, history: (retryHistory || history).slice(-MAX_HISTORY) };
     if (suggestionId) body.suggestion_id = suggestionId;
+    if (intakeAction) body.intake_action = intakeAction;
     body.session_id = getSessionId();
     if (STAFF) body.mode = "staff";
     var request = { controller: new AbortController(), version: conversationVersion, progress: progress };
@@ -715,7 +803,8 @@
       saved.msgs = saved.msgs.concat([{ r: "user", t: q }, { r: "bot", t: answerText }]).slice(-MAX_MESSAGES);
       storeSet(saved);
       addExtras(m, res);
-      statusEl.textContent = res.agent === "ops" ? "관제 기록 기준 · 직원 전용" :
+      statusEl.textContent = res.agent === "intake" ? (res.status === "intake_done" ? "접수 완료 · 번호를 꼭 적어 두세요" : "접수 중 · '취소'로 언제든 멈출 수 있어요") :
+        res.agent === "ops" ? "관제 기록 기준 · 직원 전용" :
         res.agent === "search" || res.agent === "both" ? "후보는 본인 물건 확정이 아니에요" : "안내 완료 · 근거를 펼쳐 볼 수 있어요";
       scroll();
     }).catch(function (err) {
@@ -726,7 +815,7 @@
       if (minimized) { pill.className = "pill unread"; pillText.textContent = "답을 받지 못했어요"; }
       var retry = el("button", "retry", "다시 보내기");
       retry.type = "button";
-      retry.addEventListener("click", function () { if (busy || request.version !== conversationVersion) return; m.remove(); userLine.remove(); send(q, suggestionId, body.history); });
+      retry.addEventListener("click", function () { if (busy || request.version !== conversationVersion) return; m.remove(); userLine.remove(); send(q, suggestionId, body.history, intakeAction); });
       m.append(retry);
       statusEl.textContent = "전송하지 못했어요";
     }).finally(function () {

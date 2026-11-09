@@ -43,7 +43,8 @@ def bot(brain=None):
 class DeerFlowGraphTest(unittest.TestCase):
     def test_rule_path_without_model_goes_through_agents(self):
         r = bot().ask("운영시간 알려줘")
-        self.assertEqual(r["agent_path"], ["coordinator", "planner", "supervisor", "researcher", "supervisor", "reporter"])
+        # 11/9 DeerFlow 그림처럼 reporter 도 supervisor 아래 일꾼 — 정리 뒤 supervisor 가 끝을 정한다
+        self.assertEqual(r["agent_path"], ["coordinator", "planner", "supervisor", "researcher", "supervisor", "reporter", "supervisor"])
         self.assertEqual(r["routing"], "rule")
 
     def test_coordinator_greeting_ends_early(self):
@@ -153,9 +154,14 @@ class LangfuseHooksTest(unittest.TestCase):
             def __exit__(self, *a):
                 return False
 
+        metas = []
+
         class FakeClient:
             def start_as_current_observation(self, name, as_type="span", **kw):
                 return CM(f"{as_type}:{name}")
+
+            def update_current_span(self, **kw):       # 11/9 콜백 칸에 역할·판단(metadata)을 덧붙임
+                metas.append(kw.get("metadata"))
         with mock.patch.object(observability, "client", lambda: FakeClient()), \
                 mock.patch.dict(os.environ, {"LF_LANGFUSE_CALLBACK": "0"}):          # 콜백 끔 → 칸을 직접 기록
             bot(brain_with(coord="service", plan=["guidance"])).ask("운영시간 알려줘", session_id="s-test-0001")
@@ -175,10 +181,15 @@ class LangfuseHooksTest(unittest.TestCase):
         with mock.patch.object(observability, "client", lambda: FakeClient()), \
                 mock.patch.object(observability, "graph_callbacks", lambda: [handler]):
             bot(brain_with(coord="service", plan=["guidance"])).ask("운영시간 알려줘", access_token="secret-token-xyz")
-        for node in ("coordinator", "planner", "supervisor", "researcher", "reporter", "route_next_worker"):
+        # 11/9 길 고르기 함수는 알아보기 쉬운 이름(edge: …)으로, Langfuse 에서는 DEBUG 단계로 기록
+        for node in ("coordinator", "planner", "supervisor", "researcher", "reporter", "edge: go to next"):
             self.assertIn(node, seen)
+        self.assertNotIn("route_next_worker", seen)
         self.assertIn("generation:planner-llm", names)
         self.assertNotIn("agent:coordinator", names)
+        roles = [m.get("role") for m in metas if m]
+        self.assertIn("agent · 감독(일꾼 결과를 보고 다음 행동 판단)", roles)
+        self.assertTrue(any(m.get("detail", {}).get("next") == "end" for m in metas if m and isinstance(m.get("detail"), dict)))
         self.assertNotIn("secret-token-xyz", repr(handler.last_inputs))     # 접속 토큰은 기록에 들어가지 않음
 
 
@@ -210,3 +221,23 @@ class ApiSessionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LangfuseStatusTest(unittest.TestCase):
+    """11/9 교육원 관제탑이 Langfuse 로 아무것도 보내지 않던 원인을 /chat/health 에서 바로 보이게(키 값은 절대 안 보임)"""
+
+    def test_reasons_without_secret_values(self):
+        from agents import observability
+        with mock.patch.dict(os.environ, {"LF_LANGFUSE": "0"}):
+            self.assertEqual(observability.status(), {"enabled": False, "reason": "LF_LANGFUSE=0(끔)"})
+        env = {"LF_LANGFUSE": "1", "LANGFUSE_PUBLIC_KEY": "pk-lf-SECRET", "LANGFUSE_SECRET_KEY": "", "LANGFUSE_BASE_URL": "https://us.cloud.langfuse.com"}
+        with mock.patch.dict(os.environ, env):
+            st = observability.status()
+        self.assertFalse(st["enabled"])
+        self.assertIn("LANGFUSE_SECRET_KEY", st["reason"])
+        self.assertNotIn("pk-lf-SECRET", repr(st))
+
+    def test_flush_soon_without_client_does_nothing(self):
+        from agents import observability
+        with mock.patch.object(observability, "client", lambda: None):
+            observability.flush_soon()          # 예외 없이 끝나야 함

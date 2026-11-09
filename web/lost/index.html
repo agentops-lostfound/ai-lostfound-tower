@@ -116,6 +116,8 @@
     .qrow .btn{flex:1 1 0}
     .code{font-size:clamp(26px,8.2vw,44px);font-weight:800;color:var(--ui-text);letter-spacing:.01em;line-height:1.15;
           font-variant-numeric:tabular-nums;margin:6px 0 10px;overflow-wrap:anywhere}
+    .copyno{font:inherit;font-size:14px;font-weight:700;padding:8px 14px;border-radius:999px;border:0;background:var(--ui-fill);color:var(--ui-text);cursor:pointer;margin-bottom:6px}
+    .copyno:hover{background:var(--ui-fill-hover)}
     #donecard h2{font-size:21px}
     #donecard .desc{color:var(--ui-text-2)}
     .cand{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;background:var(--ui-surface);border-radius:var(--ui-radius);padding:14px 16px;margin-top:16px}
@@ -400,18 +402,26 @@ function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;'
 function done(res) {
   const card = $('#donecard'), head = $('#donehead');
   state.story = res.story_id || null; state.claim = res.claim_id || null; state.after = 0;
-  if (res.staff) {
+  if (res.waiting) {           // 11/9 분실인이 먼저 신고(닮은 습득물이 아직 없음) → 대기 번호(정연우 검토)
+    card.className = 'card warn';
+    head.innerHTML = `<div class="hint" style="margin:0">대기 번호</div><div class="code">${esc(res.wait_id)}</div>
+      <button type="button" class="ghost copyno" data-no="${esc(res.wait_id)}">번호 복사</button>
+      <p class="desc" style="margin:4px 0 0">아직 닮은 습득물이 없어요.<br>들어오면 자동으로 찾기 번호가 만들어지고 아래 진행 상황에 보여요.</p>`;
+    $('#visit').hidden = true;
+  } else if (res.staff) {
     card.className = 'card warn';
     head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">부산역 본센터 역무실에서<br>직원이 직접 확인해 드려요.</p>`;
     $('#cand').innerHTML = ''; $('#visit').hidden = true;
   } else if (res.claim_id && res.quiz_passed) {
     card.className = 'card ok';
     head.innerHTML = `<div class="hint" style="margin:0">찾기 번호</div><div class="code">${esc(res.claim_id)}</div>
+      <button type="button" class="ghost copyno" data-no="${esc(res.claim_id)}">번호 복사</button>
       <p class="desc" style="margin:4px 0 0">확인 질문 통과!<br>오늘 부산역 본센터 방문으로 예약했어요.</p>`;
     $('#visit').hidden = false;
   } else if (res.claim_id) {
     card.className = 'card warn';
     head.innerHTML = `<div class="hint" style="margin:0">찾기 번호</div><div class="code">${esc(res.claim_id)}</div>
+      <button type="button" class="ghost copyno" data-no="${esc(res.claim_id)}">번호 복사</button>
       <p class="desc" style="margin:4px 0 0">확인 답이 달라요.<br>부산역 본센터 역무실에서 직원이 확인해요.</p>`;
     $('#visit').hidden = true;
   }
@@ -422,6 +432,15 @@ function done(res) {
   steps(res.claim_id && res.quiz_passed ? 3 : 3, 2); show('#s-done');
   startPoll();
 }
+
+// 11/9 번호 복사(찾기·대기 번호). 복사가 막힌 기기면 번호를 선택해 둔다
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('.copyno'); if (!b) return;
+  const no = b.dataset.no || '';
+  try { await navigator.clipboard.writeText(no); b.textContent = '복사했어요'; }
+  catch (x) { const code = b.previousElementSibling; if (code) { const r = document.createRange(); r.selectNodeContents(code); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } b.textContent = '번호를 길게 눌러 복사하세요'; }
+  setTimeout(() => { b.textContent = '번호 복사'; }, 2000);
+});
 
 const LABEL = {todo: '대기', active: '진행 중', done: '완료', fail: '실패', skip: '건너뜀'};
 async function pollOnce() {

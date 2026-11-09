@@ -56,9 +56,10 @@ def wants_stream(body, request) -> bool:
     return "application/x-ndjson" in accept
 
 
-def build_chatbot_from_env(database=None):
+def build_chatbot_from_env(database=None, desk=None):
     """환경값으로 챗봇을 만든다. 실제 DB 설정이 있으면 가상 DB 로 바꿔 대신하지 않는다(정연우 원칙 유지).
-    database 를 주면 그 검색 부품을 쓴다(11/7 가상 시연: 관제탑 가상 물건 목록 SimTowerItemSearch)."""
+    database 를 주면 그 검색 부품을 쓴다(11/7 가상 시연: 관제탑 가상 물건 목록 SimTowerItemSearch).
+    desk(11/9): 대화 접수 창구(가상 시연 SimDirector). 없으면 챗봇이 빈칸을 정리한 뒤 키오스크·웹으로 안내"""
     from agents.chat_rag import GroundedRag
     from agents.chat_search import DemoItemDatabase, PostgresItemSearch, SearchAgent
     from agents.chatbot import Chatbot
@@ -79,7 +80,8 @@ def build_chatbot_from_env(database=None):
         # 11/7 DeerFlow 구조: coordinator·planner 도 모델이 판단(LF_CHAT_AGENT_MODEL 로 다른 모델 지정 가능, 0 이면 규칙)
         from agents.chat_agents import AgentBrain
         brain = AgentBrain(os.environ.get("LF_CHAT_AGENT_MODEL") or model)
-    return Chatbot(guide, rag=rag, search=SearchAgent(database), brain=brain)
+    from agents.chat_intake import IntakeAgent
+    return Chatbot(guide, rag=rag, search=SearchAgent(database), brain=brain, intake=IntakeAgent(desk=desk, brain=brain))
 
 
 class LazyChatbot:
@@ -246,6 +248,15 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             params = inspect.signature(b.ask).parameters
             if "session_id" in params:
                 extra = {"session_id": sid, "channel": "staff" if staff else (mode or "web")}
+            if body.get("intake_action") is not None:      # 11/9 위젯 본인 확인 양식(가린 값만) — 모양이 다르면 422
+                from agents.chat_intake import check_action
+                try:
+                    action = check_action(body.get("intake_action"))
+                except ValueError as e:
+                    metrics.record("question", (time.perf_counter() - t0) * 1000, "rejected")
+                    raise HTTPException(status_code=422, detail=str(e)) from None
+                if "intake_action" in params and not staff:
+                    extra["intake_action"] = action
         except (TypeError, ValueError):
             extra = {}
         def call():
@@ -291,7 +302,8 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             b = holder.get()
         except RuntimeError:
             return {"ready": False, "error": holder.error}
-        return {"ready": True, "rag_model_configured": bool(getattr(b.rag, "model", None)),
+        from agents.observability import status as langfuse_status
+        return {"ready": True, "rag_model_configured": bool(getattr(b.rag, "model", None)), "langfuse": langfuse_status(),
                 "search_mode": b.search.mode, "staff_ops": staff_ready,
                 "orchestration": "langgraph_guidance_item_search_and_staff_ops" if staff_ready else "langgraph_guidance_and_item_search"}
 

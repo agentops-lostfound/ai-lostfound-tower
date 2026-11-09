@@ -732,7 +732,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         # 11/7 가상 시연: 챗봇 물건 검색이 화면 작업대와 같은 가상 물건 목록을 보게(연습용 별도 목록과 어긋나던 허점)
         from agents.chat_api import LazyChatbot, build_chatbot_from_env
         from agents.chat_search import SimTowerItemSearch
-        chatbot = LazyChatbot(lambda: build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items)))
+        # 11/9 대화 접수: 챗봇이 분실 접수·습득 신고를 가상 시연 창구(svc.sim — /sim/found·/sim/lost 와 같은 함수)로 끝까지 한다
+        chatbot = LazyChatbot(lambda: build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim))
     add_chat_routes(app, chatbot, staff_allowed=staff_allowed, ops_source=ops_source)
     return app
 
