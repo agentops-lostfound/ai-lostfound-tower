@@ -540,8 +540,14 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         links = [("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
                  ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"), ("④ 관리자 관제(로봇·진행 상황)", "/admin"),
                  ("⑤ 본센터 직원 화면 — 교차 검증", "/staff"), ("⑥ 보관함 칸 관리", "/storage"),
-                 ("실시간 작업대(큰 화면)", "/live"), ("서면역 키오스크", "/kiosk?machine=KIOSK-C")]
-        items = "".join(f'<li><a href="{href}"><span>{label}</span><code>{href}</code></a></li>' for label, href in links)
+                 ("실시간 작업대(큰 화면)", "/live"), ("서면역 키오스크", "/kiosk?machine=KIOSK-C"),
+                 # 11/9 연우님 검토: 카메라 없는 PC 에서는 키오스크가 '카메라 점검 중'만 보임 → 가상 카메라 시연(자동 촬영) 주소도 목록에
+                 ("시연 · 해운대역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-A&demo=1"),
+                 ("시연 · 서면역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-C&demo=1"),
+                 ("시연 · 부산역 본센터 키오스크(가상 카메라)", "/kiosk?machine=CENTER&demo=1"),
+                 ("AI 챗봇 시험 화면", "/chat-widget/demo")]
+        from html import escape
+        items = "".join(f'<li><a href="{escape(href)}"><span>{escape(label)}</span><code>{escape(href)}</code></a></li>' for label, href in links)
         return HTMLResponse(
             '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
             '<title>AI 분실물 관제탑</title><link rel="stylesheet" href="/ui/theme.css"><script src="/ui/theme.js"></script>'

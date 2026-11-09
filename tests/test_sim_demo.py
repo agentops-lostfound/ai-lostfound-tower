@@ -457,6 +457,9 @@ class LostWebApiTest(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         for href in ("/lost", "/kiosk?machine=CENTER", "/admin", "/staff", "/storage", "/live"):
             self.assertIn(f'href="{href}"', r.text)
+        for m in ("KIOSK-A", "KIOSK-C", "CENTER"):     # 11/9 카메라 없는 PC 검토용 가상 카메라 시연 주소
+            self.assertIn(f'href="/kiosk?machine={m}&amp;demo=1"', r.text)
+        self.assertIn('href="/chat-widget/demo"', r.text)
 
     def test_lost_page_contract(self):
         html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
