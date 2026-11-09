@@ -47,7 +47,7 @@
 - qwen 의 대체 4건 = 모델 답이 검사기(형식·근거 번호)에서 탈락해 문서 문장으로 답한 경우
 - 전체 86개 측정은 아직(TBD): `python tools/chat_model_bench.py --models exaone3.5:2.4b --out data/reports/chat_bench_full.md`
 
-**11/6 저녁 재검토(교수님: EXAONE 평가 부정적)** — 위 측정은 "검사 통과·속도"만 봤고 **답의 품질은 사람이 보지 않았다**. 후보를 넓혀 품질까지 다시 고른다(TBD)
+**11/6 저녁 재검토(검토 의견: EXAONE 답 품질 부정적)** — 위 측정은 "검사 통과·속도"만 봤고 **답의 품질은 사람이 보지 않았다**. 후보를 넓혀 품질까지 다시 고른다(TBD)
 | 후보 | 크기(4비트, 추정) | 라이선스 | 메모 |
 | --- | --- | --- | --- |
 | Qwen3 4B Instruct-2507 | 약 2.5GB | Apache 2.0 | 정연우 시험(22턴 대화)에서 Qwen3.5 4B 보다 모델 답 채택률이 높았음. Ollama 태그 예 `qwen3:4b-instruct-2507-q4_K_M`(`ollama pull` 로 확인) |
@@ -349,6 +349,6 @@ start -> coordinator --(greeting/thanks)--> end
   챗봇은 모델 오류를 조용히 규칙 답으로 바꾸므로 원인이 겉으로 안 보였다 → 도구가 시작 전에 진짜 대화 한 번(`model_probe`, JSON 형식)을 보내 실패하면 **Ollama 오류 문장 그대로** 보여 주고 멈춘다. 문항마다 상태(괄호)를 찍고, 시간 중앙이 0.5초 미만이면 경고. 원인: TBD(다음 실행 결과로 확인)
 
 ## 14. 11/9 오후 — 대화 접수(intake)와 판단하는 supervisor
-교수님 피드백("기본 안내만 하면 supervisor 의 존재 의미가 없다, 챗봇으로 접수가 되어야 한다")으로 일꾼 intake 를 더하고 supervisor 가 결과를 보고 판단하게 바꿨다.
+11/9 검토 의견("기본 안내만 하면 supervisor 의 존재 의미가 없다, 챗봇으로 접수가 되어야 한다")으로 일꾼 intake 를 더하고 supervisor 가 결과를 보고 판단하게 바꿨다.
 자세한 구조·질문별 흐름·Langfuse 보는 법·시연 순서: **docs/design/chatbot_agents.md**
 
