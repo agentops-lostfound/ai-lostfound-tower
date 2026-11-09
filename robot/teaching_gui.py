@@ -141,7 +141,7 @@ class TeachingGUI:
         ttk.Button(route, text='Save measured / overwrite', command=self._save).grid(row=0, column=2, padx=4)
         shortcut = ttk.Frame(route)
         shortcut.grid(row=1, column=0, columnspan=3, sticky='w')
-        for nm in ('home','raised','entry','observe'):
+        for nm in ('home',):
             ttk.Button(shortcut, text=nm, command=lambda name=nm: self._load(name)).pack(side='left', padx=3)
         custom = ttk.Frame(route)
         custom.grid(row=2, column=0, columnspan=3, sticky='w', pady=(4,0))

@@ -78,7 +78,7 @@ def main():
     parser.add_argument('--project-id',default='7840975d-960f-4ede-bcca-bd24e4caf24e')
     parser.add_argument('--follower-id',default='bc50f050-d0a5-4430-af97-0486cdaec3a2')
     parser.add_argument('--output-dir',type=Path)
-    parser.add_argument('--import-recorded',type=Path,help='Explicitly import saved home/raised/entry/observe snapshots')
+    parser.add_argument('--import-recorded',type=Path,help='Explicitly import saved pose snapshots')
     parser.add_argument('--camera-url',help='Optional MJPEG preview; never changes camera settings')
     parser.add_argument('--render-only',type=Path,help='Save simulation screenshot and exit; no window/hardware')
     parser.add_argument('--scale',type=float,default=0.8125,help='UI scale: 0.8125=1040x650, 1=1280x800')

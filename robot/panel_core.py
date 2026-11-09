@@ -24,7 +24,7 @@ class Panel:
         self.wait_since=None
         self.stopped=True;self.armed=False;self.moving=False;self.confirm_pending=False
         self.message='STOPPED. Repair (R) after checking the arm.'
-        self.sequence=['home','raised','entry','observe'];self.sequence_index=0
+        self.sequence=['home'];self.sequence_index=0
 
     def observe(self,values):
         vector(values);self.current=dict(values)

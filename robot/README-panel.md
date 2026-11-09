@@ -4,9 +4,9 @@
 
 사용자 결정으로 XYZ/YOLO 중심에서 모터값을 자동 계산하는 방식은 중단하고, 직접 티칭·저장한 고정 관절 자세를 선택해 이동한다. 기존 GUI·모터 통신·정지·속도 선택·CSV·저장 기능을 사용한다. [전환 결정](../docs/reports/2026-11-05-fixed-pose-decision.md).
 
-현재 `outputs/robot_panel_live/poses.json`에는 기존 `home`, `raised`, `entry`, `observe`와 11/6에 텔레옵으로 티칭한 `pose_1`~`pose_8`이 있다. **커스텀 1~8** 버튼은 해당 번호의 자세를 미리 불러온다. 이름 입력/목록과 `Load preview`도 사용할 수 있다. 저장 파일에 자세가 없으면 해당 버튼이 비활성화된다. 실측 자세 파일은 로컬 `outputs`에 저장된다.
+현재 `outputs/robot_panel_live/poses.json`에는 `home`과 11/6에 텔레옵으로 티칭한 `pose_1`~`pose_8`, 배출구 자세 `close`, `open`, `outlet_return_1`이 있다. **커스텀 1~8** 버튼은 해당 번호의 자세를 미리 불러온다. 이름 입력/목록과 `Load preview`도 사용할 수 있다. 저장 파일에 자세가 없으면 해당 버튼이 비활성화된다. 실측 자세 파일은 로컬 `outputs`에 저장된다.
 
-티칭 원본과 요약은 `outputs/robot_poses/teleop_teaching_20261106_8slots/`에 있다. 자세마다 HOLD 관측 10개를 기록했고, 2·3·5·7번은 다시 측정한 값을 적용했다. 이전 GUI 자세 파일은 `poses.backup-before-8-slots-*.json`에 보관했다. 커스텀 1~8은 개별 선택용이며 forward/reverse는 기본 네 자세를 사용한다.
+티칭 원본과 요약은 `outputs/robot_poses/teleop_teaching_20261106_8slots/`에 있다. 자세마다 HOLD 관측 10개를 기록했고, 2·3·5·7번은 다시 측정한 값을 적용했다. 이전 GUI 자세 파일은 `poses.backup-before-8-slots-*.json`에 보관했다. 커스텀 1~8은 개별 선택용이며 기본 경로에는 `home`만 남아 있다.
 
 현재 GUI는 자세 파일을 시작할 때 읽으므로 실행 중 외부에서 파일을 수정해도 자동 반영되지 않는다. 이번 코드·자세 병합을 반영하려면 GUI를 다시 실행한다. 이후 GUI의 `Save measured / overwrite`로 저장하면 실행 중 목록과 커스텀 버튼 상태도 갱신된다. 실물 GUI 재실행 전 Studio 텔레옵/런타임과 시리얼 소유권을 정리해야 하며, 이번 UI 갱신은 실행 중 Studio를 종료하거나 팔을 움직이지 않았다.
 
