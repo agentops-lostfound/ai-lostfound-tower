@@ -190,6 +190,8 @@ def numbers_ok(text: str, facts: dict) -> bool:
     11/8 에이전트 무작위 시험: 0~9 를 어디서나 허용해 "반환 실패 0건, 성공 9건"(facts 는 5·12)이 통과했다"""
     allowed = set(re.findall(r"\d+(?:\.\d+)?", json.dumps(facts, ensure_ascii=False)))
     body = re.sub(r"(?m)^\s*(?:[-*]\s*)?\d{1,2}[.)]\s", "", text)
+    if re.search(r"\b[a-z]+_[a-z0-9_]+\b", text):
+        return False          # 11/9 채점표(Mi:dm): 보고서에 계산 칸 이름(seconds_avg)이 그대로 나옴 → 템플릿 보고서로
     return all(n in allowed for n in re.findall(r"\d+(?:\.\d+)?", body))
 
 

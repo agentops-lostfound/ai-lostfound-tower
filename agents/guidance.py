@@ -87,9 +87,17 @@ def fix_typos(text: str) -> str:
     return out
 
 
+# 11/9 채점표(Mi:dm): "지갑 사고 싶은데 어디서 팔아요?"·"보조배터리 추천해줘"·"휴대폰 요금제" 에 물건 검색이 붙고
+# 모델이 '이 서비스에서 판매해요'라고 지어냄 → 물건 이름이 있어도 사기·추천·요금 질문이면 서비스 밖(분실·습득 말이 있으면 아님)
+SHOP_RE = re.compile(r"사고싶|살래|살까|살수있|구매|구입|어디서팔|파는곳|판매처|추천해|추천좀|추천부탁|요금제|중고|최저가|가격비교")
+LOST_FOUND_RE = re.compile(r"분실|잃어|잃었|놓고|두고|습득|주웠|주운|주워|맡기|맡겨|찾아|찾고|후보")
+
+
 def off_topic(question: str) -> bool:
     """분실물 서비스 밖 질문인가. question 은 소문자·공백 제거 전후 어느 것이든 된다(공백은 여기서 지움)"""
     q = re.sub(r"\s+", "", (question or "").lower())
+    if SHOP_RE.search(q) and not LOST_FOUND_RE.search(q):
+        return True
     return bool(OFF_TOPIC_RE.search(q)) and not SERVICE_RE.search(q)
 
 

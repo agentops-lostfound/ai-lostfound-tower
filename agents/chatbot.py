@@ -195,6 +195,13 @@ class Chatbot:
                     sig = self._signals(state)
                     must = [w for w in ('item_search', 'guidance') if sig[w]]
                     got = self.brain.plan(state['question'], state.get('questions'), must)
+                    if got and 'item_search' in got and not sig['item_search']:
+                        # 11/9 채점표(Mi:dm): "어떤 물건을 찾을 수 있어요?"·"후보가 뭐예요?"에 모델이 물건 검색을 더해
+                        # "찾는 물건 한 종류와 색상을 알려주세요"가 붙음 → 규칙이 물건 종류를 읽지 못했으면 모델이 더한 검색은 뺌
+                        from agents.lost_input import text_features
+                        f, _ = text_features(state['question'])
+                        if f.get('category') in (None, '확인 불가', '없음'):
+                            got = [w for w in got if w != 'item_search'] or ['guidance']
                     if got:
                         plan, routing = got, 'model'
             steps = [self._step(i + 1, w, {**state, '_plan_now': plan}, 'planner') for i, w in enumerate(plan)]

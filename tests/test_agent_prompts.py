@@ -367,3 +367,36 @@ class PlanStepsTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {**NO_LANGFUSE, "LF_AGENT_ITEM_SEARCH_USE_LLM": "1"}):
             r = bot(AgentBrain("m", request=model({**answers, "item_search": {"category": "보조배터리", "color": "빨강"}}, []))).ask("밧데리 찾아줘")
         self.assertNotIn("빨강", r["answer"])                                       # 말에 색이 없으면 모델 색은 버림
+
+
+class MidmFindings1109Test(unittest.TestCase):
+    """11/9 교육원 Mi:dm 채점표(403/500)에서 모델을 켜서 오히려 틀린 문항"""
+
+    def test_shopping_questions_are_off_topic(self):
+        from agents.guidance import off_topic
+        for q in ("지갑 사고 싶은데 어디서 팔아요?", "보조배터리 추천해줘", "휴대폰 요금제 알려줘"):
+            self.assertTrue(off_topic(q), q)
+        self.assertFalse(off_topic("지갑 잃어버렸는데 추천해줄 방법 있어요?"))
+
+    def test_model_cannot_add_search_without_item_kind(self):
+        from agents.chat_agents import AgentBrain
+        answers = {"coordinator": {"intent": "service"}, "planner": {"steps": ["item_search", "guidance"]}}
+        with mock.patch.dict(os.environ, NO_LANGFUSE):
+            for q in ("어떤 물건을 찾을 수 있어요?", "후보가 뭐예요?"):
+                r = bot(AgentBrain("m", request=model(answers, []))).ask(q)
+                self.assertNotIn("item_search", r["agent_path"], q)
+
+    def test_report_with_field_names_is_rejected(self):
+        from agents.ops_analyst import numbers_ok
+        self.assertFalse(numbers_ok("평균 seconds_avg 가 늘었어요", {"x": 1}))
+        self.assertTrue(numbers_ok("처리 1건", {"x": 1}))
+
+    def test_generated_answer_must_keep_id_card(self):
+        from agents.chat_rag import GroundedRag
+        from agents.guidance import Guidance
+
+        def req(payload):
+            return {"message": {"content": json.dumps({"mode": "answer", "passage_ids": [0], "answerable": True, "sentences": [
+                {"evidence": "본센터 키오스크로 오시면 돼요", "sentence": "웹이나 키오스크에서 확인 후 본센터 키오스크로 오시면 돼요."}]})}}
+        r = GroundedRag(Guidance(), "m", request=req).ask("본센터 갈 때 준비물 알려줘")
+        self.assertIn("신분증", r["answer"])                                # 모델 답이 신분증을 빼먹으면 문서 글로
