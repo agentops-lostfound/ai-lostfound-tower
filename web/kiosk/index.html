@@ -557,6 +557,9 @@ function capture() {
 // 우선순위: 주소 ?cam=(번호 또는 이름 일부) → 저장된 카메라 → 이름에 USB·Webcam·FHD 가 있고 front/back/전면/후면이 아닌 것 → 첫 카메라
 // ?camsetup=1 이면 화면에 카메라 목록이 나와 직원이 고르고, 고른 카메라를 이 태블릿에 기억한다
 const CAM_KEY = 'kioskCamera', CAM_PARAM = new URLSearchParams(location.search).get('cam');
+// 11/9 서버 카메라(?cam=server): 태블릿 크롬이 USB 웹캠을 못 보는 기기(갤럭시탭 A8)용 — 웹캠은 관제탑 PC 에 꽂고
+// PC 가 보내는 영상(/api/kiosk/camera/{기계}.mjpg)을 캔버스에 그려 가상 카메라처럼 <video> 에 흘린다(감지·3초·찍기 코드는 그대로)
+const SERVER_CAM = CAM_PARAM === 'server';
 const HD = {width: {ideal: 1920}, height: {ideal: 1080}};
 function camSaved() { try { return localStorage.getItem(CAM_KEY) || ''; } catch (e) { return ''; } }
 function camSave(id) { try { localStorage.setItem(CAM_KEY, id); } catch (e) {} }
@@ -597,7 +600,8 @@ function camMenu(list, want) {
 const CAM = {openMs: 8000, frameMs: 4000, retryMs: 15000};
 const CAM_CODE = {insecure: '주소 보안 설정(https·localhost 아님) — web/README.md 카메라 설정', denied: '카메라 권한 거부 — 브라우저 사이트 설정에서 허용',
                   nodevice: '카메라 장치 없음 — USB 연결 확인', busy: '다른 프로그램이 카메라 사용 중', timeout: '8초 안에 카메라가 열리지 않음',
-                  noframe: '카메라 영상이 들어오지 않음', lost: '카메라 연결이 끊김'};
+                  noframe: '카메라 영상이 들어오지 않음', lost: '카메라 연결이 끊김',
+                  server: 'PC 카메라 연결 안 됨 — 관제탑 .env TOWER_KIOSK_CAMERAS·웹캠 USB 확인(/api/kiosk/cameras)'};
 let camGen = 0, retryTimer = null;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const named = n => Object.assign(new Error(n), {name: n});
@@ -605,6 +609,7 @@ function camChip(state, text) { $('#camChip').dataset.state = state; $('#camChip
 function camKind(e) {
   const n = (e && e.name) || '';
   if (n === 'InsecureError') return 'insecure';
+  if (n === 'ServerCamError') return 'server';
   if (/NotAllowed|Security|PermissionDenied/.test(n)) return 'denied';
   if (/NotReadable|TrackStart|Abort/.test(n)) return 'busy';
   if (n === 'TimeoutError') return 'timeout';
@@ -624,9 +629,9 @@ async function startCam() {
   if ($('#camDown').hidden) { camChip('find', '카메라 찾는 중'); setPhase('find'); camSay('카메라를 찾는 중…', 'wait'); }   // 점검 중이면 다시 찾는 동안에도 안내를 그대로 둠
   try {
     // 브라우저는 https 또는 localhost 에서만 카메라를 준다(isSecureContext). 태블릿이 http://10.10.21.21:8080 으로 열면 여기로 온다(web/README.md 설정 안내)
-    if (!DEMO && window.isSecureContext === false) throw named('InsecureError');
-    if (!DEMO && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw named('NotFoundError');
-    const opening = DEMO ? demoOpen() : camOpen();
+    if (!DEMO && !SERVER_CAM && window.isSecureContext === false) throw named('InsecureError');
+    if (!DEMO && !SERVER_CAM && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw named('NotFoundError');
+    const opening = DEMO ? demoOpen() : SERVER_CAM ? serverOpen() : camOpen();
     opening.then(s => { if (gen !== camGen) s.getTracks().forEach(t => t.stop()); }, () => {});   // 늦게 열린 카메라는 바로 끔
     const s = await Promise.race([opening, wait(CAM.openMs).then(() => { throw named('TimeoutError'); })]);
     if (gen !== camGen) return;
@@ -636,7 +641,7 @@ async function startCam() {
       if (Date.now() - t0 > CAM.frameMs) throw named('NoFrameError');
     }
     s.getVideoTracks().forEach(t => t.addEventListener('ended', () => { if (gen === camGen) { stopCam(); camDown('lost'); } }));
-    camUp(); camChip('ok', DEMO ? '가상 카메라 연결됨' : '카메라 연결됨');
+    camUp(); camChip('ok', DEMO ? '가상 카메라 연결됨' : SERVER_CAM ? 'PC 카메라 연결됨' : '카메라 연결됨');
     lastSmall = null; stillSince = 0; emptySince = 0; againUntil = 0;
     setPhase(empty ? 'place' : 'wait'); camSay(empty ? '물건을 가운데에 놓아 주세요' : '상자를 확인하는 중…', 'wait');
     autoTimer = setInterval(tick, AUTO.every);
@@ -649,7 +654,29 @@ function stopCam() {
   camGen++; shooting = false;
   clearInterval(autoTimer); autoTimer = null; clearTimeout(retryTimer); retryTimer = null;
   if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null; $('#cam').srcObject = null; demoStop();
+  stream = null; $('#cam').srcObject = null; demoStop(); serverStop();
+}
+// ---- 11/9 서버 카메라: PC 영상(MJPEG)을 <img> 로 받아 캔버스에 그리고 captureStream 으로 <video> 에 넣음 ----
+let srvImg = null, srvCanvas = null, srvTimer = null;
+function serverOpen() {
+  const machine = encodeURIComponent(Q.get('machine') || 'KIOSK-A');
+  return new Promise((resolve, reject) => {
+    srvImg = new Image();
+    srvImg.onload = () => {                         // MJPEG 는 첫 장이 오면 onload — 그 뒤로는 같은 <img> 가 계속 바뀜
+      srvCanvas = Object.assign(document.createElement('canvas'), {width: srvImg.naturalWidth || 1280, height: srvImg.naturalHeight || 720});
+      if (!srvCanvas.captureStream) { reject(named('NotFoundError')); return; }
+      const g = srvCanvas.getContext('2d');
+      srvTimer = setInterval(() => { try { g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height); } catch (e) {} }, 50);
+      g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height);
+      resolve(srvCanvas.captureStream(15));
+    };
+    srvImg.onerror = () => reject(named('ServerCamError'));   // 404 = 이 기계에 서버 카메라 설정 없음 · 503 = PC 웹캠이 안 열림
+    srvImg.src = `/api/kiosk/camera/${machine}.mjpg?t=${Date.now()}`;
+  });
+}
+function serverStop() {
+  clearInterval(srvTimer); srvTimer = null;
+  if (srvImg) { srvImg.onload = srvImg.onerror = null; srvImg.src = ''; srvImg = null; }   // 연결을 끊어야 PC 가 60초 뒤 웹캠을 닫음
 }
 // ---- 11/8 직원용 시연 모드(?demo=1): 카메라가 있어도 가상 카메라(캔버스 영상)를 쓴다 ----
 // 캔버스 그림을 진짜 카메라처럼 <video> 에 흘려 보내므로, 물건 감지·3초·찍기·서버 접수는 실제와 같은 코드로 지나간다.

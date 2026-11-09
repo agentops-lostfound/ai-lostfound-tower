@@ -37,5 +37,6 @@ Codex 는 같은 내용의 `AGENTS.md` 를 읽는다. 규칙을 바꾸면 두 �
 - 정답지 검사: `python evaluation/answer_key.py 정답지.csv`
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
 - 로봇팔 ↔ DB 연결(탑뷰 없이 칸 번호 1~8 = pose_1~8, 가까운 줄 1·3·5·7 · 먼 줄 2·4·6·8): `.env` TOWER_ROBOT_TARGET=db · TOWER_ROBOT_PART=모듈:클래스, 읽기 `GET /api/admin/storage/robot-target/{물건번호}` — 안내 docs/contracts/robot_db_target.md
+- 키오스크 서버 카메라(태블릿은 화면만, 웹캠은 관제탑 PC): 번호 찾기 `python tools/list_cameras.py` → `.env` TOWER_KIOSK_CAMERAS=KIOSK-A=1 → 태블릿 `/kiosk?machine=KIOSK-A&cam=server` — 안내 web/README.md 키오스크 카메라 설정
 - 관제탑 켜기: `tools\start_tower.bat`(팀 DB·화면 앞문 Docker 도 함께, 교육원 네트워크 공개는 `lan`, 코드가 바뀌면 스스로 다시 켜지는 개발 모드는 `dev`). Docker 는 `docker-compose.yml` 하나뿐(db 5434 · web 8080) · 화면 지도 `web/README.md` · 로봇 계약 `docs/contracts/robot_api.md`
 - 전체 가상 시연(디스코드 분실물 채널 → 습득·찾기·반환): `.env` TOWER_SIM=1 로 관제탑 → `python tools/lostfound_bot.py` (디스코드 없이 `--try "메시지"`), 화면 `/live` — 안내 docs/design/virtual_demo.md
