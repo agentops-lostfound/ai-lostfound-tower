@@ -43,7 +43,8 @@ def bot(brain=None):
 class DeerFlowGraphTest(unittest.TestCase):
     def test_rule_path_without_model_goes_through_agents(self):
         r = bot().ask("운영시간 알려줘")
-        self.assertEqual(r["agent_path"], ["coordinator", "planner", "supervisor", "researcher", "supervisor", "reporter"])
+        # 11/9 DeerFlow 그림처럼 reporter 도 supervisor 아래 일꾼 — 정리 뒤 supervisor 가 끝을 정한다
+        self.assertEqual(r["agent_path"], ["coordinator", "planner", "supervisor", "researcher", "supervisor", "reporter", "supervisor"])
         self.assertEqual(r["routing"], "rule")
 
     def test_coordinator_greeting_ends_early(self):
