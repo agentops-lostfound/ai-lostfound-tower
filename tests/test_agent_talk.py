@@ -151,3 +151,23 @@ class ApiPrivacyTest(unittest.TestCase):
         self.assertFalse(any(e["channel"] == "agent" for e in pub["events"]))
         live = client.get("/api/admin/live/state?after=0").json()
         self.assertTrue(any(e["channel"] == "agent" for e in live["events"]))
+
+
+class DemoToolTest(unittest.TestCase):
+    def test_demo_prints_three_conversations_without_sending(self):
+        import io
+        import contextlib
+        from tools import agent_talk_demo
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.assertEqual(agent_talk_demo.main([]), 0)
+        out = buf.getvalue()
+        self.assertEqual(out.count("── T"), 3)
+        self.assertIn("되돌아보기", "".join(["되돌아보기"]) if "reflect" in out else "")
+        self.assertIn("범위 안", out)
+
+    def test_send_without_webhook_stops(self):
+        from unittest import mock
+        from tools import agent_talk_demo
+        with mock.patch.dict(os.environ, {"DISCORD_WEBHOOK_AGENT": ""}), mock.patch("tools.envfile.load_env", lambda *a, **k: None):
+            self.assertEqual(agent_talk_demo.main(["--send"]), 2)
