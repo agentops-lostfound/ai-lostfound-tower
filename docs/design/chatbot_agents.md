@@ -57,9 +57,9 @@ flowchart TD
 | planner | `chat-planner` | 켬 | 〃 | 일꾼 순서(guidance·item_search) |
 | supervisor | `chat-supervisor` | **끔** | 〃 | **실제 구현**: 계획에 남은 guidance·item_search 와 reporter 중 다음 칸 하나. intake·ops·멈춤·상한은 규칙만 |
 | researcher | `chat-researcher` (옛 `chat-guidance-answer`) | 켬 | LF_CHAT_RAG_MODEL | 안내 답 쓰기(근거 검사는 코드) |
-| item_search | `chat-item-search` | **끔** | — | **훅만**: 검색은 규칙(읽기 전용), 켜면 기록에 `llm: hook_only` |
+| item_search | `chat-item-search` | **끔** | LF_CHAT_AGENT_MODEL → LF_CHAT_RAG_MODEL | **실제 구현(11/9)**: 규칙이 못 읽은 품목·색만 목록 안에서 골라 검색 조건으로(색은 말에 색 낱말이 있을 때만). 검색 자체는 도구(DB 읽기 전용) |
 | intake | `chat-intake` (옛 `chat-intake-extract`) | 켬 | LF_CHAT_AGENT_MODEL → LF_CHAT_RAG_MODEL | 규칙이 못 읽은 품목·색 |
-| reporter | `chat-reporter` | **끔** | — | **훅만**: 합치기·버튼은 규칙, 켜면 응답에 `reporter_llm: hook_only` |
+| reporter | `chat-reporter` | **끔** | 〃 | **실제 구현(11/9)**: 안내+검색 두 결과를 보일 순서(guidance_first·search_first)만 고름. 내용은 일꾼 결과 그대로 |
 | ops-coordinator | `ops-coordinator` | **끔** | OPS_ANALYST_MODEL → LF_CHAT_RAG_MODEL | **실제 구현**: 관제 낱말이 없을 때만 ops / not_ops (길이 검사는 규칙) |
 | ops-planner | `ops-planner` | 켬 | 〃 | 초점 5개 중 하나 |
 | ops-supervisor | `ops-supervisor` | **끔** | 〃 | **훅만**: 순서는 규칙(researcher→analyst→reporter), 켜면 `llm_hooks` 에 표시 |
@@ -82,6 +82,27 @@ flowchart TD
 접수는 **기록을 남기는 행동**이다. 작은 모델(Mi:dm 2.0 Mini)이 "접수해도 된다"를 잘못 고르면 엉뚱한 접수가 생긴다.
 그래서 모델은 "말을 이해하는 일"(분류·계획·빈칸 채우기·답 쓰기)만 하고, "다음에 무엇을 할지"는 코드가 정해진 기준으로 정하며 **그 이유를 문장으로 남긴다**.
 로봇을 움직일지 코드가 정하는 관제탑 원칙(agent_talk.md 4장)과 같다.
+
+### 1-2. planner 단계별 지시서 → supervisor 가 한 단계씩 이행 (11/9)
+교수님 피드백: "planner 가 순서를 정해 넘겼는데 supervisor 가 그 명령을 이행하는 모습이 안 보인다". 예전 계획은 `["item_search", "guidance"]` 같은 **이름 목록**뿐이었고, 일꾼은 지시 없이 원래 질문만 받았다.
+지금은 planner 가 **단계별 지시서**를 쓰고, supervisor 가 단계마다 "몇 번째 단계를, 어느 에이전트에게, 무슨 지시로, 왜" 넘기는지 남긴다.
+
+```
+질문: "갈색 지갑 찾아줘 그리고 받을 때 뭐 필요해?"
+planner  steps = 1. item_search — 분실물 후보 검색(읽기 전용) — 품목 지갑 · 색 갈색      (입력: "갈색 지갑 찾아줘")
+                 2. researcher  — 이용 안내 답(문서 근거만) — 물건 받으러 가기 전            (입력: "받을 때 뭐 필요해")
+supervisor run_step 1/2 → item_search  (why: planner 계획 순서)      plan_status: 1 [실행 중] · 2 [대기]
+item_search  입력 {question: "갈색 지갑 찾아줘", task: "…품목 지갑 · 색 갈색"} → 후보 1개
+supervisor run_step 2/2 → researcher   (why: planner 계획 순서)      plan_status: 1 [완료 → items_found] · 2 [실행 중]
+researcher   입력 {question: "받을 때 뭐 필요해", task: "…물건 받으러 가기 전"} → 신분증 안내
+supervisor run_step report → reporter  (why: 계획 2/2단계 끝)
+reporter → supervisor → __end__
+```
+- 단계 = `{no, agent(그래프 칸 이름), task(지시), status(대기·실행 중·완료·건너뜀), by(planner·supervisor), input(그 일꾼 몫의 말)}`
+- **섞인 질문은 일꾼 몫으로 나눠 넘긴다**(`chatbot.sub_question`) — 예전에는 안내 일꾼이 "갈색 지갑 찾아줘…"까지 받아 "이 챗봇은 검색하지 않습니다"라고 답했다
+- supervisor 가 판단으로 단계를 더하면(add_guidance·replan_item_search) `by: supervisor` 단계로 붙고, 사용자 답이 필요해 멈추면(ask_user) 남은 단계는 `건너뜀`
+- 어디서 보나: Langfuse `planner` 칸 출력 `steps` · `supervisor` 칸 메타데이터 `detail.run_step`·`plan_status` · 일꾼 칸 입력 `task` / 응답의 `plan_steps`
+- 시험: `tests/test_agent_prompts.py` PlanStepsTest
 
 ---
 

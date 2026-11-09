@@ -71,8 +71,8 @@ def search_intent(question):
     q = compact(question)
     features, _ = text_features(question)
     item = features.get('category') not in (None, '확인 불가', '없음')
-    direct = bool(re.search(r'찾아(?:줘|주|줄)|검색해|후보.*보여', q))
-    implicit = item and bool(re.search(r'잃어버|분실했|분실한|있나요|있어|있나|있니|있습니까|어딨', q))
+    direct = bool(re.search(r'찾아(?:줘|주|줄|봐)|찾고|검색해|후보.*보여', q))
+    implicit = item and bool(re.search(r'잃어버|잃었|분실했|분실한|두고\s?내|놓고\s?내|두고\s?온|있나요|있어|있나|있니|있습니까|있는지|있을까|어딨|들어왔|보관\s?중|보관하고', q))
     return direct or implicit
 
 
