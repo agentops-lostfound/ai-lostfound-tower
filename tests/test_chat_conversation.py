@@ -32,7 +32,7 @@ class ConversationTests(unittest.TestCase):
             ('택배로 보내줄 수 있어?', 'answered', 'delivery'),
             ('검정 지갑 잃어버렸어', 'items_found', None),
             ('휴대폰 분실했는데', 'items_found', None),
-            ('USB 좀 찾아줄래?', 'items_found', None),
+            ('핸드크림 좀 찾아줄래?', 'items_found', None),       # 11/9 품목 4종(USB 뺌)
         ]
         for q, status, topic in cases:
             with self.subTest(q=q):
@@ -46,9 +46,9 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(result['status'], 'items_not_found')
         self.assertEqual(result['search_filter']['category'], '지갑')
         self.assertEqual(result['search_filter']['color'], '빨강')
-        result = self.bot.ask('USB는?', history=['검정 지갑 찾아줘'])
+        result = self.bot.ask('핸드크림은?', history=['검정 지갑 찾아줘'])
         self.assertEqual(result['status'], 'items_found')
-        self.assertEqual(result['search_filter']['category'], 'USB')
+        self.assertEqual(result['search_filter']['category'], '핸드크림')
         self.assertNotIn('color', result['search_filter'])
 
     def test_followup_keeps_guidance_subject_and_policy_gaps(self):

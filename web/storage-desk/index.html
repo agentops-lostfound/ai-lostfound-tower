@@ -6,7 +6,7 @@
 <title>본센터 보관함</title>
 <!-- 본센터 보관 화면(11/6, LF-8) — 관제탑이 /storage-desk 로 열고 관리자 화면 '보관함' 탭에 들어간다.
      흐름: 회수해 온 물건(도착 대기) 고르기 → 추천 칸 확인(또는 다른 칸 고르기) → 실제로 넣은 뒤 "넣었음" → 본센터 보관 + 칸 기록
-     11/9 칸 규칙(015 열 배정): R1 휴대폰 전용(45도 사선) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB. 립밤은 운영 품목이 아니라 받는 열이 없음(→ 선반). 맞는 빈 칸이 없으면 역 물건은 '칸 대기'(회수하지 않음, 칸이 비면 먼저 온 순서로 자동 회수),
+     11/9 칸 규칙(015·016 열 배정): R1 휴대폰 전용(45도 '/') · R2 카드지갑 · R3 보조배터리 · R4 핸드크림. 립밤은 운영 품목이 아니라 받는 열이 없음(→ 선반). 맞는 빈 칸이 없으면 역 물건은 '칸 대기'(회수하지 않음, 칸이 비면 먼저 온 순서로 자동 회수),
           본센터 물건은 직원 보관 선반(S-n, 로봇이 집지 않음 → 반환은 직원이 직접 건넴)을 추천. 꽉 차면 가장 오래 보관된 물건부터 선반으로 옮기기를 제안
      개인정보: 물건 번호·품목·공개 특징·등록 사진만. 연락처·비공개 특징은 보이지 않음 -->
 <link rel="stylesheet" href="/ui/theme.css">
@@ -138,7 +138,7 @@
       <span><svg viewBox="0 0 26 20" role="img" aria-label="주황 테두리: 고른 칸"><rect x="2" y="2" width="22" height="16" rx="4" fill="var(--pick)" stroke="var(--warn)" stroke-width="2"/></svg>고른 칸</span>
       <span><svg viewBox="0 0 26 20" role="img" aria-label="아래 굵은 막대: 로봇팔 쪽"><rect x="7" y="14" width="12" height="4" rx="2" fill="var(--ui-text-3)"/><path d="M13 12V3M9 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>로봇팔 쪽(아래)</span>
     </div>
-    <details class="more"><summary>ⓘ 자세히</summary>R1 두 칸은 휴대폰 전용(45도 사선, 상단 오른쪽 위 · 간격이 넓음) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB(둘 중 하나로 정할 예정) · 열마다 로봇 쪽 1번 칸부터 · 제출보관함은 보관판 위쪽 가운데 · 맞는 칸이 없으면 직원 보관 선반(로봇이 집지 않음)</details>
+    <details class="more"><summary>ⓘ 자세히</summary>R1 두 칸은 휴대폰 전용(45도 사선, 상단 오른쪽 위 · 간격이 넓음) · R2 카드지갑 · R3 보조배터리 · R4 핸드크림(11/9 품목 4종 고정) · 열마다 로봇 쪽 1번 칸부터 · 제출보관함은 보관판 위쪽 가운데 · 맞는 칸이 없으면 직원 보관 선반(로봇이 집지 않음)</details>
     <div class="shelf" id="shelfBox"><h3>직원 보관 선반 <span class="muted" id="shelfN"></span></h3><div class="list" id="shelfList"></div></div>
     <div class="actions">
       <span id="pickInfo" class="muted">물건을 먼저 고르세요</span>

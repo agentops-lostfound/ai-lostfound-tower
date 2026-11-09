@@ -1,4 +1,4 @@
-"""11/9 보관 칸 규칙(015 열 배정: 휴대폰 R1 · 지갑 R2 · 보조배터리 R3 · 핸드크림·USB R4)과 보관함이 꽉 찼을 때(칸 대기 → 자동 회수, 직원 보관 선반) 시험.
+"""11/9 보관 칸 규칙(015·016 열 배정: 휴대폰 R1 · 카드지갑 R2 · 보조배터리 R3 · 핸드크림 R4)과 보관함이 꽉 찼을 때(칸 대기 → 자동 회수, 직원 보관 선반) 시험.
 
 가상 시연(TOWER_SIM=1)은 시간 배수 0 으로 기다리지 않는다. 뒤에서 도는 회수는 조건이 맞을 때까지 잠깐 기다린다(until).
 """
@@ -18,7 +18,7 @@ from discord_ops.reporter import Reporter  # noqa: E402
 
 ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
 OTHERS = ["서면역 1번 출구 검정 카드지갑 주웠어요", "해운대역 대합실 흰색 보조배터리 주웠어요",
-          "해운대역 2번 출구 흰색 핸드크림 주웠어요", "서면역 개찰구 은색 USB 주웠어요"]
+          "해운대역 2번 출구 흰색 핸드크림 주웠어요", "서면역 개찰구 흰색 보조배터리 주웠어요"]
 LIPBALM = "서면역 화장실 앞 립밤 주웠어요"            # 11/9 운영 품목에서 뺌
 
 
@@ -46,17 +46,20 @@ class SimFullTest(unittest.TestCase):
         return self.w.slot_id_of(item_id)
 
     def test_each_category_goes_to_its_column(self):
-        # 시작: R1 휴대폰 2칸 참 · R2-1 카드지갑 · R4 USB 2칸 참(시연 물건) → 빈 칸 = R2-2 · R3-1 · R3-2
+        # 시작(11/9 품목 4종): R1 휴대폰 2칸 · R2-1 카드지갑 · R3 보조배터리 2칸 참(시연 물건) → 빈 칸 = R2-2 · R4-1 · R4-2
         seed = {self.slot(i) for i in self.w.items}
-        self.assertEqual(seed, {"R1-1", "R1-2", "R2-1", "R4-1", "R4-2"})
+        self.assertEqual(seed, {"R1-1", "R1-2", "R2-1", "R3-1", "R3-2"})
         a = self.found(OTHERS[0])                                      # 지갑 → 지갑 열
-        b = self.found(OTHERS[1])                                      # 보조배터리 → 보조배터리 열
-        self.assertEqual((self.slot(a), self.slot(b)), ("R2-2", "R3-1"))
+        b = self.found(OTHERS[2])                                      # 핸드크림 → 핸드크림 열
+        self.assertEqual((self.slot(a), self.slot(b)), ("R2-2", "R4-1"))
+        with self.assertRaises(RequestError) as cm:                    # USB: 11/9 품목 4종 고정 → 접수하지 않음
+            self.d.found("서면역 개찰구 은색 USB 주웠어요")
+        self.assertIn("운영하지 않는 품목", str(cm.exception))
         with self.assertRaises(RequestError) as cm:                    # 립밤: 운영하지 않는 품목 → 접수하지 않음
             self.d.found(LIPBALM)
         self.assertIn("운영하지 않는 품목", str(cm.exception))
         phone = self.found("서면역 3번 출구 빨간 휴대폰 주웠어요")
-        self.assertIsNone(self.slot(phone))                            # 휴대폰은 R3-2 가 비어 있어도 넣지 않음
+        self.assertIsNone(self.slot(phone))                            # 휴대폰은 R4-2 가 비어 있어도 넣지 않음
         self.assertEqual((self.w.items[phone]["loc"], self.w.items[phone]["status"]), ("kiosk", "등록기계 보관"))
         self.assertIn(phone, self.w.wait_queue)
         alerts = [m for m in self.svc.reporter.messages if m.get("channel") == "alert" and phone in m["title"]]
@@ -64,14 +67,14 @@ class SimFullTest(unittest.TestCase):
         self.assertNotIn("010", str(alerts))
         st = self.svc.storage_status()
         self.assertEqual({g["key"]: (g["used"], g["total"], g["waiting"]) for g in st["groups"]},
-                         {"phone": (2, 2, 1), "지갑": (2, 2, 0), "보조배터리": (1, 2, 0), "핸드크림·USB": (2, 2, 0)})
+                         {"phone": (2, 2, 1), "지갑": (2, 2, 0), "보조배터리": (2, 2, 0), "핸드크림": (1, 2, 0)})
         self.assertEqual([x["item_id"] for x in st["waiting"]], [phone])
         self.assertEqual(st["message"], "보관 칸이 다 찼어요 · 대기 1건")
 
     def test_full_wait_then_shelf_move_auto_collects_in_order(self):
-        # 핸드크림·USB 열(R4)은 시연 USB 2개로 처음부터 참
-        w1 = self.found(OTHERS[2])                                     # 핸드크림
-        w2 = self.found(OTHERS[3])                                     # USB
+        # 보조배터리 열(R3)은 시연 보조배터리 2개로 처음부터 참(11/9 품목 4종)
+        w1 = self.found(OTHERS[1])                                     # 보조배터리
+        w2 = self.found(OTHERS[3])                                     # 보조배터리 하나 더
         self.assertEqual(self.w.wait_queue, [w1, w2])                   # 먼저 온 순서
         arr = {a["item_id"]: a for a in self.svc.storage_arrivals()}
         self.assertTrue(arr[w1]["slot_wait"] and arr[w1]["wait_no"] == 1 and arr[w2]["wait_no"] == 2)
@@ -131,8 +134,9 @@ class SimFullTest(unittest.TestCase):
         lay = self.svc.storage.layout()
         self.assertIsNone(recommend_slot(lay, "모형폰"))               # R1 2칸이 참 → 다른 행 추천 안 함
         self.assertEqual(recommend_slot(lay, "지갑")["slot_id"], "R2-2")
-        self.assertEqual(recommend_slot(lay, "보조배터리")["slot_id"], "R3-1")
-        self.assertIsNone(recommend_slot(lay, "USB"))                  # R4 2칸이 참 → 지갑·보조배터리 열에 넣지 않음
+        self.assertIsNone(recommend_slot(lay, "보조배터리"))           # R3 2칸이 참 → 다른 열에 넣지 않음
+        self.assertEqual(recommend_slot(lay, "핸드크림")["slot_id"], "R4-1")
+        self.assertIsNone(recommend_slot(lay, "USB"))                  # 11/9 USB 는 운영 품목이 아님 → 받는 열 없음
         self.assertIsNone(recommend_slot(lay, "립밤"))                 # 운영하지 않는 품목은 받는 열이 없음
 
 

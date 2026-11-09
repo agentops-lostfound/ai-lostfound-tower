@@ -48,7 +48,7 @@ class ChatbotTests(unittest.TestCase):
         self.assertIn('확정한 것은 아닙니다', result['answer'])
 
     def test_all_active_categories_can_be_queried_in_demo_database(self):
-        for category in ['지갑', '휴대폰', 'USB', '보조배터리', '핸드크림']:          # 11/9 운영 품목 5종
+        for category in ['지갑', '휴대폰', '보조배터리', '핸드크림']:                 # 11/9 운영 품목 4종
             self.assertEqual(self.bot.ask(category + ' 찾아줘')['status'], 'items_found', category)
         result = self.bot.ask('립밤 찾아줘')                                          # 운영하지 않는 품목 → 검색하지 않고 안내
         self.assertEqual(result['status'], 'search_needs_details')

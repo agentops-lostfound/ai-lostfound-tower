@@ -56,7 +56,7 @@ class MemoryStorageTest(unittest.TestCase):
         self.assertEqual(sm, {"shelf_slots": 8, "used": 0, "free": 8, "slots_without_pose": 8, "staff_shelf": 0})
         self.assertEqual([(g["key"], g["label"], g["rows"], g["used"], g["total"]) for g in groups],
                          [("phone", "휴대폰", ["R1"], 0, 2), ("지갑", "지갑", ["R2"], 0, 2),
-                          ("보조배터리", "보조배터리", ["R3"], 0, 2), ("핸드크림·USB", "핸드크림·USB", ["R4"], 0, 2)])
+                          ("보조배터리", "보조배터리", ["R3"], 0, 2), ("핸드크림", "핸드크림", ["R4"], 0, 2)])
         self.assertEqual((lay["sections"][5]["kind"], lay["sections"][5]["slots"]), ("staff", []))   # 선반 칸은 필요할 때 생김
         r1 = lay["sections"][0]
         self.assertEqual([x["slot_id"] for x in r1["slots"]], ["R1-1", "R1-2"])
@@ -168,7 +168,7 @@ class MemoryStorageTest(unittest.TestCase):
 
 
 class PhoneRowAndShelfTest(unittest.TestCase):
-    """11/9 사용자 결정: R1 두 칸 = 휴대폰 전용(45도 사선) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB, 맞는 칸이 없으면 직원 보관 선반"""
+    """11/9 사용자 결정: R1 두 칸 = 휴대폰 전용(45도 사선) · R2 카드지갑 · R3 보조배터리 · R4 핸드크림, 맞는 칸이 없으면 직원 보관 선반"""
 
     def setUp(self):
         from agents.storage import recommend_slot, shelf_items, slot_groups, group_of
@@ -195,7 +195,7 @@ class PhoneRowAndShelfTest(unittest.TestCase):
             self.s.assign("A-W21", "R1-1", override_category=False)          # 지갑을 R1 에
 
     def test_each_column_takes_its_category_near_robot_first(self):
-        """11/9(015): 열마다 품목 하나 — R2 지갑 · R3 보조배터리 · R4 핸드크림·USB(미정이라 둘 다). 로봇 쪽(1번) 칸 먼저"""
+        """11/9(015·016): 열마다 품목 하나 — R2 카드지갑 · R3 보조배터리 · R4 핸드크림(USB 는 운영 품목 아님). 로봇 쪽(1번) 칸 먼저"""
         rec = self.recommend(self.s.layout(), "지갑")
         self.assertEqual((rec["slot_id"], rec["other_row"]), ("R2-1", False))
         self.s.assign("A-W21", "R2-1")
@@ -203,18 +203,19 @@ class PhoneRowAndShelfTest(unittest.TestCase):
         self.s.assign("A-W26", "R2-2")
         self.assertIsNone(self.recommend(self.s.layout(), "지갑"))           # 지갑 열이 차면 다른 열로 보내지 않음(칸 대기·선반)
         self.assertEqual(self.recommend(self.s.layout(), "보조배터리")["slot_id"], "R3-1")
-        self.assertEqual(self.recommend(self.s.layout(), "USB")["slot_id"], "R4-1")
-        self.s.assign("A-W22", "R4-1")
-        self.assertEqual(self.recommend(self.s.layout(), "핸드크림")["slot_id"], "R4-2")   # R4 는 핸드크림·USB 둘 다
-        self.s.assign("A-W24", "R4-2")
+        self.assertIsNone(self.recommend(self.s.layout(), "USB"))           # 016: USB 는 받는 열이 없음 → 직원 보관 선반
+        self.s.assign("A-W24", "R4-1")
+        self.assertEqual(self.recommend(self.s.layout(), "핸드크림")["slot_id"], "R4-2")
+        with self.assertRaises(StorageError):
+            self.s.assign("A-W22", "R4-2")                                   # USB 를 핸드크림 열에
         with self.assertRaises(StorageError):
             self.s.assign("A-W25", "R2-1", override_category=False)          # 보조배터리를 지갑 열에
         with self.assertRaises(StorageError):
             self.s.assign("A-W27", "R3-1")                                   # USB 를 보조배터리 열에
         g = {x["key"]: (x["rows"], x["used"], x["total"]) for x in self.groups(self.s.layout())}
         self.assertEqual(g, {"phone": (["R1"], 0, 2), "지갑": (["R2"], 2, 2), "보조배터리": (["R3"], 0, 2),
-                             "핸드크림·USB": (["R4"], 2, 2)})
-        self.assertEqual(self.group_of(self.groups(self.s.layout()), "USB")["key"], "핸드크림·USB")
+                             "핸드크림": (["R4"], 1, 2)})
+        self.assertIsNone(self.group_of(self.groups(self.s.layout()), "USB"))
         self.assertIsNone(self.group_of(self.groups(self.s.layout()), "확인 불가"))
 
     def test_retired_category_lipbalm_has_no_column(self):
@@ -230,7 +231,7 @@ class PhoneRowAndShelfTest(unittest.TestCase):
         """운영 품목(contracts.ACTIVE_CATEGORIES)이 한 곳에서 정해지고, 모든 운영 품목은 받는 열이 있다"""
         from agents.contracts import ACTIVE_CATEGORIES, MVP_CATEGORIES, RETIRED_CATEGORIES
         self.assertEqual(MVP_CATEGORIES, ACTIVE_CATEGORIES)
-        self.assertEqual(RETIRED_CATEGORIES, ["립밤"])
+        self.assertEqual(RETIRED_CATEGORIES, ["USB", "립밤"])          # 11/9 016: 품목 4종 고정
         rows = {c: a for c, _l, k, a, _n, _note in LAYOUT if k == "shelf"}
         self.assertTrue(all(rows.values()), rows)                            # 품목이 빠져 빈 열(= 제한 없음)이 되면 안 됨
         used = [c for a in rows.values() for c in a]
@@ -277,7 +278,7 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
         got = {c: (lb, k, [x for x in cats.split(",") if x]) for c, lb, k, cats, _ in sections}
         # 009 → 014 → 015 가 바꾼 행(이름·품목)을 007 시작값에 차례로 적용하면 LAYOUT 과 같아야 한다(주석 속 되돌리기 문장은 빼고)
         for rel in ("009_storage_categories_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql",
-                    "015_storage_columns_no_lipbalm_1109.sql"):
+                    "015_storage_columns_no_lipbalm_1109.sql", "016_four_items_no_usb_1109.sql"):
             text = (ROOT / "center" / "migrations" / rel).read_text(encoding="utf-8")
             text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
             fixes = re.findall(r"SET label = '([^']+)', allowed_categories = '\{([^}]*)\}'\s*"
@@ -286,6 +287,11 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
             for lb, cats, code, old in fixes:
                 self.assertEqual(",".join(got[code][2]), old, f"{rel} {code}")
                 got[code] = (lb, got[code][1], cats.split(","))
+            # 016: 이름만 바꾸는 줄(품목은 그대로) — 옛 이름일 때만
+            for lb, code, old, cats in re.findall(r"SET label = '([^']+)'\s*WHERE section_code = '(\w+)' AND label = '([^']+)'"
+                                                  r" AND allowed_categories = '\{([^}]*)\}'", text):
+                self.assertEqual((got[code][0], ",".join(got[code][2])), (old, cats), f"{rel} {code}")
+                got[code] = (lb, got[code][1], got[code][2])
         self.assertEqual([(c, *got[c]) for c, _, _, _, _ in sections],
                          [(c, lb, k, al) for c, lb, k, al, _, _ in LAYOUT])
         self.assertIn("CHECK (kind IN ('shelf', 'handover', 'staff'))", body14)
@@ -293,7 +299,7 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
         # 008 → 014 → 015 가 바꾼 메모(옛 값 → 새 값)를 007 시작값에 적용하면 LAYOUT 과 같아야 한다
         renames = {}
         for rel in ("008_storage_layout_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql",
-                    "015_storage_columns_no_lipbalm_1109.sql"):
+                    "015_storage_columns_no_lipbalm_1109.sql", "016_four_items_no_usb_1109.sql"):
             text = (ROOT / "center" / "migrations" / rel).read_text(encoding="utf-8")
             text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
             for new, old in re.findall(r"SET note = '([^']+)' WHERE .*?note = '([^']+)'", text):
@@ -451,7 +457,7 @@ class PostgresStorageTest(unittest.TestCase):
         with self.assertRaises(StorageError):
             self.s.assign("A-W02", "R1-1")
         with self.assertRaises(StorageError):
-            self.s.assign("A-W02", "R4-1")                             # 지갑을 핸드크림·USB 열에
+            self.s.assign("A-W02", "R4-1")                             # 지갑을 핸드크림 열에
         self.s.assign("A-W01", "R2-2")
         self.s.set_pose("R2-2", "pose_2")
         out = self.s.export()

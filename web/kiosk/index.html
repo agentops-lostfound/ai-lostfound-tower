@@ -357,7 +357,6 @@ body.demo-mode #stn{flex:1 1 auto}
         <div class="cards">
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>휴대폰: 뒷면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="3"/><path class="p" stroke-width="4" d="M19 40h42"/><rect class="p" x="21" y="35" width="10" height="5" rx="1.5"/><path class="p" d="M44 32V10M37 17l7-7 7 7"/></svg><b>휴대폰</b>뒷면(카메라)</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>지갑: 접은 채 앞면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="38" width="52" height="12" rx="4"/><path d="M14 44h52" opacity=".45"/><path class="p" stroke-width="4" d="M18 38h44"/><path class="p" d="M40 32V10M33 17l7-7 7 7"/></svg><b>지갑</b>접은 채 앞면</div>
-          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>USB: 뚜껑 닫고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="18" y="43" width="32" height="7" rx="2"/><rect x="50" y="42" width="12" height="8" rx="2"/><path class="p" stroke-width="4" d="M21 43h26"/><path class="p" d="M34 36V10M27 17l7-7 7 7"/></svg><b>USB</b>뚜껑 닫고 글자</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>핸드크림: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="10" y="42" width="11" height="8" rx="2"/><path d="M21 44l7-5h34v11H28l-7-3"/><path d="M62 39h5v11h-5"/><path class="p" stroke-width="4" d="M31 39h28"/><path class="p" d="M45 32V10M38 17l7-7 7 7"/></svg><b>핸드크림</b>눕혀서 글자</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>보조배터리: 케이블 빼고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="37" width="52" height="13" rx="3"/><path d="M21 44h.5M26 44h.5M31 44h.5"/><path class="p" stroke-width="4" d="M18 37h44"/><path class="p" d="M40 30V8M33 15l7-7 7 7"/></svg><b>보조배터리</b>케이블 빼고 글자</div>
         </div>
@@ -427,7 +426,7 @@ $('#raway').hidden = isCenter; $('#rform').hidden = !isCenter;
 let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬영·자동 초기화가 습득 화면을 다시 켜지 않게
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
 let step = 1;
-const CATS = ['지갑','USB','모형폰','핸드크림','보조배터리'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/9 운영 품목 5종(LF-13)
+const CATS = ['지갑','모형폰','핸드크림','보조배터리'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/9 운영 품목 4종(목업폰·보조배터리·핸드크림·카드지갑)(LF-13)
 const CAT_LABEL = {'모형폰': '휴대폰'};                                 // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
 const catLabel = c => CAT_LABEL[c] || c;
 const Q = new URLSearchParams(location.search);

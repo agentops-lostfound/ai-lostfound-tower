@@ -6,9 +6,10 @@
 흐름: 등록기계 → 본센터 도착(본센터 보관) → 직원이 칸에 넣고 assign → YOLO 가 그 행만 잘라 개수 확인 → 로봇이 저장 자세로 집기
       → 인계 완료가 되면 칸이 자동으로 빈다(DB 트리거, 메모리 저장소는 읽을 때 거름). 인계 대기 동안은 칸 예약 유지(11/6 교차 검증)
 
-배치(center/migrations/007 + 014 + 015): 4행 × 2칸 = 8칸 + 인계 구역 H-1(제출보관함 20×20cm) + 직원 보관 선반 S(로봇 안 씀)
+배치(center/migrations/007 + 014 + 015 + 016): 4행 × 2칸 = 8칸 + 인계 구역 H-1(제출보관함 20×20cm) + 직원 보관 선반 S(로봇 안 씀)
 - 11/9 사용자 결정(014): R1 = 휴대폰 전용(폰을 사선으로 둬서 간격이 넓음) · R2~R4 = 휴대폰 밖 5종(행마다 품목 제한 없음)
-- 11/9 사용자 결정(015): 립밤을 운영 품목에서 빼고 열마다 품목 하나 — R1 휴대폰(45도 사선) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB(미정)
+- 11/9 사용자 결정(015): 립밤을 운영 품목에서 빼고 열마다 품목 하나
+- 11/9 사용자 결정(016): 품목 4종 고정(목업폰·보조배터리·핸드크림·카드지갑) — R1 휴대폰('/' 45도) · R2 카드지갑 · R3 보조배터리 · R4 핸드크림
 - 인계 구역 H-1(제출보관함)은 보관판 위쪽(로봇 반대쪽) 긴 변 가운데에 붙음
 - 직원 보관 선반 S: 맞는 빈 칸이 없을 때 넘치는 물건 자리. 로봇이 집지 않고 비전 내보내기에도 넣지 않는다. 칸은 필요할 때 S-1, S-2 … 로 늘린다
 - 저장 자세 이름은 로봇 티칭에서 정한다. 티칭 전에는 None → 내보내기 warnings 에 표시(김건태 load_storage 가 거절)
@@ -37,15 +38,17 @@ CHECK_STATUSES = ("count_match", "count_mismatch", "verification_unavailable", "
 POSE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 SLOT_RE = re.compile(r"^[A-Z][0-9]?-[0-9]{1,2}$")
 
-# (구역, 이름, 종류, 허용 품목, 칸 수, 칸 메모) — 007 시작값 + 008·009·014·015 를 차례로 적용한 결과와 같게(tests/test_storage.py)
+# (구역, 이름, 종류, 허용 품목, 칸 수, 칸 메모) — 007 시작값 + 008·009·014·015·016 을 차례로 적용한 결과와 같게(tests/test_storage.py)
 # 종류: shelf = 로봇이 집는 보관 칸 · handover = 제출보관함 · staff = 직원 보관 선반(로봇 안 씀, 칸 수는 필요할 때 늘림 → 시작 0)
 PHONE_ONLY = ["모형폰"]                                            # 품목 값은 '모형폰', 화면 이름은 '휴대폰'(contracts.category_label)
-NOT_PHONE = [c for c in MVP_CATEGORIES if c not in PHONE_ONLY]    # 휴대폰 밖 운영 품목(11/9: 지갑·USB·핸드크림·보조배터리)
+NOT_PHONE = [c for c in MVP_CATEGORIES if c not in PHONE_ONLY]    # 휴대폰 밖 운영 품목(11/9: 지갑·핸드크림·보조배터리)
 # 11/9 사용자 결정(015): 열(탑뷰 왼쪽부터 R1~R4) 하나 = 품목 하나. 각 열 2칸(-1 로봇 가까운 칸, -2 먼 칸)
-#   R1 휴대폰(45도 사선) · R2 지갑(실물은 카드지갑) · R3 보조배터리 · R4 핸드크림 또는 USB(아직 미정 → 지금은 둘 다 받음)
+#   R1 휴대폰(45도 사선) · R2 지갑(실물은 카드지갑) · R3 보조배터리 · R4 핸드크림(016: 품목 4종 고정 — USB 뺌)
 #   운영 품목(contracts.ACTIVE_CATEGORIES)에서 빠진 품목은 열에서도 자동으로 빠진다. 단 DB 는 마이그레이션으로만 바뀌므로
 #   품목을 빼면 새 마이그레이션도 함께 만든다(LAYOUT 과 DB 가 다르면 tests/test_storage.py 가 실패해서 알려 줌)
-ROW_CATEGORIES = {"R1": ["모형폰"], "R2": ["지갑"], "R3": ["보조배터리"], "R4": ["핸드크림", "USB"]}
+ROW_CATEGORIES = {"R1": ["모형폰"], "R2": ["지갑"], "R3": ["보조배터리"], "R4": ["핸드크림"]}
+# 칸 이름표에 쓰는 실물 이름(품목 값·화면 이름과 다를 때만). 016: 지갑 열은 실물대로 '카드지갑'
+ROW_NAME = {"지갑": "카드지갑"}
 # R1 메모: 비전(YOLO·Qwen)이 가로로 놓인 휴대폰을 잘 못 알아봐서 45도 사선으로 둔다.
 #   방향 = 탑뷰 화면에서 '/' — 휴대폰 상단(카메라)이 오른쪽 위, 케이블 꽂는 쪽(단자)이 왼쪽 아래(11/9 09:51 사용자 결정 변경, docs/design/storage_slots.md 2장)
 PHONE_NOTE = "45도 사선·상단 오른쪽 위"
@@ -60,7 +63,7 @@ def _row_label(code: str) -> str:
     cats = _row_categories(code)
     if cats == PHONE_ONLY:
         return f"{code} {category_label(PHONE_ONLY[0])} 전용"
-    return f"{code} " + "·".join(category_label(c) for c in cats)
+    return f"{code} " + "·".join(ROW_NAME.get(c, category_label(c)) for c in cats)
 
 
 LAYOUT = [
@@ -199,7 +202,7 @@ def _near_first(pairs: list) -> list:
 
 def recommend_slot(layout: dict, category: str | None) -> dict | None:
     """품목에 맞는 빈 칸 추천(11/9 규칙): 그 품목을 받는 행(또는 품목 제한 없는 행)의 빈 칸 중 로봇에 가까운 칸(1번)부터.
-    11/9: 품목이 다른 열(015: R1 휴대폰 · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB)은 섞지 않는다 → 맞는 빈 칸이 없으면 None(직원 보관 선반 추천은 shelf_or_slot).
+    11/9: 품목이 다른 열(015·016: R1 휴대폰 · R2 카드지갑 · R3 보조배터리 · R4 핸드크림)은 섞지 않는다 → 맞는 빈 칸이 없으면 None(직원 보관 선반 추천은 shelf_or_slot).
     품목을 모르면(None·확인 불가) 추천하지 않는다(직원이 사진을 보고 고름)"""
     if not category or category == "확인 불가":
         return None
@@ -221,7 +224,7 @@ def shelf_suggestion() -> dict:
 
 
 def slot_groups(layout: dict) -> list[dict]:
-    """보관 칸 묶음별 사용 현황(11/9): 받는 품목이 같은 행끼리 한 묶음 — 015 기준 휴대폰(R1)·지갑(R2)·보조배터리(R3)·핸드크림·USB(R4) 각 2칸.
+    """보관 칸 묶음별 사용 현황(11/9): 받는 품목이 같은 행끼리 한 묶음 — 016 기준 휴대폰(R1)·카드지갑(R2)·보조배터리(R3)·핸드크림(R4) 각 2칸.
     운영하지 않는 품목(립밤)은 받는 묶음이 없다 → group_of 가 None(칸 대기에 세지 않고 직원 보관 선반으로).
     [{"key", "label", "rows", "categories", "used", "total"}] (key: phone | other | 품목 이름을 이은 글)"""
     groups: dict[tuple, dict] = {}
@@ -469,7 +472,7 @@ def _layout_view(sections: list[dict], rows: dict[str, dict]) -> dict:
             elif s["kind"] == STAFF_KIND:
                 staff += r is not None
     view = {"sections": sections}
-    # 11/9 groups = 묶음별 사용(015: 열마다 x/2 — 휴대폰·지갑·보조배터리·핸드크림·USB), staff_shelf = 직원 보관 선반 물건 수
+    # 11/9 groups = 묶음별 사용(016: 열마다 x/2 — 휴대폰·카드지갑·보조배터리·핸드크림), staff_shelf = 직원 보관 선반 물건 수
     return {**view, "summary": {"shelf_slots": total, "used": used, "free": total - used,
                                 "slots_without_pose": missing_pose, "staff_shelf": staff, "groups": slot_groups(view)}}
 

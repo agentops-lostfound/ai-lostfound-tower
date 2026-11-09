@@ -22,7 +22,8 @@ CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배
 #   → 보관함 정답지(agents/storage.py)·챗봇 안내·가상 시연 문구가 이 목록을 따른다(화면 HTML 은 상수를 따로 둠: 아래 주석)
 #   립밤 제외 이유: YOLO 탑뷰 모델이 립밤을 잘 찾지 못함(vision/DETECTION_STATUS.md)
 #   화면 쪽 같은 목록: web/kiosk/index.html CATS · web/lost/index.html 품목 칩 · web/lost-input/index.html 품목 선택
-ACTIVE_CATEGORIES = ["지갑", "USB", "모형폰", "핸드크림", "보조배터리"]
+# 11/9 10:06 사용자 결정: 품목 4종 고정 — 목업폰 · 보조배터리 · 핸드크림 · 카드지갑(USB 도 뺌)
+ACTIVE_CATEGORIES = ["지갑", "모형폰", "핸드크림", "보조배터리"]
 MVP_CATEGORIES = ACTIVE_CATEGORIES                  # 예전 이름(11/5 셀프서비스 MVP). 운영 품목과 같다
 RETIRED_CATEGORIES = [c for c in CATEGORIES if c not in ACTIVE_CATEGORIES and c != "없음"]   # 계약에는 있지만 운영하지 않는 품목
 FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]
@@ -175,12 +176,12 @@ def is_active_category(cat) -> bool:
 
 
 def active_category_text(sep: str = "·") -> str:
-    """사람에게 보일 운영 품목 목록 글. 예: '지갑·USB·휴대폰·핸드크림·보조배터리'"""
+    """사람에게 보일 운영 품목 목록 글. 예: '지갑·휴대폰·핸드크림·보조배터리'"""
     return sep.join(category_label(c) for c in ACTIVE_CATEGORIES)
 
 
 def inactive_category_message(cat) -> str:
-    """운영하지 않는 품목 안내(11/9). 예: '립밤은 지금 운영하지 않는 품목이에요 — 지갑·USB·휴대폰·핸드크림·보조배터리 5가지만 다뤄요'"""
+    """운영하지 않는 품목 안내(11/9). 예: '립밤은 지금 운영하지 않는 품목이에요 — 지갑·휴대폰·핸드크림·보조배터리 4가지만 다뤄요'"""
     name = category_label(cat)
     last = name[-1:]
     josa = "은" if last and "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28 else "는"

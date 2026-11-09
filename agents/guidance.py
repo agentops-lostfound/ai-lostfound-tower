@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = '9093848d79355c7705a93b1e1776653cfe3c49e6fad607c2fb0fe92535351734'  # 11/9 변재원: 운영 품목 5종(categories, 립밤 제외). 이전 11/8: 키오스크 카메라 안내 + 품목 화면 이름 모형폰→휴대폰
+APPROVED_CORPUS_SHA256 = '32fcfd43f0f8587075e054978c681dd03c00ff2b2298b6a90ed8ed13c8234496'  # 11/9 변재원: 운영 품목 4종(categories, 립밤·USB 제외). 이전: 5종(립밤 제외). 이전 11/8: 키오스크 카메라 안내 + 품목 화면 이름 모형폰→휴대폰
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),
