@@ -1150,13 +1150,17 @@ $('#rsend').onclick = async () => {
   try {
     const r = await fetch(API + '/api/kiosk/returns', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({machine_id: kiosk, claim_id: $('#rclaim').value.trim(), id_no_masked: $('#rid').value.trim()})});
-    if (r.ok) { const d = await r.json(); const m = RET_MSG[d.decision] || RET_MSG.staff_check; rdone(m[0], m[1]); return; }
+    if (r.ok) { const d = await r.json();
+      const m = d.decision === 'returned' && d.robot_sequence?.verification_required
+        ? ['이동이 끝났어요', '직원이 물건이 제출보관함에 놓였는지 확인하고, 신분증과 물건을 대조한 뒤 건네 드려요.']
+        : RET_MSG[d.decision] || RET_MSG.staff_check;
+      rdone(m[0], m[1]); return; }
     let detail = ''; try { const d = await r.json(); detail = d.detail; } catch (e) {}
     const text = (detail && typeof detail === 'object' ? detail.message : detail) || '';
     if (r.status === 422 || r.status === 404) { rshow('rform'); $('#rerr').textContent = text || '입력을 확인해 주세요.'; $('#rerr').classList.add('on'); }
     else if (r.status === 409) rdone('지금은 꺼낼 수 없어요', text || '역무실로 가 주세요.');
     else rdone('잠시 후 다시 해 주세요', BUSY_MSG);
-  } catch (e) { rdone('잠시 후 다시 해 주세요', BUSY_MSG); }
+  } catch (e) { rdone('직원의 확인이 필요해요', '로봇 실행 결과를 받지 못했어요. 다시 요청하지 말고 직원에게 알려 주세요.'); }
   finally { sending = false; }
 };
 $('#rstop').onclick = () => { fetch(API + '/api/robot/stop', {method:'POST'}).catch(() => {}); };   // 항상 열려 있는 정지

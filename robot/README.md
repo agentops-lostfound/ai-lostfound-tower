@@ -1,5 +1,9 @@
 # robot
 
+Showcase 회수 버튼 → 두 PC 원격 티칭 11단계: [적용 명령·검증 범위·직원 확인](../docs/handoff/2026-11-10-showcase-taught-robot.md). 명시적으로 켜는 선택 모드이며 현재 로컬 모의 통합 검증 단계다.
+
+관제탑과 로봇이 다른 PC일 때: [원격 실행부 설정·검증·운영 연결 지점](../docs/handoff/2026-11-10-remote-robot.md). 기본은 실행 불허이며, 실물 서버는 로봇 PC의 로컬 허용 뒤에만 명령을 받는다.
+
 사용자 조작 시퀀스 시험 화면: [실행 명령과 사용법](README-sequence.md). 기본은 모의 모드이며 `--live`도 실행 버튼을 누르기 전에는 이동하지 않는다.
 
 관제탑 DB 칸 → Studio 저장 자세 연결부: [구현 범위·설정·남은 실물 확인](../docs/handoff/2026-11-09-tower-robot-part.md).
