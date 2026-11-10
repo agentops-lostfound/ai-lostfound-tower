@@ -535,6 +535,11 @@
   }
 
   function badgeText(res) {
+    if (res.agent === "intake" && res.intake && res.intake.kind === "cancel") {   // 11/10 대화로 찾기 요청 취소(접수 문구가 그대로 떠서 헷갈렸다)
+      var cs = { intake_question: "찾기 요청 취소 · 본인 확인", intake_confirm: "취소 전 확인", intake_done: "찾기 요청 취소됨",
+                 intake_cancelled: "취소 안 함", intake_failed: "취소 못 함", intake_unavailable: "취소 창구 없음" };
+      return cs[res.status] || "찾기 요청 취소";
+    }
     if (res.agent === "intake") {      // 11/9 대화 접수
       var st = { intake_question: "접수 중 · 하나씩 여쭤봐요", intake_confirm: "접수 전 확인", intake_done: "접수 완료",
                  intake_cancelled: "접수 취소", intake_failed: "접수 못 함", intake_unavailable: "접수 창구 없음" };
@@ -814,7 +819,9 @@
       saved.msgs = saved.msgs.concat([{ r: "user", t: q }, { r: "bot", t: answerText }]).slice(-MAX_MESSAGES);
       storeSet(saved);
       addExtras(m, res);
-      statusEl.textContent = res.agent === "intake" ? (res.status === "intake_done" ? "접수 완료 · 번호를 꼭 적어 두세요" : "접수 중 · '취소'로 언제든 멈출 수 있어요") :
+      statusEl.textContent = res.agent === "intake" && res.intake && res.intake.kind === "cancel"
+        ? (res.status === "intake_done" ? "찾기 요청 취소됨 · 물건은 계속 보관돼요" : "찾기 요청 취소 중 · '아니요'로 그만둘 수 있어요") :
+        res.agent === "intake" ? (res.status === "intake_done" ? "접수 완료 · 번호를 꼭 적어 두세요" : "접수 중 · '취소'로 언제든 멈출 수 있어요") :
         res.agent === "ops" ? "관제 기록 기준 · 직원 전용" :
         res.agent === "search" || res.agent === "both" ? "후보는 본인 물건 확정이 아니에요" : "안내 완료 · 근거를 펼쳐 볼 수 있어요";
       scroll();

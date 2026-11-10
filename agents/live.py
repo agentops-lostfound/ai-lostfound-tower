@@ -52,6 +52,7 @@ class LiveBoard:
         self._events: list[dict] = []
         self._detail: list[dict] = []        # db·trace 사건(11/10) — since(detail=True) 일 때만 나감
         self._seq = 0
+        self._epoch = 0                      # 11/10 마지막 가상 세계 초기화 때의 번호 — 처음 연 통합 시연 화면은 그 뒤 사건만 받는다
         self._local = threading.local()
         self.stories: dict[str, dict] = {}
         self._story_no = 0
@@ -186,9 +187,17 @@ class LiveBoard:
         """11/10 사진 분석 한 단계(agents/vision_watch.py). data: {item_id, stage, label, …}"""
         return self._detail_add("vision", f"{data.get('item_id', '')} {data.get('stage', '')}", "", "vision", dict(data))
 
-    def since(self, after: int = 0, story: str | None = None, limit: int = 200, detail: bool = False) -> list[dict]:
-        """after 번 이후 사건. detail=True 면 db·trace 사건도 번호 순서로 섞어 준다(통합 시연 화면 전용)"""
+    def mark_epoch(self) -> None:
+        """11/10 가상 세계 초기화 표시. 통합 시연 화면(detail=True)을 새로 열면 이 뒤 사건만 보여, 초기화 전 연습 기록이 섞이지 않는다"""
         with self._lock:
+            self._epoch = self._seq
+
+    def since(self, after: int = 0, story: str | None = None, limit: int = 200, detail: bool = False) -> list[dict]:
+        """after 번 이후 사건(오래된 것부터 최대 limit 개 — 더 있으면 마지막으로 받은 번호부터 다시 부른다).
+        detail=True 면 db·trace 사건도 번호 순서로 섞어 주고, 마지막 초기화 앞의 사건은 뺀다(통합 시연 화면 전용)"""
+        with self._lock:
+            if detail:
+                after = max(after, self._epoch)
             evs = [e for e in self._events if e["seq"] > after and (story is None or e["story"] == story)]
             if detail:
                 evs += [e for e in self._detail if e["seq"] > after]     # 저장소·에이전트 사건은 이야기와 상관없이 모두

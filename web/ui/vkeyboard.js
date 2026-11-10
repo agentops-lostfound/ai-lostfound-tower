@@ -246,14 +246,40 @@
       render(); kb.classList.add("vk-on");
       if (!opt.mount) {                                             // 키오스크: 키보드에 칸이 가리지 않게
         host.body.style.paddingBottom = kb.offsetHeight + "px";
-        setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+        const box = scrollBox(el);
+        if (box && box !== host.body && box !== host.documentElement) { box.dataset.vkPad = box.style.paddingBottom || "-"; box.style.paddingBottom = kb.offsetHeight + "px"; }
+        setTimeout(() => keepVisible(el), 50);
       } else {                                                      // 폰 화면: iframe 안 페이지 아래를 키보드만큼 띄움
         doc.body.style.paddingBottom = kb.offsetHeight + "px";
         setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
       }
     }
+    // 11/10 사람 조작 시뮬레이션: 본센터 키오스크에서 번호를 넣고 [물건 꺼내기]를 누르면 키보드가 단추를 덮고 있어
+    // 첫 번째 누름이 키보드만 닫고 두 번째에야 눌렸다 → 칸 바로 뒤의 주 단추까지 키보드 위로 보이게 올린다
+    function scrollBox(el) {
+      for (let n = el.parentElement; n; n = n.parentElement) {
+        const cs = (n.ownerDocument.defaultView || window).getComputedStyle(n);
+        if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight) return n;
+      }
+      return null;
+    }
+    function nextAction(el) {
+      const area = el.closest("form, section, [id]") || el.parentElement;
+      const all = [...area.querySelectorAll("button")].filter((b) => b.offsetParent && !kb.contains(b));
+      return all.find((b) => el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+    }
+    function keepVisible(el) {
+      const btn = nextAction(el);
+      const view = (el.ownerDocument.defaultView || window);
+      const room = view.innerHeight - kb.offsetHeight - 12;
+      const goal = btn && btn.getBoundingClientRect().bottom - el.getBoundingClientRect().top < room * 0.9 ? btn : el;
+      goal.scrollIntoView({ block: goal === el ? "center" : "end", behavior: "auto" });
+      const over = goal.getBoundingClientRect().bottom - room;        // 아직 키보드 밑이면 그만큼 더 올림
+      if (over > 0) { const box = scrollBox(el); if (box) box.scrollTop += over; else view.scrollBy(0, over); }
+    }
     function hide() {
       kb.classList.remove("vk-on");
+      host.querySelectorAll("[data-vk-pad]").forEach((b) => { b.style.paddingBottom = b.dataset.vkPad === "-" ? "" : b.dataset.vkPad; delete b.dataset.vkPad; });
       if (st.el) st.el.classList.remove("vk-target-on");
       st.el = null; st.comp = false;
       host.body.style.paddingBottom = ""; if (doc !== host) doc.body.style.paddingBottom = "";

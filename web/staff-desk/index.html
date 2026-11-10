@@ -251,6 +251,12 @@
   // 11/9 습득 역: 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터) — agents/contracts.py station_name 과 같게
   var LETTER_ST = { A: "해운대역", S: "서면역", H: "부산역 본센터" };
   function stationOf(id) { id = String(id || ""); return /^[A-Z]-/.test(id) ? LETTER_ST[id[0]] || "" : ""; }
+  function localTime(iso) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d)) return (iso || "").replace("T", " ").slice(0, 16);
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
   function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
   // 11/5 /api/ 주소 체계: 찾기 접수는 /api/lost, 정지는 /api/robot(로그인 없이), 나머지 관리자 API 는 /api/admin
   function route(method, path) {
@@ -296,6 +302,8 @@
     var kv = $("xkv"); kv.textContent = "";
     [["사례", q.case_id], ["물건 번호", q.item_id], ["습득 역", stationOf(q.item_id) || "-"], ["품목", catName(q.category) || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"],
      ["물건 위치", q.staff_shelf ? "직원 보관 선반 " + q.slot + " (직원이 가져옴)" : "제출보관함 H-1"]]
+      .concat(q.claim && q.claim.lost_station ? [["분실인이 말한 역", q.claim.lost_station + (/역$/.test(q.claim.lost_station) ? "" : "역") + (stationOf(q.item_id) && stationOf(q.item_id).indexOf(q.claim.lost_station) !== 0 ? " (습득 역과 다름)" : "")]] : [])
+      .concat(q.claim && q.claim.quiz_passed === false ? [["확인 질문", "⚠️ 맞지 않음 — 직원 대면 확인으로 진행한 요청이에요. ③을 꼭 확인하세요"]] : [])
       .forEach(function (p) { kv.appendChild(el("b", p[0])); kv.appendChild(el("span", p[1])); });
     var pub = q.public || {};
     $("xpub").textContent = Object.keys(pub).map(function (k) { return pub[k]; }).join(" · ") || "공개 특징 없음";
@@ -324,7 +332,10 @@
     var r = await api("GET", "/returns/" + encodeURIComponent(xcur.case_id) + "/secret");
     if (r.status !== 200) { $("xsecret").textContent = "답을 불러오지 못함: " + detail(r); $("xsecret").hidden = false; $("xreveal").disabled = false; return; }
     var s = r.data.secret || {};
-    $("xsecret").textContent = "정답: " + ([s.mark, s.visible_text].filter(Boolean).join(" · ") || "등록된 비공개 특징 없음 → 불일치로 고르고 직원이 판단");
+    // 11/10 사람 조작 시뮬레이션: 사진 분석이 못 찾은 값('없음'·'확인 불가')이 '정답: 없음 · 확인 불가'로 떠서 정답처럼 보였다 → 빈 값으로 본다
+    const real = [s.mark, s.visible_text].filter(v => v && !/^(없음|확인 불가|모름|-)$/.test(String(v).trim()));
+    $("xsecret").textContent = real.length ? "정답: " + real.join(" · ")
+      : "등록된 비공개 특징 없음(사진에서 글자·스티커를 못 찾음) — 분실인이 말한 특징을 실물에서 직접 확인해 고르세요";
     $("xsecret").hidden = false;
     document.querySelectorAll('.xstep[data-k="feature_match"] .seg button').forEach(function (b) { b.disabled = false; });
   });
@@ -448,7 +459,7 @@
       if (stationOf(x.item_id)) tr.lastChild.title = stationOf(x.item_id) + " 습득";        // 11/9 물건 번호에 마우스를 올리면 습득 역
       tr.appendChild(el("td", d[1], d[0]));
       tr.appendChild(el("td", x.reason));
-      tr.appendChild(el("td", (x.created_at || "").replace("T", " ").slice(0, 16)));
+      tr.appendChild(el("td", localTime(x.created_at)));          // 11/10 서버 시각(UTC, +00:00)을 그대로 잘라 9시간 늦게 보였다
       tb.appendChild(tr);
     });
   }

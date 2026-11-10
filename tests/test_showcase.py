@@ -340,3 +340,46 @@ class PageContractTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SimReviewFixTest(unittest.TestCase):
+    """11/10 사람 조작 점검에서 고친 것: ① 쌓인 기록이 200개를 넘으면 나머지를 건너뛰던 문제 ② 초기화 전 연습 기록이 새로 연 발표 화면에 섞이던 문제"""
+
+    def test_since_pages_and_epoch(self):
+        from agents.live import LiveBoard
+        b = LiveBoard()
+        for i in range(250):
+            b.db("item", "INSERT", f"A-{i}")
+        first = b.since(0, detail=True)
+        self.assertEqual(len(first), 200)
+        rest = b.since(first[-1]["seq"], detail=True)
+        self.assertEqual(len(rest), 50)                                     # 받은 데부터 이어 받으면 빠짐이 없다
+        b.mark_epoch()
+        b.db("claim", "INSERT", "C-1")
+        fresh = b.since(0, detail=True)
+        self.assertEqual([e["db"]["key"] for e in fresh], ["C-1"])          # 초기화 뒤 것만
+        self.assertEqual(len(b.since(0)), 0)                                # 이야기 사건(/live)은 전과 같음(db 사건 없음)
+
+    def test_state_more_flag_keeps_seq_at_last_returned(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        from agents.api import build_app
+        svc = sim_service()
+        try:
+            c = TestClient(build_app(svc))
+            for i in range(230):
+                svc.board.db("item", "SELECT", f"A-{i}")
+            d = c.get("/api/admin/live/state?after=0&detail=1").json()
+            self.assertTrue(d["more"])
+            self.assertEqual(d["seq"], d["events"][-1]["seq"])
+            d2 = c.get(f"/api/admin/live/state?after={d['seq']}&detail=1").json()
+            self.assertFalse(d2["more"])
+            self.assertEqual(d2["seq"], svc.board.last_seq)
+            c.post("/sim/reset", json={})
+            d3 = c.get("/api/admin/live/state?after=0&detail=1").json()
+            self.assertFalse(any(e.get("db", {}).get("key", "").startswith("A-1") and e["db"]["op"] == "SELECT"
+                                 for e in d3["events"] if e["channel"] == "db"))
+        finally:
+            observability.set_listener("live-board", None)

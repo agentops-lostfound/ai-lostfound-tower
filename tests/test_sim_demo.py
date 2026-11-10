@@ -301,7 +301,7 @@ class DirectorTest(unittest.TestCase):
         self.assertIn("운영하지 않는 품목", str(cm.exception))
         with self.assertRaises(RequestError) as cm:
             self.d.found("서면역 화장실 앞 립밤 주웠어요")        # 가상 세계에 립밤을 새로 만들지 않음
-        self.assertIn("지갑·휴대폰·핸드크림·보조배터리", str(cm.exception))
+        self.assertIn("휴대폰·보조배터리·핸드크림·카드지갑", str(cm.exception))
         self.assertEqual(self.svc.board.stories, {})            # 실패한 신고는 이야기를 만들지 않음
 
     def test_found_item_lands_in_same_slot_on_answer_sheet(self):
@@ -464,6 +464,6 @@ class LostWebApiTest(unittest.TestCase):
     def test_lost_page_contract(self):
         html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
         for needle in ("visit: 'kiosk'", "maskName(", "******-${$('#gender').value}******", "/sim/stories/",
-                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261110c" defer></script>', "부산역 본센터"):
+                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261110d" defer></script>', "부산역 본센터"):
             self.assertIn(needle, html)
         self.assertNotIn("저장되거나 역무실로 전송되지 않습니다", html)        # 예전 데모 양식 문구 제거

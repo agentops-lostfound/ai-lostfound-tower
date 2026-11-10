@@ -762,8 +762,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         11/10 detail=1: 저장소(db)·에이전트(trace) 사건도 함께(통합 시연 화면 /showcase 전용) + db_source(memory|postgres)"""
         board = getattr(svc, "board", None)
         world = getattr(svc, "world", None)
-        out = {"seq": board.last_seq if board else 0,
-               "events": (board.since(after, story, detail=bool(detail)) if detail else board.since(after, story)) if board else [],
+        last = board.last_seq if board else 0
+        evs = (board.since(after, story, detail=bool(detail)) if detail else board.since(after, story)) if board else []
+        more = len(evs) >= 200                      # 11/10 한 번에 200개까지 — 더 있으면 받은 데까지만 seq 로 알려 다음에 이어 받게(전에는 나머지를 건너뜀)
+        out = {"seq": evs[-1]["seq"] if more else last, "more": more,
+               "events": evs,
                "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"], "storage": _storage_brief()}
         sim = getattr(svc, "sim", None)
