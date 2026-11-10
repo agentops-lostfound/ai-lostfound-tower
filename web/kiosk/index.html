@@ -133,6 +133,11 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .phases li.now{background:var(--ui-primary);color:var(--ui-on-primary)}
 .hint{font-size:19px;color:var(--ui-text-2);margin:-4px 0 0}
 /* 11/10 자동 촬영이 안 될 때의 손잡이: 지금 찍기 · 빈 상자 다시 확인(작게, 눈에 덜 띄게) */
+/* 11/10 보기 전용: 같은 기계 화면을 다른 PC 에서 조작 중일 때 */
+.watch{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:var(--ui-radius);background:var(--ui-warn-soft, #fff4e0);color:var(--ui-text)}
+.watch[hidden]{display:none}
+.watch p{margin:0;flex:1 1 220px;font-size:18px;line-height:1.45}
+.watch button{flex:0 0 auto;font-size:18px;padding:12px 18px;min-height:52px}
 .camhelp{display:flex;gap:10px;flex-wrap:wrap}
 .camhelp button{flex:1 1 0;min-width:0;font-size:18px;padding:12px 10px;min-height:52px}
 .camhelp button:disabled{opacity:.45}
@@ -352,6 +357,10 @@ body.demo-mode #stn{flex:1 1 auto}
         </ol>
         <p class="status wait" id="camStatus" role="status" aria-live="polite">카메라를 찾는 중…</p>
         <p class="hint" id="camHint">물건이 움직이면 <b>처음부터 다시 5초</b> 세요</p>
+        <div class="watch" id="watchOnly" role="status" hidden>
+          <p><b>다른 화면에서 사용 중이에요</b><br>이 화면은 <b>보기 전용</b> — 찍기·접수는 조작 중인 화면에서만 돼요</p>
+          <button type="button" id="takeControl">여기서 조작하기</button>
+        </div>
         <div class="camhelp" id="camHelp">
           <button class="ghost" type="button" id="shotNow">지금 찍기</button>
           <button class="ghost" type="button" id="emptyAgain">빈 상자 다시 확인</button>
@@ -493,6 +502,7 @@ const AUTO = {w: 64, h: 48, every: 250, changed: 14, moving: 6, stillMs: 5000, e
 let probe = null, empty = null, trueEmpty = null, lastSmall = null, stillSince = 0, emptySince = 0, autoTimer = null;
 // 11/10 빈 상자 기억(이 브라우저·이 기계·이 카메라 방식): 물건을 둔 채 화면을 새로 열어도 찍히게. 가상 카메라(시연 모드)는 쓰지 않는다
 const EMPTY_KEY = 'kioskEmptyRef:' + (kiosk || '') + ':' + (new URLSearchParams(location.search).get('cam') || 'browser');
+let inControl = true;             // 11/10 이 화면이 조작 화면인가(같은 기계 화면을 여러 PC 에서 열었을 때 — 아래 controlBeat)
 let savedEmpty = null, adoptAsIs = false, shotSince = false;      // 기억한 빈 상자 · 접수 직후(지금 모습을 그대로 기준으로) · 기준을 잡은 뒤 찍은 적 있음
 function loadEmpty() { if (DEMO) return null; try { return unpackFrame(localStorage.getItem(EMPTY_KEY), AUTO.w, AUTO.h); } catch (e) { return null; } }
 function saveEmpty(f) { if (DEMO) return; savedEmpty = f; try { localStorage.setItem(EMPTY_KEY, packFrame(f)); } catch (e) {} }
@@ -631,6 +641,7 @@ function ring(left) {           // left = 찍기까지 남은 ms. 원은 0 → �
 }
 function tick() {
   if (step !== 1 || !stream || shooting) return;
+  if (!inControl) { stillSince = 0; setPhase('wait'); camSay('다른 화면에서 사용 중 · 보기 전용', 'wait'); return; }   // 11/10 조작 화면이 아니면 영상만
   const now = Date.now(), cur = small(); if (!cur) return;
   const moving = lastSmall ? diff(cur, lastSmall) : 99; lastSmall = cur;
   // 11/10 최근 avgN 장 평균 화면으로 물건을 판단(은박 바닥 반짝임 대응) + 잡음 수준에 맞춘 픽셀 기준
@@ -904,12 +915,41 @@ function gotPhoto(blob) {     // 찍힌 사진(실제 카메라·시연 모드 �
 }
 $('#retake').onclick = () => { go(1); startCam(); };
 // 11/10 자동 촬영이 안 될 때: [지금 찍기] = 감지와 상관없이 지금 화면을 찍는다 · [빈 상자 다시 확인] = 기억을 지우고 지금 상자를 빈 상자로 다시 잡는다
-$('#shotNow').onclick = () => { if (step === 1 && stream && !shooting && $('#cam').videoWidth) capture(); };
+$('#shotNow').onclick = () => { if (inControl && step === 1 && stream && !shooting && $('#cam').videoWidth) capture(); };
 $('#emptyAgain').onclick = () => {
   dropEmpty(); empty = null; trueEmpty = null; adoptAsIs = true; shotSince = false; stillSince = 0; waitSince = 0;
   camSay('상자를 비워 주세요 · 빈 상자를 다시 확인해요', 'wait');
 };
 savedEmpty = loadEmpty();
+// ---- 11/10 조작 화면은 하나: 같은 기계의 습득 화면을 여러 PC 에서 열어도 한 화면만 찍고 접수한다(agents/kiosk_control.py) ----
+// 2초마다 관제탑에 "내가 조작 화면인가"를 묻는다. 조작 화면이 없으면 먼저 물은 화면이 되고, 있으면 보기 전용 — [여기서 조작하기]로 넘겨받는다.
+// 안 보이는 화면(다른 탭·통합 시연 화면의 다른 장면)은 묻지 않아 8초 뒤 자리를 내준다. 가상 카메라(시연 모드)는 포토박스를 쓰지 않으므로 빼고,
+// 관제탑에 못 물으면 지금 상태를 그대로 둔다(연결이 잠깐 끊겨도 조작이 멈추지 않게)
+const CLIENT_ID = (() => {
+  const make = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  try { let c = sessionStorage.getItem('kioskClient'); if (!c) { c = make(); sessionStorage.setItem('kioskClient', c); } return c; } catch (e) { return make(); }
+})();
+function setControl(v) {
+  if (v === inControl) return;
+  inControl = v;
+  $('#watchOnly').hidden = v; $('#shotNow').disabled = !v; $('#emptyAgain').disabled = !v;
+  if (!v && curTab === 'found' && (step === 2 || step === 3) && !sending) reset();    // 접수 도중에 넘어갔으면 처음 화면으로(찍은 사진은 버림)
+  if (v) { empty = null; stillSince = 0; waitSince = 0; }                              // 넘겨받으면 상자 기준을 다시 잡는다
+}
+async function controlBeat(take) {
+  if (DEMO || !kiosk) return;
+  const showing = document.visibilityState === 'visible' && window.innerWidth > 0 && curTab === 'found';
+  if (!showing && !take) return;
+  try {
+    const r = await fetch(API + '/api/kiosk/control/' + encodeURIComponent(kiosk),
+      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({client: CLIENT_ID, take: !!take})});
+    if (r.ok) setControl(!!(await r.json()).control);
+  } catch (e) {}
+}
+$('#takeControl').onclick = () => controlBeat(true);
+setInterval(() => controlBeat(false), 2000);
+document.addEventListener('visibilitychange', () => controlBeat(false));
+controlBeat(false);
 $('#back2').onclick = () => { go(1); startCam(); };          // 11/9 이전: 장소 화면 → 다시 찍기
 $('#back3').onclick = () => { $('#err').classList.remove('on'); go(2); };   // 11/9 이전: 연락처 화면 → 장소 고르기(입력한 장소는 그대로)
 $('#copyNo').onclick = async () => {                      // 11/9 접수 번호 복사(복사가 막힌 기기면 번호를 선택해 둠)
@@ -969,10 +1009,11 @@ async function reason(r) {
 }
 function blobToDataUrl(b){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(b)})}
 async function submit(withContact) {
+  if (!inControl) { reset(); return; }          // 그 사이 조작 화면이 넘어갔으면 접수하지 않는다
   if (sending) return; sending = true;
   const buttons = [$('#skip'), $('#send')]; buttons.forEach(b => b.disabled = true);
   $('#err').classList.remove('on');
-  const body = {machine_id: kiosk, place_text: place, photo: await blobToDataUrl(photo)};
+  const body = {machine_id: kiosk, place_text: place, photo: await blobToDataUrl(photo), client: CLIENT_ID};   // client: 조작 화면 확인용(저장 안 함)
   if (withContact) {
     const n = $('#cname').value.trim(), p = $('#cphone').value.trim();
     if (n || p) body.finder = {name: n || null, phone: p || null};
