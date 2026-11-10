@@ -176,6 +176,7 @@
     <label class="check"><input type="checkbox" id="g1"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="신분증"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14 10h4.5M14 13.5h3"/></svg><span><b>신분증</b> — 이름·사진이 방문자와 맞음</span></label>
     <label class="check"><input type="checkbox" id="g2"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="안쪽 특징"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5.5 5.5"/><path d="M8 10.5h5M10.5 8v5"/></svg><span><b>안쪽 특징</b> — 방문자 설명과 맞음</span></label>
     <label class="check"><input type="checkbox" id="g3"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="직원 최종 확인"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-3.6 3.7-5.5 7-5.5s6 1.9 7 5.5"/><path d="m15.5 4.5 1.5 1.5 3-3"/></svg><span><b>직원 최종 확인</b> — 돌려줘도 됨</span></label>
+    <label class="check" id="g4row" hidden><input type="checkbox" id="g4"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="직원 대면 확인"><path d="M4 12h4l3-7 4 14 3-7h2"/></svg><span><b>확인 질문 대신 직원 대면 확인</b> — 웹 확인 질문은 맞지 않았지만, 방문자에게 물건 특징을 직접 묻고 맞음(위 세 칸을 모두 확인했을 때만)</span></label>
     <p class="muted">맞지 않으면 체크하지 않고 반환 시작 → <b>반환 안 함</b> 기록, 로봇 안 움직임</p>
     <div class="row">
       <button id="start" class="primary" disabled>반환 시작</button>
@@ -372,10 +373,13 @@
       var ok = c.web_gates[k];
       var row = el("div", undefined, "gate");
       row.appendChild(el("span", ok ? "✅" : "❌", ok ? "ok" : "bad"));
-      row.appendChild(el("span", NAMES[k] + (ok ? " 통과" : " 통과 못 함 → 반환되지 않습니다")));
+      row.appendChild(el("span", NAMES[k] + (ok ? " 통과" : k === "quiz_passed" && c.web_gates.consent && c.web_gates.id_verified
+        ? " 통과 못 함 → 아래 '직원 대면 확인'으로만 진행할 수 있습니다" : " 통과 못 함 → 반환되지 않습니다")));
       g.appendChild(row);
     });
-    ["g1", "g2", "g3"].forEach(function (id) { $(id).checked = false; });
+    ["g1", "g2", "g3", "g4"].forEach(function (id) { $(id).checked = false; });
+    // 11/10 웹 확인 질문만 맞지 않은 요청: 직원 대면 확인으로 대신할 수 있는 칸(동의·본인인증은 대신 못 함)
+    $("g4row").hidden = !(c.web_gates.consent && c.web_gates.id_verified && !c.web_gates.quiz_passed);
     $("result").hidden = true;
     $("claimBox").hidden = false;
     refreshStart();
@@ -398,6 +402,13 @@
     var n = tries[current.claim_id] || 0;
     var body = { claim_id: current.claim_id, visitor_id_match: $("g1").checked,
                  inner_feature_ok: $("g2").checked, staff_confirmed: $("g3").checked };
+    if (!$("g4row").hidden && $("g4").checked) {
+      if (!($("g1").checked && $("g2").checked && $("g3").checked)) {
+        $("startMsg").textContent = "직원 대면 확인은 신분증·안쪽 특징·최종 확인을 모두 체크했을 때만 쓸 수 있습니다";
+        $("start").disabled = false; return;
+      }
+      body.staff_quiz_override = true;
+    }
     if (n > 0) body.case_id = ("R-" + current.claim_id + "-" + (n + 1)).slice(0, 32);
     var r = await api("POST", "/returns", body);
     var box = $("result"); box.textContent = ""; box.hidden = false;

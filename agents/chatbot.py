@@ -273,7 +273,7 @@ class Chatbot:
         elif name == 'intake':
             kind = state.get('intake_start') or ('진행 중' if state.get('intake_active') else '')
             task = {'lost': '대화로 분실 접수 시작 — 빈칸 하나씩 묻기', 'found': '대화로 습득 신고 시작 — 빈칸 하나씩 묻기',
-                    'status': '대기 번호 상태 조회'}.get(kind, '진행 중인 접수 이어 가기 — 이번 말로 빈칸 채우고 다음 칸 묻기·확인 받기')
+                    'status': '대기 번호 상태 조회', 'cancel': '대화로 찾기 요청 취소 — 찾기 번호·본인 확인 뒤 확인 받기'}.get(kind, '진행 중인 접수 이어 가기 — 이번 말로 빈칸 채우고 다음 칸 묻기·확인 받기')
         else:
             task = '관제 기록 분석 보고(읽기 전용, 숫자는 기록에서만)'
         return {'no': no, 'agent': STEP_AGENT.get(name, name), 'plan_name': name, 'task': task, 'status': 'todo', 'by': by,

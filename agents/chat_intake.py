@@ -46,8 +46,12 @@ MARK_RE = re.compile(r"([가-힣A-Za-z0-9]{1,8}\s*(?:스티커|키링|무늬|로
 
 LOST_ORDER = ("category", "color", "station", "when", "detail", "identity")
 FOUND_ORDER = ("category", "color", "station", "place")
+CANCEL_ORDER = ("claim_id", "identity")      # 11/10 대화로 찾기 요청 취소: 찾기 번호 → 본인 확인(가린 값) → 확인 → 창구
+CLAIM_RE = re.compile(r"\bC-\d{8}-\d{4}\b", re.I)
+CANCEL_TARGET = re.compile(r"찾기\s*(?:요청|신청|번호)|방문\s*예약|수령\s*예약|예약|분실\s*(?:접수|신고)|C-\d{8}-\d{4}", re.I)
+CANCEL_NO = re.compile(r"^(?:아니(?:요|오)?|아뇨|안\s*할래요?|그만(?:둘게요|둘래요|할게요)?|취소\s*안\s*해요?)\s*[.!]*$")
 SLOT_KO = {"category": "물건", "color": "색", "station": "역", "when": "잃어버린 때", "detail": "특징(글자·스티커)",
-           "identity": "본인 확인", "place": "주운 곳"}
+           "identity": "본인 확인", "place": "주운 곳", "claim_id": "찾기 번호"}
 QUESTIONS = {
     "category": f"어떤 물건인가요? ({active_category_text()} 중 하나)",
     "color": "물건 색이 무엇인가요? 가장 넓게 보이는 색 하나만 알려 주세요.",
@@ -58,6 +62,9 @@ QUESTIONS = {
     "identity": "마지막으로 본인 확인 정보가 필요해요. 아래 칸에 이름과 주민등록번호 뒷자리 첫 숫자를 넣어 주세요. "
                 "화면에서 가려서(예: 홍*동, ******-1******) 보내고, 원래 값은 저장하지 않아요.",
     "place": "역 안 어디쯤에서 주우셨나요? 예: 5번 출구 앞 / 승강장 (모르면 '모름')",
+    "claim_id": "취소할 찾기 번호를 알려 주세요. 접수할 때 받은 번호예요(예: C-20261110-0001).",
+    "identity_cancel": "본인 확인이 필요해요. 아래 칸에 찾기 요청을 할 때 넣은 것과 같은 이름과 주민등록번호 뒷자리 첫 숫자를 넣어 주세요. "
+                       "화면에서 가려서 보내고, 원래 값은 저장하지 않아요.",
 }
 CHOICES = {
     "category": ["휴대폰", "보조배터리", "핸드크림", "카드지갑"],     # 11/10: 보관함 열 순서, 지갑은 카드지갑으로 보여 줌
@@ -115,7 +122,12 @@ def detect_start(question: str) -> str | None:
     if WAIT_RE.search(q):
         return "status"                       # 11/9 분실 신고 대기 번호 조회
     if re.search(r"취소|철회", q):
-        return None                           # 11/10 "찾기 요청 취소하고 싶어요"가 분실 접수 시작으로 읽혔다 → 취소는 안내 길(예약 취소 절차)로
+        # 11/10 "찾기 요청 취소하고 싶어요"가 분실 접수 시작으로 읽혔다 → 취소는 분실 접수로 가지 않는다.
+        # 찾기 번호가 있거나 '취소해 주세요·하고 싶어요'처럼 하려는 말이면 대화로 취소(본인 확인 뒤), 방법만 물으면 안내 길
+        if CLAIM_RE.search(q) or (CANCEL_TARGET.search(q) and WANT.search(q) and not (HOW_ASK.search(q) and not WANT.search(q))):
+            if not re.search(r"방법|어떻게|절차", q):
+                return "cancel"
+        return None
     # "주운 물건은 어디에 맡기나요?"처럼 방법을 묻는 말은 안내로(supervisor 가 '습득 신고하기' 버튼을 제안) — 하고 싶다는 말이 있을 때만 바로 시작
     if HOW_ASK.search(q) and not WANT.search(q):
         return None
@@ -226,7 +238,7 @@ class IntakeAgent:
                                                   f"4가지만 접수해요. {where}.", None, done=True)
             s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True,
                  "version": 0}
-            for said in [p for p in (prior or []) if isinstance(p, str)][-3:]:
+            for said in [p for p in (prior or []) if isinstance(p, str) and kind in ("lost", "found")][-3:]:
                 if (kind == "lost" and FOUND_SAY.search(said)) or (kind == "found" and LOST_SAY.search(said)):
                     continue                     # 반대 이야기(주운 이야기 → 분실 접수)는 가져오지 않음
                 for k, v in extract(said, kind).items():
@@ -234,8 +246,10 @@ class IntakeAgent:
                         s["slots"][k] = v
                         s["log"].append({"slot": k, "by": "earlier_message"})
         q = (question or "").strip()
-        if CANCEL.match(q):
+        if CANCEL.match(q) or (s["kind"] == "cancel" and CANCEL_NO.match(q)):
             self.sessions.drop(sid)
+            if s["kind"] == "cancel":
+                return self._out("intake_cancelled", "찾기 요청 취소를 그만뒀어요. 찾기 요청과 방문 예약은 그대로예요.", s, done=True)
             return self._out("intake_cancelled", "접수를 취소했어요. 다른 궁금한 점이 있으면 물어보세요.", s, done=True)
         if not sid:
             return self._out("intake_failed", "대화 번호가 없어 접수를 이어 갈 수 없어요. 챗봇 창에서 다시 시작해 주세요.", s, done=True)
@@ -280,6 +294,12 @@ class IntakeAgent:
         if action and action.get("type") == "identity":
             s["slots"]["identity"] = {"name_masked": action["name_masked"], "id_no_masked": action["id_no_masked"]}
             s["log"].append({"slot": "identity", "by": "form"})
+            return
+        if s["kind"] == "cancel":                    # 11/10 대화로 취소: 찾기 번호만 글에서 읽는다(모델 안 씀)
+            m = CLAIM_RE.search(q)
+            if m and s["slots"].get("claim_id") != m.group(0).upper():
+                s["slots"]["claim_id"] = m.group(0).upper()
+                s["log"].append({"slot": "claim_id", "by": "rule"})
             return
         rule = extract(q, s["kind"], s.get("asked"))
         # 사용자가 직접 말한 값(규칙으로 읽은 것)은 이미 채운 칸도 고친다("해운대였던 것 같아요" → 역 바로잡기)
@@ -327,7 +347,7 @@ class IntakeAgent:
 
     @staticmethod
     def _order(s: dict) -> tuple:
-        return LOST_ORDER if s["kind"] == "lost" else FOUND_ORDER
+        return {"lost": LOST_ORDER, "cancel": CANCEL_ORDER}.get(s["kind"], FOUND_ORDER)
 
     # ---------- 다음 질문·확인 ----------
     def _ask_next(self, sid: str, s: dict, note: str = "", progress: bool = True) -> dict:
@@ -339,8 +359,9 @@ class IntakeAgent:
         k = missing[0]
         s["asked"] = k
         self.sessions.put(sid, s)
-        key = f"station_{s['kind']}" if k == "station" else k
-        head = ("분실 접수를 도와드릴게요. " if s["kind"] == "lost" else "습득 신고를 도와드릴게요. ") if s.pop("fresh", False) else ""
+        key = f"station_{s['kind']}" if k == "station" else ("identity_cancel" if k == "identity" and s["kind"] == "cancel" else k)
+        head = ({"lost": "분실 접수를 도와드릴게요. ", "cancel": "찾기 요청 취소를 도와드릴게요. "}.get(s["kind"], "습득 신고를 도와드릴게요. ")
+                if s.pop("fresh", False) else "")
         filled = self._filled_text(s)
         answer = (note + " " if note else "") + head + (f"지금까지: {filled}. " if filled else "") + QUESTIONS[key]
         out = self._out("intake_question", answer.strip(), s, progress=progress, choices=CHOICES.get(key, []) + ["취소"])
@@ -352,6 +373,10 @@ class IntakeAgent:
     def _confirm(self, sid: str, s: dict, note: str = "", progress: bool = True) -> dict:
         s["confirm_version"] = s.get("version", 0)
         self.sessions.put(sid, s)
+        if s["kind"] == "cancel":
+            answer = ((note + " " if note else "") + f"찾기 번호 {s['slots']['claim_id']} 를 취소할까요? 취소하면 방문 예약이 없어지고, "
+                      "물건은 본센터에 계속 보관돼요(다시 찾기 요청할 수 있어요). 이미 방문해 반환이 시작된 요청은 취소할 수 없어요.")
+            return self._out("intake_confirm", answer.strip(), s, progress=progress, choices=["네", "아니요"])
         what = "분실 접수" if s["kind"] == "lost" else "습득 신고"
         tail = (" 접수하면 찾기 번호가 나오고, 부산역 본센터 키오스크에서 찾기 번호와 신분증으로 받을 수 있어요."
                 if s["kind"] == "lost" else " 접수하면 접수 번호가 나와요. 물건은 그 역 키오스크(습득물 등록기계) 상자에 넣어 주세요.")
@@ -395,6 +420,8 @@ class IntakeAgent:
 
     # ---------- 진짜 접수 ----------
     def _commit(self, sid: str, s: dict) -> dict:
+        if s["kind"] == "cancel":
+            return self._commit_cancel(sid, s)
         if self.desk is None:
             self.sessions.drop(sid)
             where = ("분실인 웹의 '잃어버린 물건 찾기' 또는 역 키오스크 '물건 잃어버렸어요'" if s["kind"] == "lost"
@@ -422,6 +449,26 @@ class IntakeAgent:
             self.sessions.drop(sid)
             msg = str(e) if type(e).__name__ in ("RequestError", "NotFound") else f"접수 창구 오류({type(e).__name__})"
             return self._out("intake_failed", f"접수하지 못했어요: {msg}", s, done=True)
+
+    def _commit_cancel(self, sid: str, s: dict) -> dict:
+        """11/10 대화로 찾기 요청 취소 — 진짜 입구(SimDirector.cancel_claim → service.cancel_claim)를 그대로 쓴다.
+        본인 확인(가린 신분 번호가 찾기 요청과 같아야 함)·방문 전만·틀린 횟수 잠금은 그 입구가 검사한다"""
+        cancel = getattr(self.desk, "cancel_claim", None) if self.desk is not None else None
+        if not callable(cancel):
+            self.sessions.drop(sid)
+            return self._out("intake_unavailable", "지금 관제탑은 챗봇 취소 창구가 연결되지 않은 모드예요. 분실인 웹의 진행 상황 화면에서 "
+                             "[찾기 요청 취소]를 누르거나, 본센터 직원에게 찾기 번호를 말씀해 주세요.", s, done=True)
+        sl = s["slots"]
+        try:
+            out = cancel(sl["claim_id"], id_no_masked=sl["identity"]["id_no_masked"])
+        except Exception as e:
+            self.sessions.drop(sid)
+            name = type(e).__name__
+            msg = str(e) if name in ("RequestError", "NotFound", "Conflict") else f"취소 창구 오류({name})"
+            return self._out("intake_failed", f"취소하지 못했어요: {msg}", s, done=True)
+        return self._finish(sid, s, self._out("intake_done", f"찾기 요청 {sl['claim_id']} 를 취소했어요. 방문 예약이 없어졌고, 물건은 본센터에 계속 보관돼요. "
+                             "다시 찾으려면 분실 접수를 새로 해 주세요.", s, done=True,
+                             ids={"claim_id": sl["claim_id"], "item_id": out.get("item_id")}))
 
     @staticmethod
     def _lost_text(sl: dict) -> str:
@@ -456,7 +503,7 @@ class IntakeAgent:
         return self._finish(sid, s, self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 "
                          f"찾기 번호와 같은 신분 정보를 넣으면 로봇팔이 물건을 꺼내 드려요."
                          + ("" if passed else " 확인 질문이 맞지 않아 키오스크 대신 본센터 직원이 직접 확인한 뒤 꺼내 드려요.")
-                         + " 취소는 방문 전까지 본센터 직원에게 찾기 번호를 말씀해 주시면 돼요.",
+                         + f" 방문 전에 취소하려면 이 창에 '{cid} 취소'라고 말해 주세요.",
                          s, done=True, ids={"claim_id": cid, "story_id": res.get("story_id"), "item_id": res.get("item_id")}))
 
     def _quiz_answer(self, sid: str, s: dict, q: str) -> dict:
