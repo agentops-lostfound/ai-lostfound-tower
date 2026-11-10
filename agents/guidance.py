@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/guidance/knowledge.json"
 ALLOWED = {"docs/design/usecases.md", "docs/design/database.md", "docs/guidance/site-help.md", "web/README.md",
            "docs/guidance/service-guide.md"}
-APPROVED_CORPUS_SHA256 = 'dd8a55d8f40a9bac1badee657aa2b9846a4eb7ba40b1b2c3f20cab73e0f18c54'  # 11/10 변재원: 예약 취소 안내를 실제 기능(찾기 요청 취소)에 맞추고 '안 오면 자동 취소'(없는 기능) 문장을 뺌. 이전: 11/9 오후: 챗봇 대화 접수 안내(chat_intake) 추가. 이전: 11/9 변재원: 운영 품목 4종(categories, 립밤·USB 제외). 이전: 5종(립밤 제외). 이전 11/8: 키오스크 카메라 안내 + 품목 화면 이름 모형폰→휴대폰
+APPROVED_CORPUS_SHA256 = 'fb30b84b8e67a0e7f7a554cf8bfb14d935a27961a7871500a59a18076e286f77'  # 11/10 밤 변재원: 예약 취소 안내에 챗봇 대화 취소(#206) 추가. 이전 11/10: 예약 취소 안내를 실제 기능(찾기 요청 취소)에 맞추고 '안 오면 자동 취소'(없는 기능) 문장을 뺌. 이전: 11/9 오후: 챗봇 대화 접수 안내(chat_intake) 추가. 이전: 11/9 변재원: 운영 품목 4종(categories, 립밤·USB 제외). 이전: 5종(립밤 제외). 이전 11/8: 키오스크 카메라 안내 + 품목 화면 이름 모형폰→휴대폰
 SUGGESTIONS = [
     ("flow", "분실물 확인은 어디서 할 수 있나요?", ["어디", "확인", "받", "본센터", "키오스크"]),
     ("found_report", "주운 물건은 어떻게 신고하나요?", ["주운", "습득", "신고", "맡기"]),

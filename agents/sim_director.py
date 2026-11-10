@@ -829,7 +829,7 @@ class SimDirector:
                 if cid in self.cancelled_claims:
                     return
                 if wait_kiosk:                 # 11/7 웹 신고: 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호 입력을 기다림
-                    self.board.stage("visit", "active", "본센터 방문 대기 · 키오스크 회수 탭에서 찾기 번호 입력(또는 직원 확인으로 진행)"
+                    self.board.stage("visit", "active", "본센터 방문 대기 · 본센터 키오스크 「물건 찾으러 왔어요」에서 찾기 번호 입력"
                                  + (" · 직원 보관 선반 물건 — 직원이 가져다 드려요" if w.items[item_id]["loc"] == LOC_SHELF else ""))
                     self.rep.progress(cid, "본센터 방문 대기", "분실인이 부산역 본센터 키오스크에서 찾기 번호·신분 번호를 입력하면 반환 시작")
                     self.visit_wait[cid] = sid
@@ -900,7 +900,7 @@ class SimDirector:
             except Conflict as e:
                 if e.kind == "locked":
                     self.visit_wait.pop(cid, None)
-                    self.board.finish(sid, "신분 번호를 여러 번 틀려 역무실로 안내", False)
+                    self.board.finish(sid, "신분 번호를 여러 번 틀려 본센터 직원 확인으로 안내", False)
                 raise
             self.visit_wait.pop(cid, None)
             self.board.stage("visit", "done", "본센터 키오스크 본인 확인 완료")
@@ -936,7 +936,7 @@ class SimDirector:
     def staff_visit(self, claim_id: str) -> dict:
         """11/10 [직원 확인 후 진행]: 본센터 방문 대기에서 멈춘 찾기 요청을 직원이 대면 확인(신분증·물건 특징)하고 반환을 시작한다.
 
-        쓰는 때: ① 확인 질문이 맞지 않아 키오스크가 "역무실로 가 주세요"라고 한 요청 ② 분실인이 키오스크를 쓰지 못할 때.
+        쓰는 때: ① 확인 질문이 맞지 않아 키오스크가 "본센터 직원에게 보여 주세요"라고 한 요청 ② 분실인이 키오스크를 쓰지 못할 때.
         진짜 직원 화면과 같은 입구(service.start_return, 직원 확인 = True)라 메인 AI 승인·탑뷰·매칭 단계는 그대로 거친다.
         반환이 끝나면 물건은 제출보관함 — 건네기 전 직원 교차 검증(/staff)이 남는다(자동 인계 안 함)"""
         sid = self.visit_wait.get(claim_id) if isinstance(claim_id, str) else None
@@ -1005,6 +1005,8 @@ class SimDirector:
         if getattr(self.svc, "taught_robot", False) and not startup:
             raise Conflict("real_robot", "실물 연결 모드에서는 가상 초기화를 사용할 수 없습니다")
         w = self.world
+        if callable(getattr(self.board, "mark_epoch", None)):   # 11/10 새로 연 통합 시연 화면에 초기화 전 연습 기록이 섞이지 않게
+            self.board.mark_epoch()
         if self.talk is not None:                        # 11/9 에이전트가 배운 점도 처음으로(시연을 처음부터 다시 보여 주려고)
             self.talk.reset()
         with self._wait_lock:                            # 11/9 대기 분실 신고도 처음으로

@@ -313,9 +313,9 @@ body.demo-mode #stn{flex:1 1 auto}
     </div>
     <div id="rform">
       <h1>예약한 물건을 찾아가세요</h1>
-      <p class="sub">찾기 번호와 신분증 번호를 넣어 주세요</p>
+      <p class="sub">찾기 번호와, 신고할 때 고른 <b>신분증 번호 뒤 첫 자리</b>를 넣어 주세요</p>
       <input type="text" id="rclaim" data-vk="en" data-vk-upper maxlength="20" placeholder="찾기 번호 (예: C-20261106-0001)" autocomplete="off">
-      <input type="text" id="rid" data-vk="id" maxlength="32" placeholder="가린 신분증 번호 (예: ******-3******)" autocomplete="off">
+      <input type="text" id="rid" data-vk="id" maxlength="32" inputmode="numeric" placeholder="신분증 번호 뒤 첫 자리 (예: 3)" autocomplete="off">
       <p class="err" id="rerr" role="alert"></p>
       <button id="rsend" disabled>물건 꺼내기</button>
     </div>
@@ -380,9 +380,9 @@ body.demo-mode #stn{flex:1 1 auto}
         <h3><svg class="pic" viewBox="0 0 24 24" aria-hidden="true"><path class="p" d="M12 20V4M5 11l7-7 7 7"/></svg>눕혀서, 이 면이 위로</h3>
         <div class="cards">
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>휴대폰: 뒷면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="3"/><path class="p" stroke-width="4" d="M19 40h42"/><rect class="p" x="21" y="35" width="10" height="5" rx="1.5"/><path class="p" d="M44 32V10M37 17l7-7 7 7"/></svg><b>휴대폰</b>뒷면(카메라)</div>
-          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>지갑: 접은 채 앞면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="38" width="52" height="12" rx="4"/><path d="M14 44h52" opacity=".45"/><path class="p" stroke-width="4" d="M18 38h44"/><path class="p" d="M40 32V10M33 17l7-7 7 7"/></svg><b>지갑</b>접은 채 앞면</div>
-          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>핸드크림: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="10" y="42" width="11" height="8" rx="2"/><path d="M21 44l7-5h34v11H28l-7-3"/><path d="M62 39h5v11h-5"/><path class="p" stroke-width="4" d="M31 39h28"/><path class="p" d="M45 32V10M38 17l7-7 7 7"/></svg><b>핸드크림</b>눕혀서 글자</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>보조배터리: 케이블 빼고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="37" width="52" height="13" rx="3"/><path d="M21 44h.5M26 44h.5M31 44h.5"/><path class="p" stroke-width="4" d="M18 37h44"/><path class="p" d="M40 30V8M33 15l7-7 7 7"/></svg><b>보조배터리</b>케이블 빼고 글자</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>핸드크림: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="10" y="42" width="11" height="8" rx="2"/><path d="M21 44l7-5h34v11H28l-7-3"/><path d="M62 39h5v11h-5"/><path class="p" stroke-width="4" d="M31 39h28"/><path class="p" d="M45 32V10M38 17l7-7 7 7"/></svg><b>핸드크림</b>눕혀서 글자</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>카드지갑: 접은 채 앞면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="38" width="52" height="12" rx="4"/><path d="M14 44h52" opacity=".45"/><path class="p" stroke-width="4" d="M18 38h44"/><path class="p" d="M40 32V10M33 17l7-7 7 7"/></svg><b>카드지갑</b>접은 채 앞면</div>
         </div>
       </div>
     </div>
@@ -455,7 +455,7 @@ $('#raway').hidden = isCenter; $('#rform').hidden = !isCenter;
 let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬영·자동 초기화가 습득 화면을 다시 켜지 않게
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
 let step = 1;
-const CATS = ['지갑','모형폰','핸드크림','보조배터리'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/9 운영 품목 4종(목업폰·보조배터리·핸드크림·카드지갑)(LF-13)
+const CATS = ['모형폰','보조배터리','핸드크림','지갑'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/9 운영 품목 4종(목업폰·보조배터리·핸드크림·카드지갑)(LF-13)
 const CAT_LABEL = {'모형폰': '휴대폰', '지갑': '카드지갑'};                                 // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
 const catLabel = c => CAT_LABEL[c] || c;
 const Q = new URLSearchParams(location.search);
@@ -1140,6 +1140,9 @@ const RET_MSG = {returned: ['물건을 꺼냈어요', '제출보관함 앞에서
                  rejected: ['꺼낼 수 없어요', '확인이 맞지 않아 물건을 꺼내지 않았어요. 역무실에서 도와 드릴게요.'],
                  staff_check: ['직원이 확인할게요', '자동으로 정할 수 없어 직원 확인이 필요해요. 잠시 기다리거나 역무실로 와 주세요.'],
                  stopped: ['로봇이 멈췄어요', '안전을 위해 멈췄어요. 직원이 확인할 때까지 기다려 주세요.']};
+// 11/10 사람 조작 시뮬레이션: 회수 때 '******-1******'을 별표까지 다 쳐야 했다 → 뒤 첫 자리 숫자 하나(1~4)만 넣으면 가린 모양으로 바꿔 보낸다
+// (가린 값 전체를 넣어도 그대로 받음 — 예전 안내·통합 시연 화면 호환)
+function ridValue() { const v = $('#rid').value.trim(); return /^[1-4]$/.test(v) ? `******-${v}******` : v; }
 function rcheck() { $('#rsend').disabled = !($('#rclaim').value.trim() && $('#rid').value.trim()); }
 $('#rclaim').oninput = $('#rid').oninput = rcheck;
 function rshow(which) { ['rform', 'rwork', 'rdone'].forEach(id => $('#' + id).hidden = id !== which); }
@@ -1149,7 +1152,7 @@ $('#rsend').onclick = async () => {
   $('#rerr').classList.remove('on'); rshow('rwork');
   try {
     const r = await fetch(API + '/api/kiosk/returns', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({machine_id: kiosk, claim_id: $('#rclaim').value.trim(), id_no_masked: $('#rid').value.trim()})});
+      body: JSON.stringify({machine_id: kiosk, claim_id: $('#rclaim').value.trim(), id_no_masked: ridValue()})});
     if (r.ok) { const d = await r.json();
       const m = d.decision === 'returned' && d.robot_sequence?.verification_required
         ? ['이동이 끝났어요', '직원이 물건이 제출보관함에 놓였는지 확인하고, 신분증과 물건을 대조한 뒤 건네 드려요.']
@@ -1158,20 +1161,22 @@ $('#rsend').onclick = async () => {
     let detail = ''; try { const d = await r.json(); detail = d.detail; } catch (e) {}
     const text = (detail && typeof detail === 'object' ? detail.message : detail) || '';
     if (r.status === 422 || r.status === 404) { rshow('rform'); $('#rerr').textContent = text || '입력을 확인해 주세요.'; $('#rerr').classList.add('on'); }
-    else if (r.status === 409) rdone('지금은 꺼낼 수 없어요', text || '역무실로 가 주세요.');
+    else if (r.status === 409) rdone('지금은 꺼낼 수 없어요', text || '본센터 직원에게 찾기 번호와 신분증을 보여 주세요.');   // 11/10 회수는 본센터 키오스크에서만 — 역무실이 아니라 바로 옆 직원
     else rdone('잠시 후 다시 해 주세요', BUSY_MSG);
   } catch (e) { rdone('직원의 확인이 필요해요', '로봇 실행 결과를 받지 못했어요. 다시 요청하지 말고 직원에게 알려 주세요.'); }
   finally { sending = false; }
 };
 $('#rstop').onclick = () => { fetch(API + '/api/robot/stop', {method:'POST'}).catch(() => {}); };   // 항상 열려 있는 정지
-$('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rcheck(); rshow('rform'); tab('found'); };
+$('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rcheck(); rshow('rform'); tab(isCenter ? 'ret' : 'found'); };   // 11/10 본센터는 회수 탭이 처음 화면
 // 11/10 주소 ?tab=ret(회수)·lost(분실접수): 처음부터 그 탭으로 연다(통합 시연 화면의 회수 장면). 습득 탭이 아니면 카메라를 켜지 않는다
 // — 본센터 키오스크가 웹캠을 잡아 해운대역 키오스크의 PC 카메라와 다투던 문제(11/10)
-const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')];
+// 11/10 사람 조작 시뮬레이션: 본센터 키오스크(/kiosk?machine=CENTER)를 열면 습득 탭 + '카메라 점검 중'(본센터엔 카메라 없음)이 먼저 떠서
+// 회수하러 온 사람이 탭을 찾아야 했다 → 본센터는 기본이 회수 탭(습득은 ?tab=found 로)
+const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')] || (isCenter && Q.get('tab') !== 'found' ? 'ret' : undefined);
 if (START_TAB) tab(START_TAB); else startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
-<script src="/chat-widget/widget.js?v=20261110c" data-mode="kiosk" defer></script>
+<script src="/chat-widget/widget.js?v=20261110d" data-mode="kiosk" defer></script>
 <script>
 // 11/10 화면 키보드(쿼티): 입력칸을 누르면 아래에 키오스크 키보드 — 터치로 누르거나, PC 키보드로 치면 같은 키가 눌려 보임(발표용)
 // 한글 두벌식·영문·숫자, 전화번호·가린 신분증 칸은 숫자 패드. 공통 부품 /ui/vkeyboard.js

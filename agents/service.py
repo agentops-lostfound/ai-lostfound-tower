@@ -375,7 +375,7 @@ class TowerService:
             raise Conflict("state", f"이미 방문 처리된 찾기 요청이라 취소할 수 없어요: {claim_id} — 본센터 직원에게 말씀해 주세요")
         if not by_staff:
             if self._kiosk_fails.get(claim_id, 0) >= KIOSK_MAX_FAILS:
-                raise Conflict("locked", "신분 확인을 여러 번 틀려 여기서는 더 할 수 없습니다. 역무실로 가 주세요")
+                raise Conflict("locked", "신분 확인을 여러 번 틀려 여기서는 더 할 수 없어요 — 본센터 직원에게 찾기 번호와 신분증을 보여 주세요")
             if not isinstance(id_no_masked, str) or not id_no_masked.strip():
                 raise RequestError("id_no_masked: 가린 신분 번호를 입력하세요")
             if id_no_masked.strip() != row.get("id_no_masked"):
@@ -439,7 +439,7 @@ class TowerService:
         if not isinstance(typed, str) or not typed.strip():
             raise RequestError("id_no_masked: 가린 신분 번호를 입력하세요")
         if self._kiosk_fails.get(cid, 0) >= KIOSK_MAX_FAILS:
-            raise Conflict("locked", "신분 확인을 여러 번 틀려 키오스크에서는 더 할 수 없습니다. 역무실로 가 주세요")
+            raise Conflict("locked", "신분 확인을 여러 번 틀려 키오스크에서는 더 할 수 없어요 — 본센터 직원에게 찾기 번호와 신분증을 보여 주세요")
         try:
             row = self.claims.get(cid)
         except Exception as e:
@@ -448,7 +448,7 @@ class TowerService:
             raise NotFound(f"없는 찾기 번호: {cid}")
         gates = web_gates(row)
         if not (gates["consent"] and gates["id_verified"] and gates["quiz_passed"]):
-            raise Conflict("state", "웹 확인(동의·신분·확인 질문)이 끝나지 않은 찾기 요청 — 역무실로 가 주세요")
+            raise Conflict("state", "확인 질문이 맞지 않았거나 본인 확인이 끝나지 않은 찾기 요청이에요 — 본센터 직원에게 찾기 번호와 신분증을 보여 주세요(직원이 물건 특징을 직접 확인해요)")
         if typed.strip() != row["id_no_masked"]:
             self._kiosk_fails[cid] = self._kiosk_fails.get(cid, 0) + 1
             raise RequestError("신분 번호가 맞지 않습니다. 다시 확인해 주세요")
@@ -790,7 +790,9 @@ class TowerService:
             if row.get("claim_id"):
                 try:
                     c = self.claims.get(row["claim_id"])
-                    claim = {"claim_id": c["claim_id"], "name_masked": c["name_masked"]} if c else None
+                    # 11/10 확인 질문 통과 여부·분실인이 말한 역도 함께 — 직원 대면 확인으로 진행한 요청이면 ③을 더 꼼꼼히 보게
+                    claim = {"claim_id": c["claim_id"], "name_masked": c["name_masked"],
+                             "quiz_passed": bool(web_gates(c)["quiz_passed"]), "lost_station": c.get("lost_station")} if c else None
                 except Exception:
                     claim = None
             where = self.slot_of(row["item_id"]) or {}

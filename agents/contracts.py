@@ -23,7 +23,7 @@ CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배
 #   립밤 제외 이유: YOLO 탑뷰 모델이 립밤을 잘 찾지 못함(vision/DETECTION_STATUS.md)
 #   화면 쪽 같은 목록: web/kiosk/index.html CATS · web/lost/index.html 품목 칩 · web/lost-input/index.html 품목 선택
 # 11/9 10:06 사용자 결정: 품목 4종 고정 — 목업폰 · 보조배터리 · 핸드크림 · 카드지갑(USB 도 뺌)
-ACTIVE_CATEGORIES = ["지갑", "모형폰", "핸드크림", "보조배터리"]
+ACTIVE_CATEGORIES = ["모형폰", "보조배터리", "핸드크림", "지갑"]   # 11/10 순서 = 보관함 열 순서(R1~R4) — 화면·챗봇이 같은 차례로 보여 줌
 MVP_CATEGORIES = ACTIVE_CATEGORIES                  # 예전 이름(11/5 셀프서비스 MVP). 운영 품목과 같다
 RETIRED_CATEGORIES = [c for c in CATEGORIES if c not in ACTIVE_CATEGORIES and c != "없음"]   # 계약에는 있지만 운영하지 않는 품목
 FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]

@@ -156,7 +156,8 @@ def check(svc, ctx: dict) -> list[str]:
             got = items.get(ids["item_id"])
             if got is None:            # 초기화로 세계에서 지워진 물건(번호는 다시 쓰지 않음)
                 continue
-            if got["loc"] not in ("handed", "basket"):
+            # 11/10 직원 보관 선반 물건은 로봇이 옮기지 않고 직원이 선반에서 바로 건넨다 → 인계 대기 동안은 선반이 정상 위치
+            if got["loc"] not in ("handed", "basket") and not (got["loc"] == "shelf" and got["status"] in (HANDOVER_WAIT, "반환 중")):
                 v.append(f"{st['story_id']} 성공인데 물건 {ids['item_id']} 위치 {got and got['loc']}")
     for cid, row in getattr(svc.claims, "_rows", {}).items():   # 찾기 요청 저장값에 개인정보가 섞이면 안 됨
         if any(find_pii(str(v)) for v in (row.get("description") or {}).values()):

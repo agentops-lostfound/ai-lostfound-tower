@@ -46,6 +46,10 @@ MARK_RE = re.compile(r"([가-힣A-Za-z0-9]{1,8}\s*(?:스티커|키링|무늬|로
 
 LOST_ORDER = ("category", "color", "station", "when", "detail", "identity")
 FOUND_ORDER = ("category", "color", "station", "place")
+# 11/10 사람 조작 시뮬레이션: 핸드크림을 고른 뒤 색 선택지가 '검정·흰색·갈색·파랑'뿐이라 분홍·초록 핸드크림을 고를 수 없었다
+# → 품목을 알면 그 품목의 실제 물건 색(구매 목록·시연 물건 기준)을 먼저 보여 준다. 다른 색은 글로 말하면 된다
+COLOR_BY_CATEGORY = {"모형폰": ["검정", "흰색", "파랑"], "보조배터리": ["흰색", "검정"], "핸드크림": ["분홍", "초록", "흰색"],
+                     "지갑": ["검정", "갈색"]}
 CANCEL_ORDER = ("claim_id", "identity")      # 11/10 대화로 찾기 요청 취소: 찾기 번호 → 본인 확인(가린 값) → 확인 → 창구
 CLAIM_RE = re.compile(r"\bC-\d{8}-\d{4}\b", re.I)
 CANCEL_TARGET = re.compile(r"찾기\s*(?:요청|신청|번호)|방문\s*예약|수령\s*예약|예약|분실\s*(?:접수|신고)|C-\d{8}-\d{4}", re.I)
@@ -69,7 +73,7 @@ QUESTIONS = {
 CHOICES = {
     "category": ["휴대폰", "보조배터리", "핸드크림", "카드지갑"],     # 11/10: 보관함 열 순서, 지갑은 카드지갑으로 보여 줌
     "station_lost": ["서면", "해운대", "부산역", "모름"], "station_found": ["서면", "해운대"],     # 11/10 잃어버린 역은 모를 수 있다(주운 역은 등록기계라 꼭 필요)
-    "color": ["검정", "흰색", "갈색", "파랑"],
+    "color": ["검정", "흰색", "갈색", "파랑"],                  # 품목을 모를 때. 품목을 알면 아래 COLOR_BY_CATEGORY
     "when": ["오늘", "어제", "모름"], "detail": ["없어요"], "place": ["모름"],
 }
 
@@ -364,7 +368,8 @@ class IntakeAgent:
                 if s.pop("fresh", False) else "")
         filled = self._filled_text(s)
         answer = (note + " " if note else "") + head + (f"지금까지: {filled}. " if filled else "") + QUESTIONS[key]
-        out = self._out("intake_question", answer.strip(), s, progress=progress, choices=CHOICES.get(key, []) + ["취소"])
+        picks = COLOR_BY_CATEGORY.get(s["slots"].get("category"), CHOICES["color"]) if key == "color" else CHOICES.get(key, [])
+        out = self._out("intake_question", answer.strip(), s, progress=progress, choices=list(picks) + ["취소"])
         if k == "identity":
             out["form"] = {"kind": "identity"}
             out["choices"] = ["취소"]
@@ -374,7 +379,7 @@ class IntakeAgent:
         s["confirm_version"] = s.get("version", 0)
         self.sessions.put(sid, s)
         if s["kind"] == "cancel":
-            answer = ((note + " " if note else "") + f"찾기 번호 {s['slots']['claim_id']} 를 취소할까요? 취소하면 방문 예약이 없어지고, "
+            answer = ((note + " " if note else "") + f"찾기 요청({s['slots']['claim_id']})을 취소할까요? 취소하면 방문 예약이 없어지고, "
                       "물건은 본센터에 계속 보관돼요(다시 찾기 요청할 수 있어요). 이미 방문해 반환이 시작된 요청은 취소할 수 없어요.")
             return self._out("intake_confirm", answer.strip(), s, progress=progress, choices=["네", "아니요"])
         what = "분실 접수" if s["kind"] == "lost" else "습득 신고"
@@ -408,7 +413,7 @@ class IntakeAgent:
         info = {"kind": "status", "stage": "done", "wait_id": wid, "state": st.get("state")}
         if st.get("state") == "matched":
             ans = (f"대기 번호 {wid} 는 닮은 습득물({st.get('item_id')})이 들어와 찾기 번호 {st['claim_id']} 로 이어졌어요. "
-                   "부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호와 같은 신분 정보를 넣어 주세요.")
+                   "부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호와 신분증 번호 뒤 첫 자리(신고할 때 고른 숫자)를 넣어 주세요.")
             info["claim_id"] = st["claim_id"]
         elif st.get("state") == "waiting":
             ans = f"대기 번호 {wid} 는 아직 닮은 습득물이 들어오지 않았어요. 들어오면 자동으로 찾기 번호가 만들어져요."
@@ -466,7 +471,7 @@ class IntakeAgent:
             name = type(e).__name__
             msg = str(e) if name in ("RequestError", "NotFound", "Conflict") else f"취소 창구 오류({name})"
             return self._out("intake_failed", f"취소하지 못했어요: {msg}", s, done=True)
-        return self._finish(sid, s, self._out("intake_done", f"찾기 요청 {sl['claim_id']} 를 취소했어요. 방문 예약이 없어졌고, 물건은 본센터에 계속 보관돼요. "
+        return self._finish(sid, s, self._out("intake_done", f"찾기 요청({sl['claim_id']})을 취소했어요. 방문 예약이 없어졌고, 물건은 본센터에 계속 보관돼요. "
                              "다시 찾으려면 분실 접수를 새로 해 주세요.", s, done=True,
                              ids={"claim_id": sl["claim_id"], "item_id": out.get("item_id")}))
 
@@ -501,10 +506,15 @@ class IntakeAgent:
         cid = res["claim_id"]
         passed = res.get("quiz_passed")
         return self._finish(sid, s, self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 "
-                         f"찾기 번호와 같은 신분 정보를 넣으면 로봇팔이 물건을 꺼내 드려요."
+                         f"찾기 번호와 신분증 번호 뒤 첫 자리({self._id_digit(s)})를 넣으면 로봇팔이 물건을 꺼내 드려요."
                          + ("" if passed else " 확인 질문이 맞지 않아 키오스크 대신 본센터 직원이 직접 확인한 뒤 꺼내 드려요.")
                          + f" 방문 전에 취소하려면 이 창에 '{cid} 취소'라고 말해 주세요.",
                          s, done=True, ids={"claim_id": cid, "story_id": res.get("story_id"), "item_id": res.get("item_id")}))
+
+    @staticmethod
+    def _id_digit(s: dict) -> str:
+        m = re.match(r"^\*{6}-([1-4])\*{6}$", ((s.get("slots") or {}).get("identity") or {}).get("id_no_masked") or "")
+        return m.group(1) if m else "신고할 때 고른 숫자"
 
     def _quiz_answer(self, sid: str, s: dict, q: str) -> dict:
         try:

@@ -164,3 +164,29 @@ class StaffPageOverrideTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StaffOverrideHandoverTest(unittest.TestCase):
+    """11/10 사람 조작 점검: 확인 질문이 틀린 요청을 직원 대면 확인으로 진행하면 교차 검증 칸에 그 사실과 분실인이 말한 역이 보인다.
+    본센터 키오스크 거절 문구는 '역무실'이 아니라 바로 옆 본센터 직원으로 안내한다"""
+
+    def test_handover_queue_shows_quiz_and_station(self):
+        svc, d = make()
+        r = d.lost("부산역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
+        self.assertFalse(r["quiz_passed"], r)
+        with self.assertRaises(Exception) as e:
+            d.kiosk_return({"claim_id": r["claim_id"], "id_no_masked": "******-1******", "machine_id": "CENTER"})
+        self.assertIn("본센터 직원", str(e.exception))
+        self.assertNotIn("역무실", str(e.exception))
+        d.staff_visit(r["claim_id"])
+        q = [x for x in svc.handover_queue() if x["claim"] and x["claim"]["claim_id"] == r["claim_id"]]
+        self.assertEqual(len(q), 1)
+        self.assertIs(q[0]["claim"]["quiz_passed"], False)
+        self.assertEqual(q[0]["claim"]["lost_station"], "부산")
+        self.assertNotIn("id_no_masked", q[0]["claim"])                    # 가린 신분 번호는 보내지 않는다
+
+    def test_staff_page_shows_rows(self):
+        html = open(os.path.join(ROOT, "web", "staff-desk", "index.html"), encoding="utf-8").read()
+        self.assertIn("분실인이 말한 역", html)
+        self.assertIn("직원 대면 확인으로 진행한 요청", html)
+        self.assertIn("function localTime", html)
