@@ -41,4 +41,5 @@ Codex 는 같은 내용의 `AGENTS.md` 를 읽는다. 규칙을 바꾸면 두 �
 - 키오스크 서버 카메라(태블릿은 화면만, 웹캠은 관제탑 PC): 번호 찾기 `python tools/list_cameras.py`(관제탑을 끈 상태에서, "영상이 보이는 번호") → `.env` TOWER_KIOSK_CAMERAS=KIOSK-A=번호(교육원 PC 웹캠 1대 = 0, 11/9 확인) → 태블릿 `/kiosk?machine=KIOSK-A&cam=server` — 안내 web/README.md 키오스크 카메라 설정
 - 관제탑 켜기: `tools\start_tower.bat`(팀 DB·화면 앞문 Docker 도 함께, 교육원 네트워크 공개는 `lan`, 코드가 바뀌면 스스로 다시 켜지는 개발 모드는 `dev`). Docker 는 `docker-compose.yml` 하나뿐(db 5434 · web 8080) · 화면 지도 `web/README.md` · 로봇 계약 `docs/contracts/robot_api.md`
 - 발표 통합 시연 점검표(켜는 순서 → 화면 배치 → 한 바퀴 흐름 → 막혔을 때 대체, 리허설 기록): docs/design/demo_checklist.md
+- 통합 시연 화면(11/10, 발표용 한 화면): `/showcase` — 세로 키오스크·휴대폰 + DB 실시간 기록(agents/db_watch.py) + AI 에이전트 흐름(agents/observability.py 리스너), 자료는 `/api/admin/live/state?detail=1` — 안내 web/README.md 1-00
 - 전체 가상 시연(디스코드 분실물 채널 → 습득·찾기·반환): `.env` TOWER_SIM=1 로 관제탑 → `python tools/lostfound_bot.py` (디스코드 없이 `--try "메시지"`), 화면 `/live` — 안내 docs/design/virtual_demo.md

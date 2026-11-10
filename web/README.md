@@ -8,20 +8,32 @@
 ## 1. 화면 목록
 | 화면 | 주소(관제탑 `:8100` 또는 Docker `:8080`) | 폴더 | 화면 담당 | 부르는 API | 상태(11/5) |
 | --- | --- | --- | --- | --- | --- |
+| **통합 시연(발표용, 11/10)** | `/showcase` (`?scene=found·lost·pickup·robot`, `?cam=server·demo·browser`) | `showcase/` | 변재원 | `GET /api/admin/live/state?detail=1`, `POST /sim/reset` | 세로 키오스크 틀·분실인 휴대폰 옆에 **DB 실시간 기록**과 **AI 에이전트 흐름**을 한 화면에(1920×1080 기준, F11 전체 화면 권장). 아래 1-00 |
 | 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 변재원(이전 김재민) | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 모든 역: 습득 신고 + 분실 확인, 본센터만 셀프 신분 확인·회수(11/5 정책, `docs/design/operating_flow_1105.md`). 탭 3개(습득 신고 / 분실접수 / 회수). 습득은 서버 연결됨 — **11/6 찍기 버튼 없이 자동 촬영**(상자 안 카메라가 빈 상자와 달라지고 3초 멈추면 찍음, 작은 흑백 화면만 비교 · 11/8 놓기→손 빼기→3·2·1→찰칵 진행 표시, 사진 파일 접수 없음, 카메라가 없으면 "카메라 점검 중 · 역무실에 알려 주세요", **직원 시연은 주소 끝에 `&demo=1`**(예: `/kiosk?machine=KIOSK-A&demo=1`) — 가상 카메라가 물건을 넣고 자동 촬영, 위쪽 "시연 모드" 배지에서 넣을 물건을 고름) + 품목 6종 놓는 법 안내 + 연락처 이용 목적 안내, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수 탭은 **모든 키오스크에 보이고**(11/6) 역 키오스크에서는 "부산역 본센터로 가세요(찾기 번호·신분증)" 안내, 실제 회수는 `?machine=CENTER`(본센터)만 — `POST /api/kiosk/returns`(11/6, 관문 값은 서버가 정함) |
-| 등록기계(습득 신고) | `/intake?machine=KIOSK-A` | `intake/` | 변재원(이전 김재민) | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 키오스크 습득 탭과 같은 일 → **키오스크로 합치는 중**(이 화면은 호환용으로 남김, 3차에서 `/kiosk` 로 넘김) |
+| (옛) 등록기계 | `/intake` → **`/kiosk` 로 넘김(11/10)** | `intake/`(파일만 남음) | - | - | 키오스크 습득 탭이 같은 일을 함. 주소 뒤 `?machine=…` 는 그대로 넘어감 |
 | 분실인 웹(분실 확인) | `/lost` | `lost/` | 변재원(이전 김재민) | (서버 연결 전) | 화면 흐름 시안. 분실 확인 후 본센터 방문 안내 정책 적용 예정 |
 | 폰 화면 시연(발표용, 11/10) | `/phone` (다른 화면은 `/phone?src=/kiosk?machine=KIOSK-A`) | `phone/` | 변재원 | (없음 — 틀 안에 `/lost`) | 휴대폰 틀 안에 분실인 웹을 실제 휴대폰 크기로 띄우고, 입력칸을 누르면 **폰 모양 쿼티 키보드**. PC 키보드로 치면 같은 키가 눌리며 입력(사람이 폰으로 치는 모습). 실제 휴대폰은 폰 자체 키보드 그대로 |
 | 관제 모니터링 | `/live` | `live/` | 변재원(이전 김재민) | `GET /api/admin/live/state`, `/sim/*`, `POST /api/robot/stop`, `/api/admin/robot/home` | 됨(가상 시연·SO-101 실제 형상) |
-| 관리자 관제(로그인) | `/admin` | `admin/` | 변재원(이전 김재민) | `/api/admin/login·logout·me` | 로그인 후 관제 모니터링(`/live`)·반환/직원(`/staff`)·**보관함(`/storage-desk`, 11/6 도착 물건 칸 넣기)**을 탭으로. `.env` `LF_ADMIN_PASSWORD` 가 없으면 로그인 없이 열림 |
+| 관리자 관제(로그인) | `/admin` | `admin/` | 변재원(이전 김재민) | `/api/admin/login·logout·me` | 로그인 후 관제 모니터링(`/live`)·반환/직원(`/staff`)·**보관함(`/storage`, 11/6 도착 물건 칸 넣기 — 옛 주소 `/storage-desk` 는 11/10 `/storage` 로 넘김)**을 탭으로. `.env` `LF_ADMIN_PASSWORD` 가 없으면 로그인 없이 열림 |
 | AI 챗봇 위젯 | 화면에 `<script src="/chat-widget/widget.js">` · 시험 `/chat-widget/demo` | `chat-widget/` | 변재원 | `POST /chat/questions`, `/chat/suggestions`, `/chat/health` | 됨(가상 물건 DB). **11/6 키오스크(머리말 "AI 안내" 버튼, 키오스크 모드: 닫거나 90초 무입력이면 대화 지움)와 분실인 웹("AI챗봇 사용하기" 버튼)에 붙임** — `chat-widget/README.md` |
 | 회수·통계 시연(LF-9) | 독립 실행 `python -m tools.run_collection_demo` → `:8110/collection-desk` | `collection-desk/` | 정연우 작업 완료(11/5 변재원 이어받음) | 시연 전용 `/collections*` (가상 SQLite) | 관제탑·팀 DB 와 미연결. 관리자 화면으로 쓸지 변재원 결정 — `docs/reports/2026-11-05-jaewon-takeover-yeonwoo.md` |
 | 직원 화면 | `/staff` | `staff-desk/` | (보류) | `/returns/*`, `/robot/*` | 11/5 결정: **직원은 일단 제외** — 화면은 남겨 둠 |
-| 분실인 8단계 시안 | 파일 직접 열기 | `lost-finder/` | LF-4 | 가짜 자료 | 참고용 |
-| 옛 시안 | - | `archive/` | - | - | 참고용(관제탑이 열지 않음) |
 
 - 등록기계 번호: `KIOSK-A` 해운대(앞글자 A) · `KIOSK-C` 서면(앞글자 S) · `CENTER` **부산역 본센터** 키오스크(앞글자 H). 11/6 중앙역(KIOSK-B)은 삭제
 - 화면은 관제탑과 같은 주소에서 열리므로 `fetch("/items")` 처럼 앞부분 없이 부른다
+
+## 1-00. 통합 시연 화면(11/10, `web/showcase/`)
+- 한줄 설명: 발표 화면 하나에 **① 실제 사용자 화면(세로 키오스크·휴대폰) ② 저장소(DB)에 행이 생기고 칸이 바뀌는 모습 ③ AI 에이전트가 주고받는 흐름**을 같은 순서로 보여 준다.
+- 장면 4개(머리말 탭): ① 습득 · 해운대역 키오스크(`/kiosk?machine=KIOSK-A`) ② 분실 신고 · 분실인 휴대폰(`/phone`) ③ 회수 · 본센터 키오스크(`/kiosk?machine=CENTER`, 회수 탭이 바로 열림) ④ 로봇 작업대(`/live` 를 통째로)
+- 가운데 **DB 실시간 기록**: 표 이름·칸 이름은 팀 DB 와 같은 영문 이름 + 쉬운 한글 이름을 함께 적는다(`item` 습득물 · `place_text` 발견 장소). 위쪽 두 장은 "지금 보는 행"(`item` · `claim`)이고 값이 채워질 때 반짝인다. 아래는 기록 흐름(INSERT·UPDATE·DELETE·SELECT)
+  - 사건은 `agents/db_watch.py` 가 저장소 함수를 감싸 만든다. **이름·전화번호·가린 신분 번호·비공개 특징 값은 서버가 보내지 않는다**(🔒 "저장됨"만 표시)
+  - 가상 시연(`TOWER_SIM=1`)은 메모리 저장소다 → 머리말에 "저장소 메모리"라고 표시(표 모양은 팀 DB 와 같음). `TOWER_DB=1` 이면 "팀 DB"
+  - 읽기(SELECT)는 분실 신고 후보 검색 · 챗봇 물건 검색 · 키오스크 회수/반환 흐름에서 일어난 것만 보인다(화면이 0.4초마다 부르는 조회는 뺌)
+- 오른쪽 **AI 에이전트 흐름**: [관제탑 에이전트](메인 AI 를 거쳐 키오스크 AI·DB·보관 칸·매칭·로봇팔·채점 에이전트가 주고받음, `agents/agent_talk.py`·`tower_brain.py`) / [챗봇 에이전트](coordinator → planner → supervisor ⇄ 일꾼 → reporter — Langfuse 에 남는 단계와 같은 순서, `agents/observability.py` 리스너). 새 사건이 온 쪽으로 저절로 바뀌고, 단추를 누르면 그쪽에 고정
+- 사건이 한꺼번에 와도 하나씩 순서대로 재생한다(밀리면 빨라짐). [처음으로] = 가상 세계 초기화(두 번 눌러 실행)
+- 주소 옵션: `?scene=lost` 처럼 시작 장면 · `?cam=demo`(가상 카메라 자동 촬영) · `?cam=server`(관제탑 PC 웹캠) · `?cam=browser`(이 브라우저 카메라). 안 주면 `TOWER_KIOSK_CAMERAS` 에 KIOSK-A 가 있으면 server, 없으면 demo
+- 관리자 로그인(`LF_ADMIN_PASSWORD`)이 켜져 있으면 `/admin` 에서 먼저 로그인해야 가운데·오른쪽 칸이 채워진다(같은 문지기)
+- 에이전트 칸의 챗봇 질문·답 요약은 전화번호·주민번호·이메일 모양만 가려서 보인다(Langfuse 로 보내는 것과 같은 기준). 관리자 로그인을 끈 채 `lan` 으로 열면 같은 네트워크의 다른 PC 도 이 요약을 볼 수 있으니, 발표 때 실제 개인정보는 입력하지 않는다
 
 ## 1-0. 화면 키보드(11/10, `web/ui/vkeyboard.js`)
 - 한줄 설명: 입력칸을 누르면 아래에 쿼티 키보드가 뜨고, **터치로 누르거나 PC 키보드로 치면** 그 칸에 들어간다. PC 키보드로 칠 때는 화면 키보드의 같은 키가 손가락으로 누른 것처럼 눌려 보인다(발표용)

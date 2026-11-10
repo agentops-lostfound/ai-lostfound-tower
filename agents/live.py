@@ -6,6 +6,10 @@
 - LiveReporter 는 기존 Reporter 를 감싸기만 한다 → 디스코드 전송·개인정보 검사 규칙은 그대로(막힌 메시지는 기록판에도 안 쌓임)
 - 이야기 번호는 연출기(sim_director)가 실행하는 스레드에 묶는다(bind). 반환 흐름도 같은 스레드에서 돌아 자동으로 붙는다
 - 표준 라이브러리만 쓴다. 메모리에만 둔다(최근 MAX_EVENTS 개)
+- 11/10 통합 시연 화면(/showcase)용 자세한 사건 두 가지를 따로 쌓는다(최근 MAX_DETAIL 개, 번호는 같은 줄을 씀):
+  · db    : 저장소에 무엇을 썼는지/읽었는지(표·칸·값) — agents/db_watch.py 가 보냄
+  · trace : 에이전트 한 칸의 시작/끝(입력·출력 요약·모델·걸린 시간) — agents/observability.py 리스너가 보냄
+  since(detail=True) 로 물을 때만 돌려준다 → /live 화면·분실물 봇·관제 분석은 예전과 똑같은 사건만 본다
 """
 from __future__ import annotations
 
@@ -14,6 +18,8 @@ import time
 from contextlib import contextmanager
 
 MAX_EVENTS = 600
+MAX_DETAIL = 400      # db·trace 사건(통합 시연 화면용)
+DETAIL_CHANNELS = ("db", "trace")
 
 # 이야기 단계(화면의 진행 막대 순서). 습득 신고 / 분실 신고
 FOUND_STAGES = [("intake", "등록기계 접수"), ("features", "Qwen 특징 분석"), ("collect", "본센터로 회수"),
@@ -43,6 +49,7 @@ class LiveBoard:
     def __init__(self):
         self._lock = threading.Lock()
         self._events: list[dict] = []
+        self._detail: list[dict] = []        # db·trace 사건(11/10) — since(detail=True) 일 때만 나감
         self._seq = 0
         self._local = threading.local()
         self.stories: dict[str, dict] = {}
@@ -153,9 +160,34 @@ class LiveBoard:
             del self._events[:-MAX_EVENTS]
         return ev
 
-    def since(self, after: int = 0, story: str | None = None, limit: int = 200) -> list[dict]:
+    def _detail_add(self, channel: str, title: str, body: str, key: str, data: dict) -> dict:
+        sid = self.current()
+        with self._lock:
+            self._seq += 1
+            ev = {"seq": self._seq, "t": time.time(), "story": sid, "channel": channel, "title": title, "body": body,
+                  "stage": None, key: data}
+            self._detail.append(ev)
+            del self._detail[:-MAX_DETAIL]
+        return ev
+
+    def db(self, table: str, op: str, key: str = "", cols: list[dict] | None = None, by: str = "", note: str = "",
+           label: str = "") -> dict:
+        """11/10 저장소 사건 한 줄. op: INSERT·UPDATE·DELETE·SELECT. cols: [{name, label, value, changed?, hidden?}]
+        값은 보내는 쪽(agents/db_watch.py)이 이미 가린 것만 넣는다(이름·연락처·신분 번호·비공개 특징 값은 넣지 않음)"""
+        data = {"table": table, "label": label, "op": op, "key": key, "cols": list(cols or []), "by": by, "note": note}
+        return self._detail_add("db", f"{table} {op}", note, "db", data)
+
+    def trace(self, data: dict) -> dict:
+        """11/10 에이전트 한 칸의 시작/끝(agents/observability.py 리스너). data: {kind, trace, trace_name, name, type, …}"""
+        return self._detail_add("trace", f"{data.get('name', '')} {data.get('kind', '')}", "", "trace", dict(data))
+
+    def since(self, after: int = 0, story: str | None = None, limit: int = 200, detail: bool = False) -> list[dict]:
+        """after 번 이후 사건. detail=True 면 db·trace 사건도 번호 순서로 섞어 준다(통합 시연 화면 전용)"""
         with self._lock:
             evs = [e for e in self._events if e["seq"] > after and (story is None or e["story"] == story)]
+            if detail:
+                evs += [e for e in self._detail if e["seq"] > after]     # 저장소·에이전트 사건은 이야기와 상관없이 모두
+                evs.sort(key=lambda e: e["seq"])
         return evs[:limit]
 
     @property
