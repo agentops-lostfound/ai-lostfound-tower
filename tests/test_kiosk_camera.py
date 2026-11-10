@@ -1,6 +1,7 @@
 """11/9 키오스크 서버 카메라(agents/kiosk_camera.py) 시험 — 설정 읽기·영상 주소·설정 없는 기계 거절·화면 연결"""
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -199,6 +200,49 @@ class StartScriptTest(unittest.TestCase):
         bat = (Path(__file__).resolve().parent.parent / "tools" / "start_tower.bat").read_text(encoding="utf-8")
         self.assertIn("--timeout-graceful-shutdown 3", bat)
         self.assertIn("%TOWER_GRACE%", bat)
+
+
+class BlackFrameRetryTest(unittest.TestCase):
+    """11/10 교육원: 카메라가 값이 전부 0 인 빈 화면만 보내는데(조명 문제가 아님) 한 번만 다시 열고 포기해, 관제탑을 다시 켤 때까지 까만 채였다"""
+
+    def test_keeps_reopening_until_picture_comes(self):
+        try:
+            import cv2  # noqa: F401
+            import numpy as np
+        except ImportError:
+            self.skipTest("opencv·numpy 필요")
+        from unittest import mock
+        from agents import kiosk_camera
+        opened, released = [], []
+
+        class Cap:
+            def __init__(self, n):
+                self.n = n
+
+            def isOpened(self):
+                return True
+
+            def read(self):
+                frame = np.zeros((48, 64, 3), np.uint8) if self.n < 3 else np.full((48, 64, 3), 150, np.uint8)   # 세 번째 열기까지는 새까만 화면
+                return True, frame
+
+            def release(self):
+                released.append(self.n)
+
+        def opener(src):
+            opened.append(len(opened) + 1)
+            return Cap(len(opened))
+        with mock.patch.object(kiosk_camera, "DARK_FRAMES", 2), mock.patch.object(kiosk_camera, "FPS", 200):
+            feed = kiosk_camera.CameraFeed(0, opener)
+            feed.touch()
+            deadline = time.time() + 12
+            while time.time() < deadline and not (len(opened) >= 3 and feed.latest() and not feed.dark):
+                time.sleep(0.05)
+            self.assertGreaterEqual(len(opened), 3, opened)       # 한 번으로 포기하지 않고 다시 열었다
+            self.assertEqual(released[:2], [1, 2])                # 다시 열기 전에 앞의 카메라를 놓는다
+            self.assertFalse(feed.dark)
+            self.assertIsNotNone(feed.latest())
+            feed.stop(2)
 
 
 if __name__ == "__main__":

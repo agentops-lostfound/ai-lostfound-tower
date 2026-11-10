@@ -30,7 +30,8 @@ import time
 IDLE_CLOSE_S = 60.0
 RETRY_S = 5.0          # 열기 실패 뒤 다시 열기까지 기다리는 시간
 DARK_LEVEL = 16        # 이 밝기(0~255) 아래면 새까만 영상으로 봄
-DARK_FRAMES = 30       # 처음 이만큼 계속 새까마면 MJPG 를 빼고 다시 연다
+DARK_FRAMES = 30       # 이만큼 계속 새까마면 카메라를 다시 연다(MJPG 를 빼고/넣고 번갈아)
+DARK_RETRY_MAX_S = 10.0   # 다시 열기 사이 간격의 최댓값(2초부터 늘어남)
 FPS = 10
 WIDTH, HEIGHT = 1280, 720          # 웹캠에 요청하는 크기
 OUT_W, OUT_H = 960, 720            # 화면으로 내보내는 크기(늘 같음, 4:3 — 16:9 영상은 가운데를 자른다)
@@ -221,7 +222,7 @@ class CameraFeed:
             if not cap.isOpened():
                 self._fail("카메라를 열 수 없음(번호·USB 연결·다른 프로그램 사용 중 확인 — python tools/list_cameras.py)")
                 return
-            fails, dark_run, reopened = 0, 0, False
+            fails, dark_run, reopens, next_reopen = 0, 0, 0, 0.0
             while not self._stop and self._clock() - self._seen < IDLE_CLOSE_S:
                 ok, frame = cap.read()
                 if not ok or frame is None:
@@ -234,11 +235,18 @@ class CameraFeed:
                 fails = 0
                 if is_dark(frame):
                     dark_run += 1
-                    if dark_run == DARK_FRAMES and not reopened and self.src != "fake":
-                        reopened = True                   # 일부 웹캠은 MJPG 로 열면 검은 화면 → 기본 형식으로 다시 연다
+                    # 계속 새까마면 카메라를 다시 연다. 11/10: 전에는 한 번만 다시 열어, 그래도 까맣면 관제탑을 다시 켤 때까지 까만 채였다
+                    # (교육원: 영상 값이 전부 0 — 조명이 아니라 카메라가 빈 화면을 보냄). 이제 MJPG 를 빼고/넣고 번갈아, 간격을 늘려 가며(최대 10초) 계속 시도
+                    if dark_run >= DARK_FRAMES and self.src != "fake" and self._clock() >= next_reopen:
+                        reopens += 1
                         cap.release()
-                        cap = _open(self.src, mjpg=False) if self._opener is _open else self._opener(self.src)
+                        time.sleep(min(1.0, 0.3 * reopens))        # 방금 놓은 카메라가 풀릴 시간
+                        cap = _open(self.src, mjpg=(reopens % 2 == 0)) if self._opener is _open else self._opener(self.src)
+                        if not cap.isOpened():
+                            self._fail("카메라를 다시 열 수 없음(다른 프로그램이 쓰는 중인지 확인)")
+                            return
                         dark_run = 0
+                        next_reopen = self._clock() + min(DARK_RETRY_MAX_S, 2.0 * reopens)
                         continue
                 else:
                     dark_run = 0
