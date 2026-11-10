@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.backends import check_part  # noqa: E402
 from agents.contracts import CLAIM_ID_RE, ITEM_ID_RE, MACHINE_LETTERS  # noqa: E402
 from agents.live import LiveBoard, LiveReporter  # noqa: E402
-from agents.service import NotFound, RequestError  # noqa: E402
+from agents.service import Conflict, NotFound, RequestError  # noqa: E402
 from agents.sim_director import build_sim_service  # noqa: E402
 from agents.sim_world import SimRobot, SimTopview, SimWorld, parse_place, query_features, sim_qwen, split_tags  # noqa: E402
 from discord_ops.reporter import Reporter  # noqa: E402
@@ -147,8 +147,8 @@ class DirectorTest(unittest.TestCase):
         titles = [m["title"] for m in self.svc.reporter.messages]
         self.assertTrue(any("등록기계 접수" in t for t in titles) and any("인계 완료" in t for t in titles))
 
-    def test_web_report_waits_for_center_kiosk_then_staff_verify(self):
-        """11/7 분실인 웹: 방문을 자동으로 하지 않고 본센터 키오스크 회수 → 로봇 → 제출보관함 → 직원 교차 검증 → 인계"""
+    def test_web_report_waits_for_center_kiosk_then_self_pickup(self):
+        """11/7 분실인 웹: 방문을 자동으로 하지 않고 본센터 키오스크 회수 → 로봇 → 제출보관함 → 11/11 분실인이 꺼내고 키오스크 [물건 받았어요] → 인계"""
         f = self.found()
         opts = {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-3******"}
         r = self.d.lost("검정 카드지갑 잃어버렸어요 서면역에서", opts)
@@ -165,13 +165,20 @@ class DirectorTest(unittest.TestCase):
         self.assertIn(r["claim_id"], self.d.visit_wait)
         out = self.d.kiosk_return({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-3******"})
         self.assertEqual(out["decision"], "returned")
+        self.assertTrue(out["self_pickup"])
         st = story_of(self.svc, r["story_id"])
-        self.assertTrue(st["result"]["ok"])
+        self.assertIsNone(st["result"])                                         # 분실인이 꺼낼 때까지 이야기는 열려 있다
         states = {s["key"]: s["state"] for s in st["stages"]}
-        self.assertEqual((states["visit"], states["deliver"], states["handover"]), ("done", "done", "todo"))
-        self.assertNotEqual(self.svc.world.items[f["item_id"]]["status"], "인계 완료")   # 인계는 직원 교차 검증이 한다
-        res = self.svc.verify_handover(out["case_id"], {"item_match": True, "id_match": True, "feature_match": True})
-        self.d.on_verify(out["case_id"], res)
+        self.assertEqual((states["visit"], states["deliver"], states["handover"]), ("done", "done", "active"))
+        self.assertNotEqual(self.svc.world.items[f["item_id"]]["status"], "인계 완료")
+        q = [x for x in self.svc.handover_queue() if x["case_id"] == out["case_id"]]
+        self.assertTrue(q and q[0]["self_pickup"])                              # 직원 화면에는 '직접 받는 중'으로만
+        with self.assertRaises(RequestError):                                   # 다른 신분 번호로는 인계 완료 못 함
+            self.d.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-1******"})
+        got = self.d.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-3******"})
+        self.assertEqual(got["by"], "kiosk")
+        with self.assertRaises(Conflict):                                       # 두 번 누름 → 이미 인계 완료
+            self.d.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-3******"})
         st = story_of(self.svc, r["story_id"])
         self.assertEqual(next(s for s in st["stages"] if s["key"] == "handover")["state"], "done")
         self.assertIn("인계 완료", st["result"]["text"])

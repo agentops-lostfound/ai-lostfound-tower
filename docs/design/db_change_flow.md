@@ -34,7 +34,7 @@ DBeaver · /showcase [팀 DB 조회]
 | 4 | 방문 · 메인 AI 승인 | 승인·수령 예약 | tower |
 | 5 | 로봇이 꺼내는 중 | 반환 중 | tower |
 | 6 | 제출보관함 도착 | 인계 대기 | tower |
-| 7 | 직원이 건넴 | 인계 완료 | staff |
+| 7 | 분실인이 제출보관함에서 꺼내고 키오스크 [물건 받았어요] (11/11 무인 인계) | 인계 완료 | kiosk (예외 흐름은 직원 교차 검증 → staff) |
 
 직원 교차 검증이 맞지 않으면 "반환 보류" 옆길로 빠진다(위 표는 정상 흐름만).
 
@@ -56,10 +56,10 @@ DBeaver · /showcase [팀 DB 조회]
 | 5 방문·반환 | `reservation` | UPDATE | booked → visited |
 | | `item` | UPDATE ×3 | 본센터 보관 → 승인·수령 예약 → 반환 중 → 인계 대기 |
 | | `item_status_log` | INSERT ×3 | tower |
-| | `return_case` | INSERT | R-C-20261110-0001 · `decision` returned · `reason` 제출보관함 전달 완료 · 직원 인계 대기(교차 검증) |
+| | `return_case` | INSERT | R-C-20261110-0001 · `decision` returned · `reason` 제출보관함 전달 완료 · 인계 대기(분실인이 꺼내고 키오스크 확인, 예외는 직원) — 11/11 문구 |
 | | `return_step` | INSERT ×8 | 메인 AI 승인 · 수령 예약 → 직원 확인 완료 → 탑뷰 촬영 → 매칭 완료 → GPU 사용권 받음 → 사전 접근 완료 → 집기 성공 → 제출보관함 전달 완료 |
-| 6 인계 완료 | `item` | UPDATE | 인계 대기 → 인계 완료 |
-| | `item_status_log` | INSERT | staff |
+| 6 인계 완료 | `item` | UPDATE | 인계 대기 → 인계 완료 (키오스크 [물건 받았어요], 11/11) |
+| | `item_status_log` | INSERT | kiosk (예외 흐름의 직원 교차 검증이면 staff) |
 | | `storage_assignment` | DELETE | R3-2 행 삭제 = **DB 트리거**가 스스로 지움 |
 | 찾기 요청 취소(방문 전) | `reservation` | UPDATE | booked → cancelled (`claim`·`quiz_attempt` 는 기록으로 남고 물건은 같은 칸에 그대로) |
 

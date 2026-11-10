@@ -115,8 +115,13 @@ class TaughtReturnTests(unittest.TestCase):
         self.assertFalse(state['world']['arm']['joints'])
         stages = {s['key']: s for s in self.svc.board.stories[story['story_id']]['stages']}
         self.assertEqual(stages['deliver']['state'], 'done')
-        self.assertEqual(stages['handover']['state'], 'todo')
+        self.assertEqual(stages['handover']['state'], 'active')               # 11/11 무인 인계: 분실인이 꺼내고 키오스크 [물건 받았어요]
         self.assertIn('11/11', stages['deliver']['detail'])
+        self.assertTrue(row['self_pickup'])
+        done = api.post('/api/kiosk/handover', json=self.body)
+        self.assertEqual(done.status_code, 200, done.text)
+        self.assertEqual(self.svc.world.db_get_item(self.item_id)['status'], '인계 완료')
+        self.assertEqual(self.motion.count, 11)                                    # 인계 확인은 로봇을 움직이지 않는다
         self.assertEqual(api.post('/sim/reset', json={}).status_code, 409)
 
     def test_no_fake_success_when_executor_is_not_armed(self):

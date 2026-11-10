@@ -424,8 +424,9 @@ class TowerService:
         - machine_id 는 CENTER 만, 본문은 machine_id·claim_id·id_no_masked 만
         - visitor_id_match: 키오스크에서 다시 입력한 가린 신분 번호 == 찾기 요청에 저장된 값 (틀리면 반환을 시작하지 않고 횟수만 센다)
         - inner_feature_ok: 웹의 확인 질문 통과(quiz_passed) 그대로
-        - staff_confirmed: 로봇을 움직이기 전 직원 단계는 뺀다(11/5). 대신 제출보관함에서 직원 교차 검증(verify_handover)을
-          통과해야 건넨다(11/6) — 그래서 서버가 True 로 둔다. 안전 규칙이라 PR 에서 이순필 확인 필요"""
+        - staff_confirmed: 로봇을 움직이기 전 직원 단계는 뺀다(11/5) — 서버가 True 로 둔다. 안전 규칙이라 PR 에서 이순필 확인 필요
+        - 11/11: 정상 흐름은 직원 교차 검증 없이 분실인이 제출보관함에서 꺼내고 키오스크로 확인(kiosk_handover).
+          직원 교차 검증(verify_handover)은 예외(선반 물건·직원 대면 확인 요청·보류)에만 남는다"""
         if not isinstance(payload, dict):
             raise RequestError("JSON 객체여야 합니다")
         unknown = sorted(set(payload) - KIOSK_RETURN_ALLOWED)
@@ -453,8 +454,58 @@ class TowerService:
             self._kiosk_fails[cid] = self._kiosk_fails.get(cid, 0) + 1
             raise RequestError("신분 번호가 맞지 않습니다. 다시 확인해 주세요")
         self._kiosk_fails.pop(cid, None)
-        return self.start_return({"claim_id": cid, "visitor_id_match": True,
-                                  "inner_feature_ok": gates["quiz_passed"], "staff_confirmed": True})
+        out = self.start_return({"claim_id": cid, "visitor_id_match": True,
+                                 "inner_feature_ok": gates["quiz_passed"], "staff_confirmed": True})
+        # 11/11 무인 인계: 제출보관함에 넣었으면 분실인이 직접 꺼내고 키오스크 [받았어요](kiosk_handover). 선반 물건은 직원이 가져옴
+        out["self_pickup"] = out.get("decision") == DECISION_RETURNED and "선반" not in str(out.get("reason"))
+        return out
+
+    def kiosk_handover(self, payload: object) -> dict:
+        """11/11 무인 인계: 분실인이 제출보관함에서 물건을 직접 꺼낸 뒤 본센터 키오스크 [받았어요] → 인계 대기 → 인계 완료(kiosk).
+        정상 흐름에서 직원 단계를 뺀다(사람이 끼면 흐름이 복잡해져서). 본문은 회수와 같은 {machine_id: CENTER, claim_id, id_no_masked} —
+        회수 때와 같은 본인 확인을 한 번 더 한다. 다음은 키오스크로 끝내지 않고 직원(/staff)에게 남긴다(예외):
+        ① 직원 보관 선반 물건(로봇이 아니라 직원이 가져옴) ② 확인 질문이 맞지 않아 직원 대면 확인으로 진행한 요청 ③ 인계 대기가 아닌 물건"""
+        if not isinstance(payload, dict) or set(payload) != KIOSK_RETURN_ALLOWED:
+            raise RequestError(f"본문은 {sorted(KIOSK_RETURN_ALLOWED)} 만 보냅니다")
+        if payload["machine_id"] != KIOSK_RETURN_MACHINE:
+            raise RequestError(f"machine_id: 인계 확인은 본센터 키오스크({KIOSK_RETURN_MACHINE})에서만 할 수 있습니다")
+        cid, typed = payload["claim_id"], payload["id_no_masked"]
+        if not isinstance(cid, str) or not CLAIM_ID_RE.match(cid):
+            raise RequestError("claim_id: 찾기 번호 형식(예: C-20261103-0001)")
+        if not isinstance(typed, str) or not typed.strip():
+            raise RequestError("id_no_masked: 가린 신분 번호를 입력하세요")
+        if self._kiosk_fails.get(cid, 0) >= KIOSK_MAX_FAILS:
+            raise Conflict("locked", "신분 확인을 여러 번 틀려 키오스크에서는 더 할 수 없어요 — 본센터 직원에게 찾기 번호와 신분증을 보여 주세요")
+        try:
+            row = self.claims.get(cid)
+        except Exception as e:
+            raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__})") from e
+        if row is None:
+            raise NotFound(f"없는 찾기 번호: {cid}")
+        if typed.strip() != row["id_no_masked"]:
+            self._kiosk_fails[cid] = self._kiosk_fails.get(cid, 0) + 1
+            raise RequestError("신분 번호가 맞지 않습니다. 다시 확인해 주세요")
+        if not web_gates(row)["quiz_passed"]:
+            raise Conflict("staff", "직원 대면 확인으로 진행한 요청이라 본센터 직원이 건네 드려요")
+        case_id = f"R-{cid}"
+        be, item_id, status = self._waiting_item(case_id)
+        if item_id != row.get("item_id"):
+            raise Conflict("state", "찾기 요청과 반환 기록의 물건이 달라요 — 본센터 직원에게 말씀해 주세요")
+        if status == HANDOVER_DONE:
+            raise Conflict("duplicate", f"이미 인계 완료: 물건 {item_id}")
+        if status != HANDOVER_WAIT:
+            raise Conflict("state", f"제출보관함에서 기다리는 물건이 아니에요(지금 {status}) — 본센터 직원에게 말씀해 주세요")
+        if (self.slot_of(item_id) or {}).get("staff_shelf"):
+            raise Conflict("staff", "직원 보관 선반 물건이라 본센터 직원이 가져다 드려요")
+        self._kiosk_fails.pop(cid, None)
+        r = be.db_set_status(item_id, HANDOVER_DONE, changed_by="kiosk")
+        if not (r or {}).get("ok"):
+            raise Unavailable(f"상태 기록 실패: {(r or {}).get('reason', '')}")
+        try:
+            self.reporter.progress(case_id, "인계 완료", f"물건 {item_id} · 분실인이 제출보관함에서 직접 꺼냄(본센터 키오스크 확인, 직원 없음)")
+        except Exception:
+            pass
+        return {"case_id": case_id, "item_id": item_id, "status": HANDOVER_DONE, "by": "kiosk"}
 
     def start_return(self, payload: object) -> dict:
         """1단계(관문 6개를 한 번에) 또는 2단계(claim_id + 현장 관문 3개) 요청을 받는다."""
@@ -799,6 +850,8 @@ class TowerService:
             slot = where.get("slot_id")
             out.append({"case_id": row["case_id"], "item_id": row["item_id"], "claim": claim, "slot": slot,
                         "staff_shelf": bool(where.get("staff_shelf")),   # 11/9 선반 물건: 직원이 선반에서 가져와 건넴
+                        # 11/11 무인 인계: 분실인이 제출보관함에서 꺼내고 키오스크 [받았어요]로 끝나는 물건(직원은 문제 있을 때만)
+                        "self_pickup": not where.get("staff_shelf") and bool(claim and claim.get("quiz_passed")),
                         "category": item.get("category") or feats.get("category"),
                         "public": {k: show_ko(feats[k]) for k in ("color", "shape", "material") if feats.get(k)},
                         "has_photo": self.item_photo(row["item_id"]) is not None})

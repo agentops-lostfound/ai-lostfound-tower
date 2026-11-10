@@ -368,6 +368,22 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
+    @app.post("/api/kiosk/handover")
+    def kiosk_handover(payload: dict = Body(...)) -> dict:
+        """11/11 무인 인계: 분실인이 제출보관함에서 물건을 꺼낸 뒤 본센터 키오스크 [받았어요](로그인 없음).
+        본문 {machine_id: "CENTER", claim_id, id_no_masked} — 회수와 같은 본인 확인. 선반 물건·직원 대면 확인 요청은 409 kind=staff"""
+        try:
+            d = getattr(svc, "sim", None)
+            return d.kiosk_handover(payload) if d is not None and callable(getattr(d, "kiosk_handover", None)) else svc.kiosk_handover(payload)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
     @app.post("/returns/{case_id}/handover", dependencies=admin)
     @app.post("/api/admin/returns/{case_id}/handover", dependencies=admin)
     def handover(case_id: str, payload: dict = Body(...)) -> dict:

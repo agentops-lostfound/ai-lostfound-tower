@@ -190,3 +190,24 @@ class StaffOverrideHandoverTest(unittest.TestCase):
         self.assertIn("분실인이 말한 역", html)
         self.assertIn("직원 대면 확인으로 진행한 요청", html)
         self.assertIn("function localTime", html)
+
+
+class UnattendedHandoverTest(unittest.TestCase):
+    """11/11 정상 흐름은 직원 없이(분실인이 제출보관함에서 꺼내고 키오스크 [물건 받았어요]) — 예외는 직원에게 남는다"""
+
+    def test_override_case_stays_with_staff(self):
+        svc, d = make()
+        r = d.lost("부산역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
+        out = d.staff_visit(r["claim_id"])
+        self.assertEqual(out["decision"], "returned")
+        with self.assertRaises(Exception) as e:
+            d.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-1******"})
+        self.assertEqual(getattr(e.exception, "kind", None), "staff")
+        q = [x for x in svc.handover_queue() if x["case_id"] == out["case_id"]]
+        self.assertFalse(q[0]["self_pickup"])                                 # 직원 화면에서 '확인 시작'
+
+    def test_kiosk_page_has_pickup_button(self):
+        html = open(os.path.join(ROOT, "web", "kiosk", "index.html"), encoding="utf-8").read()
+        self.assertIn('id="rgot"', html)
+        self.assertIn("/api/kiosk/handover", html)
+        self.assertNotIn("제출보관함 앞에서 직원이 신분증과 물건을 한 번 더 확인", html)

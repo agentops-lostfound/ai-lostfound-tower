@@ -109,6 +109,7 @@ class SimDirector:
         self.auto_handover = auto_handover
         self.visit_wait_s = visit_wait_s
         self.pending: dict[str, dict] = {}          # 확인 질문 답을 기다리는 분실 신고
+        self.pickup_wait: dict[str, str] = {}       # 11/11 무인 인계: 찾기 번호 → 이야기 번호(제출보관함에서 꺼내고 [받았어요]를 기다림)
         self.visit_wait: dict[str, str] = {}        # 11/7 웹 신고: 찾기 번호 → 이야기 번호(본센터 키오스크 회수를 기다림)
         self._threads: list[threading.Thread] = []
         # 11/9 칸 대기: 물건 번호 → 습득 이야기 번호(칸이 비면 그 이야기를 이어서 회수)
@@ -885,7 +886,7 @@ class SimDirector:
 
     def kiosk_return(self, payload: dict) -> dict:
         """11/7 본센터 키오스크 회수(가상 시연): 웹 신고 이야기에 단계를 이어 붙인 뒤 진짜와 같은 입구(service.kiosk_return)로.
-        반환이 끝나면 물건은 제출보관함 — 인계는 직원 교차 검증(/staff)이 한다(자동 인계 안 함)"""
+        반환이 끝나면 물건은 제출보관함 — 11/11 분실인이 꺼내고 키오스크 [받았어요](kiosk_handover). 선반 물건만 직원이 건넴"""
         cid = payload.get("claim_id") if isinstance(payload, dict) else None
         sid = self.visit_wait.get(cid) if isinstance(cid, str) else None
         if sid is None:
@@ -909,10 +910,24 @@ class SimDirector:
                 ko = {"rejected": "반환 안 함", "staff_check": "직원 확인", "stopped": "로봇 정지"}.get(out.get("decision"), "")
                 self.board.finish(sid, f"{ko}({out.get('decision')}) — {out.get('reason')}", False)
                 return out
-            self.board.stage("handover", "todo", "직원이 선반에서 가져다 드려요 · 교차 검증 대기(/staff)"
-                             if "선반" in str(out.get("reason")) else "제출보관함 · 직원 교차 검증 대기(/staff)")
-            self.board.finish(sid, f"제출보관함 도착 — 직원 교차 검증 후 인계({out.get('case_id')})", True)
+            if out.get("self_pickup"):              # 11/11 무인 인계: 분실인이 꺼내고 키오스크 [받았어요]
+                self.pickup_wait[cid] = sid
+                self.board.stage("handover", "active", "제출보관함 H-1 · 분실인이 꺼낸 뒤 키오스크 [받았어요]")
+                return out
+            self.board.stage("handover", "todo", "직원이 선반에서 가져다 드려요 · 교차 검증 대기(/staff)")
+            self.board.finish(sid, f"직원 보관 선반 물건 — 직원이 가져다 드려요({out.get('case_id')})", True)
             return out
+
+    def kiosk_handover(self, payload: dict) -> dict:
+        """11/11 무인 인계(가상 시연): 진짜와 같은 입구(service.kiosk_handover) + 진행판 이야기를 '인계 완료'로 끝낸다"""
+        out = self.svc.kiosk_handover(payload)
+        cid = payload.get("claim_id") if isinstance(payload, dict) else None
+        sid = self.pickup_wait.pop(cid, None)
+        if sid is not None:
+            with self.board.bind(sid):
+                self.board.stage("handover", "done", "분실인이 제출보관함에서 직접 꺼냄 · 키오스크 확인")
+                self.board.finish(sid, f"인계 완료 — {out['item_id']} 를 분실인이 직접 받음(직원 없음)", True)
+        return out
 
     def open_claims(self) -> list[dict]:
         """11/10 방문 전인 찾기 요청(화면 단추용): [{claim_id, story_id, item_id, visit_wait, quiz_passed}].
@@ -1040,6 +1055,7 @@ class SimDirector:
         self.pending.clear()
         self.visit_wait.clear()
         self.wait_story.clear()
+        self.pickup_wait.clear()
         if w.on_bin:                                    # 시연 물건 칸 → 정답지
             for r in list(w.items.values()):
                 sid = w.slot_id_of(r["item_id"])

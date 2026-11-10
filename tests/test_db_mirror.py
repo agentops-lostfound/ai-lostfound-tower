@@ -445,6 +445,13 @@ class RealPostgresTest(unittest.TestCase):
         logs = [r[0] for r in self.q("SELECT to_status FROM item_status_log WHERE item_id = %s ORDER BY id", iid)]
         self.assertEqual(logs[:3], ["등록기계 보관", "회수 중", "본센터 보관"])
         self.assertEqual(logs[-1], "인계 대기")
+        # 11/11 무인 인계: 키오스크 [물건 받았어요] → 팀 DB 에 changed_by = 'kiosk' 로 남는다(CHECK 제약 통과)
+        svc.sim.kiosk_handover({"machine_id": "CENTER", "claim_id": cid, "id_no_masked": ID_MASKED})
+        self.assertTrue(m.wait(20))
+        self.assertEqual(self.q("SELECT to_status, changed_by FROM item_status_log WHERE item_id = %s ORDER BY id DESC LIMIT 1", iid),
+                         [("인계 완료", "kiosk")])
+        self.assertEqual(m.stats()["fail"], 0, m.stats())
+        self.assertEqual(self.q("SELECT count(*) FROM storage_assignment WHERE item_id = %s", iid), [(0,)])   # DB 트리거가 칸을 비움
         self.assertEqual(self.q("SELECT item_id, status FROM reservation WHERE claim_id = %s", cid), [(iid, "visited")])
         self.assertEqual(self.q("SELECT decision, approved FROM return_case WHERE claim_id = %s", cid), [("returned", True)])
         seeds = self.q("SELECT count(*) FROM item WHERE object_id = 'SIM'")[0][0]
@@ -461,7 +468,7 @@ class RealPostgresTest(unittest.TestCase):
         self.assertTrue(m2.wait(20))
         self.assertNotEqual(rec["item_id"], iid)
         self.assertEqual(m2.stats()["fail"], 0, m2.stats())
-        self.assertEqual(self.q("SELECT status FROM item WHERE item_id = %s", iid), [("인계 대기",)])   # 앞선 기록은 그대로 남는다
+        self.assertEqual(self.q("SELECT status FROM item WHERE item_id = %s", iid), [("인계 완료",)])   # 앞선 기록은 그대로 남는다
 
     def test_first_item_number_clash_with_real_intake(self):
         """11/10 처음 물건(해운대역 A-…-0001)과 그날 먼저 들어온 진짜 키오스크 접수 번호가 겹칠 때:

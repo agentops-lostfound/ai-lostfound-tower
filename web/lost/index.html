@@ -285,7 +285,7 @@
           <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="가린 신분 번호 그림"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M7 12h.01M10 12h.01M13 12h.01M16 12h1.5"/></svg></span>
             <span>신분증 뒤 첫 자리<br><span class="mono" id="vid">-</span></span></li>
           <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="로봇이 꺼낸 상자 그림"><path d="M4 8.5l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8.5l8 4 8-4M12 12.5v8"/></svg></span>
-            <span>로봇이 <b>제출보관함</b>에<br>직원 확인 후 받기</span></li>
+            <span>로봇이 <b>제출보관함</b>에<br>직접 꺼내고 [물건 받았어요]</span></li>
         </ol>
         <div class="bring" role="group" aria-label="가져갈 것">
           <span class="bring-t">가져갈 것</span>
@@ -419,7 +419,7 @@ function done(res) {
     $('#visit').hidden = true;
   } else if (res.staff) {
     card.className = 'card warn';
-    head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">부산역 본센터 역무실에서<br>직원이 직접 확인해 드려요.</p>`;
+    head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">부산역 본센터에서<br>직원이 직접 확인해 드려요.</p>`;
     $('#cand').innerHTML = ''; $('#visit').hidden = true;
   } else if (res.claim_id && res.quiz_passed) {
     card.className = 'card ok';
@@ -431,7 +431,7 @@ function done(res) {
     card.className = 'card warn';
     head.innerHTML = `<div class="hint" style="margin:0">찾기 번호</div><div class="code">${esc(res.claim_id)}</div>
       <button type="button" class="ghost copyno" data-no="${esc(res.claim_id)}">번호 복사</button>
-      <p class="desc" style="margin:4px 0 0">확인 답이 달라요.<br>부산역 본센터 역무실에서 직원이 확인해요.</p>`;
+      <p class="desc" style="margin:4px 0 0">확인 답이 달라요.<br>부산역 본센터 직원이 확인해요.</p>`;
     $('#visit').hidden = true;
   }
   const top = (res.candidates || [])[0];
@@ -468,7 +468,7 @@ async function pollOnce() {
     if (visit && visit.state === 'done') steps(4, 3);
     // 취소 단추: 찾기 번호가 있고 아직 방문 전(반환 시작 전)·끝나지 않았을 때만
     $('#cancelClaim').hidden = !(state.claim && !st.result && !(visit && visit.state === 'done'));
-    const ho = st.stages.find(s => s.key === 'handover');      // 직원 교차 검증(인계)까지 끝나야 멈춤
+    const ho = st.stages.find(s => s.key === 'handover');      // 인계 완료(키오스크 [물건 받았어요] 또는 예외의 직원 교차 검증)까지 끝나야 멈춤
     const over = st.result && (!st.result.ok || (ho && (ho.state === 'done' || ho.state === 'fail')));
     if (over || Date.now() - state.started > 15 * 60 * 1000) { clearInterval(state.poll); state.poll = null; steps(4, 4); $('#progwhen').textContent = '· 끝'; }
   } catch (_) {}
