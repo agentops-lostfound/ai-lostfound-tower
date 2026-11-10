@@ -135,9 +135,9 @@ python tools/storage_export.py --out data/storage.json
 | 행 | 1(로봇팔 가까운 칸) | 2(먼 칸) |
 | --- | --- | --- |
 | R1 휴대폰 전용 | `pose_1` | `pose_2` |
-| R2 지갑 | `pose_3` | `pose_4` |
-| R3 보조배터리 | `pose_5` | `pose_6` |
-| R4 핸드크림·USB | `pose_7` | `pose_8` |
+| R2 보조배터리 | `pose_3` | `pose_4` |
+| R3 핸드크림 | `pose_5` | `pose_6` |
+| R4 카드지갑 | `pose_7` | `pose_8` |
 | H-1 제출보관함(배출구) | `close` | |
 
 - 반환 한 번의 로봇 동작: **칸 자세(pose_N)** → 집기·들어 올리기(SmolVLA) → **배출구 순서** `outlet_return_1 → close → open → outlet_return_1 → home`(`agents/storage.py` `OUTLET_SEQUENCE`)

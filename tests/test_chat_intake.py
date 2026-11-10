@@ -91,7 +91,7 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(r["status"], "intake_done")
         self.assertIn("C-20261109-0003", r["answer"])
         kind, text, opts = desk.calls[0]
-        self.assertEqual(text, "어제 서면역에서 검정 지갑 잃어버렸어요")
+        self.assertEqual(text, "어제 서면역에서 검정 카드지갑 잃어버렸어요")
         self.assertEqual(opts, {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-1******"})
         self.assertIsNone(a.active("s1"))                      # 끝나면 대화 상태를 지움
 
@@ -199,7 +199,7 @@ class SimEndToEndTest(unittest.TestCase):
         from agents.chat_search import SimTowerItemSearch
         from agents.sim_director import build_sim_service
         os.environ.pop("LF_CHAT_RAG_MODEL", None)
-        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
         bot = build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim)
         for q in ("주운 물건 신고하고 싶어요", "서면 5번 출구 앞에서 검정 지갑", "접수할게요"):
             r = bot.ask(q, session_id="e2e-found")
@@ -298,7 +298,7 @@ class ReviewFixesTest(unittest.TestCase):
         from agents.chat_search import SimTowerItemSearch
         from agents.sim_director import build_sim_service
         os.environ.pop("LF_CHAT_RAG_MODEL", None)
-        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
         bot = build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim)
         for q, act in (("서면에서 빨간 핸드크림 잃어버린 거 접수해 주세요", None), ("오늘", None), ("없어요", None),
                        ("본인 확인 정보를 입력했어요", ID), ("접수할게요", None)):
@@ -322,7 +322,7 @@ class ReviewFixesTest(unittest.TestCase):
         os.environ["TOWER_SIM"] = "0"
         from agents.sim_director import build_sim_service
         from agents.service import RequestError
-        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
         with self.assertRaises(RequestError):                 # 디스코드 봇처럼 본인 정보 없는 신고는 예전대로 거절
             svc.sim.lost("서면에서 빨간 핸드크림 잃어버렸어요")
 
@@ -347,7 +347,7 @@ class EvalFindingsTest(unittest.TestCase):
     def test_far_color_is_not_a_candidate(self):
         os.environ["TOWER_SIM"] = "0"
         from agents.sim_director import build_sim_service
-        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
         self.assertEqual(svc.sim.candidates({"category": "지갑", "color": "검정"}, "서면"), [])     # 기본 지갑은 갈색
         self.assertTrue(svc.sim.candidates({"category": "지갑", "color": "갈색"}, "서면"))
         self.assertTrue(svc.sim.candidates({"category": "모형폰", "color": "회색"}, None))          # 흰색과 비슷한 색은 남김
@@ -362,7 +362,7 @@ class EvalFindings2Test(unittest.TestCase):
         from agents.chat_search import SimTowerItemSearch
         from agents.sim_director import build_sim_service
         os.environ.pop("LF_CHAT_RAG_MODEL", None)
-        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
+        svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
         return build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim)
 
     def test_zero_candidates_offers_lost_intake(self):
@@ -382,7 +382,7 @@ class EvalFindings2Test(unittest.TestCase):
         b.ask("지갑", session_id="lf-opp-01")
         r = b.ask("근데 저도 휴대폰을 잃어버렸어요", session_id="lf-opp-01")
         self.assertIn("먼저 끝내거나", r["answer"])
-        self.assertIn("물건 지갑", r["answer"])
+        self.assertIn("물건 카드지갑", r["answer"])
 
     def test_staff_words(self):
         from agents.chatbot import is_ops_question

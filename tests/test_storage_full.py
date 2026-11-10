@@ -16,7 +16,7 @@ from agents.supervisor import SHELF_STEP, ReturnRequest, run_return  # noqa: E40
 from agents.tools import MockBackend  # noqa: E402
 from discord_ops.reporter import Reporter  # noqa: E402
 
-ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
+ENV = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
 OTHERS = ["서면역 1번 출구 검정 카드지갑 주웠어요", "해운대역 대합실 흰색 보조배터리 주웠어요",
           "해운대역 2번 출구 흰색 핸드크림 주웠어요", "서면역 개찰구 흰색 보조배터리 주웠어요"]
 LIPBALM = "서면역 화장실 앞 립밤 주웠어요"            # 11/9 운영 품목에서 뺌
@@ -46,12 +46,12 @@ class SimFullTest(unittest.TestCase):
         return self.w.slot_id_of(item_id)
 
     def test_each_category_goes_to_its_column(self):
-        # 시작(11/9 품목 4종): R1 휴대폰 2칸 · R2-1 카드지갑 · R3 보조배터리 2칸 참(시연 물건) → 빈 칸 = R2-2 · R4-1 · R4-2
+        # 시작(예전 5개 묶음, 11/10 018 배치): R1 휴대폰 2칸 · R2 보조배터리 2칸 · R4-1 카드지갑 참 → 빈 칸 = R3-1 · R3-2 · R4-2
         seed = {self.slot(i) for i in self.w.items}
-        self.assertEqual(seed, {"R1-1", "R1-2", "R2-1", "R3-1", "R3-2"})
+        self.assertEqual(seed, {"R1-1", "R1-2", "R2-1", "R2-2", "R4-1"})
         a = self.found(OTHERS[0])                                      # 지갑 → 지갑 열
         b = self.found(OTHERS[2])                                      # 핸드크림 → 핸드크림 열
-        self.assertEqual((self.slot(a), self.slot(b)), ("R2-2", "R4-1"))
+        self.assertEqual((self.slot(a), self.slot(b)), ("R4-2", "R3-1"))
         with self.assertRaises(RequestError) as cm:                    # USB: 11/9 품목 4종 고정 → 접수하지 않음
             self.d.found("서면역 개찰구 은색 USB 주웠어요")
         self.assertIn("운영하지 않는 품목", str(cm.exception))
@@ -133,9 +133,9 @@ class SimFullTest(unittest.TestCase):
         from agents.storage import recommend_slot
         lay = self.svc.storage.layout()
         self.assertIsNone(recommend_slot(lay, "모형폰"))               # R1 2칸이 참 → 다른 행 추천 안 함
-        self.assertEqual(recommend_slot(lay, "지갑")["slot_id"], "R2-2")
-        self.assertIsNone(recommend_slot(lay, "보조배터리"))           # R3 2칸이 참 → 다른 열에 넣지 않음
-        self.assertEqual(recommend_slot(lay, "핸드크림")["slot_id"], "R4-1")
+        self.assertEqual(recommend_slot(lay, "지갑")["slot_id"], "R4-2")
+        self.assertIsNone(recommend_slot(lay, "보조배터리"))           # R2 2칸이 참 → 다른 열에 넣지 않음
+        self.assertEqual(recommend_slot(lay, "핸드크림")["slot_id"], "R3-1")
         self.assertIsNone(recommend_slot(lay, "USB"))                  # 11/9 USB 는 운영 품목이 아님 → 받는 열 없음
         self.assertIsNone(recommend_slot(lay, "립밤"))                 # 운영하지 않는 품목은 받는 열이 없음
 

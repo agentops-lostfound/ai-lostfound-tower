@@ -172,7 +172,7 @@ def check(svc, ctx: dict) -> list[str]:
 
 def run(runs: int, seed: int, timed: int = 0, verbose: bool = False) -> dict:
     rng = random.Random(seed)
-    svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"})
+    svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"})   # 보관함이 차는 장면까지 보려고 예전 5개 묶음
     bot = BotCore(InProcClient(svc))
     stats, problems, replies, reasons = Counter(), [], Counter(), Counter()
     seen_stories = 0

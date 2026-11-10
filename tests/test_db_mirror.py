@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents import db_mirror as dm  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-ENV = {"TOWER_SIM_SPEED": "0.01", "TOWER_AGENT_TALK": "1"}
+ENV = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0.01", "TOWER_AGENT_TALK": "1"}
 DSN = "postgresql://user:secret-pw@127.0.0.1:5434/lostfound"
 ID_MASKED = "******-1******"
 PHONE = "010-1234-5678"

@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agents.contracts import CATEGORIES, MVP_CATEGORIES, category_label, show_ko  # noqa: E402
 
-ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
+ENV = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
 
 
 def strings(o):
@@ -35,7 +35,7 @@ class LabelTest(unittest.TestCase):
 
     def test_label(self):
         self.assertEqual(category_label("모형폰"), "휴대폰")
-        self.assertEqual(category_label("지갑"), "지갑")
+        self.assertEqual(category_label("지갑"), "카드지갑")       # 11/10: 저장 값은 지갑, 보이는 이름은 카드지갑
         self.assertEqual(category_label(None), "")
         self.assertEqual(show_ko("모형폰"), "휴대폰")
         self.assertEqual(show_ko("rectangular, plastic"), "직사각형, 플라스틱")

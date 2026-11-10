@@ -92,6 +92,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 /* 세로 키오스크(스탠드형): 검은 테두리 화면 + 밝은 몸체(촬영 카메라 창 · 접수증 나오는 곳 · 옆 단말기) */
 .stand{display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 18px 28px rgba(0,0,0,.22))}
 .k-head{background:var(--dev-bezel);border-radius:22px;padding:10px;position:relative;z-index:1;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white-space:nowrap}
 .k-screen{position:relative;overflow:hidden;border-radius:14px;background:#fff}
 .k-screen iframe{position:absolute;left:0;top:0;border:0;transform-origin:0 0;background:#fff}
 .k-body{position:relative;margin-top:-14px;padding:22px 9% 8px;border-radius:0 0 18px 18px;
@@ -402,6 +403,9 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   };
   const rows = {item: {}, claim: {}};
   const cur = {item: null, claim: null};
+  // DB 에 저장되는 품목 값(지갑·모형폰)과 화면 이름(카드지갑·휴대폰)이 달라서, DB 값 옆에 화면 이름을 함께 적는다(agents/contracts.py CATEGORY_LABEL)
+  const CAT_SHOW = {"지갑": "카드지갑", "모형폰": "휴대폰"};
+  const catCell = (v) => esc(v) + (CAT_SHOW[v] ? ` <small class="alias" title="DB 에는 '${esc(v)}' 로 저장하고, 화면·챗봇에서는 '${CAT_SHOW[v]}' 로 보여 줘요">= ${CAT_SHOW[v]}</small>` : "");
   const dbSaved = new Set();              // 팀 DB 에서 읽힌 접수 번호(팀 DB 조회 결과)
   function drawCard(t) {
     const c = CARD[t], key = cur[t], row = (key && rows[t][key]) || {};
@@ -409,7 +413,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4>` +
       (t === "item" ? `<div class="acts" id="itemActs"></div>` : "") + `<dl>` +
       c.cols.map(([n, easy]) => { const v = row[n];
-        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + esc(v.text)}</dd>`; }).join("") + "</dl>";    if (t === "item") drawActs();
+        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + (n === "category" ? catCell(v.text) : esc(v.text))}</dd>`; }).join("") + "</dl>";    if (t === "item") drawActs();
   }
   // 물건 카드의 직원 단추: 아직 등록기계에 있는 물건에만 보인다.
   //  [본센터로 회수] 칸 대기·늦게 분석된 물건을 지금 회수(빈 칸이 없으면 직원 보관 선반) · [접수 취소] 실수로 접수한 물건을 지움(두 번 눌러 실행)
@@ -445,7 +449,8 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     if (cur[t] !== key) return;
     const dd = $(CARD[t].el).querySelector(`dd[data-col="${name}"]`);
     if (!dd) return;
-    dd.className = locked ? "locked" : ""; dd.textContent = (locked ? "🔒 " : "") + text;
+    dd.className = locked ? "locked" : "";
+    if (name === "category" && !locked) dd.innerHTML = catCell(text); else dd.textContent = (locked ? "🔒 " : "") + text;
     if (live) { dd.classList.add("flash"); setTimeout(() => dd.classList.remove("flash"), 60); }
   }
   function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; if (t === "item") { actArmed = null; actMsg = ""; } drawCard(t); } }
@@ -598,7 +603,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       return `<tr class="${fresh ? "new" : ""}${r.item_id === cur.item ? " cur" : ""}"><td>${photo}</td>` +
         `<td class="id">${esc(r.item_id)}${r.virtual ? `<span class="tag" title="글로 한 가상 신고·시연용 물건">시연</span>` : ""}</td>` +
         `<td class="where"><b>${esc(r.station || "")}${r.kind === "center" ? " 본센터" : "역"}</b><small>${esc(WHERE_KIND[r.kind] || "")} ${esc(r.machine_id)}</small></td>` +
-        `<td>${esc(r.place_text)}</td><td>${esc(r.category)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
+        `<td>${esc(r.place_text)}</td><td>${catCell(r.category)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
         `<td>${t ? `${two(t.getHours())}:${two(t.getMinutes())}:${two(t.getSeconds())}` : ""}</td></tr>`; }).join("");
     box.innerHTML = `<p class="counts">${counts}</p><table class="dbtable"><thead><tr>` +
       `<th>사진<code>photo_path</code></th><th>접수 번호<code>item_id</code></th><th>접수한 곳<code>machine_id</code></th><th>발견 장소<code>place_text</code></th>` +

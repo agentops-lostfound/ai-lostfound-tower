@@ -245,7 +245,7 @@
   var DECISION = { returned: ["ok", "✅ 반환 완료"], rejected: ["bad", "⛔ 반환 안 함"],
                    staff_check: ["warn", "🙋 직원 확인 필요"], stopped: ["bad", "🛑 로봇 정지"] };
 
-  var CAT_LABEL = { "모형폰": "휴대폰" };   // 품목 값은 서버 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
+  var CAT_LABEL = { "모형폰": "휴대폰", "지갑": "카드지갑" };   // 11/10 지갑 → 카드지갑. 품목 값은 서버 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   function catName(c) { return CAT_LABEL[c] || c; }
   // 11/9 습득 역: 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터) — agents/contracts.py station_name 과 같게
   var LETTER_ST = { A: "해운대역", S: "서면역", H: "부산역 본센터" };

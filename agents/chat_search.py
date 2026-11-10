@@ -182,12 +182,12 @@ class SearchAgent:
         desc, warnings = search_context(question, context)
         if any(w.startswith('색상') for w in warnings):   # 11/6: 여러 색이면 무엇이 문제인지 정확히 되묻는다
             return response('search_needs_details', '색이 두 가지 이상으로 보여요. 물건에서 가장 넓게 보이는 색 하나로 다시 알려주세요. '
-                            '예: 검정 지갑 찾아줘. 무늬·키링 같은 특징은 후보를 찾은 뒤 확인 질문에서 비교해요.')
+                            '예: 검정 카드지갑 찾아줘. 무늬·키링 같은 특징은 후보를 찾은 뒤 확인 질문에서 비교해요.')
         if desc['category'] in CATEGORIES and not is_active_category(desc['category']) and desc['category'] != '없음' and not warnings:
             # 11/9 운영하지 않는 품목(립밤): 검색하지 않고 안내만
-            return response('search_needs_details', inactive_category_message(desc['category']) + '. 예: 검정 지갑 찾아줘.')
+            return response('search_needs_details', inactive_category_message(desc['category']) + '. 예: 검정 카드지갑 찾아줘.')
         if desc['category'] not in CATEGORIES or desc['category'] == '없음' or warnings:
-            return response('search_needs_details', '찾는 물건 한 종류와 색상을 알려주세요. 예: 검정 지갑 찾아줘. '
+            return response('search_needs_details', '찾는 물건 한 종류와 색상을 알려주세요. 예: 검정 카드지갑 찾아줘. '
                             f'구분할 수 있는 물건: {active_category_text()}.')
         if self.mode not in DEMO_MODES and not all(desc.get(k) for k in ('lost_date', 'lost_line', 'lost_station')):
             return response('search_needs_details', '실제 후보 검색에는 분실 날짜·호선·역이 필요해요. 왼쪽 설명을 확인하거나 질문에 함께 입력해주세요.')

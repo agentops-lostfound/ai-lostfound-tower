@@ -55,8 +55,8 @@ class MemoryStorageTest(unittest.TestCase):
         groups = sm.pop("groups")
         self.assertEqual(sm, {"shelf_slots": 8, "used": 0, "free": 8, "slots_without_pose": 8, "staff_shelf": 0})
         self.assertEqual([(g["key"], g["label"], g["rows"], g["used"], g["total"]) for g in groups],
-                         [("phone", "휴대폰", ["R1"], 0, 2), ("지갑", "지갑", ["R2"], 0, 2),
-                          ("보조배터리", "보조배터리", ["R3"], 0, 2), ("핸드크림", "핸드크림", ["R4"], 0, 2)])
+                         [("phone", "휴대폰", ["R1"], 0, 2), ("보조배터리", "보조배터리", ["R2"], 0, 2),
+                          ("핸드크림", "핸드크림", ["R3"], 0, 2), ("지갑", "카드지갑", ["R4"], 0, 2)])
         self.assertEqual((lay["sections"][5]["kind"], lay["sections"][5]["slots"]), ("staff", []))   # 선반 칸은 필요할 때 생김
         r1 = lay["sections"][0]
         self.assertEqual([x["slot_id"] for x in r1["slots"]], ["R1-1", "R1-2"])
@@ -64,16 +64,16 @@ class MemoryStorageTest(unittest.TestCase):
         self.assertEqual(lay["sections"][4]["kind"], "handover")
 
     def test_assign_conflict_move_and_release(self):
-        r = self.s.assign("A-W01", "R2-1")
-        self.assertEqual((r["section"], r["slot"], r["pose_name"]), ("R2", "1", None))
+        r = self.s.assign("A-W01", "R4-1")
+        self.assertEqual((r["section"], r["slot"], r["pose_name"]), ("R4", "1", None))
         with self.assertRaises(StorageConflict):                     # 칸 하나에 물건 하나
-            self.s.assign("A-W02", "R2-1")
-        self.s.assign("A-W01", "R2-2")                                # 같은 물건을 옮기면 예전 칸은 빔
+            self.s.assign("A-W02", "R4-1")
+        self.s.assign("A-W01", "R4-2")                                # 같은 물건을 옮기면 예전 칸은 빔
         lay = {x["slot_id"]: x for sec in self.s.layout()["sections"] for x in sec["slots"]}
-        self.assertIsNone(lay["R2-1"]["item"])
-        self.assertEqual(lay["R2-2"]["item"]["item_id"], "A-W01")
-        self.assertEqual(self.s.release(item_id="A-W01"), {"ok": True, "slot_id": "R2-2", "item_id": "A-W01"})
-        self.assertEqual(self.s.release(slot_id="R2-2"), {"ok": True, "slot_id": "R2-2", "item_id": None})
+        self.assertIsNone(lay["R4-1"]["item"])
+        self.assertEqual(lay["R4-2"]["item"]["item_id"], "A-W01")
+        self.assertEqual(self.s.release(item_id="A-W01"), {"ok": True, "slot_id": "R4-2", "item_id": "A-W01"})
+        self.assertEqual(self.s.release(slot_id="R4-2"), {"ok": True, "slot_id": "R4-2", "item_id": None})
 
     def test_rejects_wrong_category_handover_and_off_shelf_status(self):
         with self.assertRaises(StorageError):                         # 지갑을 모형폰 행에
@@ -82,9 +82,9 @@ class MemoryStorageTest(unittest.TestCase):
         with self.assertRaises(StorageError):                         # 인계 구역은 보관 칸이 아님
             self.s.assign("A-W02", "H-1", override_category=True)
         with self.assertRaises(StorageConflict):                      # 아직 등록기계에 있는 물건
-            self.s.assign("A-W04", "R2-1")
+            self.s.assign("A-W04", "R4-1")
         with self.assertRaises(StorageError) as cm:
-            self.s.assign("A-W99", "R2-1")
+            self.s.assign("A-W99", "R4-1")
         self.assertTrue(cm.exception.not_found)
         with self.assertRaises(StorageError) as cm:
             self.s.assign("A-W02", "R9-1")
@@ -99,16 +99,16 @@ class MemoryStorageTest(unittest.TestCase):
 
     def test_export_matches_gunte_format_and_warns_without_pose(self):
         self.s.assign("A-W03", "R1-2")
-        self.s.assign("A-W05", "R3-1")
+        self.s.assign("A-W05", "R2-1")
         out = self.s.export()
         self.assertEqual(out["inventory"], {"A-W03": {"section": "R1", "slot": "2"},
-                                            "A-W05": {"section": "R3", "slot": "1"}})
+                                            "A-W05": {"section": "R2", "slot": "1"}})
         self.assertEqual(out["sections"]["R1"]["slots"], {"1": None, "2": None})
         self.assertEqual(len(out["warnings"]), 2)
         with self.assertRaises(ValueError):                           # 자세가 비면 비전 쪽도 거절(안전)
             gunte_load_storage(out)
         self.s.set_pose("R1-2", "pose_1")
-        self.s.set_pose("R3-1", "shelf_r3_1")
+        self.s.set_pose("R2-1", "shelf_r3_1")
         out = self.s.export()
         self.assertEqual(out["warnings"], [])
         sections, inventory = gunte_load_storage(json.loads(json.dumps(out)))
@@ -122,8 +122,8 @@ class MemoryStorageTest(unittest.TestCase):
                 self.s.set_bounds("R1", bad)
 
     def test_items_leaving_shelf(self):
-        self.s.assign("A-W01", "R2-1")
-        self.s.assign("A-W02", "R2-2")
+        self.s.assign("A-W01", "R4-1")
+        self.s.assign("A-W02", "R4-2")
         self.items.db["A-W01"]["status"] = "반환 중"                  # 로봇이 집는 중: 칸은 유지, 내보내기에서는 빠짐
         self.assertNotIn("A-W01", self.s.export()["inventory"])
         self.assertEqual(self.s.layout()["summary"]["used"], 2)
@@ -131,17 +131,17 @@ class MemoryStorageTest(unittest.TestCase):
         self.assertEqual(self.s.layout()["summary"]["used"], 2)
         self.items.db["A-W01"]["status"] = "인계 완료"                # 건넴 → 칸 비움
         self.items.db["A-W02"]["status"] = "인계 완료"
-        self.assertEqual(self.s.assign("A-W05", "R2-1", override_category=True)["slot_id"], "R2-1")   # 화면 새로고침 없이 바로 넣기
-        self.s.release(slot_id="R2-1")
+        self.assertEqual(self.s.assign("A-W05", "R4-1", override_category=True)["slot_id"], "R4-1")   # 화면 새로고침 없이 바로 넣기
+        self.s.release(slot_id="R4-1")
         self.assertEqual(self.s.layout()["summary"]["used"], 0)
-        self.assertEqual(self.s.assign("A-W03", "R2-1", override_category=True)["slot_id"], "R2-1")
+        self.assertEqual(self.s.assign("A-W03", "R4-1", override_category=True)["slot_id"], "R4-1")
 
     def test_pose_validation(self):
-        self.assertEqual(self.s.set_pose("R2-1", "pose_3")["pose_name"], "pose_3")
-        self.assertIsNone(self.s.set_pose("R2-1", "")["pose_name"])
+        self.assertEqual(self.s.set_pose("R4-1", "pose_3")["pose_name"], "pose_3")
+        self.assertIsNone(self.s.set_pose("R4-1", "")["pose_name"])
         for bad in ("Pose1", "1pose", "pose-1", "a" * 33, 3):
             with self.assertRaises(StorageError):
-                self.s.set_pose("R2-1", bad)
+                self.s.set_pose("R4-1", bad)
         with self.assertRaises(StorageError):
             self.s.set_pose("R7-1", "pose_1")
 
@@ -168,7 +168,7 @@ class MemoryStorageTest(unittest.TestCase):
 
 
 class PhoneRowAndShelfTest(unittest.TestCase):
-    """11/9 사용자 결정: R1 두 칸 = 휴대폰 전용(45도 사선) · R2 카드지갑 · R3 보조배터리 · R4 핸드크림, 맞는 칸이 없으면 직원 보관 선반"""
+    """11/9 사용자 결정: R1 두 칸 = 휴대폰 전용(45도 사선) · R4 카드지갑 · R2 보조배터리 · R3 핸드크림, 맞는 칸이 없으면 직원 보관 선반"""
 
     def setUp(self):
         from agents.storage import recommend_slot, shelf_items, slot_groups, group_of
@@ -190,31 +190,31 @@ class PhoneRowAndShelfTest(unittest.TestCase):
         self.s.assign("A-W11", "R1-1"); self.s.assign("A-W12", "R1-2")
         self.assertIsNone(self.recommend(self.s.layout(), "모형폰"))          # R1 이 차면 다른 행으로 보내지 않음
         with self.assertRaises(StorageError):
-            self.s.assign("A-W13", "R2-1")                                   # 휴대폰을 R2 에 → 품목 다름
+            self.s.assign("A-W13", "R4-1")                                   # 휴대폰을 R4 에 → 품목 다름
         with self.assertRaises(StorageError):
             self.s.assign("A-W21", "R1-1", override_category=False)          # 지갑을 R1 에
 
     def test_each_column_takes_its_category_near_robot_first(self):
-        """11/9(015·016): 열마다 품목 하나 — R2 카드지갑 · R3 보조배터리 · R4 핸드크림(USB 는 운영 품목 아님). 로봇 쪽(1번) 칸 먼저"""
+        """11/9(015·016): 열마다 품목 하나 — R4 카드지갑 · R2 보조배터리 · R3 핸드크림(USB 는 운영 품목 아님). 로봇 쪽(1번) 칸 먼저"""
         rec = self.recommend(self.s.layout(), "지갑")
-        self.assertEqual((rec["slot_id"], rec["other_row"]), ("R2-1", False))
-        self.s.assign("A-W21", "R2-1")
-        self.assertEqual(self.recommend(self.s.layout(), "지갑")["slot_id"], "R2-2")
-        self.s.assign("A-W26", "R2-2")
+        self.assertEqual((rec["slot_id"], rec["other_row"]), ("R4-1", False))
+        self.s.assign("A-W21", "R4-1")
+        self.assertEqual(self.recommend(self.s.layout(), "지갑")["slot_id"], "R4-2")
+        self.s.assign("A-W26", "R4-2")
         self.assertIsNone(self.recommend(self.s.layout(), "지갑"))           # 지갑 열이 차면 다른 열로 보내지 않음(칸 대기·선반)
-        self.assertEqual(self.recommend(self.s.layout(), "보조배터리")["slot_id"], "R3-1")
+        self.assertEqual(self.recommend(self.s.layout(), "보조배터리")["slot_id"], "R2-1")
         self.assertIsNone(self.recommend(self.s.layout(), "USB"))           # 016: USB 는 받는 열이 없음 → 직원 보관 선반
-        self.s.assign("A-W24", "R4-1")
-        self.assertEqual(self.recommend(self.s.layout(), "핸드크림")["slot_id"], "R4-2")
+        self.s.assign("A-W24", "R3-1")
+        self.assertEqual(self.recommend(self.s.layout(), "핸드크림")["slot_id"], "R3-2")
         with self.assertRaises(StorageError):
-            self.s.assign("A-W22", "R4-2")                                   # USB 를 핸드크림 열에
+            self.s.assign("A-W22", "R3-2")                                   # USB 를 핸드크림 열에
         with self.assertRaises(StorageError):
-            self.s.assign("A-W25", "R2-1", override_category=False)          # 보조배터리를 지갑 열에
+            self.s.assign("A-W25", "R4-1", override_category=False)          # 보조배터리를 지갑 열에
         with self.assertRaises(StorageError):
-            self.s.assign("A-W27", "R3-1")                                   # USB 를 보조배터리 열에
+            self.s.assign("A-W27", "R2-1")                                   # USB 를 보조배터리 열에
         g = {x["key"]: (x["rows"], x["used"], x["total"]) for x in self.groups(self.s.layout())}
-        self.assertEqual(g, {"phone": (["R1"], 0, 2), "지갑": (["R2"], 2, 2), "보조배터리": (["R3"], 0, 2),
-                             "핸드크림": (["R4"], 1, 2)})
+        self.assertEqual(g, {"phone": (["R1"], 0, 2), "지갑": (["R4"], 2, 2), "보조배터리": (["R2"], 0, 2),
+                             "핸드크림": (["R3"], 1, 2)})
         self.assertIsNone(self.group_of(self.groups(self.s.layout()), "USB"))
         self.assertIsNone(self.group_of(self.groups(self.s.layout()), "확인 불가"))
 
@@ -223,8 +223,8 @@ class PhoneRowAndShelfTest(unittest.TestCase):
         self.assertIsNone(self.recommend(self.s.layout(), "립밤"))
         self.assertIsNone(self.group_of(self.groups(self.s.layout()), "립밤"))
         with self.assertRaises(StorageError):
-            self.s.assign("A-W23", "R4-1")                                   # 품목 확인을 그대로 하면 어느 열도 안 받음
-        self.assertEqual(self.s.assign("A-W23", "R4-1", override_category=True)["slot_id"], "R4-1")   # 직원이 강제로는 가능
+            self.s.assign("A-W23", "R3-1")                                   # 품목 확인을 그대로 하면 어느 열도 안 받음
+        self.assertEqual(self.s.assign("A-W23", "R3-1", override_category=True)["slot_id"], "R3-1")   # 직원이 강제로는 가능
         self.assertEqual(self.s.move_to_shelf("A-W23")["slot_id"], "S-1")
 
     def test_layout_follows_active_categories(self):
@@ -239,12 +239,12 @@ class PhoneRowAndShelfTest(unittest.TestCase):
         self.assertNotIn("립밤", used)
 
     def test_move_to_shelf_from_slot_and_from_kiosk(self):
-        self.s.assign("A-W21", "R2-1")
+        self.s.assign("A-W21", "R4-1")
         out = self.s.move_to_shelf("A-W21")
-        self.assertEqual((out["slot_id"], out["from"]), ("S-1", "R2-1"))
+        self.assertEqual((out["slot_id"], out["from"]), ("S-1", "R4-1"))
         lay = self.s.layout()
         slots = {sl["slot_id"]: sl for sec in lay["sections"] for sl in sec["slots"]}
-        self.assertIsNone(slots["R2-1"]["item"])                             # 칸이 빔
+        self.assertIsNone(slots["R4-1"]["item"])                             # 칸이 빔
         self.assertEqual(lay["summary"]["staff_shelf"], 1)
         out = self.s.move_to_shelf("A-W31")                                  # 칸 대기 물건 → 직원이 가져와 바로 선반
         self.assertEqual((out["slot_id"], out["status"]), ("S-2", "본센터 보관"))
@@ -260,7 +260,7 @@ class PhoneRowAndShelfTest(unittest.TestCase):
     def test_shelf_not_exported_to_vision(self):
         from agents.storage import SLOT_POSES
         s = MemoryStorageStore(item_lookup=self.db.get, poses=SLOT_POSES)
-        s.assign("A-W21", "R2-1")
+        s.assign("A-W21", "R4-1")
         s.move_to_shelf("A-W22")
         out = s.export()
         self.assertNotIn("S", out["sections"])
@@ -278,7 +278,8 @@ class MigrationMatchesLayoutTest(unittest.TestCase):
         got = {c: (lb, k, [x for x in cats.split(",") if x]) for c, lb, k, cats, _ in sections}
         # 009 → 014 → 015 가 바꾼 행(이름·품목)을 007 시작값에 차례로 적용하면 LAYOUT 과 같아야 한다(주석 속 되돌리기 문장은 빼고)
         for rel in ("009_storage_categories_photo_1106.sql", "014_storage_phone_rows_staff_shelf_1109.sql",
-                    "015_storage_columns_no_lipbalm_1109.sql", "016_four_items_no_usb_1109.sql"):
+                    "015_storage_columns_no_lipbalm_1109.sql", "016_four_items_no_usb_1109.sql",
+                    "018_columns_phone_battery_cream_wallet_1110.sql"):
             text = (ROOT / "center" / "migrations" / rel).read_text(encoding="utf-8")
             text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
             fixes = re.findall(r"SET label = '([^']+)', allowed_categories = '\{([^}]*)\}'\s*"
@@ -449,19 +450,19 @@ class PostgresStorageTest(unittest.TestCase):
 
     def test_round_trip_and_trigger(self):
         import psycopg
-        self.s.assign("A-W01", "R2-1")                                 # 11/9 015: 지갑은 R2 열
+        self.s.assign("A-W01", "R4-1")                                 # 11/9 015: 지갑은 R4 열
         with self.assertRaises(StorageConflict):
-            self.s.assign("A-W02", "R2-1")
+            self.s.assign("A-W02", "R4-1")
         with self.assertRaises(StorageConflict):
-            self.s.assign("A-W04", "R4-1")                             # USB 열이지만 아직 등록기계에 있음
+            self.s.assign("A-W04", "R3-1")                             # USB 열이지만 아직 등록기계에 있음
         with self.assertRaises(StorageError):
             self.s.assign("A-W02", "R1-1")
         with self.assertRaises(StorageError):
-            self.s.assign("A-W02", "R4-1")                             # 지갑을 핸드크림 열에
-        self.s.assign("A-W01", "R2-2")
-        self.s.set_pose("R2-2", "pose_2")
+            self.s.assign("A-W02", "R3-1")                             # 지갑을 핸드크림 열에
+        self.s.assign("A-W01", "R4-2")
+        self.s.set_pose("R4-2", "pose_2")
         out = self.s.export()
-        self.assertEqual(out["inventory"], {"A-W01": {"section": "R2", "slot": "2"}})
+        self.assertEqual(out["inventory"], {"A-W01": {"section": "R4", "slot": "2"}})
         gunte_load_storage(out)
         with psycopg.connect(self.dsn) as conn:
             conn.execute("UPDATE item SET status='인계 대기' WHERE item_id='A-W01'")
@@ -469,5 +470,5 @@ class PostgresStorageTest(unittest.TestCase):
         with psycopg.connect(self.dsn) as conn:
             conn.execute("UPDATE item SET status='인계 완료' WHERE item_id='A-W01'")
         self.assertEqual(self.s.layout()["summary"]["used"], 0)
-        row = self.s.record_check({"section": "R4", "expected_count": 0, "detected_count": 0, "status": "count_match"})
+        row = self.s.record_check({"section": "R3", "expected_count": 0, "detected_count": 0, "status": "count_match"})
         self.assertEqual(self.s.recent_checks(5)[0]["id"], row["id"])
