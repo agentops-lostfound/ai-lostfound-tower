@@ -117,6 +117,8 @@ tools\start_tower.bat lan
 
 ## 검증
 
+최종 공유 전 main `9bab15a`까지 통합했고 전체 시험 **1,483개 실행·1,454개 통과·29개 skip·실패 0개**를 확인했다. 상태 응답 충돌은 실물 모드 표시와 팀원 측 찾기 요청 목록을 모두 유지해 해결했다. 아래 시험은 모의 드라이버이며 실물 완료 신호를 검증했다는 뜻이 아니다.
+
 `tests/test_taught_return.py`: showcase와 같은 회수 API, 실제 loopback HTTP 인증/작업 조회, 모의 모터 사용. 8칸 22개 진행 사건, 마지막 도착 대기, 직원 확인 대기, 중복/신분 불일치/화면 칸 주입 차단, 미허용 칸, 중간 실패/정지, 가상 자동 인계 차단, 근거 없는 ok 응답 거절을 확인한다.
 
 `tests/test_remote_robot.py`: 기존 lease·중복·지연 요청·미확인 정지에 더해 준비 중 정지 신호를 지우지 않는 검사를 포함한다. 전체 시험 결과는 로컬 `outputs/robot_db_check/showcase-taught-full-tests.txt`에 남긴다.

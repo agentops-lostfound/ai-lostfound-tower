@@ -412,12 +412,39 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const c = CARD[t], key = cur[t], row = (key && rows[t][key]) || {};
     const saved = t === "item" && key && dbSaved.has(key) ? `<span class="dbok" title="팀 DB 의 item 표에서 이 접수 번호를 읽었어요">팀 DB 저장됨</span>` : "";
     $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4>` +
-      (t === "item" ? `<div class="acts" id="itemActs"></div>` : "") + `<dl>` +
+      (t === "item" ? `<div class="acts" id="itemActs"></div>` : `<div class="acts" id="claimActs"></div>`) + `<dl>` +
       c.cols.map(([n, easy]) => { const v = row[n];
-        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + (n === "category" ? catCell(v.text) : esc(v.text))}</dd>`; }).join("") + "</dl>";    if (t === "item") drawActs();
+        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + (n === "category" ? catCell(v.text) : esc(v.text))}</dd>`; }).join("") + "</dl>";    if (t === "claim") drawClaimActs();
+    if (t === "item") drawActs();
   }
   // 물건 카드의 직원 단추: 아직 등록기계에 있는 물건에만 보인다.
   //  [본센터로 회수] 칸 대기·늦게 분석된 물건을 지금 회수(빈 칸이 없으면 직원 보관 선반) · [접수 취소] 실수로 접수한 물건을 지움(두 번 눌러 실행)
+  // 11/10 찾기 요청 카드의 직원 단추: 방문 전인 요청에만. [직원 확인 후 진행] 본센터 방문 대기에서 직원이 대면 확인하고 반환 시작(키오스크 입력 없이,
+  //  확인 질문이 맞지 않아 키오스크가 받지 않는 요청도) · [찾기 요청 취소] 요청과 방문 예약 취소(두 번 눌러 실행, 물건은 계속 보관)
+  let openClaims = {}, claimArmed = null, claimMsg = "", claimBusy = false;
+  function drawClaimActs() {
+    const box = $("claimActs"); if (!box) return;
+    const key = cur.claim, oc = key && openClaims[key];
+    if (!oc) { box.innerHTML = claimMsg ? `<span class="msg1">${esc(claimMsg)}</span>` : ""; return; }
+    const dis = claimBusy ? " disabled" : "";
+    box.innerHTML = (oc.visit_wait ? `<button type="button" id="claimGo"${dis} title="직원이 신분증과 물건 특징을 직접 확인한 뒤 누르세요 — 키오스크 입력 없이 반환을 시작해요">직원 확인 후 진행</button>` : "") +
+      `<button type="button" id="claimCancel" class="danger${claimArmed === key ? " armed" : ""}"${dis} title="찾기 요청과 방문 예약을 취소해요. 물건은 계속 보관돼요">${claimArmed === key ? "한 번 더 누르면 취소돼요" : "찾기 요청 취소"}</button>` +
+      (oc.visit_wait && !oc.quiz_passed ? `<span class="msg1" style="color:var(--ui-text-3)">확인 질문 미통과 — 키오스크 대신 직원 확인</span>` : "") +
+      (claimMsg ? `<span class="msg1">${esc(claimMsg)}</span>` : "");
+    if ($("claimGo")) $("claimGo").onclick = () => claimAct(key, "visit");
+    $("claimCancel").onclick = () => {
+      if (claimArmed !== key) { claimArmed = key; claimMsg = ""; drawClaimActs(); setTimeout(() => { if (claimArmed === key) { claimArmed = null; drawClaimActs(); } }, 4000); return; }
+      claimArmed = null; claimAct(key, "cancel");
+    };
+  }
+  async function claimAct(key, what) {
+    claimMsg = ""; claimBusy = true; drawClaimActs();
+    try {
+      const r = await fetch(`/api/admin/claims/${encodeURIComponent(key)}/${what}`, {method: "POST"});
+      if (!r.ok) { const d = await r.json().catch(() => ({})); claimMsg = typeof d.detail === "string" ? d.detail : ((d.detail && d.detail.message) || "할 수 없어요"); }
+    } catch (_) { claimMsg = "관제탑에 연결할 수 없어요"; }
+    claimBusy = false; drawClaimActs();
+  }
   let actArmed = null, actMsg = "";
   function drawActs() {
     const box = $("itemActs"); if (!box) return;
@@ -454,7 +481,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     if (name === "category" && !locked) dd.innerHTML = catCell(text); else dd.textContent = (locked ? "🔒 " : "") + text;
     if (live) { dd.classList.add("flash"); setTimeout(() => dd.classList.remove("flash"), 60); }
   }
-  function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; if (t === "item") { actArmed = null; actMsg = ""; } drawCard(t); } }
+  function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; if (t === "item") { actArmed = null; actMsg = ""; } else { claimArmed = null; claimMsg = ""; } drawCard(t); } }
   function ring(t, cls) { const el = $(CARD[t].el); el.classList.add(cls); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("write", "read"), 900); }
 
   function applyDb(d, live) {
@@ -485,7 +512,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       setCell("claim", k, "quiz", (prev ? prev + " · " : "") + `${val("field")} ${val("passed") === "예" ? "통과" : "틀림"}`, false, live);
     } else if (d.table === "reservation" && k) {
       if (val("visit_date")) setCell("claim", k, "visit_date", val("visit_date"), false, live);
-      if (val("status")) setCell("claim", k, "visit", val("status") === "visited" ? "방문함(visited)" : "예약됨(booked)", false, live);
+      if (val("status")) setCell("claim", k, "visit", {visited: "방문함(visited)", cancelled: "취소됨(cancelled)"}[val("status")] || "예약됨(booked)", false, live);
     } else if (d.table === "return_case") {
       const cid = val("claim_id"); if (cid && cid !== "-") { focusRow("claim", cid); setCell("claim", cid, "decision", `${val("decision")} — ${val("reason")}`, false, live); if (live) ring("claim", "write"); }
     }
@@ -859,6 +886,8 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
         if (end >= 0) for (let i = 0; i <= end; i++) if (isChat(queue[i])) queue[i]._rush = true;
       }
       stories = d.stories || []; renderSteps();
+      const oc = Object.fromEntries((d.claims_open || []).map((o) => [o.claim_id, o]));
+      if (JSON.stringify(oc) !== JSON.stringify(openClaims)) { openClaims = oc; drawClaimActs(); }
       seq = d.seq;
     } catch (e) {
       fails++;

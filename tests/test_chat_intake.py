@@ -107,7 +107,7 @@ class AgentTest(unittest.TestCase):
         self.assertEqual((r["status"], r["choices"][0]), ("intake_question", "모름"))
         r = a.step("s2", "별 스티커")
         self.assertEqual(desk.calls[-1], ("answer", "p1", "별 스티커"))
-        self.assertIn("직원이 한 번 더 확인", r["answer"])
+        self.assertIn("직원이 직접 확인", r["answer"])        # 11/10 키오스크 대신 직원 대면 확인으로 안내
 
     def test_found_flow_and_inactive_item(self):
         desk = FakeDesk()

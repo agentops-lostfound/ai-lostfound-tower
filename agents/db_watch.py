@@ -247,7 +247,14 @@ class DbWatch:
 
         self._wrap(store, "create", created)
         self._wrap(store, "get", got)
+        def cancelled(out, claim_id, *a, **k):
+            if out:                                          # 실제로 취소된 것만(이미 방문·취소된 요청은 바뀌지 않음)
+                self.emit("reservation", "UPDATE", claim_id, [col("claim_id", claim_id), col("status", "cancelled", True)],
+                          by="직원·분실인", note="찾기 요청·방문 예약 취소 — 물건은 계속 보관")
+
         self._wrap(store, "mark_visited", visited)
+        if callable(getattr(store, "cancel", None)):
+            self._wrap(store, "cancel", cancelled)
 
     # ----- 보관함 정답지(storage) -----
     def watch_storage(self, store) -> None:

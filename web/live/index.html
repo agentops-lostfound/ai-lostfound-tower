@@ -101,6 +101,12 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .purge summary{cursor:pointer;font-weight:700;font-size:13px}
 .purge-note{font-size:12px;margin:8px 0;line-height:1.5;opacity:.85}
 .purge-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
+.claim-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.claim-acts button{font:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+.claim-acts button.danger{background:transparent;color:var(--ui-err,#d33);border-color:currentColor}
+.claim-acts button.danger.armed{background:var(--ui-err,#d33);color:#fff;border-color:var(--ui-err,#d33)}
+.claim-acts button:disabled{opacity:.45;cursor:default}
+.claim-acts .hint{font-size:11.5px;opacity:.75} .claim-acts .msg{font-size:11.5px;color:var(--ui-err,#d33)}
 .purge-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 8px;border-radius:8px;background:var(--panel);min-width:0}
 .purge-row .id{font-family:var(--ui-mono);font-weight:700;white-space:nowrap}
 .purge-row .what{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
@@ -633,8 +639,35 @@ details.more .robot-note{margin-top:0}
   }
 
   // ---------- 이야기 ----------
+  // 11/10 방문 전 찾기 요청의 직원 단추: [직원 확인 후 진행](본센터 방문 대기일 때) · [찾기 요청 취소](두 번 눌러 실행)
+  let openClaims = {}, claimArmed = null, claimBusy = null, claimMsg = {}, lastStories = null;
+  function claimActs(st) {
+    const oc = openClaims[st.story_id]; const msg = claimMsg[st.story_id];
+    if (!oc) return msg ? `<div class="claim-acts"><span class="msg">${esc(msg)}</span></div>` : "";
+    const busy = claimBusy === oc.claim_id ? " disabled" : "";
+    const go = oc.visit_wait ? `<button type="button" data-claim-go="${esc(oc.claim_id)}"${busy} title="직원이 신분증과 물건 특징을 직접 확인한 뒤 누르세요. 키오스크 입력 없이 반환을 시작해요${oc.quiz_passed ? "" : " (확인 질문이 맞지 않아 키오스크에서는 받지 않는 요청)"}">직원 확인 후 진행</button>` : "";
+    const armed = claimArmed === oc.claim_id;
+    return `<div class="claim-acts">${go}<button type="button" class="danger${armed ? " armed" : ""}" data-claim-cancel="${esc(oc.claim_id)}"${busy} title="찾기 요청과 방문 예약을 취소해요. 물건은 계속 보관돼요">${armed ? "한 번 더 → 취소" : "찾기 요청 취소"}</button>` +
+           (oc.visit_wait && !oc.quiz_passed ? `<span class="hint">확인 질문 미통과 — 키오스크 대신 직원 확인</span>` : "") + (msg ? `<span class="msg">${esc(msg)}</span>` : "") + `</div>`;
+  }
+  $("stories").addEventListener("click", async (e) => {
+    const go = e.target.closest("button[data-claim-go]"), cancel = e.target.closest("button[data-claim-cancel]");
+    const b = go || cancel; if (!b || b.disabled) return;
+    const cid = go ? go.dataset.claimGo : cancel.dataset.claimCancel;
+    const sid = (Object.values(openClaims).find(o => o.claim_id === cid) || {}).story_id;
+    if (cancel && claimArmed !== cid) {
+      claimArmed = cid; renderStories(lastStories);
+      setTimeout(() => { if (claimArmed === cid) { claimArmed = null; renderStories(lastStories); } }, 4000);
+      return;
+    }
+    claimArmed = null; claimBusy = cid; if (sid) delete claimMsg[sid]; renderStories(lastStories);
+    try { await post(`/api/admin/claims/${encodeURIComponent(cid)}/${go ? "visit" : "cancel"}`); }
+    catch (err) { if (sid) claimMsg[sid] = err.message; }
+    claimBusy = null; renderStories(lastStories);
+  });
   function renderStories(stories) {
     if (!stories || !stories.length) return;
+    lastStories = stories;
     $("stories").innerHTML = stories.map(st => {
       const ids = Object.entries(st.ids || {}).map(([k, v]) => `${{item_id:"물건",claim_id:"찾기",case_id:"사례"}[k]||k} ${v}`).join(" · ");
       const stn = st.ids && st.ids.item_id ? stationOf({item_id: st.ids.item_id}) : "";      // 11/9 습득 역(물건 번호 앞글자)
@@ -642,7 +675,7 @@ details.more .robot-note{margin-top:0}
       const res = st.result ? `<div class="result ${st.result.ok ? "ok" : "fail"}">${st.result.ok ? "✅" : "⚠️"} ${esc(st.result.text)}</div>` : "";
       const secs = Math.round(((st.result ? st.result.t : Date.now() / 1000) - st.started));
       return `<div class="story"><div class="top"><span class="kind ${st.kind}">${st.kind === "found" ? "습득" : "분실"} ${esc(st.story_id)}</span><span class="title">${esc(st.title)}</span>${stn ? `<span class="st-chip" title="${esc(stn)}에서 습득">${esc(stn)}</span>` : ""}<span class="time">${secs}초</span></div>`+
-             `<div class="ids">${esc(ids)}</div><ol class="steps">${steps}</ol>${res}</div>`;
+             `<div class="ids">${esc(ids)}</div><ol class="steps">${steps}</ol>${claimActs(st)}${res}</div>`;
     }).join("");
   }
 
@@ -729,6 +762,7 @@ details.more .robot-note{margin-top:0}
       renderCap(d.storage);
       addEvents(d.events || []);
       renderBanner(d.world);
+      openClaims = Object.fromEntries((d.claims_open || []).map(o => [o.story_id, o]));
       renderStories(d.stories);
       seq = d.seq;
     } catch (e) {
