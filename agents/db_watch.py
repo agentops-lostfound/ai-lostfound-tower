@@ -167,10 +167,13 @@ class DbWatch:
                 return
             from agents.intake import split_features
             cat, pub, priv = split_features(feats)
+            row = (getattr(store, "items", None) or {}).get(item_id) if isinstance(getattr(store, "items", None), dict) else None
+            photo = True if row is None else bool(row.get("photo_path"))       # 메모리 저장소면 사진 접수인지 확인(DB 저장소는 사진 접수로 봄)
             self.emit("item", "UPDATE", item_id, [
                 col("category", cat, True), col("features", pub, True),
                 col("private_features", f"{len(priv)}개 저장(값은 가림 — 확인 질문 정답)", True, hidden=True),
-            ], by="Qwen 사진 분석", note="사진에서 읽은 특징을 채움(공개/비공개로 나눠 저장)")
+            ], by="Qwen 사진 분석" if photo else "가상 분석(글 신고)",
+                note="사진에서 읽은 특징을 채움(공개/비공개로 나눠 저장)" if photo else "신고 글에서 읽은 특징을 채움(가상 시연 — 사진 없음)")
 
         self._wrap(store, "create", created)
         self._wrap(store, "set_features", features)

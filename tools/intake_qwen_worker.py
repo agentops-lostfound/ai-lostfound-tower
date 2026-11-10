@@ -83,6 +83,13 @@ class Tower:
     def send(self, item_id: str, features: dict) -> dict:
         return self._call("POST", f"/api/kiosk/items/{item_id}/features", {"qwen": features, "confidence": CONFIDENCE})
 
+    def stage(self, item_id: str, stage: str, detail: str = "") -> None:
+        """11/10 지금 어느 단계인지 관제탑에 알림(통합 시연 화면의 '사진 분석' 카드). 알림이 안 돼도 분석은 계속한다"""
+        try:
+            self._call("POST", f"/api/admin/intake/analysis/{item_id}", {"stage": stage, "detail": detail[:100]})
+        except Exception:
+            pass
+
 
 def qwen_analyzer(max_edge: int = 512):
     """진짜 Qwen 분석 함수(첫 호출 때 모델을 올리고 계속 재사용 — qwen/src/model_loader.py lru_cache)"""
@@ -148,17 +155,21 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
         if not iid or tries.get(iid, 0) >= MAX_TRIES:
             continue
         started = time.perf_counter()
+        notify = getattr(tower, "stage", None) or (lambda *a, **k: None)     # 11/10 화면에 단계 알림(없는 연결이면 건너뜀)
         try:
+            notify(iid, "analyze")
             feats = analyze(resolve_photo(row.get("photo_path") or "", root))
             tower.send(iid, feats)
         except Exception as e:
             if type(e).__name__ == "GpuBusy":               # 로봇이 GPU 사용 중 → 실패로 세지 않고 다음 차례에
                 log(f"[대기] {iid} {str(e)[:120]}")
+                notify(iid, "wait_gpu", "로봇이 그래픽카드를 쓰는 중 — 끝나면 다시")
                 continue
             if not isinstance(e, (urllib.error.URLError, OSError, ValueError, RuntimeError, TypeError)):
                 raise
             tries[iid] = tries.get(iid, 0) + 1
             log(f"[실패 {tries[iid]}/{MAX_TRIES}] {iid} {type(e).__name__}: {str(e)[:120]}")
+            notify(iid, "fail", f"{type(e).__name__} ({tries[iid]}/{MAX_TRIES}번째)")
             continue
         tries.pop(iid, None)
         sent += 1

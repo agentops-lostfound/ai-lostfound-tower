@@ -9,6 +9,7 @@
 - 11/10 통합 시연 화면(/showcase)용 자세한 사건 두 가지를 따로 쌓는다(최근 MAX_DETAIL 개, 번호는 같은 줄을 씀):
   · db    : 저장소에 무엇을 썼는지/읽었는지(표·칸·값) — agents/db_watch.py 가 보냄
   · trace : 에이전트 한 칸의 시작/끝(입력·출력 요약·모델·걸린 시간) — agents/observability.py 리스너가 보냄
+  · vision: 키오스크 사진 분석(Qwen)의 단계와 결과(읽은 값 → 저장한 값) — agents/vision_watch.py 가 보냄
   since(detail=True) 로 물을 때만 돌려준다 → /live 화면·분실물 봇·관제 분석은 예전과 똑같은 사건만 본다
 """
 from __future__ import annotations
@@ -18,8 +19,8 @@ import time
 from contextlib import contextmanager
 
 MAX_EVENTS = 600
-MAX_DETAIL = 400      # db·trace 사건(통합 시연 화면용)
-DETAIL_CHANNELS = ("db", "trace")
+MAX_DETAIL = 400      # db·trace·vision 사건(통합 시연 화면용)
+DETAIL_CHANNELS = ("db", "trace", "vision")
 
 # 이야기 단계(화면의 진행 막대 순서). 습득 신고 / 분실 신고
 FOUND_STAGES = [("intake", "등록기계 접수"), ("features", "Qwen 특징 분석"), ("collect", "본센터로 회수"),
@@ -180,6 +181,10 @@ class LiveBoard:
     def trace(self, data: dict) -> dict:
         """11/10 에이전트 한 칸의 시작/끝(agents/observability.py 리스너). data: {kind, trace, trace_name, name, type, …}"""
         return self._detail_add("trace", f"{data.get('name', '')} {data.get('kind', '')}", "", "trace", dict(data))
+
+    def vision(self, data: dict) -> dict:
+        """11/10 사진 분석 한 단계(agents/vision_watch.py). data: {item_id, stage, label, …}"""
+        return self._detail_add("vision", f"{data.get('item_id', '')} {data.get('stage', '')}", "", "vision", dict(data))
 
     def since(self, after: int = 0, story: str | None = None, limit: int = 200, detail: bool = False) -> list[dict]:
         """after 번 이후 사건. detail=True 면 db·trace 사건도 번호 순서로 섞어 준다(통합 시연 화면 전용)"""
