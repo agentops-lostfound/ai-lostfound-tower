@@ -1,0 +1,29 @@
+{
+  "kind": "simulated_supervisor_not_real_llm",
+  "runs": [
+    {
+      "mode": "rules",
+      "passed": 500,
+      "total": 500,
+      "failures": []
+    },
+    {
+      "mode": "first",
+      "passed": 500,
+      "total": 500,
+      "failures": []
+    },
+    {
+      "mode": "last",
+      "passed": 500,
+      "total": 500,
+      "failures": []
+    },
+    {
+      "mode": "hostile",
+      "passed": 500,
+      "total": 500,
+      "failures": []
+    }
+  ]
+}

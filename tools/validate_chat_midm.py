@@ -24,6 +24,7 @@ def main():
     p.add_argument('--suite', choices=['live', '500'], required=True)
     p.add_argument('--out', required=True)
     p.add_argument('--only', default='', help='검증할 문항 번호(쉼표 구분). 원본 전체 점수와 구분해 기록')
+    p.add_argument('--questions', default='', help='별도 JSON 문항(선택한 suite 형식). 기존 500문항을 변경하지 않음')
     args = p.parse_args()
     only = {int(n) for n in args.only.split(',') if n.strip()}
     from agents import local_model
@@ -68,7 +69,8 @@ def main():
                        'started': dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()}, 'results': []}
     report['meta']['source_sha256'] = {
         name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-        for name in ('agents/chatbot.py', 'agents/chat_agents.py', 'agents/chat_supervisor.py', 'agents/prompts.py')}
+        for name in ('agents/chatbot.py', 'agents/chat_agents.py', 'agents/chat_supervisor.py', 'agents/prompts.py',
+                     'agents/guidance.py', 'agents/chat_rag.py', 'agents/chat_retrieval.py')}
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}',
                                                           'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -86,14 +88,18 @@ def main():
         if args.suite == 'live':
             from tools.chat_live_check import run, QUESTIONS
             from agents.chat_api import build_chatbot_from_env
-            items = list(enumerate(json.loads(QUESTIONS.read_text(encoding='utf-8')), 1))
+            path = Path(args.questions) if args.questions else QUESTIONS
+            report['meta']['questions_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            items = list(enumerate(json.loads(path.read_text(encoding='utf-8')), 1))
             results = run(build_chatbot_from_env(), [(n, q) for n, q in items if not only or n in only])
             report['results'] = results
             passed = sum(r['ok'] for r in results)
         else:
             from evaluation.chat_eval import Runner, QUESTIONS
             runner = Runner()
-            for it in json.loads(QUESTIONS.read_text(encoding='utf-8')):
+            path = Path(args.questions) if args.questions else QUESTIONS
+            report['meta']['questions_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            for it in json.loads(path.read_text(encoding='utf-8')):
                 if only and it['no'] not in only:
                     continue
                 n = len(calls)

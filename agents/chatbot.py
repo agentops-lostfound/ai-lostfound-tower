@@ -181,7 +181,7 @@ class Chatbot:
         """규칙이 분명하게 찾은 일꾼(planner 가 지울 수 없음)"""
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
-        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|가는법|가는길|받는순서|순서'
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|면허증|운전면허|여권|가는법|가는길|받는순서|순서'
                                   r'|남겨야|남기나|남겨요|적어야|써야|연락처', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)   # 11/9 접수 중 "연락처도 남겨야 해요?"
         search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
         from agents.guidance import off_topic
@@ -192,6 +192,7 @@ class Chatbot:
     def _planner(self, state):
         from agents.observability import node_step
         with node_step('planner', as_type='agent', input={'question': state['question']}) as obs:
+            validation_notes, proposed_plan = [], None
             if state.get('ops_turn'):
                 plan, routing = ['ops'], 'rule'
             elif state.get('intent') == 'intake':
@@ -205,21 +206,25 @@ class Chatbot:
                     sig = self._signals(state)
                     must = [w for w in ('item_search', 'guidance') if sig[w]]
                     got = self.brain.plan(state['question'], state.get('questions'), must)
+                    proposed_plan = [w for w in (got or []) if w in ('guidance', 'item_search')]
                     from agents.guidance import off_topic
                     if got and 'item_search' in got and off_topic(state['question']):
                         # 11/9 Mi:dm 채점(461~464): "지갑 사고 싶은데", "보조배터리 추천해줘", "휴대폰 요금제" 에 모델이 검색을 더함 → 서비스 밖이면 뺌
                         got = [w for w in got if w != 'item_search'] or ['guidance']
+                        validation_notes.append('off_topic_search_denied')
                     if got and 'item_search' in got and not sig['item_search']:
                         # 11/9 채점표(Mi:dm): "어떤 물건을 찾을 수 있어요?"·"후보가 뭐예요?"에 모델이 물건 검색을 더해
                         # "찾는 물건 한 종류와 색상을 알려주세요"가 붙음 → 규칙이 물건 종류를 읽지 못했으면 모델이 더한 검색은 뺌
                         from agents.lost_input import text_features
                         f, _ = text_features(state['question'])
-                        if f.get('category') in (None, '확인 불가', '없음'):
+                        if (sig['guidance'] and not sig['item_search']) or f.get('category') in (None, '확인 불가', '없음'):
                             got = [w for w in got if w != 'item_search'] or ['guidance']
+                            validation_notes.append('search_requires_request_and_item')
                     if got:
                         plan, routing = got, 'model'
             steps = [self._step(i + 1, w, {**state, '_plan_now': plan}, 'planner') for i, w in enumerate(plan)]
-            obs.update(output={'plan': plan, 'routing': routing, 'steps': [f"{x['no']}. {x['agent']} — {x['task']}" for x in steps]})
+            obs.update(output={'plan': plan, 'proposed_plan': proposed_plan, 'validation_notes': validation_notes,
+                               'routing': routing, 'steps': [f"{x['no']}. {x['agent']} — {x['task']}" for x in steps]})
             return {'plan': plan, 'steps': steps, 'results': {}, 'path': state.get('path', []) + ['planner'], 'decisions': [], 'offers': [],
                     'last': '', 'stop': False, 'task': '', 'worker_executions': 0, 'supervisor_checks': [],
                     'routing': 'model' if routing == 'model' or state.get('routing') == 'model' else 'rule'}
@@ -535,7 +540,7 @@ class Chatbot:
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
         # Process/help questions stay in guidance, even when they mention searching.
-        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|가는법|가는길|받는순서|순서', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|면허증|운전면허|여권|가는법|가는길|받는순서|순서', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
         search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
         direct_search = search_intent(q)
         from agents.guidance import off_topic
