@@ -34,6 +34,7 @@ class RuntimeTests(unittest.TestCase):
         self.recording = SimpleNamespace(is_recording=False, dataset_loaded=True, episodes_recorded=0, start=Mock(return_value=True))
         self.source.bind_recording(self.recording)
         self.source._saved_poses = {"pose_1": np.array([1., 0, 0, 0, 0, 80]), "home": np.zeros(6), "open": np.array([0.,0,0,0,0,77])}
+        self.source._pose_motion_profiles = {}  # Synthetic poses must not inherit installed profiles.
         self.source._pose_robot_id = "test-follower"
         self.current = np.array([0., 0, 0, 0, 0, 4])
         self.step()
@@ -54,6 +55,32 @@ class RuntimeTests(unittest.TestCase):
         args.update(kwargs)
         self.send("move_saved_pose", **args)
         return self.step()
+
+    def test_phone_move_commands_bounded_offset_but_arrives_against_original(self):
+        reference = np.array([0., 29.09, 0, 0, 0, 4])
+        self.source._saved_poses['pose_1'] = reference.copy()
+        compensated = reference.copy()
+        compensated[1] -= 2
+        self.source._saved_poses['pose_1_phone'] = compensated
+        self.source._pose_motion_profiles['pose_1_phone'] = dict(reference_pose='pose_1',
+            shoulder_offset=-2., shoulder_tolerance=8.)
+        self.current = reference.copy()
+        self.move(pose='pose_1_phone')
+        for _ in range(45):
+            self.send('saved_pose_heartbeat', token='owner')
+            output = self.step(follow=False)
+            self.current = output.copy()
+            self.current[1] += 7.71
+            self.current[5] = 43.9
+        self.assertEqual(self.source._pose_status, 'arrived')
+        self.assertAlmostEqual(float(output[1]), 27.09, places=3)
+        self.assertEqual(self.source._saved_poses['pose_1'][1], 29.09)
+
+    def test_phone_alias_without_arrival_profile_is_rejected(self):
+        self.source._saved_poses['pose_1_phone'] = self.source._saved_poses['pose_1'].copy()
+        self.move(pose='pose_1_phone')
+        self.assertIn('profile is missing', self.source._pose_error)
+        self.assertIsNone(self.source._pose_move)
 
     def test_same_source_reaches_all_six_saved_joint_targets(self):
         self.source._pose_last_output[5] = 2
@@ -129,7 +156,7 @@ class RuntimeTests(unittest.TestCase):
 
     def hold_unconfirmed_target(self):
         self.move()
-        self.current[0] = -2
+        self.current[0] = -5.5
         for _ in range(33):
             self.send("saved_pose_heartbeat", token="owner")
             self.step(follow=False)
@@ -231,9 +258,24 @@ class RuntimeTests(unittest.TestCase):
         self.move(pose="open", include_gripper=True)
         self.assertEqual(self.source._pose_move.target[5], 77)
 
+    def test_post_grasp_return_keeps_closure_goal_not_contact_opening(self):
+        self.source._pose_last_output[5] = 3.7
+        self.current[5] = 42.0
+        self.send('move_saved_pose', pose='pose_1', follower_id='test-follower',
+                  approved=True, token='owner', include_gripper=False)
+        self.step(follow=False)
+        self.assertAlmostEqual(self.source._pose_move.target[5], 3.7, places=5)
+        for _ in range(40):
+            self.send('saved_pose_heartbeat', token='owner')
+            result = self.step(follow=False)
+            self.current[:5] = result[:5]
+        self.assertEqual(self.source._pose_status, 'arrived')
+        self.assertAlmostEqual(float(self.source._hold_target[5]), 3.7, places=5)
+        self.assertEqual(self.current[5], 42.0)
+
     def test_measured_arrival_not_just_target_ack(self):
         self.move()
-        self.current[:5] = [-2,0,0,0,0]
+        self.current[:5] = [-5.5,0,0,0,0]
         for _ in range(10):
             self.send("saved_pose_heartbeat", token="owner")
             self.step(follow=False)

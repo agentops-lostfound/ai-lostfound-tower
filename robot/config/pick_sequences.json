@@ -1,0 +1,484 @@
+{
+  "schema": "taught_pick_sequences.v1",
+  "sequences": {
+    "pose_1_pick": {
+      "slot_id": "R1-1",
+      "approach_pose": "pose_1",
+      "steps": [
+        {
+          "pose_name": "pose_1_open",
+          "description": "어프로치에서 그리퍼 열기",
+          "captured": true,
+          "captured_at": "2026-11-10T10:31:09.564631+09:00",
+          "sample_count": 44,
+          "max_arm_delta_from_approach_normalized": 15.726495742797852
+        },
+        {
+          "pose_name": "pose_1_target",
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured": true,
+          "captured_at": "2026-11-10T10:34:17.348937+09:00",
+          "sample_count": 44
+        },
+        {
+          "pose_name": "pose_1_close",
+          "description": "타겟에서 그리퍼 닫기",
+          "captured": true,
+          "captured_at": "2026-11-10T10:36:44.781054+09:00",
+          "sample_count": 44,
+          "gripper_value_source": "pose_1.gripper.pos",
+          "gripper_override": {
+            "reference_pose": "pose_1",
+            "value": 3.6987223625183105,
+            "updated_at": "2026-11-10T10:39:50.109562+09:00"
+          }
+        },
+        {
+          "pose_name": "pose_1",
+          "description": "그리퍼를 닫은 채 어프로치로 복귀",
+          "captured": true,
+          "step_name": "pose_1_return",
+          "reuse_existing_pose": true
+        }
+      ],
+      "full_sequence": [
+        "home",
+        "pose_1",
+        "pose_1_open",
+        "pose_1_target",
+        "pose_1_close",
+        "pose_1",
+        "outlet_return_1",
+        "close",
+        "open",
+        "outlet_return_1",
+        "home"
+      ]
+    },
+    "pose_2_pick": {
+      "slot_id": "R1-2",
+      "approach_pose": "pose_2",
+      "steps": [
+        {
+          "pose_name": "pose_2_open",
+          "captured": true,
+          "captured_at": "2026-11-10T10:46:24.192452+09:00",
+          "sample_count": 44,
+          "max_arm_delta_from_approach_normalized": 10.297874450683594,
+          "description": "어프로치에서 그리퍼 열기"
+        },
+        {
+          "pose_name": "pose_2_target",
+          "captured": true,
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured_at": "2026-11-10T10:47:44.466900+09:00",
+          "sample_count": 44
+        },
+        {
+          "pose_name": "pose_2_close",
+          "captured": true,
+          "gripper_value_source": "pose_2.gripper.pos",
+          "description": "타겟에서 그리퍼 닫기",
+          "captured_at": "2026-11-10T10:49:04.181449+09:00",
+          "sample_count": 44,
+          "gripper_override": {
+            "reference_pose": "pose_2",
+            "value": 4.23671817779541,
+            "updated_at": "2026-11-10T10:49:04.181449+09:00"
+          }
+        },
+        {
+          "step_name": "pose_2_return",
+          "pose_name": "pose_2",
+          "captured": true,
+          "reuse_existing_pose": true,
+          "description": "그리퍼를 닫은 채 어프로치로 복귀"
+        }
+      ],
+      "full_sequence": [
+        "home",
+        "pose_2",
+        "pose_2_open",
+        "pose_2_target",
+        "pose_2_close",
+        "pose_2",
+        "outlet_return_1",
+        "close",
+        "open",
+        "outlet_return_1",
+        "home"
+      ]
+    },
+    "pose_3_pick": {
+      "slot_id": "R2-1",
+      "approach_pose": "pose_3",
+      "steps": [
+        {
+          "pose_name": "pose_3_open",
+          "captured": true,
+          "captured_at": "2026-11-10T10:52:28.032587+09:00",
+          "sample_count": 45,
+          "max_arm_delta_from_approach_normalized": 25.592185974121094,
+          "description": "어프로치에서 그리퍼 열기"
+        },
+        {
+          "pose_name": "pose_3_target",
+          "captured": true,
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured_at": "2026-11-10T10:54:36.130108+09:00",
+          "sample_count": 44
+        },
+        {
+          "pose_name": "pose_3_close",
+          "captured": true,
+          "gripper_value_source": "pose_3.gripper.pos",
+          "description": "타겟에서 그리퍼 닫기",
+          "captured_at": "2026-11-10T10:55:46.610520+09:00",
+          "sample_count": 45,
+          "gripper_override": {
+            "reference_pose": "pose_3",
+            "value": 4.23671817779541,
+            "updated_at": "2026-11-10T10:55:46.610520+09:00"
+          }
+        },
+        {
+          "step_name": "pose_3_return",
+          "pose_name": "pose_3",
+          "captured": true,
+          "reuse_existing_pose": true,
+          "description": "그리퍼를 닫은 채 어프로치로 복귀"
+        }
+      ],
+      "full_sequence": [
+        "home",
+        "pose_3",
+        "pose_3_open",
+        "pose_3_target",
+        "pose_3_close",
+        "pose_3",
+        "outlet_return_1",
+        "close",
+        "open",
+        "outlet_return_1",
+        "home"
+      ]
+    },
+    "pose_4_pick": {
+      "slot_id": "R2-2",
+      "approach_pose": "pose_4",
+      "steps": [
+        {
+          "pose_name": "pose_4_open",
+          "captured": true,
+          "captured_at": "2026-11-10T11:15:30.793747+09:00",
+          "sample_count": 45,
+          "max_arm_delta_from_approach_normalized": 45.66544723510742,
+          "description": "어프로치에서 그리퍼 열기",
+          "retaught_at": "2026-11-10T11:15:30.793747+09:00"
+        },
+        {
+          "pose_name": "pose_4_target",
+          "captured": true,
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured_at": "2026-11-10T11:17:42.342325+09:00",
+          "sample_count": 44,
+          "retaught_at": "2026-11-10T11:17:42.342325+09:00"
+        },
+        {
+          "pose_name": "pose_4_close",
+          "captured": true,
+          "gripper_value_source": "pose_4.gripper.pos",
+          "description": "타겟에서 그리퍼 닫기",
+          "captured_at": "2026-11-10T11:19:31.077940+09:00",
+          "sample_count": 44,
+          "gripper_override": {
+            "reference_pose": "pose_4",
+            "value": 3.9677202701568604,
+            "updated_at": "2026-11-10T11:19:31.077940+09:00"
+          }
+        },
+        {
+          "step_name": "pose_4_return",
+          "pose_name": "pose_4",
+          "captured": true,
+          "reuse_existing_pose": true,
+          "description": "그리퍼를 닫은 채 어프로치로 복귀"
+        }
+      ],
+      "full_sequence": [
+        "home",
+        "pose_4",
+        "pose_4_open",
+        "pose_4_target",
+        "pose_4_close",
+        "pose_4",
+        "outlet_return_1",
+        "close",
+        "open",
+        "outlet_return_1",
+        "home"
+      ]
+    },
+    "pose_5_pick": {
+      "slot_id": "R3-1",
+      "approach_pose": "pose_5",
+      "steps": [
+        {
+          "pose_name": "pose_5_open",
+          "captured": true,
+          "captured_at": "2026-11-10T11:23:22.512406+09:00",
+          "sample_count": 45,
+          "max_arm_delta_from_approach_normalized": 10.940170288085938,
+          "description": "어프로치에서 그리퍼 열기"
+        },
+        {
+          "pose_name": "pose_5_target",
+          "captured": true,
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured_at": "2026-11-10T11:25:14.170103+09:00",
+          "sample_count": 44
+        },
+        {
+          "pose_name": "pose_5_close",
+          "captured": true,
+          "gripper_value_source": "pose_5.gripper.pos",
+          "description": "타겟에서 그리퍼 닫기",
+          "captured_at": "2026-11-10T11:27:10.433571+09:00",
+          "sample_count": 45,
+          "gripper_override": {
+            "reference_pose": "pose_5",
+            "value": 4.438466548919678,
+            "updated_at": "2026-11-10T11:27:10.433571+09:00"
+          }
+        },
+        {
+          "step_name": "pose_5_return",
+          "pose_name": "pose_5",
+          "captured": true,
+          "reuse_existing_pose": true,
+          "description": "그리퍼를 닫은 채 어프로치로 복귀"
+        }
+      ],
+      "full_sequence": [
+        "home",
+        "pose_5",
+        "pose_5_open",
+        "pose_5_target",
+        "pose_5_close",
+        "pose_5",
+        "outlet_return_1",
+        "close",
+        "open",
+        "outlet_return_1",
+        "home"
+      ]
+    },
+    "pose_6_pick": {
+      "slot_id": "R3-2",
+      "approach_pose": "pose_6",
+      "steps": [
+        {
+          "pose_name": "pose_6_open",
+          "captured": true,
+          "captured_at": "2026-11-10T11:30:52.267052+09:00",
+          "sample_count": 45,
+          "max_arm_delta_from_approach_normalized": 79.60927963256836,
+          "description": "어프로치에서 그리퍼 열기"
+        },
+        {
+          "pose_name": "pose_6_target",
+          "captured": true,
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured_at": "2026-11-10T11:31:57.925033+09:00",
+          "sample_count": 44
+        },
+        {
+          "pose_name": "pose_6_close",
+          "captured": true,
+          "gripper_value_source": "pose_6.gripper.pos",
+          "description": "타겟에서 그리퍼 닫기",
+          "captured_at": "2026-11-10T11:33:06.945634+09:00",
+          "sample_count": 45,
+          "gripper_override": {
+            "reference_pose": "pose_6",
+            "value": 4.23671817779541,
+            "updated_at": "2026-11-10T11:33:06.945634+09:00"
+          }
+        },
+        {
+          "step_name": "pose_6_return",
+          "pose_name": "pose_6",
+          "captured": true,
+          "reuse_existing_pose": true,
+          "description": "그리퍼를 닫은 채 어프로치로 복귀"
+        }
+      ],
+      "full_sequence": [
+        "home",
+        "pose_6",
+        "pose_6_open",
+        "pose_6_target",
+        "pose_6_close",
+        "pose_6",
+        "outlet_return_1",
+        "close",
+        "open",
+        "outlet_return_1",
+        "home"
+      ]
+    },
+    "pose_7_pick": {
+      "slot_id": "R4-1",
+      "approach_pose": "pose_7",
+      "steps": [
+        {
+          "pose_name": "pose_7_open",
+          "captured": true,
+          "captured_at": "2026-11-10T11:37:37.890653+09:00",
+          "sample_count": 45,
+          "max_arm_delta_from_approach_normalized": 21.380245208740234,
+          "description": "어프로치에서 그리퍼 열기"
+        },
+        {
+          "pose_name": "pose_7_target",
+          "captured": true,
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured_at": "2026-11-10T11:38:45.057329+09:00",
+          "sample_count": 44
+        },
+        {
+          "pose_name": "pose_7_close",
+          "captured": true,
+          "gripper_value_source": "measured_current",
+          "description": "타겟에서 그리퍼 닫기",
+          "captured_at": "2026-11-10T11:40:17.596973+09:00",
+          "sample_count": 44
+        },
+        {
+          "step_name": "pose_7_return",
+          "pose_name": "pose_7_return",
+          "captured": true,
+          "reuse_existing_pose": false,
+          "description": "그리퍼를 닫은 채 어프로치로 복귀",
+          "derived_from": "pose_7",
+          "gripper_value_source": "pose_7_close.gripper.pos",
+          "gripper_override": {
+            "reference_pose": "pose_7_close",
+            "value": 35.574981689453125,
+            "updated_at": "2026-11-10T11:43:46.354227+09:00"
+          }
+        }
+      ],
+      "outlet_sequence": [
+        "outlet_return_1_78",
+        "close_78",
+        "open",
+        "outlet_return_1_78",
+        "home"
+      ],
+      "carry_gripper_value": 35.574981689453125,
+      "full_sequence": [
+        "home",
+        "pose_7",
+        "pose_7_open",
+        "pose_7_target",
+        "pose_7_close",
+        "pose_7_return",
+        "outlet_return_1_78",
+        "close_78",
+        "open",
+        "outlet_return_1_78",
+        "home"
+      ]
+    },
+    "pose_8_pick": {
+      "slot_id": "R4-2",
+      "approach_pose": "pose_8",
+      "steps": [
+        {
+          "pose_name": "pose_8_open",
+          "captured": true,
+          "description": "어프로치에서 그리퍼 열기",
+          "captured_at": "2026-11-10T11:47:11.647267+09:00",
+          "sample_count": 45,
+          "max_arm_delta_from_approach_normalized": 44.63980293273926
+        },
+        {
+          "pose_name": "pose_8_target",
+          "captured": true,
+          "description": "그리퍼를 연 채 집기 타겟으로 이동",
+          "captured_at": "2026-11-10T11:48:30.005488+09:00",
+          "sample_count": 44
+        },
+        {
+          "pose_name": "pose_8_close",
+          "captured": true,
+          "gripper_value_source": "pose_7_close.gripper.pos",
+          "gripper_override": {
+            "reference_pose": "pose_7_close",
+            "value": 35.574981689453125,
+            "updated_at": "2026-11-10T11:43:46.354227+09:00"
+          },
+          "description": "타겟에서 그리퍼 닫기",
+          "captured_at": "2026-11-10T11:50:09.649301+09:00",
+          "sample_count": 45
+        },
+        {
+          "step_name": "pose_8_return",
+          "pose_name": "pose_8_return",
+          "captured": true,
+          "reuse_existing_pose": false,
+          "derived_from": "pose_8",
+          "gripper_value_source": "pose_7_close.gripper.pos",
+          "description": "그리퍼를 닫은 채 어프로치로 복귀"
+        }
+      ],
+      "outlet_sequence": [
+        "outlet_return_1_78",
+        "close_78",
+        "open",
+        "outlet_return_1_78",
+        "home"
+      ],
+      "carry_gripper_value": 35.574981689453125,
+      "full_sequence": [
+        "home",
+        "pose_8",
+        "pose_8_open",
+        "pose_8_target",
+        "pose_8_close",
+        "pose_8_return",
+        "outlet_return_1_78",
+        "close_78",
+        "open",
+        "outlet_return_1_78",
+        "home"
+      ]
+    }
+  },
+  "transport_profiles": {
+    "grip_78": {
+      "gripper_value": 35.574981689453125,
+      "gripper_value_source": "pose_7_close.gripper.pos",
+      "applies_to": [
+        "pose_7_pick",
+        "pose_8_pick"
+      ],
+      "derived_poses": {
+        "pose_7_return": "pose_7",
+        "pose_8_return": "pose_8",
+        "outlet_return_1_78": "outlet_return_1",
+        "close_78": "close"
+      },
+      "outlet_sequence": [
+        "outlet_return_1_78",
+        "close_78",
+        "open",
+        "outlet_return_1_78",
+        "home"
+      ],
+      "created_at": "2026-11-10T11:43:46.354227+09:00"
+    }
+  },
+  "control_mode": "taught"
+}

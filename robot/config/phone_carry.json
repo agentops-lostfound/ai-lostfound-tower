@@ -1,0 +1,7 @@
+{
+  "schema": "phone_carry.v1",
+  "enabled": true,
+  "slots": ["R1-1", "R1-2", "R2-1", "R4-1"],
+  "shoulder_offset_normalized": -2.0,
+  "shoulder_arrival_tolerance_normalized": 8.0
+}

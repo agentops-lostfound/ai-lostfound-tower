@@ -22,7 +22,15 @@ htmlcov/
 .huggingface/
 logs/
 *.log
-outputs/
+# 실행 결과는 제외하되 Studio 배포 압축본·검증 해시·자세만 공유한다.
+/outputs/*
+!/outputs/robot_panel_live/
+/outputs/robot_panel_live/*
+!/outputs/robot_panel_live/poses.json
+!/outputs/studio_pose_integration/
+/outputs/studio_pose_integration/*
+!/outputs/studio_pose_integration/bundle.tar.xz
+!/outputs/studio_pose_integration/bundle.tar.xz.sha256
 runs/
 # 11/9 챗봇 채점표 원본 기록은 영구 보관(evaluation/runs/*.json)
 !evaluation/runs/
