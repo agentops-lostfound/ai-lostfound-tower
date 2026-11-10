@@ -109,7 +109,7 @@ class KioskAutoCaptureTest(unittest.TestCase):
         from pathlib import Path
         html = (Path(__file__).resolve().parents[1] / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
         self.assertNotIn('id="shoot"', html)                      # 찍기 버튼 없음
-        for word in ("stillMs: 3000", "getUserMedia", "trueEmpty"):      # 정지 3초(11/8) 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
+        for word in ("stillMs: 5000", "getUserMedia", "trueEmpty"):      # 정지 3초(11/8) 자동 촬영, 접수 뒤 남은 물건 재촬영 방지
             self.assertIn(word, html)
         for cat in ("휴대폰", "지갑", "핸드크림", "보조배터리"):          # 11/8 화면 이름(값은 모형폰 그대로), 11/9 품목 4종
             self.assertIn(f"<b>{cat}", html)
