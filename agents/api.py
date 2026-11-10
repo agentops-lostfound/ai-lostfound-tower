@@ -161,6 +161,10 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         from agents import db_watch, observability
         db_watch.attach(svc)
         observability.set_listener("live-board", _board.trace)
+    vision = None        # 11/10 사진 분석(Qwen) 과정·결과를 통합 시연 화면에 보여 주는 사건(agents/vision_watch.py)
+    if _board is not None and callable(getattr(_board, "vision", None)):
+        from agents.vision_watch import VisionWatch
+        vision = svc.vision_watch = VisionWatch(_board)
     app = FastAPI(title="AI 분실물 관제탑 API", version="0.1")
 
     def require_admin(request: Request) -> None:
@@ -233,6 +237,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         d = getattr(svc, "sim", None)       # 11/7 가상 시연: 진짜 키오스크 사진 접수 → Qwen 특징 대기 → 회수·보관 장면
         if d is not None and isinstance(payload, dict) and payload.get("photo"):
             d.kiosk_found(rec)
+        if vision is not None and isinstance(payload, dict) and payload.get("photo"):
+            vision.queued(rec["item_id"], str(payload.get("machine_id") or ""))     # 사진 분석 차례를 기다림
         return rec
 
     @app.post("/items/{item_id}/features", dependencies=admin)
@@ -243,6 +249,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
         try:
             out = svc.set_item_features(item_id, payload)
+            if vision is not None:          # 11/10 Qwen 이 읽은 값과 저장한 값을 화면에 나란히(비공개 값은 상태만)
+                try:
+                    from agents.vision_adapter import to_features
+                    vision.result(item_id, payload.get("qwen"), to_features(payload.get("qwen"), payload.get("confidence", 0.9)))
+                except Exception:
+                    pass
             d = getattr(svc, "sim", None)   # 11/7 가상 시연: Qwen 원본을 기억(가상 탑뷰가 같은 물건을 다시 찍을 때) + 기다리던 이야기 진행
             if d is not None:
                 d.on_features(item_id, payload.get("qwen"))
@@ -260,11 +272,26 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def pending_photos(limit: int = 10) -> list[dict]:
         """11/7 사진 분석 대기 물건 — 관제탑 PC 의 Qwen 작업자(tools/intake_qwen_worker.py)가 가져가 특징을 채운다"""
         try:
-            return svc.pending_photos(limit)
+            rows = svc.pending_photos(limit)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
+        if vision is not None:              # 작업자가 켜져 있다는 표시 + 처음 나간 사진은 '가져감'
+            vision.polled(rows)
+        return rows
+
+    @app.post("/api/admin/intake/analysis/{item_id}", dependencies=admin)
+    def intake_analysis(item_id: str, payload: dict = Body(...)) -> dict:
+        """11/10 Qwen 작업자가 알리는 사진 분석 단계: {"stage": "wait_gpu"|"analyze"|"fail", "detail": "짧은 설명"} — 통합 시연 화면 표시용.
+        저장하는 값은 없다(결과는 /api/kiosk/items/{접수 번호}/features 로 보낸다)"""
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        stage = payload.get("stage") if isinstance(payload, dict) else None
+        if vision is None or not vision.stage(item_id, str(stage), str((payload or {}).get("detail") or "")):
+            raise HTTPException(status_code=422, detail="stage: wait_gpu · analyze · fail 중 하나")
+        return {"ok": True}
 
     @app.post("/claims")
     @app.post("/api/kiosk/claims")
@@ -672,6 +699,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             out["langfuse"] = observability.enabled()
             mirror = getattr(svc, "db_mirror", None)      # 가상 시연 기록을 팀 DB 에도 저장 중인지(agents/db_mirror.py)
             out["db_mirror"] = mirror.stats() if mirror is not None else {"on": False}
+            out["qwen_worker"] = vision.worker() if vision is not None else {"on": False, "seen_ago": None}   # Qwen 작업자가 켜져 있는지
         return out
 
     @app.get("/api/admin/db/recent", dependencies=admin)

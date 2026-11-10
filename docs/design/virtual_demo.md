@@ -168,6 +168,7 @@ python -m unittest discover -s tests          # 통과 확인
   1. 연결만 확인: `.\.venv-qwen\Scripts\python.exe tools\intake_qwen_worker.py --check` → "관제탑 연결 OK · 사진 분석 대기 N건"
   2. 켜기: `.\.venv-qwen\Scripts\python.exe tools\intake_qwen_worker.py` (끄기 Ctrl+C). 첫 사진에서 모델을 올리느라 수십 초(추정) 걸리므로 시연 전에 사진 한 장으로 미리 데워 둔다
   - `.venv-qwen` 설치는 `qwen/INTEGRATION.md`. 관리자 로그인을 켰다면 `.env` 의 `LF_ADMIN_API_KEY` 가 있어야 한다(없으면 401)
+- 11/10 분석 과정을 화면에: 작업자가 분석 직전·실패·그래픽카드 대기 때 `POST /api/admin/intake/analysis/{번호}` 로 단계를 알리고, 관제탑이 `/showcase` 의 "Qwen3-VL 사진 분석" 카드에 **Qwen 이 읽은 값 → DB 에 저장한 값**을 나란히 보여 준다(알림이 안 돼도 분석·저장은 그대로). 안내 web/README.md 1-00
 - 작업자가 꺼져 있거나 결과가 늦으면 `TOWER_SIM_QWEN_WAIT`(기본 180초) 뒤 "사진 분석 결과 없음 — 직원 확인"으로 끝난다. **가짜 특징으로 진행하지 않는다**. 물건은 등록기계 보관 그대로
 - Qwen 이 종류를 모르겠다고 하면(unknown) "물건 종류 확인 불가 — 직원 확인"
 - 그래픽카드(RTX 3050 6GB)를 Qwen3-VL-2B(약 2~3GB, 추정)와 챗봇 모델이 나눠 쓴다 — 함께 켰을 때 메모리 부족이 나는지 시연 전에 확인(TBD)
