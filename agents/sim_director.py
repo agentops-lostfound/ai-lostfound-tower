@@ -782,9 +782,10 @@ class SimDirector:
             self.rep.progress(cid, "찾기 요청 접수", f"후보 {len(cands)}개 중 {pick} 선택 · 확인 질문({names}) "
                               f"{'통과' if passed else '미통과'} · 오늘 방문 예약")
             self.board.stage("claim", "done" if passed else "fail", f"{pick} · 확인 질문 {'통과' if passed else '미통과'}")
-        self._spawn(self._after_lost, sid, cid, pick, tags, opts.get("visit") == "kiosk")
+        wait_kiosk = opts.get("visit") == "kiosk" or getattr(self.svc, "taught_robot", False)
+        self._spawn(self._after_lost, sid, cid, pick, tags, wait_kiosk)
         return {"story_id": sid, "claim_id": cid, "item_id": pick, "candidates": cands, "quiz_passed": passed,
-                "visit": "kiosk" if opts.get("visit") == "kiosk" else "auto"}
+                "visit": "kiosk" if wait_kiosk else "auto"}
 
     def _after_lost(self, sid: str, cid: str, item_id: str, tags: set[str], wait_kiosk: bool = False) -> None:
         w = self.world
@@ -905,6 +906,8 @@ class SimDirector:
     def reset(self) -> dict:
         """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
         11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
+        if getattr(self.svc, "taught_robot", False):
+            raise Conflict("real_robot", "실물 연결 모드에서는 가상 초기화를 사용할 수 없습니다")
         w = self.world
         if self.talk is not None:                        # 11/9 에이전트가 배운 점도 처음으로(시연을 처음부터 다시 보여 주려고)
             self.talk.reset()
@@ -972,7 +975,9 @@ def build_sim_service(env: dict | None = None):
     real_vision = vision_part_from_env(env)
     matcher = matcher_part_from_env(env)
     topview = real_vision or SimTopview(world)
-    robot = SimRobot(world)
+    from agents import taught_return
+    taught = taught_return.enabled(env)
+    robot = taught_return.remote_part(env) if taught else SimRobot(world)
 
     def factory():
         return CompositeBackend(vision=topview, matcher=matcher, db=world, robot=robot, fallback=MockBackend())
@@ -983,7 +988,19 @@ def build_sim_service(env: dict | None = None):
     svc = TowerService(factory, LiveReporter(Reporter(dry_run=not flag("TOWER_SEND")), board), reviewer=reviewer,
                        claims=SimClaimStore(world), intake=world, gpu_lease=lease_from_env(env))
     svc.board, svc.world = board, world
-    svc.sim = SimDirector(svc, world, board, auto_handover=not flag("TOWER_SIM_MANUAL_HANDOVER"),
+    taught_return.configure(svc, env)
+    if taught:
+        original_flow = svc.flow
+
+        def taught_flow(req, backend, reporter, **kwargs):
+            result = original_flow(req, backend, reporter, **kwargs)
+            if result.decision == DECISION_RETURNED and not req.staff_shelf:
+                from agents.sim_world import LOC_BASKET
+                # Expected location after motion; staff verification still required.
+                world.move(req.item_id, LOC_BASKET)
+            return result
+        svc.flow = taught_flow
+    svc.sim = SimDirector(svc, world, board, auto_handover=not taught and not flag("TOWER_SIM_MANUAL_HANDOVER"),
                           qwen_wait_s=num("TOWER_SIM_QWEN_WAIT", 180))
     link_storage(svc, world)
     from agents.tower_brain import build_from_env     # 11/8 관제탑 메인 AI(.env TOWER_BRAIN=1 일 때만)

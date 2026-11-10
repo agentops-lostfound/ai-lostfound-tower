@@ -29,7 +29,7 @@ from agents.supervisor import Outcome, ReturnRequest, run_return
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 # 직원 정지 버튼을 누른 뒤 막을 로봇 동작(정지·원점 복귀는 막지 않음)
-ROBOT_MOVES = ("robot_approach", "robot_go_pose", "robot_grasp", "robot_verify_grasp", "robot_deliver")   # 11/9 robot_go_pose(DB 칸 모드)
+ROBOT_MOVES = ("robot_approach", "robot_go_pose", "robot_grasp", "robot_verify_grasp", "robot_deliver", "robot_run_sequence")
 
 
 def robot_target_mode() -> str:

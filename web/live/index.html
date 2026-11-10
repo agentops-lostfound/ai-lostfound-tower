@@ -578,6 +578,13 @@ details.more .robot-note{margin-top:0}
     const r = w.robot, a = w.arm;
     if (!r) return;
     $("robotCard").hidden = false;
+    $("side").closest('.side-wrap').hidden = r.telemetry_available === false;
+    if (r.telemetry_available === false) {
+      $("robotMeta").textContent = '실물 원격 티칭 · 실제 위치와 물건은 카메라/현장에서 확인';
+      $("joints").textContent = '실시간 관절값 미제공 · 도착 여부는 아래 시퀀스 단계 기록으로 확인하세요.';
+      $("robotNote").textContent = r.role;
+      return;
+    }
     const held = a.holding ? `들고 있음 ${a.holding}` : "빈 집게";
     $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, `집게 높이 ${Math.round(a.z)}mm(작업대)`, held]
       .map(t => `<span class="chip">${esc(t)}</span>`).join("");
@@ -702,8 +709,8 @@ details.more .robot-note{margin-top:0}
       const d = await r.json();
       failCount = 0;
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
-      $("mode").textContent = d.sim ? "가상 시연" : "진짜 부품";
-      $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim;
+      $("mode").textContent = d.robot_control ? "실물 원격 티칭 · 배치 참고도" : d.sim ? "가상 시연" : "진짜 부품";
+      $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim || !!d.robot_control;
       if (d.world) {
         if (!world) { drawBench(d.world.bench); drawSide(); }
         world = d.world;
@@ -712,7 +719,8 @@ details.more .robot-note{margin-top:0}
         renderRobot(world);
         renderItems();
         const ph = $("phase");
-        ph.textContent = world.arm.stopped ? "🛑 정지 — 확인 후 원점 복귀" : world.arm.phase;
+        ph.textContent = d.robot_control ? "실물 원격 티칭 · 그림은 배치 참고 · 아래 단계 기록 확인" :
+          (world.arm.stopped ? "🛑 정지 — 확인 후 원점 복귀" : world.arm.phase);
         ph.className = "phase" + (world.arm.stopped ? " stopped" : "");
         $("armChip").textContent = world.arm.stopped ? "정지" : world.arm.phase;
       } else {

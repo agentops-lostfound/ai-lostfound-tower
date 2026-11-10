@@ -75,10 +75,18 @@ class TowerRobot:
         This is not the production robot_grasp/deliver contract and never marks
         a real item returned. Each move blocks until arrival before continuing.
         """
+        return self._run_taught_sequence(target, test_only=True)
+
+    def robot_run_sequence(self, target, progress=None) -> dict:
+        """Tower-approved route; motion completion is not physical grasp verification."""
+        return self._run_taught_sequence(target, progress=progress, test_only=False)
+
+    def _run_taught_sequence(self, target, *, progress=None, test_only):
         from robot.db_pose_sequence import sequence_for_target, validate_taught_pose_values
         completed = []
         sequence = []
-        result = {'test_only': True, 'vla_skipped': True, 'control_mode': 'taught', 'grasp_included': True,
+        result = {'test_only': test_only, 'vla_skipped': True, 'control_mode': 'taught', 'grasp_included': True,
+                  'verification_required': True,
                   'item_id': target.get('item_id') if isinstance(target, dict) else None,
                   'completed': completed}
         try:
@@ -100,21 +108,28 @@ class TowerRobot:
             return {**robot_result(False, '다른 로봇 명령이 진행 중입니다'), **result}
         try:
             self._approach = None  # A test route is not a production grasp start.
-            for pose, command_pose in zip(sequence, commands):
+            for index, (pose, command_pose) in enumerate(zip(sequence, commands), 1):
                 if self.cancelled.is_set():
                     raise InterruptedError('정지 요청으로 시퀀스 취소')
+                event = {'index': index, 'total': len(sequence), 'pose_name': pose,
+                         'command_pose': command_pose}
+                if progress:
+                    progress({**event, 'event': 'stage_started'})
                 self.motion.move(command_pose, self.duration, self.cancelled)
                 if self.cancelled.is_set():
                     raise InterruptedError('정지 요청으로 시퀀스 취소')
                 completed.append(pose)
-            return {**robot_result(True), **result}
+                if progress:
+                    progress({**event, 'event': 'stage_arrived'})
+            return {**robot_result(True), **result, 'motion_complete': True}
         except Exception as exc:
             stopped = self.robot_stop()
             reason = f'시험 시퀀스 중단: {str(exc)[:200]}'
             if not stopped['ok']:
                 reason += ' · 정지 확인 실패'
             return {**robot_result(False, reason), **result,
-                    'failed_pose': sequence[len(completed)], 'stop_confirmed': stopped['ok']}
+                    'failed_pose': sequence[min(len(completed), len(sequence) - 1)],
+                    'motion_complete': False, 'stop_confirmed': stopped['ok']}
         finally:
             self.operation.release()
 
