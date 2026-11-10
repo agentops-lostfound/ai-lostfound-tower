@@ -22,8 +22,13 @@ Langfuse 에 연결하지 못하면(키 없음·인터넷 끊김) 아래 DEFAULT
 from __future__ import annotations
 
 import os
+import hashlib
+import json
+import re
 import threading
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 # 그래프 칸(agent) 이름 → Langfuse 프롬프트 이름. 칸 하나는 프롬프트 하나만 부른다(tests/test_agent_prompts.py)
 AGENT_PROMPTS = {
@@ -136,6 +141,108 @@ _SEEN_LOCK = threading.Lock()
 _CACHE: dict[str, tuple] = {}    # 프롬프트 이름 → (클라이언트, 가져온 시각, 결과 또는 None)
 _CACHE_TTL = 60.0
 _SEEN: dict[str, bool] = {}      # 프롬프트 이름 → 최근 조회에서 Langfuse 버전을 읽었는지(/chat/health 용)
+_READ_CACHE = {}
+
+
+def _prompt_client():
+    """기존 추적 클라이언트 우선. 명시한 평가만 trace 없이 프롬프트를 읽는다."""
+    from agents import observability
+    c = observability.client()
+    if c is not None:
+        return c
+    if (os.environ.get('LF_PROMPT_FETCH') or '0').strip() != '1':
+        return None
+    names = ('LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_BASE_URL')
+    if not all((os.environ.get(k) or '').strip() for k in names):
+        return None
+    # 자격 증명은 기록/반환하지 않고 내부 캐시 구분용 해시만 만든다.
+    signature = hashlib.sha256(json.dumps([os.environ[k] for k in names]).encode()).hexdigest()
+    with _SEEN_LOCK:
+        if signature in _READ_CACHE:
+            return _READ_CACHE[signature]
+        try:
+            from langfuse import Langfuse
+            c = Langfuse(tracing_enabled=False)
+        except Exception:
+            # tracing_enabled 인자를 모르는 SDK도 조용히 추적을 켜는 방식으로 재시도하지 않는다.
+            return None
+        _READ_CACHE.clear()
+        _READ_CACHE[signature] = c
+    return c
+
+
+def selected_label() -> str:
+    """운영 기본값 유지. 오타를 production으로 조용히 바꾸지 않는다."""
+    label = (os.environ.get('LF_PROMPT_LABEL') or 'production').strip()
+    if label not in ('production', 'staging'):
+        raise ValueError('LF_PROMPT_LABEL must be production or staging')
+    return label
+
+
+class _Usage:
+    def __init__(self, limit=None):
+        self.lock, self.rows = threading.Lock(), {}
+        self.limit, self.truncated = limit, False
+
+    def add(self, row):
+        key = json.dumps(row, sort_keys=True)
+        with self.lock:
+            if self.limit and key not in self.rows and len(self.rows) >= self.limit:
+                self.rows.pop(next(iter(self.rows)))
+                self.truncated = True
+            prior = self.rows.setdefault(key, json.loads(json.dumps({**row, 'calls': 0})))
+            prior['calls'] += 1
+
+    def snapshot(self):
+        with self.lock:
+            return json.loads(json.dumps(list(self.rows.values())))
+
+
+_GLOBAL_USAGE = _Usage(limit=256)
+_USAGE = ContextVar('lf_prompt_usage', default=None)
+
+
+@contextmanager
+def usage_scope():
+    """평가 회차끼리 사용 이력을 섞지 않는다. HTTP 작업 스레드에도 전달된다."""
+    scope = _Usage()
+    token = _USAGE.set(scope)
+    try:
+        yield scope
+    finally:
+        _USAGE.reset(token)
+
+
+def loaded_versions():
+    """조회/설정 확인이 아니라 실제 모델 호출 직전에 기록한 사용 목록."""
+    return (_USAGE.get() or _GLOBAL_USAGE).snapshot()
+
+
+def usage_summary():
+    """출처 검증만 요약한다. 기능 점수/운영 승인을 자동으로 판정하지 않는다."""
+    rows = loaded_versions()
+    agents = {r['agent'] for r in rows}
+    mixed = sorted(a for a in agents if sum(r['agent'] == a for r in rows) > 1)
+    attempts = sum(r['calls'] for r in rows)
+    fallback = sum(r['calls'] for r in rows if r['prompt_source'] != 'langfuse')
+    truncated = (_USAGE.get() or _GLOBAL_USAGE).truncated
+    complete = bool(attempts and selected_label() == 'staging' and not fallback and not mixed and not truncated
+                    and all(r['label'] == 'staging' and type(r['version']) is int and r['version'] > 0 for r in rows))
+    return {'label': selected_label(), 'attempts': attempts, 'code_fallback_calls': fallback,
+            'mixed_agents': mixed, 'truncated': truncated, 'staging_provenance_complete': complete}
+
+
+def record_usage(agent, cfg, prompt_obj):
+    name = AGENT_PROMPTS[agent]
+    template = getattr(prompt_obj, 'prompt', None) if prompt_obj is not None else DEFAULTS[name]
+    row = {'agent': agent, 'prompt': name, 'label': cfg['label'],
+           'version': cfg['prompt_version'], 'prompt_source': cfg['prompt_source'],
+           'fallback_reason': cfg['fallback_reason'],
+           'template_sha256': hashlib.sha256(template.encode()).hexdigest() if isinstance(template, str) else None,
+           'model': cfg['model'], 'temperature': cfg['temperature'], 'use_llm': cfg['use_llm'],
+           'setting_sources': dict(cfg['source'])}
+    (_USAGE.get() or _GLOBAL_USAGE).add(row)
+    return row
 
 
 def _compile(text: str, variables: dict) -> str:
@@ -144,41 +251,46 @@ def _compile(text: str, variables: dict) -> str:
     return text
 
 
-def _fetch(name: str):
-    """Langfuse 프롬프트 객체(production 라벨) 또는 None(연결 없음·실패·코드 기본값으로 대신함). SDK 가 60초 기억"""
-    from agents import observability
-    c = observability.client()
+def _fetch(name: str, label=None):
+    """선택한 라벨만 조회. staging 실패 시 production을 재조회하지 않는다."""
+    label = selected_label() if label is None else label
+    c = _prompt_client()
     p = None
     if c is not None:
         # SDK 는 가져오기에 실패하면 결과를 기억하지 않아(404·서버 꺼짐) 한 질문에 칸마다 최대 2초씩 기다리게 된다
         # → 성공·실패 모두 60초 동안 이름별로 기억한다(같은 클라이언트일 때만)
         now = time.monotonic()
         with _SEEN_LOCK:
-            hit = _CACHE.get(name)
+            hit = _CACHE.get((name, label))
         if hit and hit[0] is c and now - hit[1] < _CACHE_TTL:
             return hit[2]
         try:
-            p = c.get_prompt(name, label="production", type="text", fallback=DEFAULTS[name], cache_ttl_seconds=60,
+            p = c.get_prompt(name, label=label, type="text", fallback=DEFAULTS[name], cache_ttl_seconds=60,
                              max_retries=0, fetch_timeout_seconds=2)
         except Exception:
             p = None
         with _SEEN_LOCK:
-            _SEEN[name] = bool(p is not None and not getattr(p, "is_fallback", False))
-            _CACHE[name] = (c, now, p)
+            _SEEN[(name, label)] = bool(p is not None and not getattr(p, "is_fallback", False))
+            _CACHE[(name, label)] = (c, now, p)
     return p
 
 
 def get(name: str, **variables) -> tuple[str, object | None]:
     """(완성된 프롬프트 글, Langfuse 프롬프트 객체 또는 None). 객체는 모델 호출 기록에 붙여 '어느 버전 프롬프트로 답했는지' 연결한다"""
-    p = _fetch(name)
+    return _text(name, _fetch(name), variables)[:2]
+
+
+def _text(name, p, variables):
     if p is not None:
         try:
             text = p.compile(**variables)
-            if isinstance(text, str) and text.strip():
-                return text, (None if getattr(p, "is_fallback", False) else p)
+            if isinstance(text, str) and text.strip() and not re.search(r'{{\s*[\w.]+\s*}}', text):
+                fallback = bool(getattr(p, 'is_fallback', False))
+                return text, (None if fallback else p), ('sdk_fallback' if fallback else None)
         except Exception:
             pass
-    return _compile(DEFAULTS[name], variables), None
+        return _compile(DEFAULTS[name], variables), None, 'compile_failed'
+    return _compile(DEFAULTS[name], variables), None, 'unavailable_or_disabled'
 
 
 def for_agent(agent: str, **variables) -> tuple[str, object | None]:
@@ -218,11 +330,20 @@ def settings(agent: str, model: str | None = None, temperature: float | None = N
     우선순위: Langfuse 프롬프트 config(model·temperature·use_llm) → 환경값 LF_AGENT_<칸>_<MODEL|TEMPERATURE|USE_LLM> → 코드 기본값.
     이상한 값(빈 글·범위 밖 숫자·참거짓 아님)은 건너뛰고 다음 순서 값을 쓴다"""
     name = AGENT_PROMPTS[agent]
-    p = _fetch(name)
+    label = selected_label()
+    p = _fetch(name, label)
+    return _settings(agent, model, temperature, p, label=label)
+
+
+def _settings(agent, model, temperature, p, fallback_reason=None, label=None):
+    name = AGENT_PROMPTS[agent]
     config = getattr(p, "config", None) if p is not None and not getattr(p, "is_fallback", False) else None
     config = config if isinstance(config, dict) else {}
     out = {"agent": agent, "prompt": name, "model": model, "temperature": temperature,
-           "use_llm": DEFAULT_CONFIG[name]["use_llm"], "source": {}}
+           "use_llm": DEFAULT_CONFIG[name]["use_llm"], "source": {}, 'label': selected_label() if label is None else label,
+           'prompt_version': getattr(p, 'version', None) if config is not None and p is not None and not getattr(p, 'is_fallback', False) else None,
+           'prompt_source': 'langfuse' if p is not None and not getattr(p, 'is_fallback', False) else 'code',
+           'fallback_reason': fallback_reason}
     for key, check, env in (("model", _model, "MODEL"), ("temperature", _temperature, "TEMPERATURE"), ("use_llm", _switch, "USE_LLM")):
         got = check(config.get(key))
         if got is not None:
@@ -236,11 +357,22 @@ def settings(agent: str, model: str | None = None, temperature: float | None = N
     return out
 
 
+def resolve(agent, model=None, temperature=None, **variables):
+    """하나의 프롬프트 객체에서 본문과 config를 함께 결정(버전 혼합 방지)."""
+    name = AGENT_PROMPTS[agent]
+    label = selected_label()
+    text, obj, why = _text(name, _fetch(name, label), variables)
+    return text, obj, _settings(agent, model, temperature, obj, why, label)
+
+
 def status() -> dict:
     """/chat/health 용: 프롬프트 N개 중 (관제탑을 켠 뒤 불린 것 가운데) Langfuse 에서 읽힌 M개. 키 값은 넣지 않음"""
     with _SEEN_LOCK:
         seen = dict(_SEEN)
-    return {"total": len(AGENT_PROMPTS), "from_langfuse": sum(1 for v in seen.values() if v), "checked": len(seen)}
+    label = selected_label()
+    seen = {k: v for k, v in seen.items() if k[1] == label}
+    return {"total": len(AGENT_PROMPTS), "from_langfuse": sum(1 for v in seen.values() if v), "checked": len(seen), 'label': label}
 
 
-__all__ = ["AGENT_PROMPTS", "DEFAULTS", "DEFAULT_CONFIG", "LLM_AGENTS", "CLARIFY_RULE", "get", "for_agent", "settings", "status"]
+__all__ = ["AGENT_PROMPTS", "DEFAULTS", "DEFAULT_CONFIG", "LLM_AGENTS", "CLARIFY_RULE", "get", "for_agent", "settings", "status",
+           "resolve", "record_usage", "loaded_versions", "usage_scope", "selected_label", "usage_summary"]

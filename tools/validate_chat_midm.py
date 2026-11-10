@@ -25,10 +25,12 @@ def main():
     p.add_argument('--out', required=True)
     p.add_argument('--only', default='', help='검증할 문항 번호(쉼표 구분). 원본 전체 점수와 구분해 기록')
     p.add_argument('--questions', default='', help='별도 JSON 문항(선택한 suite 형식). 기존 500문항을 변경하지 않음')
+    p.add_argument('--prompt-label', choices=['production', 'staging'], default='production', help='프롬프트 조회 라벨. 클라우드 연결이 없으면 기본값 사용을 명시')
     args = p.parse_args()
     only = {int(n) for n in args.only.split(',') if n.strip()}
     from agents import local_model
     from agents import chat_supervisor
+    from agents import prompts
     original_request, original_decide = local_model.ask_local_model, chat_supervisor.decide
     calls, audits, audit_examples = [], Counter(), []
 
@@ -61,10 +63,11 @@ def main():
 
     env = {k: os.environ[k] for k in ('SYSTEMROOT', 'TEMP', 'TMP', 'PATH') if k in os.environ}
     env.update(LF_LANGFUSE='0', LF_CHAT_RAG_MODEL='midm-2.0-mini', LF_CHAT_AGENT_MODEL='midm-2.0-mini',
+               LF_PROMPT_LABEL=args.prompt_label,
                LF_AGENT_SUPERVISOR_USE_LLM='1', TOWER_SIM='1', TOWER_SIM_SPEED='0', TOWER_SIM_DB='0',
                TOWER_GPU_LEASE='0', TOWER_SEND='0', TOWER_AGENT_TALK='0')
     report = {'meta': {'suite': args.suite, 'model': 'midm-2.0-mini', 'supervisor_llm': True,
-                       'langfuse': False, 'data': 'synthetic_only',
+                       'langfuse': False, 'prompt_label': args.prompt_label, 'data': 'synthetic_only',
                        'selection': sorted(only) if only else 'all',
                        'started': dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()}, 'results': []}
     report['meta']['source_sha256'] = {
@@ -78,7 +81,8 @@ def main():
         report['meta']['commit'] = 'unknown'
     started = time.perf_counter()
     with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, env, clear=True), \
-         mock.patch.object(local_model, 'ask_local_model', request), mock.patch.object(chat_supervisor, 'decide', decide):
+         mock.patch.object(local_model, 'ask_local_model', request), mock.patch.object(chat_supervisor, 'decide', decide), \
+         prompts.usage_scope():
         os.environ['TOWER_CHAT_DEMO_DB'] = str(Path(tmp) / 'demo.sqlite3')
         from tools.chat_live_check import installed_models, model_ready, model_probe
         why = model_ready('midm-2.0-mini', installed_models()) or model_probe('midm-2.0-mini')
@@ -112,6 +116,8 @@ def main():
                 report['model_calls'] = calls
                 report['supervisor_checks'] = dict(audits)
                 report['supervisor_rejection_examples'] = audit_examples
+                report['meta']['prompt_usage'] = prompts.loaded_versions()
+                report['meta']['prompt_provenance'] = prompts.usage_summary()
                 Path(args.out).write_text(json.dumps(report, ensure_ascii=False), encoding='utf-8')
             passed = sum(r['score'] for r in report['results'])
         seconds = [r['seconds'] for r in report['results']]
@@ -120,6 +126,8 @@ def main():
                              'p95_seconds': sorted(seconds)[max(0, int(len(seconds) * .95) - 1)]}
         report['model_calls'], report['supervisor_checks'] = calls, dict(audits)
         report['supervisor_rejection_examples'] = audit_examples
+        report['meta']['prompt_usage'] = prompts.loaded_versions()
+        report['meta']['prompt_provenance'] = prompts.usage_summary()
         Path(args.out).write_text(json.dumps(report, ensure_ascii=False), encoding='utf-8')
     print(json.dumps(report['summary'], ensure_ascii=False), dict(audits), flush=True)
     return int(passed != len(report['results']))
