@@ -80,7 +80,7 @@ button[data-chatbot-open]{display:inline-flex;align-items:center;gap:6px}
 
 <script>
 const $ = s => document.querySelector(s);
-const SRC = {live: '/live', staff: '/staff', storage: '/storage-desk'};   // 11/6 보관함 탭
+const SRC = {live: '/live', staff: '/staff', storage: '/storage'};   // 11/6 보관함 탭(11/10 주소 정리: /storage-desk → /storage)
 function showApp(tab) {
   $('#login').style.display = 'none';
   $('#who').hidden = false; $('#app').classList.add('on');
