@@ -14,6 +14,11 @@
 - 설정에 없는 기계 번호는 열지 않는다(404) — 주소만 바꿔 다른 카메라(탑뷰)를 훔쳐보지 못하게
 - 11/9 저녁: 윈도우 DirectShow 로 안 열리면 Media Foundation 으로 한 번 더 연다. 처음 영상이 계속 새까마면 MJPG 를 빼고 다시 연다.
   열기에 실패하면 5초 동안은 다시 열지 않는다(화면이 0.1초마다 다시 열어 경고 줄이 쏟아지던 문제)
+- 11/10 교육원: 조금 지나면 영상이 화면 왼쪽 위로 몰리고 나머지가 까맣게 나옴. 관제탑이 보낸 사진 자체가 1280×720 틀의
+  왼쪽 위 640×480 에만 영상이 있었다(Media Foundation 으로 다시 열릴 때 요청한 크기와 실제 영상 크기가 어긋남). 고친 것:
+  · 읽은 사진의 오른쪽·아래 까만 띠(값이 정확히 0)를 잘라 실제 영상만 쓴다(valid_size)
+  · 내보내는 크기를 늘 960×720(4:3)으로 맞춘다(fit) — 중간에 크기가 바뀌면 브라우저 영상이 깨지고, 물건 감지 기준 화면도 흔들림
+  · 압축 형식(MJPG)을 크기보다 먼저 정한다. DirectShow 가 방금 닫은 카메라를 못 열면 0.4초 뒤 한 번 더 연다
 """
 from __future__ import annotations
 
@@ -26,7 +31,8 @@ RETRY_S = 5.0          # 열기 실패 뒤 다시 열기까지 기다리는 시�
 DARK_LEVEL = 16        # 이 밝기(0~255) 아래면 새까만 영상으로 봄
 DARK_FRAMES = 30       # 처음 이만큼 계속 새까마면 MJPG 를 빼고 다시 연다
 FPS = 10
-WIDTH, HEIGHT = 1280, 720
+WIDTH, HEIGHT = 1280, 720          # 웹캠에 요청하는 크기
+OUT_W, OUT_H = 960, 720            # 화면으로 내보내는 크기(늘 같음, 4:3 — 16:9 영상은 가운데를 자른다)
 
 
 def parse_config(text: str | None) -> dict:
@@ -83,20 +89,65 @@ def _open(src, mjpg: bool = True):
         return FakeSource()
     import cv2
     cap = None
-    for backend in _backends():
-        cap = cv2.VideoCapture(src, backend)
-        if not cap.isOpened():
+    backends = _backends()
+    for n, backend in enumerate(backends):
+        for attempt in range(2 if n == 0 and len(backends) > 1 else 1):   # 첫 방식(DirectShow)은 한 번 더: 방금 닫은 카메라가 아직 안 풀렸을 수 있음
+            cap = cv2.VideoCapture(src, backend)
+            if cap.isOpened():
+                break
             cap.release()
+            if attempt == 0 and n == 0 and len(backends) > 1:
+                time.sleep(0.4)
+        if not cap.isOpened():
             continue
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
         if mjpg:
             try:
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))   # 1080p 웹캠은 MJPG 로 받아야 초당 프레임이 나옴
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))   # 1080p 웹캠은 MJPG 로 받아야 초당 프레임이 나옴(크기보다 먼저)
             except Exception:
                 pass
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
         return cap
     return cap
+
+
+def valid_size(frame) -> tuple[int, int]:
+    """사진에서 실제 영상이 들어 있는 (너비, 높이). 오른쪽·아래에 붙은 까만 띠(값이 정확히 0)를 뺀 크기.
+    띠가 15% 넘고 남는 크기가 8의 배수일 때만 자른다 — 어두운 장면·검은 배경지를 영상 밖으로 착각하지 않게"""
+    try:
+        h, w = frame.shape[:2]
+        flat = frame.reshape(h, w, -1)
+        cols = flat.max(axis=(0, 2)).nonzero()[0]
+        rows = flat.max(axis=(1, 2)).nonzero()[0]
+        if not len(cols) or not len(rows):
+            return w, h                                   # 전체가 까맘(렌즈 가림) — 그대로
+        vw, vh = int(cols[-1]) + 1, int(rows[-1]) + 1
+    except Exception:
+        return frame.shape[1], frame.shape[0]
+    if (vw <= w * 0.85 or vh <= h * 0.85) and vw >= 160 and vh >= 120 and vw % 8 == 0 and vh % 8 == 0:
+        return vw, vh
+    return w, h
+
+
+def fit(frame, out_w: int = OUT_W, out_h: int = OUT_H):
+    """실제 영상만 잘라 → 가운데를 4:3 으로 맞춰 자르고 → 늘 같은 크기로. (사진, 까만 띠를 잘랐는지) 를 돌려준다"""
+    import cv2
+    h, w = frame.shape[:2]
+    vw, vh = valid_size(frame)
+    cropped = (vw, vh) != (w, h)
+    if cropped:
+        frame = frame[:vh, :vw]
+    if vw * out_h > vh * out_w:                           # 더 넓음 → 좌우를 자른다
+        nw = max(1, round(vh * out_w / out_h))
+        x0 = (vw - nw) // 2
+        frame = frame[:, x0:x0 + nw]
+    elif vw * out_h < vh * out_w:                         # 더 높음 → 위아래를 자른다
+        nh = max(1, round(vw * out_h / out_w))
+        y0 = (vh - nh) // 2
+        frame = frame[y0:y0 + nh, :]
+    if frame.shape[1] != out_w or frame.shape[0] != out_h:
+        frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_AREA if frame.shape[1] > out_w else cv2.INTER_LINEAR)
+    return frame, cropped
 
 
 def is_dark(frame) -> bool:
@@ -118,6 +169,8 @@ class CameraFeed:
         self._failed_at = None
         self.error = ""
         self.dark = False
+        self.cropped = False          # 11/10 읽은 사진에 까만 띠가 있어 실제 영상만 잘라 보내는 중(카메라가 낮은 화질로 열림)
+        self.source_size = None       # 웹캠이 준 사진 크기(너비, 높이)
 
     def touch(self) -> None:
         """누군가 보고 있음 → 없으면 읽기 시작"""
@@ -168,6 +221,8 @@ class CameraFeed:
                 else:
                     dark_run = 0
                 self.dark = dark_run >= DARK_FRAMES
+                self.source_size = (int(frame.shape[1]), int(frame.shape[0]))
+                frame, self.cropped = fit(frame)          # 실제 영상만 · 늘 같은 크기로
                 ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
                 if ok:
                     with self._lock:
@@ -196,7 +251,9 @@ class KioskCameras:
     def status(self) -> dict:
         return {name: {"source": "fake" if f.src == "fake" else "usb", "streaming": f.latest() is not None,
                        **({"error": f.error} if f.error else {}),
-                       **({"warning": "영상이 새까맘(렌즈 가림·조명·다른 카메라 번호 확인)"} if f.dark else {})} for name, f in self._feeds.items()}
+                       **({"warning": "영상이 새까맘(렌즈 가림·조명·다른 카메라 번호 확인)"} if f.dark else
+                          {"warning": "웹캠이 낮은 화질로 열림 — 실제 영상만 잘라 보내는 중(다른 프로그램이 웹캠을 쓰는지 확인)"} if f.cropped else {}),
+                       **({"size": [OUT_W, OUT_H]} if f.latest() is not None else {})} for name, f in self._feeds.items()}
 
 
 def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
@@ -257,4 +314,4 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
     return cams
 
 
-__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "add_camera_routes", "is_dark"]
+__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "add_camera_routes", "is_dark", "valid_size", "fit"]

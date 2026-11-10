@@ -58,6 +58,93 @@ class FeedRetryTest(unittest.TestCase):
         self.assertFalse(is_dark(np.full((4, 4, 3), 120, np.uint8)))
 
 
+class FrameFitTest(unittest.TestCase):
+    """11/10 교육원: 조금 지나면 영상이 화면 왼쪽 위로 몰리고 나머지가 까맸다 — 관제탑이 준 사진이 1280×720 틀의 왼쪽 위 640×480 에만
+    영상이 있었음(카메라가 다른 방식으로 다시 열릴 때). 실제 영상만 잘라 늘 같은 크기(960×720)로 내보낸다"""
+
+    def setUp(self):
+        try:
+            import cv2  # noqa: F401
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy·opencv 필요")
+        self.np = np
+        self.rng = np.random.default_rng(0)
+
+    def picture(self, h, w, lo=20, hi=250):
+        return self.rng.integers(lo, hi, (h, w, 3), dtype=self.np.uint8)
+
+    def test_half_filled_frame_is_cut_to_real_picture(self):
+        from agents.kiosk_camera import OUT_H, OUT_W, fit, valid_size
+        bad = self.np.zeros((720, 1280, 3), self.np.uint8)
+        bad[:480, :640] = self.picture(480, 640, 90)
+        self.assertEqual(valid_size(bad), (640, 480))
+        out, cropped = fit(bad)
+        self.assertTrue(cropped)
+        self.assertEqual(out.shape[:2], (OUT_H, OUT_W))
+        self.assertGreater(out[:, -60:].mean(), 80)        # 오른쪽 끝·아래 끝에 까만 띠가 남지 않는다
+        self.assertGreater(out[-60:].mean(), 80)
+
+    def test_normal_frames_keep_one_output_size(self):
+        from agents.kiosk_camera import OUT_H, OUT_W, fit, valid_size
+        for h, w in ((720, 1280), (480, 640), (1080, 1920)):
+            frame = self.picture(h, w)
+            self.assertEqual(valid_size(frame), (w, h))
+            out, cropped = fit(frame)
+            self.assertFalse(cropped)
+            self.assertEqual(out.shape[:2], (OUT_H, OUT_W))       # 중간에 카메라 화질이 바뀌어도 내보내는 크기는 같다
+        wide = self.np.zeros((720, 1280, 3), self.np.uint8)
+        wide[:, 160:1120] = 200                                   # 16:9 는 가운데 4:3 을 쓴다
+        self.assertEqual(int(fit(wide)[0].min()), 200)
+
+    def test_dark_scenes_are_not_mistaken_for_missing_picture(self):
+        from agents.kiosk_camera import fit, valid_size
+        black = self.np.zeros((720, 1280, 3), self.np.uint8)      # 렌즈 가림(전체가 까맘)
+        self.assertEqual(valid_size(black), (1280, 720))
+        paper = self.picture(720, 1280, 0, 4)                     # 검은 배경지: 어둡지만 값이 정확히 0 으로 이어지지 않는다
+        paper[:300, :400] = 120
+        self.assertEqual(valid_size(paper), (1280, 720))
+        self.assertFalse(fit(paper)[1])
+        odd = self.np.zeros((720, 1280, 3), self.np.uint8)        # 까만 띠처럼 보여도 남는 크기가 영상 크기답지 않으면(8의 배수 아님) 자르지 않는다
+        odd[:333, :501] = 150
+        self.assertEqual(valid_size(odd), (1280, 720))
+
+    def test_feed_sends_fixed_size_and_reports_crop(self):
+        from agents import kiosk_camera as kc
+        np = self.np
+        import cv2
+
+        class HalfFilled:
+            def isOpened(self):
+                return True
+
+            def read(self):
+                img = np.zeros((720, 1280, 3), np.uint8)
+                img[:480, :640] = 180
+                return True, img
+
+            def release(self):
+                pass
+        cams = KioskCameras({"KIOSK-A": 0}, opener=lambda src: HalfFilled())
+        f = cams.feed("KIOSK-A")
+        f.touch()
+        for _ in range(50):
+            if f.latest():
+                break
+            import time
+            time.sleep(0.05)
+        jpg = f.latest()
+        self.assertIsNotNone(jpg)
+        img = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_COLOR)
+        self.assertEqual(img.shape[:2], (kc.OUT_H, kc.OUT_W))
+        self.assertGreater(int(img.min()), 150)                    # 사진 전체가 실제 영상
+        st = cams.status()["KIOSK-A"]
+        self.assertIn("낮은 화질", st["warning"])
+        self.assertEqual(st["size"], [kc.OUT_W, kc.OUT_H])
+        f._seen = -1e9
+        f._thread.join(3)
+
+
 class RoutesTest(unittest.TestCase):
     def setUp(self):
         try:
