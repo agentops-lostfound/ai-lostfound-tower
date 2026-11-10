@@ -768,7 +768,13 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   }
 
   // ================= 읽기 · 순서대로 재생 =================
-  let seq = 0, first = true, fails = 0;
+  let seq = 0, first = true, fails = 0, pollTimer = null;
+  // 틀 안의 챗봇 창이 "질문을 보냈다"고 알리면(web/chat-widget/widget.js) 기다리지 않고 챗봇 그림으로 바꾸고 바로 읽는다
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.source !== "lostfound-chat" || e.data.phase !== "ask") return;
+    chatSince = Date.now(); holdUntil = 0; showGraph("chat");
+    clearTimeout(pollTimer); pollTimer = setTimeout(poll, 60);
+  });
   const queue = [];
   function handle(e, live) {
     if (e.channel === "db") { applyDb(e.db, live); logDb(e); }
@@ -782,7 +788,8 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     const e = queue.shift();
     if (e) handle(e, true);
     const n = queue.length, late = n ? Date.now() - (queue[0]._at || Date.now()) : 0;
-    setTimeout(pump, !n ? 100 : (n > 60 || late > 4000) ? 20 : (n > 25 || late > 2000) ? 60 : (n > 8 || late > 900) ? 130 : 280);
+    // _rush: 이미 끝난 챗봇 질문의 남은 단계 — 답이 벌써 사용자 화면에 나갔으니 그림도 곧바로 '답'까지 간다
+    setTimeout(pump, !n ? 60 : queue[0]._rush ? 15 : (n > 60 || late > 4000) ? 20 : (n > 25 || late > 2000) ? 60 : (n > 8 || late > 900) ? 130 : 280);
   }
   async function poll() {
     try {
@@ -799,14 +806,20 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       if (w.on !== worker.on) { worker = w; drawVision(false); } else worker = w;
       const evs = (d.events || []).filter((e) => e.channel === "db" || e.channel === "agent" || e.channel === "trace" || e.channel === "vision");
       if (first) { evs.forEach((e) => handle(e, false)); first = false; drawGraph(); }
-      else { const at = Date.now(); evs.forEach((e) => { e._at = at; }); queue.push(...evs); }
+      else {
+        const at = Date.now(); evs.forEach((e) => { e._at = at; }); queue.push(...evs);
+        const isChat = (e) => e.channel === "trace" && e.trace && e.trace.trace_name !== "tower-main-ai";
+        const end = queue.findLastIndex((e) => isChat(e) && e.trace.kind === "trace_end");
+        if (end >= 0) for (let i = 0; i <= end; i++) if (isChat(queue[i])) queue[i]._rush = true;
+      }
       stories = d.stories || []; renderSteps();
       seq = d.seq;
     } catch (e) {
       fails++;
       if (fails > 2) { $("conn").className = "dot off"; $("connText").textContent = "관제탑 연결 끊김"; }
     }
-    setTimeout(poll, 500);
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(poll, chatSince && Date.now() - chatSince < CHAT_BUSY_MAX_MS ? 120 : 500);        // 챗봇 질문이 진행 중이면 더 자주 읽는다(답과 그림이 같은 때에 끝나게)
   }
   function banner(html) { const b = $("banner"); b.hidden = !html; if (html) b.innerHTML = html; }
 

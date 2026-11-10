@@ -314,9 +314,22 @@ class PageContractTest(unittest.TestCase):
         for needle in ("function follow(name)", "CHAT_KEEP_MS", "USER_HOLD_MS", "late > 900", "chatReported", "scrollbar-width:none"):
             self.assertIn(needle, html)
         self.assertNotIn("pinned", html)
+        # 11/10 챗봇 답과 그림이 같은 때에 끝나게: 끝난 질문의 남은 단계는 곧바로 재생(_rush), 챗봇 창의 "질문 보냄" 알림을 받는다
+        for needle in ("_rush", 'e.data.source !== "lostfound-chat"', "e.origin !== location.origin"):
+            self.assertIn(needle, html)
         self.assertNotIn("|| stories[0]", html)                 # 다른 종류의 건을 진행 막대에 대신 보여 주지 않는다
         self.assertNotIn("innerHTML = e.", html)                # 사건 글자는 esc() 를 거쳐 넣는다
         self.assertIsNone(re.search(r"\.(body|note|value|text)\}<", html))
+
+    def test_chat_widget_shows_answer_after_full_bar(self):
+        js = (ROOT / "web" / "chat-widget" / "widget.js").read_text(encoding="utf-8")
+        self.assertIn("progress.complete(resolve)", js)          # 막대가 100% 가 된 뒤에 답을 붙인다
+        self.assertNotIn("progress.finish(", js)                 # 답을 먼저 보이고 막대가 따라가던 옛 방식
+        self.assertLess(js.index("progress.complete(resolve)"), js.index('var m = line("bot", answerText);'))
+        ask = js[js.index("window.top.postMessage"):js.index("window.top.postMessage") + 120]
+        self.assertIn('phase: "ask"', ask)
+        self.assertIn("location.origin", ask)                    # 같은 주소의 바깥 화면에만 알린다
+        self.assertNotIn("question", ask)                        # 질문 내용은 보내지 않는다
 
     def test_removed_pages_and_admin_tab(self):
         for gone in ("lost-finder", "archive", "intake"):          # 11/10 정리한 옛 화면 폴더(주소 /intake 는 /kiosk 로 넘김)

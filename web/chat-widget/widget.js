@@ -7,6 +7,7 @@
  *   11/8 작은 떠 있는 창: 기본 오른쪽 아래 360×520(키오스크 460×640, 휴대폰 폭 600px 이하는 92vw×60vh 아래쪽).
  *   머리줄을 끌어 옮김(마우스·터치, 화면 밖으로 못 나감) · 접기(알약 모양, 새 답이 오면 점) · 구석 손잡이/작게·크게 단추로 크기 조절 · 닫기.
  *   위치·크기는 localStorage 에 기억(화면 주소별). 처음 열 때는 버튼·입력칸이 가장 적게 가려지는 구석을 고르고, 창 밖 화면은 그대로 누를 수 있다(어두운 막 없음).
+ *   11/10 답은 막대가 100% 가 된 뒤에 나온다(답이 오면 남은 숫자를 최대 0.45초에 채움).
  *   11/8 진행률: 답을 기다리는 동안 말풍선 자리에 0~100% 막대(서버 단계 알림 + 최근 응답 시간으로 채운 예상치). 0.3초 안에 끝나면 보이지 않음
  *   data-api="http://…"  챗봇 API 주소(기본: 이 스크립트를 내려준 서버 = 관제탑)
  *   data-title="AI 안내 도우미"
@@ -708,15 +709,20 @@
     return {
       stage: function (name, pct) { model.stage(name, pct); if (box) render(); },
       stop: function () { stopped = true; clearTimeout(showTimer); clearTimeout(tickTimer); if (!finishing) clearTimeout(stepTimer); },   // 답 뒤 100 까지 세는 중이면 그대로
-      // 답이 오면 막대를 답 아래로 옮기고, 지금 숫자에서 100 까지 빠르게 센 뒤 잠깐 보이고 사라진다(답은 기다리지 않고 바로 보인다)
-      finish: function (answerMsg) {
-        stopped = true; finishing = true; clearTimeout(showTimer); clearTimeout(tickTimer);
+      // 11/10 답이 오면: 지금 숫자에서 100 까지 빠르게(최대 0.45초) 채운 **뒤에** 답을 보여 준다(cb).
+      // 전에는 답을 먼저 보이고 막대가 답 아래에서 100 까지 따라가, "100% 가 되기 전에 답이 나온다"로 보였다.
+      // 막대를 아직 그리지 않았으면(0.3초 안에 온 답) 기다리지 않고 바로 cb
+      complete: function (cb) {
+        stopped = true; finishing = true; clearTimeout(showTimer); clearTimeout(tickTimer); clearTimeout(stepTimer);
         model.done();
-        if (!box) return;
-        box.remove();
-        answerMsg.append(box);
-        onFull = function () { setTimeout(function () { box.className = "prog done"; setTimeout(function () { box.remove(); }, 450); }, 450); };
-        chase(100);
+        if (!box) { cb(); return; }
+        var from = disp, began = now(), dur = Math.min(450, Math.max(120, (100 - from) * 6));
+        (function run() {
+          var k = Math.min(1, (now() - began) / dur), v = Math.max(disp, Math.round(from + (100 - from) * k));
+          if (v !== disp) { disp = v; show(v); }
+          if (k < 1) stepTimer = setTimeout(run, 16);
+          else { disp = 100; show(100); stepTimer = setTimeout(cb, 180); }      // '답 완료 100%' 를 잠깐 보인 뒤 답
+        })();
       },
       shown: function () { return disp; },
       model: model
@@ -775,6 +781,9 @@
     var userLine = line("user", q);
     if (input.value.trim() === q) input.value = "";
     input.dispatchEvent(new Event("input"));
+    // 11/10 이 화면이 다른 화면 안(통합 시연 화면의 키오스크·휴대폰 틀)에 들어 있으면 "질문을 보냈다"고 알린다 →
+    // 바깥 화면이 챗봇 에이전트 그림으로 곧바로 바꾸고 단계를 더 자주 읽는다. 질문 내용은 보내지 않는다
+    try { if (window.top !== window) window.top.postMessage({ source: "lostfound-chat", phase: "ask" }, location.origin); } catch (e) {}
     var pending = line("bot pending", "질문을 확인하고 있어요…");
     var progress = progressFor(pending), started = now();
     setBusy(true);
@@ -791,11 +800,13 @@
     }).then(function (res) {
       if (activeRequest !== request) return;
       durations = durations.concat([Math.max(1, now() - started)]).slice(-5);
+      return new Promise(function (resolve) { progress.complete(resolve); }).then(function () { return res; });
+    }).then(function (res) {
+      if (!res || activeRequest !== request) return;       // 막대를 채우는 사이 대화를 지웠으면 답을 붙이지 않는다
       var answerText = res.answer || "답변을 만들지 못했어요. 질문을 조금 바꿔 다시 물어봐 주세요.";
       history = body.history.concat([{ q: q, a: String(res.answer || "").slice(0, MAX_ANSWER) }]).slice(-MAX_HISTORY);
       pending.remove();
       var m = line("bot", answerText);
-      progress.finish(m);
       if (minimized) { pill.className = "pill unread"; pillText.textContent = "새 답변이 왔어요"; pill.setAttribute("aria-label", "새 답변이 왔어요 — " + TITLE + " 펼치기"); }
       var saved = storeGet() || { history: [], msgs: [] };
       saved.history = history;
