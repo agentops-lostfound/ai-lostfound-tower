@@ -482,6 +482,23 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         가상 세계와 팀 DB(함께 저장 중이면) 모두에서 지운다. 사진 파일은 남는다"""
         return _item_action(item_id, "cancel_item")
 
+    @app.post("/api/admin/items/{item_id}/purge", dependencies=admin)
+    def item_purge(item_id: str) -> dict:
+        """[기록 삭제](로봇 작업대 화면): 물건 하나에 딸린 기록을 전부 지운다(되돌릴 수 없음) — 물건·상태 기록·연락처·보관 칸·
+        찾기 요청(확인 질문·방문 예약)·반환 기록. 가상 세계 + 팀 DB(함께 저장 중이면). 반환 중인 물건은 409. 사진 파일은 남는다"""
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        d = getattr(svc, "sim", None)
+        if d is None or not callable(getattr(d, "purge_item", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        if svc.health().get("busy"):
+            raise HTTPException(status_code=409, detail="반환이 진행 중이에요 — 끝난 뒤 다시 눌러 주세요")
+        out = d.purge_item(item_id)
+        if not out.get("ok"):
+            raise HTTPException(status_code=404 if out.get("code") == "not_found" else 409, detail=out.get("reason") or "할 수 없어요")
+        return {"ok": True, "item_id": item_id, "claims": out.get("claims") or [], "cases": out.get("cases") or [], "slot": out.get("slot")}
+
     @app.post("/api/kiosk/items/{item_id}/cancel")
     def kiosk_item_cancel(item_id: str, payload: dict = Body(...)) -> dict:
         """키오스크 '접수되었습니다' 화면의 [접수 취소]: 방금(3분 안에) 이 화면에서 접수한 물건만 지운다.

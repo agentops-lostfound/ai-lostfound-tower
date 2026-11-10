@@ -96,6 +96,17 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .place{border-radius:var(--ui-radius);padding:12px;min-height:64px;background:var(--soft2)}
 .place b{font-size:13px} .place .row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .tok{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:2px 7px;border-radius:8px;background:var(--panel);font-family:var(--ui-mono);max-width:100%;overflow-wrap:anywhere}
+/* 11/10 기록 삭제(직원): 물건마다 [삭제] — 두 번 눌러 실행 */
+.purge{margin-top:14px;border:1px solid var(--line, rgba(127,127,127,.3));border-radius:12px;padding:8px 12px}
+.purge summary{cursor:pointer;font-weight:700;font-size:13px}
+.purge-note{font-size:12px;margin:8px 0;line-height:1.5;opacity:.85}
+.purge-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
+.purge-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 8px;border-radius:8px;background:var(--panel);min-width:0}
+.purge-row .id{font-family:var(--ui-mono);font-weight:700;white-space:nowrap}
+.purge-row .what{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
+.purge-row button{flex:none;font:inherit;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:7px;border:1px solid currentColor;background:transparent;color:var(--ui-err, #d33);cursor:pointer}
+.purge-row button.armed{background:var(--ui-err, #d33);color:#fff;border-color:var(--ui-err, #d33)}
+.purge-row button:disabled{opacity:.4;cursor:default}
 .tok i{width:9px;height:9px;border-radius:3px;display:inline-block;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
 /* 기록 */
 .log{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:72vh;overflow:auto}
@@ -248,6 +259,12 @@ details.more .robot-note{margin-top:0}
       <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 카드지갑 · R3 = 보조배터리 · R4 = 핸드크림(11/9 품목 4종 고정) · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
       <div class="cap" id="cap" aria-live="polite"></div>
       <div class="places" id="places"></div>
+      <details class="purge" id="purgeBox">
+        <summary>🗑 기록 삭제(직원) <span id="purgeCount"></span></summary>
+        <p class="purge-note">물건 하나에 딸린 기록을 <b>전부</b> 지워요 — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록(팀 DB 포함). <b>되돌릴 수 없어요.</b> 사진 파일만 남아요. 반환 중인 물건은 지울 수 없어요.</p>
+        <div class="purge-list" id="purgeList"></div>
+        <div class="msg" id="purgeMsg" role="status" aria-live="polite"></div>
+      </details>
     </div>
   </section>
 
@@ -428,7 +445,42 @@ details.more .robot-note{margin-top:0}
         `<span class="tok" title="${esc(itemTip(i))}" aria-label="${esc(itemTip(i))}"><i style="background:${COLORS[i.color]||"#b9b4ff"}"></i>${stShort(i) ? `<span class="st">${esc(stShort(i))}</span>` : ""}${esc(catName(i.category))} ${esc(i.item_id)}${i.loc==="staff"?" (직원)":""}${i.waiting?" · 칸 대기":""}</span>`).join("") :
         '<span class="empty">없음</span>'}</div></div>`;
     }).join("");
+    renderPurge();
   }
+
+  // ---------- 11/10 기록 삭제(직원): 저장소에 있는 물건의 기록을 통째로 지운다 ----------
+  // 물건마다 [삭제] → 한 번 더 눌러야 실행(4초 안). POST /api/admin/items/{번호}/purge — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록을 모두 지운다
+  const LOC_NAME = {kiosk: "등록기계", transit: "이동 중", bin: "보관 칸", shelf: "직원 보관 선반", gripper: "로봇 집게", basket: "제출보관함", handed: "인계 완료", staff: "직원 손"};
+  let purgeArmed = null, purgeBusy = false;
+  function renderPurge() {
+    const box = $("purgeList"); if (!box || !world) return;
+    const rows = world.items.slice().sort((a, b) => a.item_id < b.item_id ? -1 : 1);
+    const sig = JSON.stringify([rows.map(i => [i.item_id, i.loc, i.status, i.slot_id, i.category]), purgeArmed, purgeBusy]);
+    if (box.dataset.last === sig) return;
+    box.dataset.last = sig;
+    $("purgeCount").textContent = `물건 ${rows.length}개`;
+    box.innerHTML = rows.length ? rows.map(i => {
+      const moving = i.loc === "gripper" || i.status === "반환 중";
+      const where = (i.slot_id ? i.slot_id + " " : "") + (LOC_NAME[i.loc] || i.loc);
+      return `<div class="purge-row"><span class="id">${esc(i.item_id)}</span><span class="what" title="${esc(itemTip(i))}">${esc(catName(i.category))} · ${esc(where)} · ${esc(i.status)}</span>` +
+        `<button type="button" data-purge="${esc(i.item_id)}" class="${purgeArmed === i.item_id ? "armed" : ""}"${moving || purgeBusy ? " disabled" : ""}>${purgeArmed === i.item_id ? "한 번 더 → 삭제" : "삭제"}</button></div>`;
+    }).join("") : '<span class="empty">물건이 없어요</span>';
+  }
+  $("purgeList").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-purge]"); if (!b || b.disabled) return;
+    const id = b.dataset.purge;
+    if (purgeArmed !== id) {
+      purgeArmed = id; $("purgeMsg").textContent = `${id} 의 기록을 모두 지우려면 한 번 더 누르세요(되돌릴 수 없음)`; renderPurge();
+      setTimeout(() => { if (purgeArmed === id) { purgeArmed = null; $("purgeMsg").textContent = ""; renderPurge(); } }, 4000);
+      return;
+    }
+    purgeArmed = null; purgeBusy = true; renderPurge();
+    try {
+      const d = await post(`/api/admin/items/${encodeURIComponent(id)}/purge`);
+      $("purgeMsg").textContent = `${id} 기록을 지웠어요` + (d.slot ? ` · ${d.slot} 칸 비움` : "") + (d.claims.length ? ` · 찾기 요청 ${d.claims.length}건` : "") + (d.cases.length ? ` · 반환 기록 ${d.cases.length}건` : "");
+    } catch (err) { $("purgeMsg").textContent = `${id} — ${err.message}`; }
+    purgeBusy = false; renderPurge();
+  });
 
   // ---------- SO-101 실제 형상(공식 MuJoCo 모델 so101_new_calib_camera) ----------
   // 부품마다 겉모양 점(mm, 몸체 좌표)을 관절 각도로 돌려(정방향 기구학) 위·옆에서 본 볼록 껍질로 그린다.

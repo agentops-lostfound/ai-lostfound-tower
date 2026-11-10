@@ -31,7 +31,7 @@ from agents.contracts import (DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, U
                               inactive_category_message, is_active_category, public_card, show_ko)
 from agents.live import LiveBoard
 from agents.service import Conflict, NotFound, RequestError, TowerService, Unavailable
-from agents.sim_world import (LOC_BIN, LOC_KIOSK, LOC_SHELF, LOC_STAFF, LOC_TRANSIT, MACHINE_STATION, SimRobot, SimTopview,
+from agents.sim_world import (LOC_BIN, LOC_GRIPPER, LOC_KIOSK, LOC_SHELF, LOC_STAFF, LOC_TRANSIT, MACHINE_STATION, SimRobot, SimTopview,
                               SimWorld, lost_station, parse_place, query_features, sim_qwen, slot_rows, split_tags)
 
 PUBLIC_COMPARE = ("category", "color", "shape", "material")
@@ -413,6 +413,53 @@ class SimDirector:
                 self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
             finally:
                 self._flow_end(item_id)
+
+    def purge_item(self, item_id: str) -> dict:
+        """[기록 삭제](로봇 작업대 화면): 물건 하나에 딸린 기록을 **전부** 지운다(되돌릴 수 없음) — 물건·상태 기록·연락처·보관 칸·
+        찾기 요청(확인 질문·방문 예약 포함)·반환 기록. 가상 세계와 팀 DB(함께 저장 중이면) 모두. 사진 파일만 남는다.
+        로봇이 들고 있거나 반환 중인 물건, 이야기가 진행 중인 물건은 지우지 않는다. → {"ok", "reason", "claims", "cases", "slot"}"""
+        w = self.world
+        row = w.items.get(item_id)
+        if row is None:
+            return {"ok": False, "code": "not_found", "reason": "없는 물건 번호예요"}
+        if row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or w.arm.get("holding") == item_id:
+            return {"ok": False, "code": "busy", "reason": "반환 중인 물건은 지울 수 없어요 — 반환이 끝난 뒤 다시 눌러 주세요"}
+        with self._flow_lock:
+            if item_id in self._flowing and item_id not in self.qwen_wait:
+                return {"ok": False, "code": "busy", "reason": "이 물건은 지금 회수가 진행 중이에요 — 끝난 뒤 다시 눌러 주세요"}
+        slot = w.slot_id_of(item_id)
+        self.cancelled.add(item_id)
+        try:                                            # 보관함 정답지의 칸 기록(선반 포함)부터 비운다
+            self.svc.storage.release(item_id=item_id)
+        except Exception:
+            pass
+        if w.purge_item(item_id) is None:
+            self.cancelled.discard(item_id)
+            return {"ok": False, "code": "busy", "reason": "반환 중인 물건은 지울 수 없어요 — 반환이 끝난 뒤 다시 눌러 주세요"}
+        claims = cases = []
+        try:
+            claims = self.svc.claims.delete_for_item(item_id)
+        except Exception:
+            claims = []
+        try:
+            cases = self.svc.recorder.delete_for_item(item_id)
+        except Exception:
+            cases = []
+        # 이 물건을 기다리던 것들: 사진 분석 대기 · 칸 대기 이야기 · 확인 질문 답 대기 · 방문 대기
+        ev = self.qwen_wait.get(item_id)
+        if ev is not None:
+            ev.set()
+        story = self.wait_story.pop(item_id, None)
+        if story:
+            self.board.finish(story, f"{item_id} 기록 삭제 — 직원이 지움", False)
+        for pid in [p for p, v in list(self.pending.items()) if any((c or {}).get("item_id") == item_id for c in (v.get("cands") or []))]:
+            self.pending.pop(pid, None)
+        for cid in claims:
+            sid = self.visit_wait.pop(cid, None)
+            if sid:
+                self.board.finish(sid, f"{item_id} 기록 삭제 — 찾기 요청 {cid} 도 함께 지움", False)
+        self.rep.progress(item_id, "기록 삭제", f"직원이 물건 기록을 모두 지움(찾기 요청 {len(claims)}건 · 반환 기록 {len(cases)}건 포함, 사진 파일은 남음)")
+        return {"ok": True, "reason": "", "claims": claims, "cases": cases, "slot": slot}
 
     def cancel_item(self, item_id: str) -> dict:
         """[접수 취소]: 실수로 찍어 접수한 물건을 기록에서 지운다(되돌릴 수 없음). 아직 등록기계에 있고 찾는 사람이 없을 때만.

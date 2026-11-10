@@ -197,6 +197,20 @@ class DbWatch:
             return out
         world.delete_item = run
 
+        purge = getattr(world, "purge_item", None)
+        if callable(purge):
+            @functools.wraps(purge)
+            def run_purge(item_id, *a, **k):
+                out = purge(item_id, *a, **k)
+                if out is not None:
+                    try:
+                        self.emit("item", "DELETE", item_id, [col("item_id", item_id, True), col("status", out.get("status"), False)],
+                                  by="직원(기록 삭제)", note="물건에 딸린 기록을 모두 지움 — 상태 기록·연락처·보관 칸·찾기 요청·반환 기록(사진 파일은 남음)")
+                    except Exception:
+                        pass
+                return out
+            world.purge_item = run_purge
+
     def watch_claims(self, store) -> None:
         def created(row, claim, today=None):
             cid, iid = row.get("claim_id", ""), row.get("item_id", "")
