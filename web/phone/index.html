@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>폰 화면 시연</title>
+<!-- 11/10 발표용 폰 화면(LF-2 · 변재원)
+     한줄 설명: 발표 PC 화면에 휴대폰 틀을 그리고 그 안에 분실인 웹(/lost)을 실제 휴대폰 크기로 띄운다.
+     입력칸을 누르면 폰 모양 쿼티 키보드가 뜨고, PC 키보드로 치면 그 키가 눌리며 글자가 들어간다(사람이 폰으로 치는 모습처럼).
+     실제 휴대폰으로 /lost 에 들어가면 폰 자체 키보드를 그대로 쓴다(이 화면은 발표용). 다른 화면: /phone?src=/kiosk?machine=KIOSK-A -->
+<link rel="stylesheet" href="/ui/theme.css">
+<script src="/ui/theme.js"></script>
+<script src="/ui/vkeyboard.js"></script>
+<style>
+  body{margin:0;min-height:100vh;background:var(--ui-bg,#f2f4f6);color:var(--ui-text,#191f28);font-family:var(--ui-font,system-ui)}
+  main{display:flex;flex-wrap:wrap;gap:32px;align-items:center;justify-content:center;min-height:100vh;box-sizing:border-box;
+    padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .note{max-width:300px;min-width:0}
+  .note h1{font-size:22px;margin:0 0 8px;text-wrap:balance}
+  .note p{margin:6px 0;color:var(--ui-text-2,#4e5968);line-height:1.6;font-size:15px}
+  .note kbd{font:600 13px var(--ui-mono,monospace);padding:2px 6px;border-radius:6px;background:var(--ui-surface,#fff);border:1px solid var(--ui-line,#d1d6db)}
+  .phone{position:relative;width:390px;max-width:100%;height:min(844px,calc(100vh - 48px));border-radius:48px;padding:14px;
+    background:#111;box-shadow:0 30px 60px rgba(0,0,0,.25),inset 0 0 0 2px #333;box-sizing:border-box}
+  .screen{position:relative;width:100%;height:100%;border-radius:36px;overflow:hidden;background:#fff;transform:translateZ(0)}
+  .status{position:absolute;top:0;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;font:600 14px var(--ui-font,system-ui);color:#000;background:rgba(255,255,255,.92);z-index:5}
+  .island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:110px;height:30px;border-radius:20px;background:#000;z-index:6}
+  iframe{position:absolute;top:44px;left:0;width:100%;height:calc(100% - 44px);border:0;background:#fff}
+  .kbslot{position:absolute;left:0;right:0;bottom:0;height:0;z-index:7}
+  .kbslot .vk{bottom:0}
+  @media (max-width:440px){.note{display:none}.phone{border-radius:0;padding:0;height:100vh;box-shadow:none}.screen{border-radius:0}}
+</style>
+</head>
+<body>
+<main>
+  <section class="note">
+    <h1>폰 화면 시연</h1>
+    <p>입력칸을 누르면 폰 키보드가 떠요. <b>PC 키보드로 치면</b> 같은 키가 눌리며 글자가 들어가요.</p>
+    <p>한/영 전환: 화면 <kbd>한/영</kbd> 또는 PC <kbd>한/영</kbd>·<kbd>오른쪽 Alt</kbd> · 숫자·기호: <kbd>!#1</kbd></p>
+    <p>실제 휴대폰으로 접속하면 폰 자체 키보드를 써요(이 화면은 발표용).</p>
+    <p><span data-theme-slot></span></p>
+  </section>
+  <div class="phone" aria-label="휴대폰 화면">
+    <div class="screen">
+      <div class="island"></div>
+      <div class="status"><span id="clock">9:41</span><span>5G ▮▮▮ 🔋</span></div>
+      <iframe id="app" title="분실인 웹(휴대폰 크기)"></iframe>
+      <div class="kbslot" id="kbslot"></div>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  // 같은 관제탑 주소(/로 시작)만 띄움 — 다른 사이트를 틀 안에 열지 않게
+  const want = new URLSearchParams(location.search).get('src') || '/lost';
+  const src = /^\/(?!\/)/.test(want) ? want : '/lost';
+  const frame = document.getElementById('app'), slot = document.getElementById('kbslot');
+  let kb = null;
+  frame.addEventListener('load', () => {
+    if (kb) { kb.hide(); kb.el.remove(); }
+    try { kb = VK.attach(frame.contentDocument, { skin: 'phone', mount: slot }); } catch (e) { kb = null; }
+  });
+  frame.src = src;
+  const tick = () => { const d = new Date(); document.getElementById('clock').textContent = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  tick(); setInterval(tick, 20000);
+})();
+</script>
+</body>
+</html>

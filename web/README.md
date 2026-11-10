@@ -11,6 +11,7 @@
 | 키오스크 | `/kiosk?machine=KIOSK-A` | `kiosk/` | 변재원(이전 김재민) | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 모든 역: 습득 신고 + 분실 확인, 본센터만 셀프 신분 확인·회수(11/5 정책, `docs/design/operating_flow_1105.md`). 탭 3개(습득 신고 / 분실접수 / 회수). 습득은 서버 연결됨 — **11/6 찍기 버튼 없이 자동 촬영**(상자 안 카메라가 빈 상자와 달라지고 3초 멈추면 찍음, 작은 흑백 화면만 비교 · 11/8 놓기→손 빼기→3·2·1→찰칵 진행 표시, 사진 파일 접수 없음, 카메라가 없으면 "카메라 점검 중 · 역무실에 알려 주세요", **직원 시연은 주소 끝에 `&demo=1`**(예: `/kiosk?machine=KIOSK-A&demo=1`) — 가상 카메라가 물건을 넣고 자동 촬영, 위쪽 "시연 모드" 배지에서 넣을 물건을 고름) + 품목 6종 놓는 법 안내 + 연락처 이용 목적 안내, **분실접수 탭은 입력 화면만**(후보 찾기 API 가 생기면 `/api/lost/…` 연결, 3차). 회수 탭은 **모든 키오스크에 보이고**(11/6) 역 키오스크에서는 "부산역 본센터로 가세요(찾기 번호·신분증)" 안내, 실제 회수는 `?machine=CENTER`(본센터)만 — `POST /api/kiosk/returns`(11/6, 관문 값은 서버가 정함) |
 | 등록기계(습득 신고) | `/intake?machine=KIOSK-A` | `intake/` | 변재원(이전 김재민) | `GET /api/kiosk/places`, `POST /api/kiosk/items` | 키오스크 습득 탭과 같은 일 → **키오스크로 합치는 중**(이 화면은 호환용으로 남김, 3차에서 `/kiosk` 로 넘김) |
 | 분실인 웹(분실 확인) | `/lost` | `lost/` | 변재원(이전 김재민) | (서버 연결 전) | 화면 흐름 시안. 분실 확인 후 본센터 방문 안내 정책 적용 예정 |
+| 폰 화면 시연(발표용, 11/10) | `/phone` (다른 화면은 `/phone?src=/kiosk?machine=KIOSK-A`) | `phone/` | 변재원 | (없음 — 틀 안에 `/lost`) | 휴대폰 틀 안에 분실인 웹을 실제 휴대폰 크기로 띄우고, 입력칸을 누르면 **폰 모양 쿼티 키보드**. PC 키보드로 치면 같은 키가 눌리며 입력(사람이 폰으로 치는 모습). 실제 휴대폰은 폰 자체 키보드 그대로 |
 | 관제 모니터링 | `/live` | `live/` | 변재원(이전 김재민) | `GET /api/admin/live/state`, `/sim/*`, `POST /api/robot/stop`, `/api/admin/robot/home` | 됨(가상 시연·SO-101 실제 형상) |
 | 관리자 관제(로그인) | `/admin` | `admin/` | 변재원(이전 김재민) | `/api/admin/login·logout·me` | 로그인 후 관제 모니터링(`/live`)·반환/직원(`/staff`)·**보관함(`/storage-desk`, 11/6 도착 물건 칸 넣기)**을 탭으로. `.env` `LF_ADMIN_PASSWORD` 가 없으면 로그인 없이 열림 |
 | AI 챗봇 위젯 | 화면에 `<script src="/chat-widget/widget.js">` · 시험 `/chat-widget/demo` | `chat-widget/` | 변재원 | `POST /chat/questions`, `/chat/suggestions`, `/chat/health` | 됨(가상 물건 DB). **11/6 키오스크(머리말 "AI 안내" 버튼, 키오스크 모드: 닫거나 90초 무입력이면 대화 지움)와 분실인 웹("AI챗봇 사용하기" 버튼)에 붙임** — `chat-widget/README.md` |
@@ -21,6 +22,12 @@
 
 - 등록기계 번호: `KIOSK-A` 해운대(앞글자 A) · `KIOSK-C` 서면(앞글자 S) · `CENTER` **부산역 본센터** 키오스크(앞글자 H). 11/6 중앙역(KIOSK-B)은 삭제
 - 화면은 관제탑과 같은 주소에서 열리므로 `fetch("/items")` 처럼 앞부분 없이 부른다
+
+## 1-0. 화면 키보드(11/10, `web/ui/vkeyboard.js`)
+- 한줄 설명: 입력칸을 누르면 아래에 쿼티 키보드가 뜨고, **터치로 누르거나 PC 키보드로 치면** 그 칸에 들어간다. PC 키보드로 칠 때는 화면 키보드의 같은 키가 손가락으로 누른 것처럼 눌려 보인다(발표용)
+- 키오스크(모든 입력칸, 큰 키) · 폰 화면 시연 `/phone`(폰 모양). 한글 두벌식 조합 · 영문 · 숫자, [한/영]·PC 한/영 키·오른쪽 Alt 로 전환
+- 칸별: `type=tel`·`data-vk="num"` 숫자 패드, `data-vk="id"` 숫자 + `*` + `-`(가린 신분증), `data-vk="en"` 영문 시작, `data-vk-upper` 대문자, `data-vk="off"` 끄기
+- 키보드가 붙은 칸은 `readonly` 로 바뀐다 → 태블릿 자체 키보드·윈도우 한글 입력기가 끼어들지 않음(글자는 화면 키보드만 넣음)
 
 ## 1-1. 공통 디자인(11/8 디자인 개편)
 - 모든 화면은 `web/ui/theme.css`(색·글자·간격 토큰 `--ui-*`, 부품 `.ui-btn`·`.ui-card`·`.ui-input`·`.ui-chip`·`.ui-badge`)와 `web/ui/theme.js`(라이트/다크 전환)를 쓴다. 관제탑이 `/ui/theme.css`·`/ui/theme.js` 로 제공
