@@ -25,7 +25,7 @@ DETAIL_CHANNELS = ("db", "trace", "vision")
 # 이야기 단계(화면의 진행 막대 순서). 습득 신고 / 분실 신고
 FOUND_STAGES = [("intake", "등록기계 접수"), ("features", "Qwen 특징 분석"), ("collect", "본센터로 회수"),
                 ("stored", "보관함 배치")]
-LOST_STAGES = [("claim", "찾기 요청·확인 질문"), ("approve", "메인 AI 승인"), ("visit", "방문·직원 확인"),
+LOST_STAGES = [("claim", "찾기 요청·확인 질문"), ("approve", "메인 AI 승인"), ("visit", "방문·본인 확인"),
                ("topview", "탑뷰 촬영"), ("match", "매칭"), ("approach", "사전 접근"), ("grasp", "집기"),
                ("deliver", "제출보관함 전달"), ("handover", "인계 완료")]
 

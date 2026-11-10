@@ -174,6 +174,26 @@ class Runner:
             self.cancelled.add(cid)
         self.idle()
 
+    def pickup(self):
+        """11/11 무인 인계: 키오스크 [물건 받았어요]. 확인 질문을 못 넘은(직원 대면 확인) 요청은 키오스크로 끝나면 안 된다"""
+        cid = self.pick(self.claims)
+        if not cid:
+            return
+        idno = ID_OK if self.rng.random() < 0.85 else "******-2******"
+        code, d = self.call("POST", "/api/kiosk/handover", {"machine_id": self.pick(["CENTER", "CENTER", "CENTER", "KIOSK-A"]),
+                                                             "claim_id": cid, "id_no_masked": idno}, "/api/kiosk/handover")
+        if code == 200 and isinstance(d, dict):
+            if idno != ID_OK:
+                self.v.append(f"틀린 신분 번호로 {cid} 인계 완료됨")
+            st = self.call("GET", f"/claims/{cid}", tag="/claims/{id}")[1]
+            if isinstance(st, dict) and (st.get("web_gates") or {}).get("quiz_passed") is False:
+                self.v.append(f"확인 질문 미통과 {cid} 가 키오스크로 인계 완료됨(직원 예외여야 함)")
+            if d.get("item_id"):
+                self.done_count[d["item_id"]] += 1
+                if self.done_count[d["item_id"]] > 1:
+                    self.v.append(f"물건 {d['item_id']} 가 두 번 인계 완료됨")
+        self.idle()
+
     def handover(self):
         code, q = self.call("GET", "/api/admin/handovers?limit=50", tag="/api/admin/handovers")
         rows = q if isinstance(q, list) else []
@@ -258,7 +278,7 @@ class Runner:
         self.idle()
 
     ACTIONS = (("kiosk_intake", 14), ("found_text", 8), ("lost", 14), ("kiosk_return", 10), ("staff_visit", 5), ("staff_return", 4),
-               ("cancel", 5), ("handover", 12), ("item_button", 4), ("robot", 2), ("storage", 3), ("chat", 16), ("reset", 0.4))
+               ("cancel", 5), ("pickup", 10), ("handover", 8), ("item_button", 4), ("robot", 2), ("storage", 3), ("chat", 16), ("reset", 0.4))
 
     # ---------- 검사 ----------
     def check(self, i: int, name: str) -> None:
