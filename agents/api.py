@@ -96,7 +96,15 @@ def build_service(backend_factory=None) -> TowerService:
         if _flag("TOWER_DB"):
             print("[관제탑] TOWER_SIM=1 이라 TOWER_DB 는 쓰지 않습니다(가상 시연은 메모리)", file=sys.stderr)
         from agents.sim_director import build_sim_service
-        return build_sim_service()
+        svc = build_sim_service()
+        # 11/10 가상 시연 기록을 팀 DB 에도 함께 저장(agents/db_mirror.py): TOWER_SIM_DB=1 + DATABASE_URL 일 때만.
+        # start_tower.bat 가 기본으로 켠다(끄기: start_tower.bat nodb). 읽기는 계속 가상 세계 — 팀 DB 가 꺼져 있어도 시연은 그대로 돈다
+        from agents import db_mirror
+        mirror = db_mirror.from_env()
+        if mirror is not None:
+            db_mirror.attach(svc, mirror)
+            print("[관제탑] 가상 시연 기록을 팀 DB 에도 함께 저장합니다(TOWER_SIM_DB=1)", file=sys.stderr)
+        return svc
     reviewer = None
     if _flag("TOWER_REVIEWER"):
         from agents.llm_reviewer import OllamaReviewer
@@ -662,7 +670,21 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             watch = getattr(svc, "db_watch", None)
             out["db_source"] = getattr(watch, "source", None)
             out["langfuse"] = observability.enabled()
+            mirror = getattr(svc, "db_mirror", None)      # 가상 시연 기록을 팀 DB 에도 저장 중인지(agents/db_mirror.py)
+            out["db_mirror"] = mirror.stats() if mirror is not None else {"on": False}
         return out
+
+    @app.get("/api/admin/db/recent", dependencies=admin)
+    def db_recent(limit: int = 8) -> dict:
+        """11/10 통합 시연 화면: 팀 DB 에서 방금 읽은 최근 접수(어느 등록기계·역, 발견 장소, 사진 유무, 품목, 상태, 보관 칸)와 표별 행 수.
+        이름·연락처·신분 번호·비공개 특징은 읽지 않는다. 함께 저장이 꺼져 있으면 {"on": false}"""
+        mirror = getattr(svc, "db_mirror", None)
+        if mirror is None:
+            return {"on": False}
+        try:
+            return {"on": True, **mirror.recent(limit), "stats": mirror.stats()}
+        except Exception as e:           # 팀 DB 꺼짐 등 — 오류 종류만(접속 주소·비밀번호는 내보내지 않음)
+            return {"on": True, "error": type(e).__name__, "items": [], "counts": {}, "stats": mirror.stats()}
 
     _brief = {"t": 0.0, "v": None}
 

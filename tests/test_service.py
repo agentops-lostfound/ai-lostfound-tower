@@ -279,7 +279,8 @@ class ApiRoutesTest(unittest.TestCase):
                                         "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo", "/api/admin/intake/pending-photos",
                                         "/api/admin/storage/arrivals", "/storage-desk", "/storage",
                                         "/api/admin/storage/status",
-                                        "/api/admin/storage/robot-targets", "/api/admin/storage/robot-target/{item_id}")] + \
+                                        "/api/admin/storage/robot-targets", "/api/admin/storage/robot-target/{item_id}",
+                                        "/api/admin/db/recent")] + \
                   [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
                                          "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",

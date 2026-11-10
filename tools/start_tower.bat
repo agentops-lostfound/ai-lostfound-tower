@@ -22,12 +22,16 @@ rem DB 바뀐 점 적용(center/migrations) + 인계 완료 30일 지난 습득�
 python tools\db_migrate.py --apply --wait 60
 python tools\purge_contacts.py --apply
 :start_api
-rem Options (11/5, any order): "lan" = 0.0.0.0 (see docs/design/virtual_demo.md 4-2-1), "dev" = auto restart when agents/robot/discord_ops .py change
+rem Options (11/5, any order): "lan" = 0.0.0.0 (see docs/design/virtual_demo.md 4-2-1), "dev" = auto restart when agents/robot/discord_ops .py change, "nodb" = virtual demo does not write the team DB
 rem ASCII only on these lines: Korean here shifts cmd's UTF-8 line positions and breaks the next echo (11/5)
 set TOWER_HOST=127.0.0.1
 set TOWER_RELOAD=
 for %%a in (%*) do if /i "%%a"=="lan" set TOWER_HOST=0.0.0.0
 for %%a in (%*) do if /i "%%a"=="dev" set TOWER_RELOAD=--reload --reload-dir agents --reload-dir robot --reload-dir discord_ops
+rem 11/10 Virtual demo (TOWER_SIM=1) also saves every record to the team DB (agents/db_mirror.py). Default on. "nodb" = memory only.
+set TOWER_SIM_DB=1
+for %%a in (%*) do if /i "%%a"=="nodb" set TOWER_SIM_DB=0
+if "%TOWER_SIM_DB%"=="0" echo [NODB] Virtual demo keeps records in memory only (team DB is not written).
 if "%TOWER_HOST%"=="0.0.0.0" echo [WARN] LAN mode: anyone on this network can open all pages incl. staff (no login). Test only, then restart without lan.
 if defined TOWER_RELOAD echo [DEV] Auto restart on code change (virtual demo memory resets each restart). Use plain start_tower.bat for the final demo.
 echo [2/2] 관제탑 API 켜기: http://127.0.0.1:8100/docs  (끄기: Ctrl+C 또는 창 닫기)

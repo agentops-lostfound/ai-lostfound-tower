@@ -843,6 +843,12 @@ class TowerService:
             rel = fn(item_id) if callable(fn) else None
         except Exception:
             rel = None
+        if not rel:                       # 11/10 가상 시연을 다시 켠 뒤: 메모리에는 없지만 팀 DB 에 함께 저장해 둔 접수(agents/db_mirror.py)
+            mirror = getattr(self, "db_mirror", None)
+            try:
+                rel = mirror.photo_path(item_id) if mirror is not None else None
+            except Exception:
+                rel = None
         if not rel:
             return None
         root = Path(self.photo_dir) if self.photo_dir else photo_root()
