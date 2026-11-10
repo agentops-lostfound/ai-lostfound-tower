@@ -115,6 +115,10 @@ class SimDirector:
         self._wait_no = 0
         self._drain_lock = threading.Lock()
         self._drain_again = False
+        # 11/10 직원 단추([본센터로 회수]·[접수 취소]): 지금 이야기가 진행 중인 물건(겹쳐 움직이지 않게) · 취소한 물건
+        self._flowing: set[str] = set()
+        self._flow_lock = threading.Lock()
+        self.cancelled: set[str] = set()
         world.on_freed = self.kick_wait
 
     @property
@@ -332,6 +336,8 @@ class SimDirector:
             self._drain_lock.release()
 
     def _resume_collect(self, item_id: str) -> None:
+        if not self._flow_begin(item_id):               # 직원이 방금 [본센터로 회수]를 눌러 이미 움직이는 중
+            return
         sid = self.wait_story.pop(item_id, None) or self.board.new_story("found", f"칸 대기 회수 · {item_id}")
         with self.board.bind(sid):
             try:
@@ -340,6 +346,105 @@ class SimDirector:
             except Exception as e:
                 self.rep.alert(item_id, f"칸 대기 회수 진행 오류({type(e).__name__})", "")
                 self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
+            finally:
+                self._flow_end(item_id)
+
+    # ----- 11/10 직원 단추: [본센터로 회수] · [접수 취소] (통합 시연 화면) -----
+    def _flow_begin(self, item_id: str) -> bool:
+        with self._flow_lock:
+            if item_id in self._flowing:
+                return False
+            self._flowing.add(item_id)
+            return True
+
+    def _flow_end(self, item_id: str) -> None:
+        with self._flow_lock:
+            self._flowing.discard(item_id)
+
+    def collect_now(self, item_id: str) -> dict:
+        """직원이 [본센터로 회수]를 누름: 등록기계에 남아 있는 물건(칸 대기 · 사진 분석이 늦게 끝난 건)을 지금 회수한다.
+        맞는 빈 칸이 있으면 그 칸에, 없으면 직원 보관 선반에 둔다. → {"ok", "reason"}. 뒤에서 진행되고 화면은 이야기로 보인다"""
+        w = self.world
+        row = w.items.get(item_id)
+        if row is None:
+            return {"ok": False, "code": "not_found", "reason": "없는 물건 번호예요"}
+        if row.get("status") != "등록기계 보관" or row.get("loc") != LOC_KIOSK:
+            return {"ok": False, "code": "state", "reason": "이미 회수됐거나 회수 중인 물건이에요"}
+        if self._category(item_id) is None:
+            return {"ok": False, "code": "no_category", "reason": "사진 분석이 끝나지 않아 품목을 몰라요 — 분석이 끝난 뒤 다시 눌러 주세요"}
+        if not self._flow_begin(item_id):
+            return {"ok": False, "code": "busy", "reason": "이 물건은 지금 진행 중이에요"}
+        self._spawn(self._collect_by_staff, item_id)
+        return {"ok": True, "reason": ""}
+
+    def _collect_by_staff(self, item_id: str) -> None:
+        w = self.world
+        sid = self.wait_story.pop(item_id, None) or self.board.new_story("found", f"직원 회수 · {item_id}")
+        with self.board.bind(sid):
+            try:
+                self.board.set_ids(sid, item_id=item_id)
+                for st in ("intake", "features"):
+                    self.board.stage(st, "done")
+                cat = self._category(item_id)
+                slot = w.reserved_for(item_id) or w.reserve_slot(item_id, cat)
+                with w._lock:
+                    if item_id in w.wait_queue:
+                        w.wait_queue.remove(item_id)
+                self.rep.progress(item_id, "직원이 회수 시작", "통합 시연 화면의 [본센터로 회수]")
+                if slot is not None:
+                    self._collect_store(sid, item_id)
+                    return
+                # 맞는 빈 칸이 없음 → 직원 보관 선반(S-n). 반환은 직원이 건넨다
+                self.board.stage("collect", "active", "맞는 빈 칸이 없어 직원 보관 선반으로 회수")
+                w.db_set_status(item_id, "회수 중", changed_by="staff")
+                w.move(item_id, LOC_TRANSIT)
+                w.sleep(3.0)
+                try:
+                    self.svc.move_to_shelf({"item_id": item_id})
+                except Exception:
+                    w.to_shelf(item_id)
+                w.db_set_status(item_id, "본센터 보관", changed_by="staff")
+                self.board.stage("collect", "done")
+                self.board.stage("stored", "done", "직원 보관 선반")
+                self.rep.progress(item_id, "직원 보관 선반에 보관", "보관함 열이 꽉 차 선반에 둠 — 반환은 직원이 건넴")
+                self.board.finish(sid, f"{item_id} 직원 보관 선반에 보관(보관함 열이 꽉 참) — 반환은 직원이 건넴", True)
+            except Exception as e:
+                self.rep.alert(item_id, f"직원 회수 진행 오류({type(e).__name__})", "")
+                self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
+            finally:
+                self._flow_end(item_id)
+
+    def cancel_item(self, item_id: str) -> dict:
+        """[접수 취소]: 실수로 찍어 접수한 물건을 기록에서 지운다(되돌릴 수 없음). 아직 등록기계에 있고 찾는 사람이 없을 때만.
+        → {"ok", "reason"}. 사진 분석을 기다리던 이야기는 '접수 취소'로 끝난다. 사진 파일은 남는다"""
+        w = self.world
+        row = w.items.get(item_id)
+        if row is None:
+            return {"ok": False, "code": "not_found", "reason": "없는 물건 번호예요"}
+        if row.get("status") != "등록기계 보관" or row.get("loc") != LOC_KIOSK:
+            return {"ok": False, "code": "state", "reason": "이미 회수된 물건은 취소할 수 없어요 — 직원이 확인해 주세요"}
+        try:
+            claimed = self.svc.claims.active_for_item(item_id)
+        except Exception:
+            claimed = None
+        if claimed:
+            return {"ok": False, "code": "claimed", "reason": "찾기 요청이 걸린 물건은 취소할 수 없어요"}
+        waiting_qwen = item_id in self.qwen_wait
+        with self._flow_lock:
+            if item_id in self._flowing and not waiting_qwen:
+                return {"ok": False, "code": "busy", "reason": "이 물건은 지금 회수가 진행 중이에요"}
+        self.cancelled.add(item_id)
+        if w.delete_item(item_id) is None:              # 그 사이 회수가 시작됨
+            self.cancelled.discard(item_id)
+            return {"ok": False, "code": "state", "reason": "이미 회수된 물건은 취소할 수 없어요 — 직원이 확인해 주세요"}
+        ev = self.qwen_wait.get(item_id)
+        if ev is not None:
+            ev.set()                                    # 사진 분석을 기다리던 이야기를 깨워 '접수 취소'로 끝낸다
+        story = self.wait_story.pop(item_id, None)
+        if story:
+            self.board.finish(story, f"{item_id} 접수 취소 — 기록에서 지움", False)
+        self.rep.progress(item_id, "접수 취소", "직원이 접수를 취소해 기록에서 지움(사진 파일은 남음)")
+        return {"ok": True, "reason": ""}
 
     # ================= 11/7 진짜 키오스크 사진 습득(사진 분석만 진짜 Qwen) =================
     def kiosk_found(self, rec: dict) -> str:
@@ -354,6 +459,7 @@ class SimDirector:
             machine = rec.get("machine_id") or item_id[:1]
             self.rep.progress(item_id, "등록기계 접수", f"{machine}({MACHINE_STATION.get(machine, '')}역) · 사진 촬영 접수")
             self.board.stage("features", "active", "Qwen3-VL 사진 분석 중(관제탑 PC)")
+        self._flow_begin(item_id)
         self._spawn(self._after_kiosk, sid, item_id)
         return sid
 
@@ -371,8 +477,8 @@ class SimDirector:
             try:
                 got = ev.wait(self.qwen_wait_s) if ev is not None else False
                 self.qwen_wait.pop(item_id, None)
-                if item_id not in self.world.items:          # 기다리는 동안 가상 세계 초기화
-                    self.board.finish(sid, "가상 세계 초기화로 중단", False)
+                if item_id not in self.world.items:          # 기다리는 동안 접수 취소 또는 가상 세계 초기화
+                    self.board.finish(sid, f"{item_id} 접수 취소 — 기록에서 지움" if item_id in self.cancelled else "가상 세계 초기화로 중단", False)
                     return
                 row = self.world.db_get_item(item_id) or {}
                 feats = row.get("features") or {}
@@ -393,6 +499,8 @@ class SimDirector:
             except Exception as e:
                 self.rep.alert(item_id, f"키오스크 습득 진행 오류({type(e).__name__})", "")
                 self.board.finish(sid, f"진행 오류({type(e).__name__})", False)
+            finally:
+                self._flow_end(item_id)
 
     # ================= 분실 신고 =================
     def candidates(self, desc: dict, station: str | None, limit: int = 3) -> list[dict]:

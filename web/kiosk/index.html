@@ -141,6 +141,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .camhelp{display:flex;gap:10px;flex-wrap:wrap}
 .camhelp button{flex:1 1 0;min-width:0;font-size:18px;padding:12px 10px;min-height:52px}
 .camhelp button:disabled{opacity:.45}
+button.undo{font-size:19px;color:var(--ui-text-2)} button.undo.armed{background:var(--ui-err-soft);color:var(--ui-err)}
 .camhelp button small{display:block;font-size:13px;font-weight:500;opacity:.7;margin-top:2px}
 .hint b{color:var(--ui-text)}
 .status.again{background:var(--ui-warn-soft);color:var(--ui-warn)}
@@ -419,6 +420,8 @@ body.demo-mode #stn{flex:1 1 auto}
     <p class="sub center"><span class="cdnum" id="count">10</span>초 뒤 처음 화면으로</p>
     <div class="bar" aria-hidden="true"><i id="homeBar"></i></div>
     <button class="ghost" id="home">지금 처음으로</button>
+    <button class="ghost undo" id="undo" type="button">잘못 찍었어요 · 접수 취소</button>
+    <p class="err" id="undoErr"></p>
   </section>
 </div>
 <!-- 11/8 오래 손대지 않으면(연락처 화면에 이름·번호를 남긴 채 떠난 경우 등) 묻고 처음으로 -->
@@ -1083,7 +1086,24 @@ async function submit(withContact) {
 }
 $('#skip').onclick = () => submit(false);
 $('#send').onclick = () => submit(true);
+// 11/10 [접수 취소]: 실수로 찍어 접수했을 때 방금 접수(3분 안)를 지운다. 두 번 눌러야 실행(한 번 누르면 자동으로 처음 화면에 가는 것을 멈춤)
+let doneNo = '', undoArmed = false;
+function undoReset() { undoArmed = false; const b = $('#undo'); b.disabled = false; b.textContent = '잘못 찍었어요 · 접수 취소'; b.classList.remove('armed'); $('#undoErr').classList.remove('on'); }
+$('#undo').onclick = async () => {
+  const b = $('#undo');
+  if (!undoArmed) { undoArmed = true; clearInterval(timer); b.classList.add('armed'); b.textContent = '한 번 더 누르면 접수가 지워져요'; $('#count').textContent = '–'; return; }
+  b.disabled = true;
+  try {
+    const r = await fetch(API + '/api/kiosk/items/' + encodeURIComponent(doneNo) + '/cancel',
+      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({client: CLIENT_ID})});
+    if (r.ok) { $('#rno').textContent = '접수를 취소했어요'; b.textContent = '취소됨'; setTimeout(reset, 1800); return; }
+    let d = {}; try { d = await r.json(); } catch (e) {}
+    $('#undoErr').textContent = typeof d.detail === 'string' ? d.detail : '취소하지 못했어요. 역무실에 알려 주세요.';
+  } catch (e) { $('#undoErr').textContent = BUSY_MSG; }
+  $('#undoErr').classList.add('on'); b.disabled = false; undoArmed = false; b.classList.remove('armed'); b.textContent = '잘못 찍었어요 · 접수 취소';
+};
 function done(no) {
+  doneNo = no; undoReset();
   $('#rno').textContent = no;
   $('#cname').value = ''; $('#cphone').value = '';
   go(4); let n = RESET_SEC; $('#count').textContent = n;

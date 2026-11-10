@@ -179,6 +179,24 @@ class DbWatch:
         self._wrap(store, "set_features", features)
 
     # ----- 찾기 요청 저장소(claims) -----
+    def watch_delete(self, world) -> None:
+        """11/10 접수 취소(가상 세계 delete_item): item 행과 딸린 기록이 지워진다"""
+        fn = getattr(world, "delete_item", None)
+        if not callable(fn):
+            return
+
+        @functools.wraps(fn)
+        def run(item_id, *a, **k):
+            out = fn(item_id, *a, **k)
+            if out is not None:
+                try:
+                    self.emit("item", "DELETE", item_id, [col("item_id", item_id, True), col("status", out.get("status"), False)],
+                              by="직원(접수 취소)", note="실수로 접수한 물건을 지움 — 상태 기록·연락처도 함께(사진 파일은 남음)")
+                except Exception:
+                    pass
+            return out
+        world.delete_item = run
+
     def watch_claims(self, store) -> None:
         def created(row, claim, today=None):
             cid, iid = row.get("claim_id", ""), row.get("item_id", "")
@@ -374,6 +392,7 @@ def attach(svc):
         world = getattr(svc, "world", None)
         if world is not None:
             w.watch_db_part(world)
+            w.watch_delete(world)
         w.watch_backend_factory(svc)
         w.watch_sim(svc)
         for name, label in (("kiosk_return", "본센터 키오스크 회수"), ("start_return", "반환 흐름")):
