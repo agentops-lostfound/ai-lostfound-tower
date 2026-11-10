@@ -66,6 +66,12 @@ class CompositeBackend:
                 self._route[m] = part
 
     def __getattr__(self, name: str):
+        if name == "robot_run_sequence":
+            robot = self._route.get("robot_stop")
+            fn = getattr(robot, name, None) if robot is not None else None
+            if callable(fn):
+                return fn
+            raise AttributeError(name)  # Never fake success for a missing real sequence.
         if name in METHODS:
             return getattr(self._route.get(name, self.fallback), name)
         if name == "robot_state":                 # 11/5 선택 함수(docs/contracts/robot_api.md): 진짜 로봇 부품이 가지면 그것
