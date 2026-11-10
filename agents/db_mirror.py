@@ -506,10 +506,10 @@ def attach(svc, mirror: DbMirror):
                 again, top = mirror.sim_seed_seq(prefix, seeds[0].get("place_text") or ""), seqs.get(prefix, 0)
                 if again is not None:
                     seqs[prefix] = again - 1
-                sim.reset()
+                sim.reset(startup=True)
                 seqs[prefix] = max(top, seqs.get(prefix, 0))        # 다음 접수 번호는 팀 DB 의 가장 큰 번호 다음부터
             else:
-                sim.reset()
+                sim.reset(startup=True)
     except Exception:
         pass
     try:

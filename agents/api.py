@@ -779,6 +779,13 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                 out["claims_open"] = sim.open_claims()      # 11/10 방문 전 찾기 요청(직원 진행·취소 단추용, 개인정보 없음)
             except Exception:
                 out["claims_open"] = []
+        if getattr(svc, "taught_robot", False):
+            out['robot_control'] = {'mode': 'taught_remote', 'verification_required': True}
+            if out['world']:
+                out['world']['arm'] = {**out['world']['arm'], 'joints': None,
+                                       'phase': '실물 원격 티칭 · 단계 기록 확인(그림은 배치 참고)'}
+                out['world']['robot']['role'] = '실물 원격 티칭 · 그림은 실시간 관절 상태가 아님'
+                out['world']['robot']['telemetry_available'] = False
         if detail:
             from agents import observability
             watch = getattr(svc, "db_watch", None)

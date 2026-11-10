@@ -997,10 +997,12 @@ class SimDirector:
                 self.board.finish(sid, f"반환 보류 — 교차 검증 불일치({result.get('reason') or '확인 필요'})", False)
             return
 
-    def reset(self) -> dict:
+    def reset(self, startup: bool = False) -> dict:
         """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
         11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
-        if getattr(self.svc, "taught_robot", False):
+        # startup=True: 관제탑이 켜질 때 팀 DB 와 번호를 맞추려고 처음 물건을 다시 채우는 것(agents/db_mirror.py) — 아직 아무 일도
+        # 시작되지 않았고 실물 로봇을 부르지 않으므로 실물 연결 모드에서도 허용한다. 화면의 [가상 세계 초기화]는 그대로 막는다
+        if getattr(self.svc, "taught_robot", False) and not startup:
             raise Conflict("real_robot", "실물 연결 모드에서는 가상 초기화를 사용할 수 없습니다")
         w = self.world
         if self.talk is not None:                        # 11/9 에이전트가 배운 점도 처음으로(시연을 처음부터 다시 보여 주려고)
