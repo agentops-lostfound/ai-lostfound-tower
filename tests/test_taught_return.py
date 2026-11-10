@@ -216,6 +216,45 @@ class TaughtReturnTests(unittest.TestCase):
         self.assertIs(spawn.call_args.args[-1], True)
         self.assertEqual(self.motion.count, 0)
 
+    def prepare_staff_visit(self):
+        cid = self.claim['claim_id']
+        self.svc.claims._rows[cid]['quiz'] = [{'field': 'color', 'passed': False}]
+        sid = self.svc.board.new_story('lost', '직원 경로 모의 시험')
+        self.svc.board.set_ids(sid, claim_id=cid, item_id=self.item_id)
+        self.svc.sim.visit_wait[cid] = sid
+        self.svc.board.stage('visit', 'active', story_id=sid)
+        return cid
+
+    def test_authenticated_staff_visit_overrides_quiz_and_runs_same_eleven_stages_once(self):
+        from agents.api import build_app
+        from agents.admin_auth import AdminAuth
+        from fastapi.testclient import TestClient
+        cid = self.prepare_staff_visit()
+        self.client.arm_local()
+        api = TestClient(build_app(self.svc, chatbot=Mock(),
+                                  admin_auth=AdminAuth('test-password', api_key='test-key')))
+        self.assertEqual(api.post('/api/kiosk/returns', json=self.body).status_code, 409)
+        path = f'/api/admin/claims/{cid}/visit'
+        self.assertEqual(api.post(path).status_code, 401)
+        self.assertEqual(self.motion.count, 0)
+        response = api.post(path, headers={'X-Admin-Key': 'test-key'})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result['decision'], DECISION_RETURNED)
+        self.assertEqual(result['robot_sequence']['completed'], expected_sequence(5))
+        self.assertTrue(result['robot_sequence']['verification_required'])
+        self.assertEqual(self.svc.world.db_get_item(self.item_id)['status'], HANDOVER_WAIT)
+        self.assertEqual(self.motion.count, 11)
+        self.assertEqual(api.post(path, headers={'X-Admin-Key': 'test-key'}).status_code, 409)
+        self.assertEqual(self.motion.count, 11)
+
+    def test_staff_visit_with_disarmed_executor_never_falls_back_to_simulated_success(self):
+        cid = self.prepare_staff_visit()
+        result = self.svc.sim.staff_visit(cid)
+        self.assertEqual(result['decision'], DECISION_STOPPED)
+        self.assertEqual(self.motion.count, 0)
+        self.assertNotEqual(self.svc.world.db_get_item(self.item_id)['status'], HANDOVER_WAIT)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -766,13 +766,6 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                "events": (board.since(after, story, detail=bool(detail)) if detail else board.since(after, story)) if board else [],
                "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"], "storage": _storage_brief()}
-        if getattr(svc, "taught_robot", False):
-            out['robot_control'] = {'mode': 'taught_remote', 'verification_required': True}
-            if out['world']:
-                out['world']['arm'] = {**out['world']['arm'], 'joints': None,
-                                       'phase': '실물 원격 티칭 · 단계 기록 확인(그림은 배치 참고)'}
-                out['world']['robot']['role'] = '실물 원격 티칭 · 그림은 실시간 관절 상태가 아님'
-                out['world']['robot']['telemetry_available'] = False
         sim = getattr(svc, "sim", None)
         if sim is not None and callable(getattr(sim, "open_claims", None)):
             try:
