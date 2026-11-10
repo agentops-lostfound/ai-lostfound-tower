@@ -47,7 +47,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 화면 = web/<이름>/index.html (11/5 정리, 화면 지도: web/README.md). 관제탑과 같은 주소에서 열려 API 를 바로 부른다
 WEB_DIR = os.path.join(ROOT, "web")
 PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live", "admin": "admin",
-         "storage": "storage-desk"}   # 주소 → 폴더
+         "storage": "storage-desk", "phone": "phone"}   # 주소 → 폴더 (11/10 phone: 발표용 폰 화면)
 LIVE_PAGE = os.path.join(WEB_DIR, "live", "index.html")     # 실시간 화면(보관함·로봇팔·진행)
 
 
@@ -518,7 +518,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def ui_asset(name: str):
         """11/8 디자인 개편 공통 파일(web/ui/theme.css·theme.js) — 모든 화면이 같은 색·부품·라이트/다크 전환을 쓴다"""
         from fastapi.responses import FileResponse
-        types = {"theme.css": "text/css", "theme.js": "application/javascript"}
+        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript"}   # 11/10 화면 키보드
         if name not in types:
             raise HTTPException(status_code=404, detail="없는 파일")
         return FileResponse(os.path.join(WEB_DIR, "ui", name), media_type=types[name], headers={"Cache-Control": "no-cache"})
@@ -537,7 +537,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def home_page():
         """11/7 첫 화면: 주소만 입력했을 때 Not Found 대신 화면 목록(발표 순서). 데이터는 보여 주지 않는다"""
         from fastapi.responses import HTMLResponse
-        links = [("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
+        links = [("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"), ("②' 분실인 웹 — 폰 화면 시연(폰 키보드)", "/phone"),
                  ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"), ("④ 관리자 관제(로봇·진행 상황)", "/admin"),
                  ("⑤ 본센터 직원 화면 — 교차 검증", "/staff"), ("⑥ 보관함 칸 관리", "/storage"),
                  ("실시간 작업대(큰 화면)", "/live"), ("서면역 키오스크", "/kiosk?machine=KIOSK-C"),
@@ -591,6 +591,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         return _page("staff")
 
     # ---------- 실시간 화면 · 가상 시연 (11/4, docs/design/virtual_demo.md) ----------
+    @app.get("/phone", include_in_schema=False)
+    def phone_page():
+        """11/10 발표용 폰 화면: 휴대폰 틀 안에 /lost(또는 ?src=/…)를 띄우고 폰 쿼티 키보드로 입력(PC 키보드 눌림 표시)"""
+        return _page("phone")
+
     @app.get("/live", include_in_schema=False)
     def live_page():
         """관제 모니터링 — web/live/ (화면 김재민, 데이터 /live/state 변재원): 보관함·로봇팔·이야기별 진행·관제 메시지"""

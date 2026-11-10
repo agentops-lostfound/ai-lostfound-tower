@@ -6,6 +6,7 @@
 <title>분실물 접수 키오스크</title>
 <link rel="stylesheet" href="/ui/theme.css">
 <script src="/ui/theme.js"></script>
+<script src="/ui/vkeyboard.js"></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
    한줄 설명: 색을 직접 쓰지 않고 "역할 이름(토큰)"으로 쓰면, 다크 모드는 토큰 값만 바뀌어 화면 전체가 함께 바뀐다.
@@ -302,8 +303,8 @@ body.demo-mode #stn{flex:1 1 auto}
     <div id="rform">
       <h1>예약한 물건을 찾아가세요</h1>
       <p class="sub">찾기 번호와 신분증 번호를 넣어 주세요</p>
-      <input type="text" id="rclaim" maxlength="20" placeholder="찾기 번호 (예: C-20261106-0001)" autocomplete="off">
-      <input type="text" id="rid" maxlength="32" placeholder="가린 신분증 번호 (예: ******-3******)" autocomplete="off">
+      <input type="text" id="rclaim" data-vk="en" data-vk-upper maxlength="20" placeholder="찾기 번호 (예: C-20261106-0001)" autocomplete="off">
+      <input type="text" id="rid" data-vk="id" maxlength="32" placeholder="가린 신분증 번호 (예: ******-3******)" autocomplete="off">
       <p class="err" id="rerr" role="alert"></p>
       <button id="rsend" disabled>물건 꺼내기</button>
     </div>
@@ -909,5 +910,10 @@ startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
 <script src="/chat-widget/widget.js" data-mode="kiosk" defer></script>
+<script>
+// 11/10 화면 키보드(쿼티): 입력칸을 누르면 아래에 키오스크 키보드 — 터치로 누르거나, PC 키보드로 치면 같은 키가 눌려 보임(발표용)
+// 한글 두벌식·영문·숫자, 전화번호·가린 신분증 칸은 숫자 패드. 공통 부품 /ui/vkeyboard.js
+if (window.VK) VK.attach(document, { skin: 'kiosk' });
+</script>
 </body>
 </html>
