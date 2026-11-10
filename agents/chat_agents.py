@@ -149,14 +149,10 @@ class AgentBrain:
 
     def supervise(self, allowed: list, context: dict) -> dict | None:
         """감독 제안만 생성. 실제 후보 일치 검사는 chat_supervisor.validate가 한다."""
-        from agents.chat_supervisor import ACTIONS
-        schema = {"type": "object", "additionalProperties": False,
-                  "required": ["action", "step", "agent"], "properties": {
-                      "action": {"type": "string", "enum": list(ACTIONS)},
-                      "step": {"type": "integer", "minimum": 0},
-                      "agent": {"type": "string", "enum": ["", "researcher", "item_search", "intake", "ops_analyst", "reporter"]}}}
+        from agents.chat_supervisor import output_schema
+        schema = output_schema(allowed)
         return self._ask("supervisor-llm", "supervisor", schema,
-                         {"allowed": allowed, **context})
+                         {**context, "allowed": allowed})
 
 
 __all__ = ["AgentBrain", "GREETING_REPLY", "THANKS_REPLY", "INTENTS", "WORKERS"]

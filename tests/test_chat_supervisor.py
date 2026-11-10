@@ -9,7 +9,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_chat_color_multiturn import setUpModule, tearDownModule  # noqa: F401
 from test_deerflow_langfuse import bot
-from agents.chat_supervisor import candidates, decide, proposal, validate
+from agents.chat_supervisor import candidates, decide, proposal, validate, output_schema
 
 
 def stage(agent='researcher', no=1, **kw):
@@ -17,6 +17,35 @@ def stage(agent='researcher', no=1, **kw):
 
 
 class SupervisorGuardTest(unittest.TestCase):
+    def test_schema_preserves_whole_candidate_combinations(self):
+        allowed = [proposal('run_step', 1, 'researcher'), proposal('replan', 2, 'item_search')]
+        schema = output_schema(allowed)
+        self.assertEqual(schema['enum'], allowed)
+        self.assertNotIn(proposal('replan', 1, 'researcher'), schema['enum'])
+        self.assertEqual(schema['properties']['step']['enum'], [1, 2])
+        allowed[0]['agent'] = 'intake'
+        self.assertEqual(schema['enum'][0]['agent'], 'researcher')
+
+    def test_terminal_schema_preserves_zero_and_empty_agent(self):
+        schema = output_schema([proposal('finish')])
+        self.assertEqual(schema['properties']['action']['enum'], ['finish'])
+        self.assertEqual(schema['properties']['step']['enum'], [0])
+        self.assertEqual(schema['properties']['agent']['enum'], [''])
+
+    def test_invalid_candidate_schema_fails_closed(self):
+        for bad in ([], None, [proposal('save')], [proposal('run_step', True, 'intake')],
+                    [proposal('run_step', 1, 'private-agent')]):
+            with self.assertRaises(ValueError):
+                output_schema(bad)
+
+    def test_context_cannot_replace_server_candidates(self):
+        from agents.chat_agents import AgentBrain
+        b = AgentBrain('test')
+        allowed = [proposal('finish')]
+        with mock.patch.object(b, '_ask', return_value=allowed[0]) as ask:
+            b.supervise(allowed, {'allowed': [proposal('run_step', 1, 'intake')]})
+        self.assertEqual(ask.call_args.args[3]['allowed'], allowed)
+
     def test_five_actions_only_and_strict_json_types(self):
         allowed = [proposal('run_step', 1, 'researcher')]
         for bad in (None, [], {}, {'action': 'save', 'step': 1, 'agent': 'intake'},

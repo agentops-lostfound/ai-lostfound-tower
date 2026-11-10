@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,7 +23,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--suite', choices=['live', '500'], required=True)
     p.add_argument('--out', required=True)
+    p.add_argument('--only', default='', help='검증할 문항 번호(쉼표 구분). 원본 전체 점수와 구분해 기록')
     args = p.parse_args()
+    only = {int(n) for n in args.only.split(',') if n.strip()}
     from agents import local_model
     from agents import chat_supervisor
     original_request, original_decide = local_model.ask_local_model, chat_supervisor.decide
@@ -61,7 +64,11 @@ def main():
                TOWER_GPU_LEASE='0', TOWER_SEND='0', TOWER_AGENT_TALK='0')
     report = {'meta': {'suite': args.suite, 'model': 'midm-2.0-mini', 'supervisor_llm': True,
                        'langfuse': False, 'data': 'synthetic_only',
+                       'selection': sorted(only) if only else 'all',
                        'started': dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()}, 'results': []}
+    report['meta']['source_sha256'] = {
+        name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+        for name in ('agents/chatbot.py', 'agents/chat_agents.py', 'agents/chat_supervisor.py', 'agents/prompts.py')}
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}',
                                                           'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -79,13 +86,16 @@ def main():
         if args.suite == 'live':
             from tools.chat_live_check import run, QUESTIONS
             from agents.chat_api import build_chatbot_from_env
-            results = run(build_chatbot_from_env(), list(enumerate(json.loads(QUESTIONS.read_text(encoding='utf-8')), 1)))
+            items = list(enumerate(json.loads(QUESTIONS.read_text(encoding='utf-8')), 1))
+            results = run(build_chatbot_from_env(), [(n, q) for n, q in items if not only or n in only])
             report['results'] = results
             passed = sum(r['ok'] for r in results)
         else:
             from evaluation.chat_eval import Runner, QUESTIONS
             runner = Runner()
             for it in json.loads(QUESTIONS.read_text(encoding='utf-8')):
+                if only and it['no'] not in only:
+                    continue
                 n = len(calls)
                 r = runner.run_item(it)
                 r.update(group=it['group'], model_calls=len(calls) - n)

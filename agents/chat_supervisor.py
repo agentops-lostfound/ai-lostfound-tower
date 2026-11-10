@@ -7,6 +7,7 @@ from __future__ import annotations
 
 ACTIONS = ('run_step', 'ask_user', 'add_step', 'replan', 'finish')
 FIELDS = {'action', 'step', 'agent'}
+AGENTS = ('', 'researcher', 'item_search', 'intake', 'ops_analyst', 'reporter')
 
 
 def proposal(action, step=0, agent=''):
@@ -53,6 +54,26 @@ def validate(raw, allowed):
     if raw not in allowed:
         return False, 'state_or_permission_denied'
     return True, 'accepted'
+
+
+def output_schema(allowed):
+    """후보 객체 전체를 enum으로 고정해 다른 후보의 필드를 섞을 수도 없게 한다.
+
+    필드별 enum만 쓰면 (검색,1)/(안내,2)에서 (검색,2)가 나올 수 있다.
+    root enum은 올바른 조합만 허용한다. 최종 validate는 별도로 유지한다.
+    """
+    if not isinstance(allowed, list) or not allowed:
+        raise ValueError('supervisor candidates must not be empty')
+    for x in allowed:
+        if not validate(x, [x])[0] or x['agent'] not in AGENTS:
+            raise ValueError('invalid supervisor candidate')
+    values = [dict(x) for x in allowed]
+    return {'type': 'object', 'additionalProperties': False,
+            'required': ['action', 'step', 'agent'],
+            'properties': {'action': {'type': 'string', 'enum': list(dict.fromkeys(x['action'] for x in values))},
+                           'step': {'type': 'integer', 'enum': list(dict.fromkeys(x['step'] for x in values))},
+                           'agent': {'type': 'string', 'enum': list(dict.fromkeys(x['agent'] for x in values))}},
+            'enum': values}
 
 
 def safe_proposal(raw):
