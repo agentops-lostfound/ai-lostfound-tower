@@ -298,7 +298,10 @@
         <ul class="prog" id="prog"></ul>
       </div>
     </div>
-    <div class="actions"><button class="btn secondary" type="button" id="again">새로 신고하기</button></div>
+    <div class="actions"><button class="btn secondary" type="button" id="again">새로 신고하기</button>
+      <!-- 11/10 찾기 요청·방문 예약 취소(방문 전까지). 두 번 눌러 실행 — 신고할 때 넣은 가린 신분 번호로 본인 확인 -->
+      <button class="btn secondary" type="button" id="cancelClaim" hidden>찾기 요청 취소</button></div>
+    <p class="hint" id="cancelMsg" role="status" style="text-align:center;margin:6px 0 0" hidden></p>
   </section>
 
   <p class="notice">교육용 시연 화면이에요. 현금·신분증·위험물은 역무실로 문의하세요.</p>
@@ -373,7 +376,8 @@ $('#form').addEventListener('submit', async e => {
   state.idMasked = `******-${$('#gender').value}******`;
   $('#send').disabled = true; $('#send').textContent = '찾는 중…';
   try {
-    const res = await post('/sim/lost', {text, visit: 'kiosk', name_masked: maskName($('#name').value), id_no_masked: state.idMasked});
+    // 11/10 '잘 모르겠어요'(역을 고르지 않음) → 관제탑이 장소를 다시 묻지 않고 확인 질문에서도 뺀다
+    const res = await post('/sim/lost', {text, visit: 'kiosk', name_masked: maskName($('#name').value), id_no_masked: state.idMasked, place_unknown: !station});
     handle(res);
   } catch (x) { err($('#err1'), x.message); }
   finally { $('#send').textContent = '분실 신고하기'; check(); }
@@ -454,15 +458,38 @@ async function pollOnce() {
     $('#progwhen').textContent = '· 자동으로 새로 고침';
     const visit = st.stages.find(s => s.key === 'visit');
     if (visit && visit.state === 'done') steps(4, 3);
+    // 취소 단추: 찾기 번호가 있고 아직 방문 전(반환 시작 전)·끝나지 않았을 때만
+    $('#cancelClaim').hidden = !(state.claim && !st.result && !(visit && visit.state === 'done'));
     const ho = st.stages.find(s => s.key === 'handover');      // 직원 교차 검증(인계)까지 끝나야 멈춤
     const over = st.result && (!st.result.ok || (ho && (ho.state === 'done' || ho.state === 'fail')));
     if (over || Date.now() - state.started > 15 * 60 * 1000) { clearInterval(state.poll); state.poll = null; steps(4, 4); $('#progwhen').textContent = '· 끝'; }
   } catch (_) {}
 }
+let cancelArmed = false;
+$('#cancelClaim').addEventListener('click', async () => {
+  const b = $('#cancelClaim'), msg = $('#cancelMsg');
+  if (!state.claim) return;
+  if (!cancelArmed) {
+    cancelArmed = true; b.textContent = '한 번 더 누르면 취소돼요';
+    setTimeout(() => { if (cancelArmed) { cancelArmed = false; b.textContent = '찾기 요청 취소'; } }, 4000);
+    return;
+  }
+  cancelArmed = false; b.disabled = true; b.textContent = '찾기 요청 취소';
+  try {
+    const r = await fetch(`/api/lost/claims/${encodeURIComponent(state.claim)}/cancel`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify({id_no_masked: state.idMasked || ''})});
+    const j = await r.json().catch(() => ({}));
+    msg.hidden = false;
+    if (r.ok) { msg.textContent = '찾기 요청과 방문 예약을 취소했어요. 물건은 본센터에 그대로 보관돼요.'; b.hidden = true; pollOnce(); }
+    else msg.textContent = typeof j.detail === 'string' ? j.detail : ((j.detail && j.detail.message) || '취소하지 못했어요');
+  } catch (_) { msg.hidden = false; msg.textContent = '관제탑에 연결할 수 없어요'; }
+  b.disabled = false;
+});
 function startPoll() { clearInterval(state.poll); state.started = Date.now(); pollOnce(); state.poll = setInterval(pollOnce, 1500); }
 
 function resetAll() {
   clearInterval(state.poll); state.poll = null; state.story = state.claim = null; pending = null;
+  $('#cancelClaim').hidden = true; $('#cancelMsg').hidden = true; cancelArmed = false;
   $('#form').reset(); state.cat = state.color = '';
   document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
   $('#day').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);

@@ -90,7 +90,10 @@ ALLOWED = {"case_id", "item_id", *GATE_FIELDS}
 VISIT_GATES = ["visitor_id_match", "inner_feature_ok", "staff_confirmed"]   # 본센터 방문 때 직원 화면이 채움
 # 11/6 인계 교차 검증 3가지(키 → 화면 이름). docs/design/handover_cross_check.md
 VERIFY_CHECKS = {"item_match": "물건 대조", "id_match": "신분증 대조", "feature_match": "비공개 특징"}
-VISIT_ALLOWED = {"claim_id", "case_id", *VISIT_GATES}
+# 11/10 staff_quiz_override(선택, true/false): 웹 확인 질문이 맞지 않은 요청을 **직원이 대면으로 확인**(신분증 + 물건 특징)해 대신 통과시킨다.
+#   현장 관문 3개가 모두 true 일 때만 받는다. 동의·본인인증 관문은 덮지 않는다. 관리자 주소(직원 화면)에서만 들어온다.
+#   분실인이 잃어버린 장소를 잘못 기억했을 때 키오스크에서 막힌 요청을 역무실에서 풀어 주는 길(안전 규칙 변경 — 이순필 확인)
+VISIT_ALLOWED = {"claim_id", "case_id", *VISIT_GATES, "staff_quiz_override"}
 KIOSK_RETURN_ALLOWED = {"machine_id", "claim_id", "id_no_masked"}   # 11/6 본센터 키오스크 회수: 관문 값은 화면이 못 보냄
 KIOSK_RETURN_MACHINE = "CENTER"      # 회수는 본센터 키오스크만(11/5 결정)
 KIOSK_MAX_FAILS = 3                  # 신분 번호를 이만큼 틀리면 그 찾기 번호는 키오스크에서 잠금(역무실 안내)
@@ -157,6 +160,8 @@ def parse_visit(payload: dict) -> tuple[str, str | None, dict]:
         if not isinstance(payload.get(key), bool):
             raise RequestError(f"{key}: true/false 필요(직원 화면에서 확인)")
         gates[key] = payload[key]
+    if "staff_quiz_override" in payload and not isinstance(payload["staff_quiz_override"], bool):
+        raise RequestError("staff_quiz_override: true/false")
     return cid, case, gates
 
 
@@ -351,6 +356,47 @@ class TowerService:
             raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__})") from e
         return public_view(row) if row else None
 
+    def cancel_claim(self, claim_id: str, id_no_masked: str | None = None, by_staff: bool = False) -> dict:
+        """11/10 찾기 요청·방문 예약 취소. 방문 전(booked)일 때만 — 로봇이 움직이기 시작한 요청은 취소하지 않는다.
+        - 직원(by_staff): 본인 확인 없이 취소(관리자 주소에서만 부른다)
+        - 분실인: 찾기 요청에 저장된 가린 신분 번호와 같아야 한다(남의 요청을 취소하지 못하게). 틀리면 횟수를 세고 여러 번이면 잠근다
+        물건은 그대로 보관되고 다시 찾기 요청을 받을 수 있다. 찾기 요청 기록은 지우지 않는다(예약 상태만 cancelled)"""
+        if not isinstance(claim_id, str) or not CLAIM_ID_RE.match(claim_id):
+            raise RequestError("claim_id: 찾기 번호 형식(예: C-20261103-0001)")
+        try:
+            row = self.claims.get(claim_id)
+        except Exception as e:
+            raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__})") from e
+        if row is None:
+            raise NotFound(f"없는 찾기 번호: {claim_id}")
+        if row.get("status") == "cancelled":
+            raise Conflict("state", f"이미 취소된 찾기 요청: {claim_id}")
+        if row.get("status") != "booked":
+            raise Conflict("state", f"이미 방문 처리된 찾기 요청이라 취소할 수 없어요: {claim_id} — 본센터 직원에게 말씀해 주세요")
+        if not by_staff:
+            if self._kiosk_fails.get(claim_id, 0) >= KIOSK_MAX_FAILS:
+                raise Conflict("locked", "신분 확인을 여러 번 틀려 여기서는 더 할 수 없습니다. 역무실로 가 주세요")
+            if not isinstance(id_no_masked, str) or not id_no_masked.strip():
+                raise RequestError("id_no_masked: 가린 신분 번호를 입력하세요")
+            if id_no_masked.strip() != row.get("id_no_masked"):
+                self._kiosk_fails[claim_id] = self._kiosk_fails.get(claim_id, 0) + 1
+                raise RequestError("신분 번호가 맞지 않습니다. 다시 확인해 주세요")
+        cancel = getattr(self.claims, "cancel", None)
+        if not callable(cancel):
+            raise Unavailable("이 저장소는 찾기 요청 취소를 지원하지 않습니다")
+        try:
+            done = cancel(claim_id)
+        except Exception as e:
+            raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__})") from e
+        if not done:                              # 확인과 취소 사이에 방문 처리됨
+            raise Conflict("state", f"방금 방문 처리된 찾기 요청이라 취소하지 못했어요: {claim_id}")
+        self._kiosk_fails.pop(claim_id, None)
+        try:
+            self.reporter.progress(claim_id, "찾기 요청 취소", f"물건 {row['item_id']} · {'직원' if by_staff else '분실인'} 요청 · 물건은 계속 보관")
+        except Exception:
+            pass
+        return {"ok": True, "claim_id": claim_id, "item_id": row["item_id"], "status": "cancelled"}
+
     def _request_from_claim(self, payload: dict) -> tuple[ReturnRequest, str]:
         cid, case, visit = parse_visit(payload)
         try:
@@ -361,7 +407,17 @@ class TowerService:
             raise NotFound(f"없는 찾기 번호: {cid}")
         if row.get("status") != "booked":
             raise Conflict("duplicate", f"이미 방문 처리됐거나 취소된 찾기 요청: {cid} ({row.get('status')})")
-        return ReturnRequest(case_id=case or f"R-{cid}", item_id=row["item_id"], **web_gates(row), **visit), cid
+        web = web_gates(row)
+        if payload.get("staff_quiz_override") is True and not web["quiz_passed"]:
+            if not all(visit.values()):
+                raise RequestError("staff_quiz_override: 직원이 신분증·물건 특징·최종 확인을 모두 마쳤을 때만 쓸 수 있습니다")
+            web["quiz_passed"] = True            # 직원 대면 확인이 웹 확인 질문을 대신한다(저장된 확인 질문 결과는 고치지 않음)
+            try:
+                self.reporter.progress(cid, "직원 대면 확인", f"물건 {row['item_id']} · 웹 확인 질문은 맞지 않았지만 본센터 직원이 "
+                                                            "신분증과 물건 특징을 직접 확인해 대신 통과시킴")
+            except Exception:
+                pass
+        return ReturnRequest(case_id=case or f"R-{cid}", item_id=row["item_id"], **web, **visit), cid
 
     def kiosk_return(self, payload: object) -> dict:
         """본센터 키오스크 회수(11/6, 직원 단계 제외). 화면은 관문 값을 보내지 못하고 서버가 정한다.
