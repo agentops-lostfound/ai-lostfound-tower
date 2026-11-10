@@ -456,6 +456,53 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """반환 보류 물건을 원래 칸에 넣은 뒤 → 본센터 보관. 본문 {"staff_confirmed": true}"""
         return _case(lambda: svc.restock(case_id, payload))
 
+    # ---------- 11/10 직원 단추(통합 시연 화면): 본센터로 회수 · 접수 취소 ----------
+    def _item_action(item_id: str, name: str) -> dict:
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        d = getattr(svc, "sim", None)
+        fn = getattr(d, name, None) if d is not None else None
+        if not callable(fn):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        out = fn(item_id)
+        if not out.get("ok"):
+            raise HTTPException(status_code=404 if out.get("code") == "not_found" else 409, detail=out.get("reason") or "할 수 없어요")
+        return {"ok": True, "item_id": item_id}
+
+    @app.post("/api/admin/items/{item_id}/collect", dependencies=admin)
+    def item_collect(item_id: str) -> dict:
+        """[본센터로 회수]: 등록기계에 남아 있는 물건(칸 대기 · 사진 분석이 늦게 끝난 건)을 지금 회수한다.
+        맞는 빈 칸이 있으면 그 칸, 없으면 직원 보관 선반. 진행은 이야기(/api/admin/live/state)로 보인다"""
+        return _item_action(item_id, "collect_now")
+
+    @app.post("/api/admin/items/{item_id}/cancel", dependencies=admin)
+    def item_cancel(item_id: str) -> dict:
+        """[접수 취소]: 실수로 접수한 물건을 지운다(되돌릴 수 없음). 아직 등록기계에 있고 찾기 요청이 없을 때만.
+        가상 세계와 팀 DB(함께 저장 중이면) 모두에서 지운다. 사진 파일은 남는다"""
+        return _item_action(item_id, "cancel_item")
+
+    @app.post("/api/kiosk/items/{item_id}/cancel")
+    def kiosk_item_cancel(item_id: str, payload: dict = Body(...)) -> dict:
+        """키오스크 '접수되었습니다' 화면의 [접수 취소]: 방금(3분 안에) 이 화면에서 접수한 물건만 지운다.
+        본문 {"client": 화면 ID}. 그 기계의 조작 화면이 따로 있으면 그 화면만 취소할 수 있다"""
+        from datetime import datetime, timezone
+        row = (getattr(getattr(svc, "world", None), "items", None) or {}).get(item_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="없는 접수 번호예요")
+        ctl = getattr(app.state, "kiosk_control", None)
+        owner = ctl.owner(str(row.get("machine_id") or "")) if ctl is not None else None
+        client = payload.get("client") if isinstance(payload, dict) else None
+        if owner is not None and client != owner:
+            raise HTTPException(status_code=409, detail="다른 화면에서 사용 중이에요")
+        try:
+            age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(row.get("received_at")))).total_seconds()
+        except Exception:
+            age = 1e9
+        if age > 180:
+            raise HTTPException(status_code=409, detail="접수한 지 3분이 지나 여기서는 취소할 수 없어요 — 역무실에 알려 주세요")
+        return _item_action(item_id, "cancel_item")
+
     @app.get("/api/admin/items/{item_id}/photo", dependencies=admin)
     def item_photo(item_id: str):
         """등록 사진(직원이 실물과 비교). 없으면 404"""

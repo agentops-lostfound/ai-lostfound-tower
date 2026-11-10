@@ -167,6 +167,13 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 .vtable td{padding:2px 4px;overflow-wrap:anywhere;vertical-align:top;font-weight:600}
 .vtable td:first-child{color:var(--ui-text-3);font-weight:500;width:27%} .vtable td.lock{color:var(--ui-text-3);font-weight:500;font-size:11.5px}
 .vtable td.none{color:var(--ui-text-3);font-weight:500} .vtable tr.flash td{background:var(--upd-soft)}
+/* 11/10 물건 카드의 직원 단추: 본센터로 회수 · 접수 취소 */
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}
+.acts:empty{display:none}
+.acts button{font:inherit;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;border:1px solid var(--ui-line);background:var(--ui-surface);color:var(--ui-text);cursor:pointer}
+.acts button:hover{background:var(--ui-fill)} .acts button:disabled{opacity:.45;cursor:default}
+.acts button.danger{color:var(--del)} .acts button.armed{background:var(--del-soft);border-color:var(--del);color:var(--del)}
+.acts .msg1{font-size:11.5px;color:var(--del);align-self:center}
 .dbok{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--ui-ok-soft);color:var(--ui-ok);white-space:nowrap}
 .chip.warn{background:var(--ui-warn-soft);color:var(--ui-warn)} .chip.warn b{color:var(--ui-warn)}
 .chip.good{background:var(--ui-ok-soft);color:var(--ui-ok)} .chip.good b{color:var(--ui-ok)}
@@ -399,21 +406,49 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   function drawCard(t) {
     const c = CARD[t], key = cur[t], row = (key && rows[t][key]) || {};
     const saved = t === "item" && key && dbSaved.has(key) ? `<span class="dbok" title="팀 DB 의 item 표에서 이 접수 번호를 읽었어요">팀 DB 저장됨</span>` : "";
-    $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4><dl>` +
+    $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4>` +
+      (t === "item" ? `<div class="acts" id="itemActs"></div>` : "") + `<dl>` +
       c.cols.map(([n, easy]) => { const v = row[n];
-        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + esc(v.text)}</dd>`; }).join("") + "</dl>";
+        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + esc(v.text)}</dd>`; }).join("") + "</dl>";    if (t === "item") drawActs();
+  }
+  // 물건 카드의 직원 단추: 아직 등록기계에 있는 물건에만 보인다.
+  //  [본센터로 회수] 칸 대기·늦게 분석된 물건을 지금 회수(빈 칸이 없으면 직원 보관 선반) · [접수 취소] 실수로 접수한 물건을 지움(두 번 눌러 실행)
+  let actArmed = null, actMsg = "";
+  function drawActs() {
+    const box = $("itemActs"); if (!box) return;
+    const key = cur.item, row = (key && rows.item[key]) || {};
+    const atKiosk = row.status && row.status.text === "등록기계 보관";
+    if (!key || !atKiosk) { box.innerHTML = ""; return; }
+    const known = row.category && !/모름|확인 불가/.test(row.category.text);
+    box.innerHTML = `<button type="button" id="actCollect"${known ? "" : " disabled"} title="${known ? "등록기계 → 본센터 회수 → 보관(빈 칸이 없으면 직원 보관 선반)" : "사진 분석이 끝나야 회수할 수 있어요"}">본센터로 회수</button>` +
+      `<button type="button" id="actCancel" class="danger${actArmed === key ? " armed" : ""}" title="실수로 접수한 물건을 기록에서 지워요(되돌릴 수 없음)">${actArmed === key ? "한 번 더 누르면 지워져요" : "접수 취소"}</button>` +
+      (actMsg ? `<span class="msg1">${esc(actMsg)}</span>` : "");
+    $("actCollect").onclick = () => itemAct(key, "collect");
+    $("actCancel").onclick = () => {
+      if (actArmed !== key) { actArmed = key; actMsg = ""; drawActs(); setTimeout(() => { if (actArmed === key) { actArmed = null; drawActs(); } }, 4000); return; }
+      actArmed = null; itemAct(key, "cancel");
+    };
+  }
+  async function itemAct(key, what) {
+    actMsg = "";
+    try {
+      const r = await fetch(`/api/admin/items/${encodeURIComponent(key)}/${what}`, {method: "POST"});
+      if (!r.ok) { const d = await r.json().catch(() => ({})); actMsg = typeof d.detail === "string" ? d.detail : "할 수 없어요"; }
+    } catch (_) { actMsg = "관제탑에 연결할 수 없어요"; }
+    drawActs();
   }
   function setCell(t, key, name, text, locked, live) {
     if (!key) return;
     const row = rows[t][key] = rows[t][key] || {};
     row[name] = {text, locked: !!locked};
+    if (t === "item" && cur.item === key && (name === "status" || name === "category")) { actMsg = ""; drawActs(); }
     if (cur[t] !== key) return;
     const dd = $(CARD[t].el).querySelector(`dd[data-col="${name}"]`);
     if (!dd) return;
     dd.className = locked ? "locked" : ""; dd.textContent = (locked ? "🔒 " : "") + text;
     if (live) { dd.classList.add("flash"); setTimeout(() => dd.classList.remove("flash"), 60); }
   }
-  function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; drawCard(t); } }
+  function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; if (t === "item") { actArmed = null; actMsg = ""; } drawCard(t); } }
   function ring(t, cls) { const el = $(CARD[t].el); el.classList.add(cls); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("write", "read"), 900); }
 
   function applyDb(d, live) {
@@ -426,7 +461,11 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       if (chip) { chip.classList.remove("zero"); chip.querySelector("b").textContent = counts[d.table]; if (live) { chip.classList.add("hit"); setTimeout(() => chip.classList.remove("hit"), 700); } }
     }
     const k = d.key;
-    if (d.table === "item" && k) {
+    if (d.table === "item" && k && d.op === "DELETE") {           // 접수 취소: 카드와 사진 분석 카드에서 그 물건을 치운다
+      delete rows.item[k]; dbSaved.delete(k);
+      if (cur.item === k) { cur.item = null; drawCard("item"); }
+      if (vis[k]) { delete vis[k]; if (visCur === k) { visCur = null; drawVision(false); } }
+    } else if (d.table === "item" && k) {
       if (write) { focusRow("item", k); for (const c of d.cols) if (CARD.item.cols.some(([n]) => n === c.name)) setCell("item", k, c.name, c.value, c.hidden, live); if (live) ring("item", "write"); }
       else if (cur.item === k && live) ring("item", "read");
     } else if (d.table === "finder_contact" && k) { setCell("item", k, "finder_contact", "저장됨(이름·전화번호 가림)", true, live);

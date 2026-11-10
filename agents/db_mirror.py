@@ -236,6 +236,25 @@ class DbMirror:
             return True
         self._put("item", run)                    # 건너뛸지는 이 쓰기가 정한다
 
+    def item_delete(self, item_id: str) -> None:
+        """11/10 접수 취소: 팀 DB 에서도 그 물건을 지운다 — 아직 등록기계에 있고(회수 전) 다른 기록(찾기·반환·보관 칸 등)에 걸려 있지 않을 때만.
+        딸린 기록(연락처·상태 기록)을 먼저 지우고 물건을 지운다. 조건에 안 맞으면 아무것도 지우지 않는다"""
+        def run(cur):
+            cur.execute("SELECT status FROM item WHERE item_id = %s", (item_id,))
+            got = cur.fetchone()
+            if got is None or got[0] != "등록기계 보관":
+                return False
+            for table in ("claim_candidate", "quiz_attempt", "reservation", "return_case", "collection_item",
+                          "storage_assignment", "inventory_check"):          # 표 이름은 이 고정 목록뿐
+                cur.execute(f"SELECT 1 FROM {table} WHERE item_id = %s LIMIT 1", (item_id,))
+                if cur.fetchone() is not None:
+                    return False
+            cur.execute("DELETE FROM finder_contact WHERE item_id = %s", (item_id,))
+            cur.execute("DELETE FROM item_status_log WHERE item_id = %s", (item_id,))
+            cur.execute("DELETE FROM item WHERE item_id = %s", (item_id,))
+            return True
+        self._put("item 지움", run, item_id)
+
     def item_features(self, item_id: str, category: str, pub: dict, priv: dict) -> None:
         args = (_cut(category or "확인 불가", 16), json.dumps(pub, ensure_ascii=False), json.dumps(priv, ensure_ascii=False), item_id)
         self._put("item 특징", lambda cur: cur.execute(SQL_FEATURES, args) and None, item_id)
@@ -368,6 +387,8 @@ def attach(svc, mirror: DbMirror):
             return out
         setattr(obj, name, run)
 
+    # 11/10 접수 취소: 가상 세계에서 지운 물건은 팀 DB 에서도 지운다
+    after(world, "delete_item", lambda out, pre, item_id, *a, **k: mirror.item_delete(item_id) if out is not None else None)
     # 접수: 번호를 팀 DB 와 맞춘 뒤 원래 접수 → 팀 DB 에도 저장. 사진이 있으면 키오스크의 진짜 접수(표시 없음), 없으면 가상 물건
     after(world, "create",
           lambda row, _pre, intake, today=None: mirror.item_new(

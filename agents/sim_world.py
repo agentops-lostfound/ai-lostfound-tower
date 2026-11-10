@@ -383,6 +383,21 @@ class SimWorld:
             self._touch()
             return {k: copy.deepcopy(v) for k, v in row.items() if k not in ("qwen", "loc", "slot")}
 
+    def delete_item(self, item_id: str) -> dict | None:
+        """11/10 접수 취소: 아직 등록기계에 있는 물건(회수 전)을 기록에서 지운다 → 지운 행(없거나 이미 회수됐으면 None).
+        사진 파일은 지우지 않는다. 번호는 다시 쓰지 않는다(_seq 유지)"""
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None or row.get("status") != "등록기계 보관" or row.get("loc") != LOC_KIOSK:
+                return None
+            del self.items[item_id]
+            self.contacts.pop(item_id, None)
+            self.collecting.pop(item_id, None)
+            if item_id in self.wait_queue:
+                self.wait_queue.remove(item_id)
+            self._touch()
+            return {k: copy.deepcopy(v) for k, v in row.items() if k not in ("qwen", "private_features")}
+
     def set_features(self, item_id: str, feats: dict, qwen: dict | None = None) -> bool:
         cat, pub, priv = split_features(feats)
         with self._lock:
