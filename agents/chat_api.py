@@ -312,7 +312,8 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
     @app.get("/chat-widget/widget.js", include_in_schema=False)
     def chat_widget_js():
         """채팅 위젯 스크립트 — 화면에 <script src="/chat-widget/widget.js"></script> 한 줄"""
-        return FileResponse(os.path.join(WIDGET_DIR, "widget.js"), media_type="application/javascript")
+        return FileResponse(os.path.join(WIDGET_DIR, "widget.js"), media_type="application/javascript",
+                            headers={"Cache-Control": "no-cache"})     # 11/10 고친 챗봇 창이 바로 반영되게(브라우저가 옛 파일을 쓰지 않도록 매번 확인)
 
     @app.get("/chat-widget/demo", include_in_schema=False)
     def chat_widget_demo():
