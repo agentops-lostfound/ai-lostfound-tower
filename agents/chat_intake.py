@@ -18,7 +18,10 @@ import time
 from agents.contracts import active_category_text, category_label, is_active_category, inactive_category_message
 
 SESSION_TTL_S = 600
-STATION_NAMES = ("서면", "해운대")                 # 등록기계가 있는 역(sim_world.STATIONS)
+STATION_NAMES = ("서면", "해운대")                 # 등록기계가 있는 역(sim_world.STATIONS) — 주운 역은 이 둘만
+LOST_STATION_NAMES = ("서면", "해운대", "부산")     # 11/10 잃어버린 역은 부산역(본센터)도(sim_world.LOST_STATIONS)
+OTHER_STATION = re.compile(r"^(?:[가-힣A-Za-z0-9 ]{2,12}역|(?:열차|지하철|전철|전동차|객차|차)\s*(?:안|내|에서)?|(?:다른|딴)\s*역|역은?\s*아니)"
+                           r"(?:\s*(?:이요|요|이에요|예요|입니다|에서요?|인\s*것\s*같아요|같아요))?[.!~]*$")   # "센텀시티역이요" · "열차 안에서요"
 MASK_RE = re.compile(r"^[^\s*]{1,8}\*{0,8}[^\s*]?$")
 ID_MASK_RE = re.compile(r"^\*{6}-[1-4]\*{6}$")
 
@@ -34,7 +37,7 @@ CANCEL = re.compile(r"^(?:취소|그만|접수\s*취소|안\s*할래|처음부�
 YES = re.compile(r"^(?:접수할게요|네|예|응|좋아요|맞아요|확인|접수|그래요?|ㅇㅇ|넵)\s*[.!]*$")
 FIX = re.compile(r"^(?:고칠게요|수정|다시|고쳐|틀렸어요)\s*[.!]*$")
 COLOR_HINT = re.compile(r"색|검|까만|까맣|블랙|흰|하얀|하양|화이트|회|그레이|갈|브라운|빨|레드|주황|오렌지|노랑|노란|초록|녹|파랑|파란|블루|남색|네이비|보라|분홍|핑크|베이지|은|실버|금|골드")
-UNKNOWN_SAY = re.compile(r"^(?:모름|몰라요|모르겠어요|기억\s*안\s*나요?|없어요|없음|건너뛰기|넘어가기|잘\s*모르겠어요)\s*[.!]*$")
+UNKNOWN_SAY = re.compile(r"^(?:모름|몰라요?|(?:잘\s*)?모르겠(?:어요?|음|네요?)|기억(?:이|은)?\s*(?:잘\s*)?안\s*(?:나요?|남|나네요?)|없어요|없음|건너뛰기|넘어가기)\s*[.!~ㅠㅜ]*$")
 WHEN_RE = re.compile(r"(오늘|어제|그제|그저께|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}/\d{1,2}|월요일|화요일|수요일|목요일|금요일|토요일|일요일)"
                      r"\s*(아침|오전|점심|오후|저녁|밤|새벽)?")
 PLACE_DETAIL = re.compile(r"(\d+\s*번\s*출구[^.,]{0,10}|승강장[^.,]{0,8}|화장실|대합실|개찰구[^.,]{0,6}|계단[^.,]{0,6}|"
@@ -48,7 +51,7 @@ SLOT_KO = {"category": "물건", "color": "색", "station": "역", "when": "잃�
 QUESTIONS = {
     "category": f"어떤 물건인가요? ({active_category_text()} 중 하나)",
     "color": "물건 색이 무엇인가요? 가장 넓게 보이는 색 하나만 알려 주세요.",
-    "station_lost": "어느 역에서 잃어버리셨나요? (서면·해운대, 기억나지 않으면 '모름')",
+    "station_lost": "어느 역에서 잃어버리셨나요? (서면·해운대·부산역 — 다른 역이거나 기억나지 않으면 '모름')",
     "station_found": "어느 역에서 주우셨나요? 등록기계가 있는 역은 서면·해운대예요.",
     "when": "언제쯤 잃어버리셨나요? 예: 어제 저녁 / 오늘 아침 (모르면 '모름')",
     "detail": "물건에 적힌 글자나 붙은 스티커가 있나요? 예: 별 스티커 (없으면 '없어요')",
@@ -58,7 +61,7 @@ QUESTIONS = {
 }
 CHOICES = {
     "category": ["휴대폰", "보조배터리", "핸드크림", "카드지갑"],     # 11/10: 보관함 열 순서, 지갑은 카드지갑으로 보여 줌
-    "station_lost": ["서면", "해운대", "모름"], "station_found": ["서면", "해운대"],     # 11/10 잃어버린 역은 모를 수 있다(주운 역은 등록기계라 꼭 필요)
+    "station_lost": ["서면", "해운대", "부산역", "모름"], "station_found": ["서면", "해운대"],     # 11/10 잃어버린 역은 모를 수 있다(주운 역은 등록기계라 꼭 필요)
     "color": ["검정", "흰색", "갈색", "파랑"],
     "when": ["오늘", "어제", "모름"], "detail": ["없어요"], "place": ["모름"],
 }
@@ -137,7 +140,11 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
         out["category"] = f["category"]
     if f.get("color"):
         out["color"] = f["color"]
-    st = next((s for s in STATION_NAMES if s in t), None)
+    if kind == "lost":
+        from agents.sim_world import lost_station
+        st = lost_station(t)                      # 서면 · 해운대 · 부산(부산역·본센터)
+    else:
+        st = next((s for s in STATION_NAMES if s in t), None)
     if st:
         out["station"] = st
     m = WHEN_RE.search(t)
@@ -155,6 +162,9 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
             out["place"] = re.sub(r"\s+", " ", pm.group(1)).strip()
     if want and UNKNOWN_SAY.match(t.strip()):
         out[want] = "없음" if want == "detail" and re.match(r"^(?:없어요|없음)", t.strip()) else "모름"
+    elif want == "station" and kind == "lost" and not out and OTHER_STATION.match(t.strip()):
+        # 11/10 목록에 없는 역("센텀시티역이요")을 말하면 같은 질문을 되풀이했다 → 그 역은 장소 확인에 쓸 수 없으니 '모름'과 같게 받고 다음으로
+        out["station"] = "모름"
     elif want in ("detail", "place") and not out and len(t.strip()) <= 30 and not LOST_SAY.search(t):
         # 11/9 채점표: "아 오늘 아침이었어요"(때 고치기)가 특징 칸에도 통째로 들어갔다 → 이 말에서 다른 칸을 읽었으면 자유 답으로 쓰지 않음
         out[want] = t.strip().rstrip(".!요").strip() or "모름"

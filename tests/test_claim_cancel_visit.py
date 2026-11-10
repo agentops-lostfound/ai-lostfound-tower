@@ -114,6 +114,68 @@ class UnknownPlaceTest(unittest.TestCase):
         self.assertNotIn("모름역", story["title"])
 
 
+class LostStationTest(unittest.TestCase):
+    """11/10 본센터(부산역) 키오스크에서 주운 물건: 챗봇 분실 접수의 역 선택지가 서면·해운대뿐이라 "부산역"이라고 답할 길이 없었다"""
+
+    def center_item(self):
+        from agents.sim_world import LOC_BIN, sim_qwen, to_features
+        svc, d = make()
+        w = svc.world
+        row = w.create({"machine_id": "CENTER", "place_id": None, "place_text": "열차 안", "finder": None, "photo_path": None})
+        q = sim_qwen("초록 핸드크림")
+        w.set_features(row["item_id"], to_features(q, 0.9), qwen=q)
+        w.items[row["item_id"]]["status"] = "본센터 보관"
+        w.move(row["item_id"], LOC_BIN)
+        return svc, d, row["item_id"]
+
+    def intake(self, station_answer):
+        from agents.chat_intake import IntakeAgent
+        svc, d, iid = self.center_item()
+        a = IntakeAgent(desk=d)
+        ident = {"type": "identity", "name_masked": "홍*동", "id_no_masked": "******-1******"}
+        first = out = None
+        for x in ("초록색 핸드크림을 잃어버렸는데 분실 접수좀 해줘", station_answer, "어제", "없어요", ident, "네"):
+            out = a.step("s", "" if isinstance(x, dict) else x, action=x if isinstance(x, dict) else None)
+            first = first or out
+        self.assertEqual(out["status"], "intake_done", out["answer"])
+        c = svc.claims.get(out["intake"]["claim_id"])
+        self.assertEqual(c["item_id"], iid)
+        return first, c
+
+    def test_choices_include_busan_and_unknown(self):
+        first, _ = self.intake("부산역")
+        self.assertEqual(first["choices"], ["서면", "해운대", "부산역", "모름", "취소"])
+        self.assertIn("부산역", first["answer"])
+
+    def test_busan_station_matches_center_item(self):
+        _, c = self.intake("부산역")
+        self.assertEqual((c["quiz"], c["lost_station"]), ([{"field": "place", "passed": True}, {"field": "color", "passed": True}], "부산"))
+
+    def test_other_named_station_is_wrong_but_unknown_is_not(self):
+        _, c = self.intake("해운대")
+        self.assertEqual(c["quiz"][0], {"field": "place", "passed": False})          # 주운 곳과 다른 역 → 키오스크 대신 직원 확인
+        for say in ("모름", "센텀시티역이요", "열차 안에서요", "기억이 잘 안 나요", "다른 역이요"):
+            _, c = self.intake(say)
+            self.assertEqual((c["quiz"], c.get("lost_station")), ([{"field": "color", "passed": True}], None), say)
+
+    def test_reading_rules(self):
+        from agents.chat_intake import extract
+        from agents.sim_world import lost_station
+        self.assertEqual(lost_station("부산역에서 잃어버렸어요"), "부산")
+        self.assertIsNone(lost_station("부산 지하철에서 잃어버렸어요"))               # 도시 이름
+        self.assertIsNone(lost_station("본센터 운영시간 알려줘"))                     # 접수 중에 끼어든 안내 질문
+        self.assertEqual(lost_station("부산역 가다가 해운대에서 잃어버림"), "해운대")
+        self.assertEqual(extract("어제", "lost", "station"), {"when": "어제"})        # 다른 칸 답은 그 칸으로
+        self.assertEqual(extract("네", "lost", "station"), {})
+        self.assertEqual(extract("부산역이요", "found", "station"), {})               # 주운 역은 등록기계 역만(본센터 습득은 본센터 키오스크)
+
+    def test_discord_style_sentence(self):
+        svc, d, iid = self.center_item()
+        r = d.lost("부산역에서 초록 핸드크림 잃어버렸어요", dict(OPT))
+        self.assertTrue(r["quiz_passed"])
+        self.assertEqual(r["item_id"], iid)
+
+
 class StaffVisitTest(unittest.TestCase):
     def test_failed_quiz_blocked_at_kiosk_then_staff_goes_on(self):
         svc, d = make()
