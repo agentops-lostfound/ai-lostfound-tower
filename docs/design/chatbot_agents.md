@@ -71,6 +71,7 @@ flowchart TD
 | (추가) | ops_analyst | 직원 관제 질문(관리자 화면만) — 안에 또 하나의 LangManus 구조 | 있음 |
 | reporter | reporter | 일꾼 결과를 하나로 합치고 다음 행동 버튼을 붙임 → supervisor 에게 돌려줌 | 없음 |
 
+- 11/10 reporter 도 다른 일꾼처럼 실행 기록(Langfuse·통합 시연 화면)에 남는다 — 전에는 기록이 없어 "researcher 다음에 바로 답"처럼 보였다. 기록 순서: 일꾼 → supervisor(next: reporter) → reporter → supervisor(next: end). 답 내용·동작은 그대로(기록만 추가)
 - 그래프는 LangGraph 로 만들었다. `Chatbot(Guidance()).graph.get_graph().draw_mermaid()` 를 그리면 위 그림과 같은 모양이 나온다(reporter 도 supervisor 아래 일꾼, 끝은 supervisor 가 정함)
 - 프롬프트는 Langfuse Prompts 에서 이름으로 관리 — **agent 1개 = 프롬프트 1개 = 모델 설정 1개**, 13개(1-1장)
 - 실행 기록은 callback 방식으로 Langfuse Tracing 에 에이전트(칸)별로 남는다(5장)

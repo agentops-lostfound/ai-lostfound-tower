@@ -455,15 +455,20 @@ class Chatbot:
 
     def _reporter(self, state):
         """일꾼 결과를 화면에 낼 답 하나로(두 개면 기존 combined 방식: 안내 → 검색 순)"""
-        out = self._report(state)
-        res = out['result']
-        offers = [o for o in (state.get('offers') or []) if o not in (res.get('choices') or [])]
-        if offers:
-            res = {**res, 'choices': (list(res.get('choices') or []) + offers)[:4]}
-        out['result'] = {**res, 'decisions': state.get('decisions') or [],
-                         'plan_steps': [self._step_line(x) for x in (state.get('steps') or [])]}
-        out['reported'] = True
-        out['last'] = 'reporter'
+        from agents.observability import node_step
+        # 11/10 reporter 도 다른 일꾼처럼 실행 기록에 남긴다 — 전에는 기록이 없어 Langfuse·통합 시연 화면에서
+        # "researcher 다음에 바로 답"처럼 보였다(실제 순서: 일꾼 → supervisor → reporter → supervisor 가 끝을 정함)
+        with node_step('reporter', as_type='agent', input={'from': sorted((state.get('results') or {}).keys())}) as obs:
+            out = self._report(state)
+            res = out['result']
+            offers = [o for o in (state.get('offers') or []) if o not in (res.get('choices') or [])]
+            if offers:
+                res = {**res, 'choices': (list(res.get('choices') or []) + offers)[:4]}
+            out['result'] = {**res, 'decisions': state.get('decisions') or [],
+                             'plan_steps': [self._step_line(x) for x in (state.get('steps') or [])]}
+            out['reported'] = True
+            out['last'] = 'reporter'
+            obs.update(output={'route': out.get('route'), 'status': res.get('status'), 'answer': str(res.get('answer') or '')[:500]})
         return out
 
     def _report(self, state):

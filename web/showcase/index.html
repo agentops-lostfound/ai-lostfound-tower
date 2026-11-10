@@ -322,6 +322,12 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     const cam = camMode === "server" ? "&cam=server" : camMode === "demo" ? "&demo=1" : "";
     return `/kiosk?machine=${machine}${cam}`;
   }
+  function bare(frame) {                         // 기기 틀 안 화면에서는 스크롤 막대를 숨긴다(스크롤은 그대로 됨)
+    frame.addEventListener("load", () => {
+      try { const st = frame.contentDocument.createElement("style"); st.textContent = "*{scrollbar-width:none}*::-webkit-scrollbar{width:0;height:0}"; frame.contentDocument.head.appendChild(st); } catch (_) {}
+    });
+  }
+  ["fFound", "fPickup", "fLost"].forEach((id) => bare($(id)));
   function load(sc) {
     if (loaded[sc]) return;
     loaded[sc] = true;
@@ -487,7 +493,8 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     visCur = id; drawVision(live);
     // 에이전트 그림: 키오스크 AI 가 사진을 넘기고 → 비전 에이전트(Qwen)가 읽고 → 결과가 메인 AI(→ DB)로
     const N = "비전 에이전트";
-    if (d.stage === "queued") { if (live) { if (!pinned) showGraph("tower"); packet("tower", "키오스크 AI", N); flashNode("tower", "키오스크 AI", 700); } mark("tower", N, {cls: live ? "run" : "done", ms: null, badge: null}); }
+    if (live) follow("tower");
+    if (d.stage === "queued") { if (live) { packet("tower", "키오스크 AI", N); flashNode("tower", "키오스크 AI", 700); } mark("tower", N, {cls: live ? "run" : "done", ms: null, badge: null}); }
     else if (d.stage === "analyze") mark("tower", N, {cls: live ? "run" : "done", badge: live ? "🧠 Qwen3-VL" : null});
     else if (d.stage === "fail") mark("tower", N, {cls: "err", badge: null});
     else if (d.stage === "result") { mark("tower", N, {cls: "done", badge: null, ms: d.seconds != null ? Math.round(d.seconds * 1000) : null});
@@ -616,7 +623,19 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   };
   // trace 사건의 칸 이름 → 그림의 칸(관제탑 메인 AI 묶음은 한글 이름으로)
   const TOWER_TRACE = {main_ai: "메인 AI", matching_agent: "매칭 에이전트", storage_agent: "보관 칸 에이전트", vision_agent: "비전 에이전트"};
-  let graph = "tower", pinned = false;
+  // 어느 묶음을 보여 줄지: **일이 생긴 쪽으로 자동 전환**한다(11/10). 챗봇 질문이 들어오면 챗봇 그림, 관제탑 에이전트가 일하면 관제탑 그림.
+  //  - 챗봇 질문이 진행 중이거나 막 끝났으면(4초) 관제탑 사건이 그림을 뺏지 않는다(둘이 번갈아 깜빡이지 않게)
+  //  - 사용자가 직접 고르면 8초 동안은 그대로 둔다. 그 뒤 새 일이 생기면 다시 자동으로 따라간다
+  let graph = "tower", holdUntil = 0, chatSince = 0, chatEndAt = 0;
+  const CHAT_KEEP_MS = 4000, USER_HOLD_MS = 8000, CHAT_BUSY_MAX_MS = 90000;
+  function follow(name) {
+    const now = Date.now();
+    if (name === graph) return;
+    if (now < holdUntil) return;
+    const chatBusy = chatSince && now - chatSince < CHAT_BUSY_MAX_MS;
+    if (name === "tower" && (chatBusy || now < chatEndAt + CHAT_KEEP_MS)) return;
+    showGraph(name);
+  }
   const state = {tower: {}, chat: {}};          // 칸 이름 → {cls, ms, badge}
   const NW = 122, NH = 42;
   function drawGraph() {
@@ -634,12 +653,12 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
         (st.badge ? `<g class="badge" transform="translate(0,${-NH / 2 - 11})"><rect x="-58" y="-9" width="116" height="17" rx="8.5"/><text y="3.5">${esc(st.badge)}</text></g>` : "") + `</g>`;
     }
     svg.innerHTML = s + `<g id="pkts"></g>`;
-    $("agHint").textContent = g.hint;
+    $("agHint").textContent = g.hint + " · 일이 생긴 쪽으로 자동 전환";
     document.querySelectorAll("#agSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.g === graph)));
   }
   const fmtMs = (ms) => ms >= 1000 ? (ms / 1000).toFixed(1) + "초" : ms + "ms";
   function showGraph(name, byUser) {
-    if (byUser) pinned = true;
+    if (byUser) holdUntil = Date.now() + USER_HOLD_MS;
     if (graph === name) return;
     graph = name; drawGraph();
   }
@@ -679,29 +698,33 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 
   function applyAgent(e, live) {                 // 관제탑 에이전트 대화 한 마디
     const a = e.agent || {};
-    if (live) { if (!pinned) showGraph("tower"); packet("tower", a.from, a.to); flashNode("tower", a.from, 700); setTimeout(() => flashNode("tower", a.to, 700), 420); }
+    if (live) { follow("tower"); packet("tower", a.from, a.to); flashNode("tower", a.from, 700); setTimeout(() => flashNode("tower", a.to, 700), 420); }
     else { mark("tower", a.from, {cls: "done"}); mark("tower", a.to, {cls: "done"}); }
     agLine(`<div class="top"><span class="kind ${esc(a.kind || "")}">${esc(KIND[a.kind] || a.kind || "말")}</span><span class="who">${esc(a.from)}</span><span class="arrow">→</span>` +
       `<span class="who">${esc(a.to)}</span>${a.score != null ? `<span class="kind score">${a.score}점</span>` : ""}<span class="t">${clock(e.t)}</span></div><p>${esc(e.body)}</p>`);
   }
-  let chatPrev = "질문";                          // 챗봇 그림에서 바로 앞에 일한 칸(점이 출발하는 곳)
+  let chatPrev = "질문", chatReported = false;    // 챗봇 그림에서 바로 앞에 일한 칸(점이 출발하는 곳) · 이번 질문에서 reporter 단계를 봤는지
   function applyTrace(e, live) {
     const t = e.trace || {};
     const tower = t.trace_name === "tower-main-ai";
     const gname = tower ? "tower" : "chat";
     if (t.kind === "trace_start") {
-      if (!tower) { state.chat = {}; chatPrev = "질문"; if (graph === "chat") drawGraph(); }
+      if (!tower) { state.chat = {}; chatPrev = "질문"; chatReported = false; if (graph === "chat") drawGraph(); if (live) { chatSince = Date.now(); holdUntil = Math.min(holdUntil, Date.now()); } }
       const li = agLine(`${tower ? "메인 AI 판단" : "챗봇 질문"} ${esc(t.trace || "")}${t.langfuse ? " · Langfuse 기록" : ""}`); li.className = "msg sep";
-      if (live && !pinned) showGraph(gname);
+      if (live) follow(gname);
       if (!tower) mark("chat", "질문", {cls: live ? "on" : "done"});
       return;
     }
-    if (t.kind === "trace_end") { if (!tower) { mark("chat", "답", {cls: "done", ms: t.ms}); mark("chat", "질문", {cls: "done"}); } return; }
+    if (t.kind === "trace_end") { if (!tower) { mark("chat", "답", {cls: "done", ms: t.ms}); mark("chat", "질문", {cls: "done"}); if (live) { chatSince = 0; chatEndAt = Date.now(); } } return; }
     if (t.type === "chain") {                    // 질문 하나 전체(바깥 틀) — 끝날 때 답을 정리한 것으로 보여 준다
-      if (t.kind === "end" && !tower) {
-        if (live) packet("chat", chatPrev === "reporter" ? "reporter" : "supervisor", "reporter");
-        mark("chat", "reporter", {cls: "done"}); if (live) setTimeout(() => packet("chat", "reporter", "답"), 300);
-        agLine(`<div class="top"><span class="kind">reporter</span><span class="who">답 정리</span><span class="t">${fmtMs(t.ms || 0)}</span></div><p>${esc(short(t.output))}</p>`);
+      if (t.kind === "end" && !tower) {            // 질문 하나가 끝남 → 정리된 답이 화면으로 나간다
+        if (!chatReported) {                       // reporter 단계 기록이 없는 옛 서버: 여기서 정리한 것으로 그린다
+          if (live) packet("chat", "supervisor", "reporter");
+          mark("chat", "reporter", {cls: "done"});
+        }
+        if (live) packet("chat", "reporter", "답");
+        mark("chat", "답", {cls: live ? "on" : "done"});
+        agLine(`<div class="top"><span class="kind gen">답</span><span class="who">화면에 표시</span><span class="t">전체 ${fmtMs(t.ms || 0)}</span></div><p>${esc(short(t.output))}</p>`);
       }
       return;
     }
@@ -716,16 +739,18 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     const node = tower ? (TOWER_TRACE[t.name] || t.name) : t.name;
     if (!G[gname].nodes[node]) return;
     if (t.kind === "start") {
-      if (live) { if (!pinned) showGraph(gname); if (!tower) packet("chat", chatPrev, node); else if (node !== "메인 AI") packet("tower", "메인 AI", node); }
+      if (live) { follow(gname); if (!tower) packet("chat", chatPrev, node); else if (node !== "메인 AI") packet("tower", "메인 AI", node); }
       mark(gname, node, {cls: live ? "run" : "done", ms: null});
     } else {
       mark(gname, node, {cls: t.error ? "err" : "done", ms: t.ms});
-      if (!tower) chatPrev = node;
+      if (!tower) { chatPrev = node; if (node === "reporter") chatReported = true; }
       else if (live && node !== "메인 AI") packet("tower", node, "메인 AI");
       agLine(`<div class="top"><span class="kind${t.error ? " err" : ""}">${esc(node)}</span><span class="who">${esc(roleOf(gname, node))}</span><span class="t">${fmtMs(t.ms || 0)}</span></div>` +
-        `<p>${esc(t.error ? t.error : short(t.output))}</p>`);
+        `<p>${esc(t.error ? t.error : draft(node, short(t.output)))}</p>`);
     }
   }
+  // 일꾼(researcher 등)이 만든 글은 아직 '초안'이다 — 화면에 나가는 답은 reporter 가 정리한 것 하나뿐이라는 점이 보이게
+  const draft = (node, text) => node === "reporter" ? text : text.replace(/(^|· )answer: /, "$1답 초안(reporter 가 정리하기 전): ");
   const roleOf = (gname, node) => (G[gname].nodes[node] || [])[2] || "";
   const short = (out) => String(out || "").slice(0, 260);      // 서버(observability.brief)가 이미 가리고 줄인 한 줄
 
@@ -733,9 +758,9 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   let stories = [];
   function renderSteps() {
     const want = (SCENES[scene] || {}).kind;
-    const st = stories.find((s) => s.kind === want) || stories[0];
+    const st = stories.find((s) => s.kind === want);
     const box = $("steps");
-    if (!st) { box.innerHTML = `<span class="empty">아직 진행 중인 건이 없어요 — 왼쪽 화면에서 시작해 보세요.</span>`; return; }
+    if (!st) { box.innerHTML = `<span class="empty">${want === "lost" ? "아직 분실 신고·회수 건이 없어요 — ② 분실 신고에서 찾기 번호를 받은 뒤 ③ 회수에서 입력해 보세요." : "아직 진행 중인 건이 없어요 — 왼쪽 화면에서 시작해 보세요."}</span>`; return; }
     const ids = Object.values(st.ids || {}).filter(Boolean).join(" · ");
     box.innerHTML = `<span class="who">${st.kind === "found" ? "습득" : "분실·반환"} ${esc(st.story_id)}<small>${esc(ids)}</small></span><ol>` +
       st.stages.map((s) => `<li class="${esc(s.state)}" title="${esc(s.detail || "")}">${esc(s.label)}</li>`).join("") + `</ol>` +
@@ -751,11 +776,13 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     else if (e.channel === "trace") applyTrace(e, live);
     else if (e.channel === "vision") applyVision(e, live);
   }
+  // 재생 속도: 사건을 하나씩 보여 주되 **실제보다 늦어지지 않게** 밀린 시간(받은 뒤 기다린 시간)에 맞춰 빨라진다(11/10).
+  // 전에는 사건마다 0.38초씩 쉬어, 챗봇 답이 이미 화면에 나왔는데 그림은 아직 researcher 에 있는 것처럼 보였다
   function pump() {
     const e = queue.shift();
     if (e) handle(e, true);
-    const n = queue.length;
-    setTimeout(pump, n > 60 ? 25 : n > 25 ? 80 : n > 8 ? 200 : n > 0 ? 380 : 120);
+    const n = queue.length, late = n ? Date.now() - (queue[0]._at || Date.now()) : 0;
+    setTimeout(pump, !n ? 100 : (n > 60 || late > 4000) ? 20 : (n > 25 || late > 2000) ? 60 : (n > 8 || late > 900) ? 130 : 280);
   }
   async function poll() {
     try {
@@ -772,7 +799,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       if (w.on !== worker.on) { worker = w; drawVision(false); } else worker = w;
       const evs = (d.events || []).filter((e) => e.channel === "db" || e.channel === "agent" || e.channel === "trace" || e.channel === "vision");
       if (first) { evs.forEach((e) => handle(e, false)); first = false; drawGraph(); }
-      else queue.push(...evs);
+      else { const at = Date.now(); evs.forEach((e) => { e._at = at; }); queue.push(...evs); }
       stories = d.stories || []; renderSteps();
       seq = d.seq;
     } catch (e) {
