@@ -9,6 +9,7 @@ from agents.storage import OUTLET_SEQUENCE, SLOT_NUMBERS
 from robot.db_pose_sequence import sequence_for_target, simulate_trigger, trigger_db_sequence
 from robot.joint_motion import JOINTS
 from robot.tower_part import TowerRobot
+from tests.sequence_fixtures import taught_poses, expected_sequence
 
 
 class DbSequenceTests(unittest.TestCase):
@@ -16,12 +17,7 @@ class DbSequenceTests(unittest.TestCase):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         self.path = Path(folder.name) / 'poses.json'
-        zero = {name + '.pos': 0.0 for name in JOINTS}
-        self.poses = {'home': dict(zero),
-                      'outlet_return_1': {**zero, 'shoulder_pan.pos': 25.0},
-                      'close': {**zero, 'shoulder_pan.pos': 30.0},
-                      'open': {**zero, 'shoulder_pan.pos': 30.0, 'gripper.pos': 70.0}}
-        self.poses.update({f'pose_{n}': {**zero, 'shoulder_pan.pos': n * 8.0} for n in range(1, 9)})
+        self.poses = taught_poses()
         self.path.write_text(json.dumps(self.poses), encoding='utf-8')
         self.motion = Mock()
         self.robot = TowerRobot(motion=self.motion, poses_path=self.path, environ={})
@@ -36,7 +32,7 @@ class DbSequenceTests(unittest.TestCase):
             for slot, number in SLOT_NUMBERS.items():
                 with self.subTest(slot=slot):
                     result = simulate_trigger(slot, self.path)
-                    expected = [f'pose_{number}', 'outlet_return_1', 'close', 'open', 'outlet_return_1', 'home']
+                    expected = expected_sequence(number)
                     self.assertTrue(result['ok'])
                     self.assertEqual(result['completed'], expected)
                     self.assertTrue(result['test_only'] and result['vla_skipped'])
@@ -44,9 +40,14 @@ class DbSequenceTests(unittest.TestCase):
                     self.assertEqual(result['final_item_status'], '본센터 보관')
                     self.assertEqual(result['events'][0]['event'], 'db_target_lookup')
                     events = result['events'][1:]
+                    commands = list(expected)
+                    if number in (1, 2, 3, 7):
+                        for index in (5, 6, 7, 8):
+                            commands[index] += '_phone'
                     for i, pose in enumerate(expected):
                         self.assertEqual([e['event'] for e in events[i*2:i*2+2]], ['requested', 'arrived'])
-                        self.assertEqual([e['pose'] for e in events[i*2:i*2+2]], [pose, pose])
+                        self.assertEqual([e['pose'] for e in events[i*2:i*2+2]], [commands[i], commands[i]])
+                    self.assertEqual(result['command_sequence'], commands)
                     self.assertEqual(result['target']['slot_id'], slot)
                     self.assertEqual(result['target']['number'], number)
             process.assert_not_called()
@@ -57,8 +58,9 @@ class DbSequenceTests(unittest.TestCase):
             result = simulate_trigger('R3-2', self.path, duration)
             arrivals = [e for e in result['events'] if e['event'] == 'arrived']
             self.assertTrue(result['ok'])
-            self.assertEqual(len(arrivals), 6)
-            self.assertTrue(all(e['elapsed'] >= duration for e in arrivals))
+            self.assertEqual(len(arrivals), 11)
+            # The initial home is already reached; all subsequent moves use the selected profile.
+            self.assertTrue(all(e['elapsed'] >= duration for e in arrivals[1:]))
 
     def test_trigger_uses_lookup_once_and_rejects_other_item(self):
         lookup = Mock(return_value=self.target())
@@ -76,13 +78,22 @@ class DbSequenceTests(unittest.TestCase):
         self.assertEqual(result['completed'], [])
         self.motion.move.assert_not_called()
 
+    def test_release_must_not_lower_arm_and_special_grip_must_not_change(self):
+        self.robot.poses['open']['shoulder_lift.pos'] += 10.0
+        self.assertFalse(self.robot.run_pose_sequence_test(self.target())['ok'])
+        self.motion.move.assert_not_called()
+        self.robot.poses['open']['shoulder_lift.pos'] -= 10.0
+        self.robot.poses['pose_8_return']['gripper.pos'] = 4.0
+        self.assertFalse(self.robot.run_pose_sequence_test(self.target('R4-2'))['ok'])
+        self.motion.move.assert_not_called()
+
     def test_failure_in_middle_stops_and_does_not_execute_remaining_stages(self):
         self.motion.move.side_effect = [None, RuntimeError('simulated failure')]
         self.motion.stop.return_value = True
         result = self.robot.run_pose_sequence_test(self.target())
         self.assertFalse(result['ok'])
-        self.assertEqual(result['completed'], ['pose_6'])
-        self.assertEqual(result['failed_pose'], 'outlet_return_1')
+        self.assertEqual(result['completed'], ['home'])
+        self.assertEqual(result['failed_pose'], 'pose_6')
         self.assertEqual(self.motion.move.call_count, 2)
         self.motion.stop.assert_called_once()
 
@@ -111,7 +122,7 @@ class DbSequenceTests(unittest.TestCase):
         thread.join(2)
         self.assertFalse(thread.is_alive())
         self.assertTrue(results[0]['ok'])
-        self.assertEqual([c.args[0] for c in self.motion.move.call_args_list], ['pose_6', *OUTLET_SEQUENCE])
+        self.assertEqual([c.args[0] for c in self.motion.move.call_args_list], expected_sequence(6))
 
     def test_ambiguous_db_targets_are_rejected_before_any_motion(self):
         for changes in ({'ok': False}, {'slot_id': 'H-1'}, {'pose_name': 'pose_1'},

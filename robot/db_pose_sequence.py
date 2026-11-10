@@ -1,4 +1,4 @@
-"""DB target -> saved-pose sequence, explicitly omitting VLA for testing.
+"""DB target -> complete taught grasp/return sequence. No VLA is used.
 
 The CLI runs an in-memory DB and simulated motors only. It never starts Studio
 or changes a real item's status, assignment, or return record.
@@ -14,7 +14,7 @@ from agents.contracts import robot_result
 from agents.storage import OUTLET_SEQUENCE, SLOT_NUMBERS
 
 
-def sequence_for_target(target):
+def sequence_for_target(target, *, sequence_path=None):
     if not isinstance(target, dict) or target.get('ok') is not True:
         raise ValueError('DB에서 사용할 수 있는 보관 칸을 받지 못했습니다')
     slot = target.get('slot_id')
@@ -28,7 +28,50 @@ def sequence_for_target(target):
         raise ValueError('DB 칸 번호가 일치하지 않습니다')
     if 'outlet_sequence' in target and target['outlet_sequence'] != list(OUTLET_SEQUENCE):
         raise ValueError('DB 배출구 순서가 시험 시퀀스와 다릅니다')
-    return [pose, *OUTLET_SEQUENCE]
+    path = Path(sequence_path) if sequence_path is not None else Path(__file__).with_name('config') / 'pick_sequences.json'
+    config = json.loads(path.read_text(encoding='utf-8-sig'))
+    if not isinstance(config, dict) or config.get('schema') != 'taught_pick_sequences.v1':
+        raise ValueError('지원하지 않는 티칭 시퀀스 형식입니다')
+    profiles = config.get('sequences')
+    if not isinstance(profiles, dict):
+        raise ValueError('티칭 시퀀스 목록이 없습니다')
+    profile = profiles.get(pose + '_pick')
+    if not isinstance(profile, dict) or profile.get('slot_id') != slot or profile.get('approach_pose') != pose:
+        raise ValueError('DB 칸에 대응하는 티칭 시퀀스가 없습니다')
+    returning = pose + '_return' if number in (7, 8) else pose
+    names = [pose + '_open', pose + '_target', pose + '_close', returning]
+    steps = profile.get('steps')
+    if (not isinstance(steps, list) or len(steps) != 4
+            or any(not isinstance(step, dict) for step in steps)
+            or [step.get('pose_name') for step in steps] != names
+            or any(step.get('captured') is not True or step.get('requires_reteach') for step in steps)):
+        raise ValueError('집기 4단계의 티칭이 완료되지 않았거나 순서가 다릅니다')
+    outlet = (['outlet_return_1_78', 'close_78', 'open', 'outlet_return_1_78', 'home']
+              if number in (7, 8) else list(OUTLET_SEQUENCE))
+    if profile.get('outlet_sequence', outlet) != outlet:
+        raise ValueError('티칭 시퀀스의 배출구 순서가 다릅니다')
+    sequence = ['home', pose, *names, *outlet]
+    if profile.get('full_sequence', sequence) != sequence:
+        raise ValueError('저장된 전체 시퀀스가 티칭 단계와 다릅니다')
+    return sequence
+
+
+def validate_taught_pose_values(sequence, poses):
+    """Preflight all targets, including release without moving the outlet arm."""
+    from robot.joint_motion import JOINTS, vector
+    for name in sequence:
+        if name not in poses:
+            raise ValueError('시퀀스 저장 자세 없음: ' + name)
+        vector(poses[name])
+    closing = 'close_78' if 'close_78' in sequence else 'close'
+    if any(poses['open'][joint + '.pos'] != poses[closing][joint + '.pos'] for joint in JOINTS[:5]):
+        raise ValueError('open과 배출구 close의 팔 5축이 다릅니다. 같은 배출 위치로 맞추세요')
+    if closing == 'close_78':
+        number = 7 if 'pose_7_close' in sequence else 8
+        names = [f'pose_{number}_close', f'pose_{number}_return', 'outlet_return_1_78', 'close_78']
+        grip = poses[names[0]]['gripper.pos']
+        if any(poses[name]['gripper.pos'] != grip for name in names):
+            raise ValueError('7·8번 전용 복귀·운반의 그리퍼 목표가 다릅니다')
 
 
 def trigger_db_sequence(item_id, target_lookup, robot):
@@ -59,7 +102,8 @@ class SimulatedPoseMotion:
     def __init__(self, poses):
         import numpy as np
         from robot.joint_motion import vector
-        self.poses = poses
+        from robot.phone_carry import augmented_poses
+        self.poses, self.profiles = augmented_poses(poses)
         self.current = np.array(vector(poses['home']), dtype=float)
         self.time = 0.0
         self.events = []
@@ -70,7 +114,10 @@ class SimulatedPoseMotion:
         from robot.studio_extension.runtime.saved_pose import PoseMove
         start = self.time
         token = f'sim-{len(self.events)}'
-        move = PoseMove(self.current, vector(self.poses[pose]), self.time, token, duration)
+        profile = self.profiles.get(pose)
+        move = PoseMove(self.current, vector(self.poses[pose]), self.time, token, duration,
+            arrival_target=vector(self.poses[profile['reference_pose']]) if profile else None,
+            shoulder_tolerance=profile['shoulder_tolerance'] if profile else 5)
         self.events.append({'event': 'requested', 'pose': pose, 'time': round(self.time, 3)})
         while True:
             if cancelled.is_set():
@@ -112,7 +159,8 @@ def simulate_trigger(slot_id, poses_path, seconds=3):
                               'time': round(motion.time, 3)})
         return robot_target(db.layout(), identity)
     result = trigger_db_sequence(item_id, lookup, robot)
-    return {**result, 'simulation': True, 'db_source': 'memory', 'target': target,
+    return {**result, 'simulation': True, 'control_mode': 'taught', 'grasp_included': True,
+            'db_source': 'memory', 'target': target,
             'hardware_commands': 0, 'events': motion.events,
             'final_item_status': items[item_id]['status'],
             'poses_sha256': hashlib.sha256(poses_path.read_bytes()).hexdigest()}

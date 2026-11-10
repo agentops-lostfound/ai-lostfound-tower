@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 from robot.joint_motion import JOINTS
 from robot.sequence_experiment import SequenceExperiment
 from robot.sequence_panel import make_server
+from tests.sequence_fixtures import taught_poses, expected_sequence
 
 
 class ExperimentFixture(unittest.TestCase):
@@ -18,8 +19,7 @@ class ExperimentFixture(unittest.TestCase):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         self.path = Path(folder.name) / 'poses.json'
-        values = {name + '.pos': 0.0 for name in JOINTS}
-        poses = {name: dict(values) for name in ['home', 'close', 'open', 'outlet_return_1', *[f'pose_{n}' for n in range(1, 9)]]}
+        poses = taught_poses()
         self.path.write_text(json.dumps(poses), encoding='utf-8')
         self.motion = Mock()
         self.motion.stop.return_value = True
@@ -47,16 +47,61 @@ class ExperimentTests(ExperimentFixture):
         self.model.start('all', 0, True)
         self.wait()
         self.assertEqual([c.args[0] for c in self.motion.move.call_args_list],
-                         ['pose_6', 'outlet_return_1', 'close', 'open', 'outlet_return_1', 'home'])
+                         expected_sequence(6))
         self.assertTrue(all(c.args[1] == 4 for c in self.motion.move.call_args_list))
-        self.assertEqual(self.model.snapshot()['statuses'], ['도착'] * 6)
+        self.assertEqual(self.model.snapshot()['statuses'], ['도착'] * 11)
 
     def test_single_selected_step_does_not_run_next(self):
-        self.model.start('step', 3, True)
+        self.model.start('step', 8, True)
         self.wait()
         self.motion.move.assert_called_once()
-        self.assertEqual(self.motion.move.call_args.args[0], 'open')
+        self.assertEqual(self.motion.move.call_args.args[0], 'open_phone')
         self.assertEqual(self.model.snapshot()['statuses'].count('도착'), 1)
+
+    def test_phone_compensation_is_visible_and_only_used_after_grasp(self):
+        for number, slot in [(1, 'R1-1'), (2, 'R1-2'), (3, 'R2-1'), (7, 'R4-1')]:
+            self.model.prepare(slot, 5)
+            snapshot = self.model.snapshot()
+            self.assertEqual(snapshot['sequence'], expected_sequence(number))
+            self.assertEqual([i for i, p in enumerate(snapshot['motion_profiles']) if p], [5, 6, 7, 8])
+            for i in (5, 6, 7, 8):
+                self.assertEqual(snapshot['command_targets'][i]['shoulder_lift.pos'],
+                                 snapshot['targets'][i]['shoulder_lift.pos'] - 2)
+            self.assertEqual(snapshot['command_targets'][9], snapshot['targets'][9])
+
+    def test_wait_diagnostics_identify_elbow_without_bypassing_arrival(self):
+        self.model.prepare('R1-2', 3)
+        self.model.selected = 6
+        self.model.running = True
+        self.addCleanup(setattr, self.model, 'running', False)
+        self.model.runtime_state = {'connected': True, 'saved_pose_status': 'holding_target',
+                                    'saved_pose_name': 'outlet_return_1_phone'}
+        measured = dict(self.model.robot.poses['outlet_return_1'])
+        measured.update({'elbow_flex.pos': measured['elbow_flex.pos'] + 5.4,
+                         'shoulder_lift.pos': measured['shoulder_lift.pos'] + 7.7,
+                         'gripper.pos': 44})
+        for now in (100., 100.2, 101.1):
+            with patch('robot.sequence_experiment.time.monotonic', return_value=now):
+                self.model.observe({'event': 'observation', 'data': measured})
+                waiting = self.model.snapshot()['arrival_wait']
+                self.assertEqual(waiting['blocked'], ['elbow_flex'])
+                self.assertEqual(waiting['axes'][1]['tolerance'], 8)
+        events = [e for e in self.model.events if e['event'] == 'stage_waiting']
+        self.assertEqual(len(events), 2)
+        self.assertTrue(self.model.running)
+        self.assertFalse(self.model.robot.cancelled.is_set())
+        self.motion.move.assert_not_called()
+        self.motion.stop.assert_not_called()
+
+    def test_wait_diagnostics_reject_stale_or_unrelated_state(self):
+        self.model.running = True
+        self.addCleanup(setattr, self.model, 'running', False)
+        self.model.last_packet = time.monotonic() - 2
+        self.model.runtime_state = {'connected': True, 'saved_pose_status': 'holding_target',
+                                    'saved_pose_name': 'another_pose'}
+        self.assertIsNone(self.model.snapshot()['arrival_wait'])
+        self.model.last_packet = time.monotonic()
+        self.assertIsNone(self.model.snapshot()['arrival_wait'])
 
     def test_unapproved_or_invalid_run_never_moves(self):
         for args in [('all', 0, False), ('bad', 0, True), ('step', -1, True), ('step', True, True)]:
@@ -103,7 +148,7 @@ class ExperimentTests(ExperimentFixture):
     def test_db_target_replaces_start_pose_without_modifying_db(self):
         target = {'ok': True, 'slot_id': 'R4-2', 'pose_name': 'pose_8', 'item_id': 'A-W31', 'number': 8}
         self.model.prepare(None, 5, target)
-        self.assertEqual(self.model.snapshot()['sequence'][0], 'pose_8')
+        self.assertEqual(self.model.snapshot()['sequence'], expected_sequence(8))
         self.assertIn('A-W31', self.model.snapshot()['source'])
         self.motion.move.assert_not_called()
 
@@ -160,5 +205,5 @@ class PanelHttpTests(ExperimentFixture):
         status, body = self.request('GET', '/api/state', headers=headers)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)['statuses'][0], '도착')
-        self.assertEqual(len(json.loads(body)['targets']), 6)
+        self.assertEqual(len(json.loads(body)['targets']), 11)
         self.motion.move.assert_called_once()

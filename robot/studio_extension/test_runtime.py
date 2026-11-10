@@ -34,6 +34,7 @@ class RuntimeTests(unittest.TestCase):
         self.recording = SimpleNamespace(is_recording=False, dataset_loaded=True, episodes_recorded=0, start=Mock(return_value=True))
         self.source.bind_recording(self.recording)
         self.source._saved_poses = {"pose_1": np.array([1., 0, 0, 0, 0, 80]), "home": np.zeros(6), "open": np.array([0.,0,0,0,0,77])}
+        self.source._pose_motion_profiles = {}  # Synthetic poses must not inherit installed profiles.
         self.source._pose_robot_id = "test-follower"
         self.current = np.array([0., 0, 0, 0, 0, 4])
         self.step()
@@ -54,6 +55,32 @@ class RuntimeTests(unittest.TestCase):
         args.update(kwargs)
         self.send("move_saved_pose", **args)
         return self.step()
+
+    def test_phone_move_commands_bounded_offset_but_arrives_against_original(self):
+        reference = np.array([0., 29.09, 0, 0, 0, 4])
+        self.source._saved_poses['pose_1'] = reference.copy()
+        compensated = reference.copy()
+        compensated[1] -= 2
+        self.source._saved_poses['pose_1_phone'] = compensated
+        self.source._pose_motion_profiles['pose_1_phone'] = dict(reference_pose='pose_1',
+            shoulder_offset=-2., shoulder_tolerance=8.)
+        self.current = reference.copy()
+        self.move(pose='pose_1_phone')
+        for _ in range(45):
+            self.send('saved_pose_heartbeat', token='owner')
+            output = self.step(follow=False)
+            self.current = output.copy()
+            self.current[1] += 7.71
+            self.current[5] = 43.9
+        self.assertEqual(self.source._pose_status, 'arrived')
+        self.assertAlmostEqual(float(output[1]), 27.09, places=3)
+        self.assertEqual(self.source._saved_poses['pose_1'][1], 29.09)
+
+    def test_phone_alias_without_arrival_profile_is_rejected(self):
+        self.source._saved_poses['pose_1_phone'] = self.source._saved_poses['pose_1'].copy()
+        self.move(pose='pose_1_phone')
+        self.assertIn('profile is missing', self.source._pose_error)
+        self.assertIsNone(self.source._pose_move)
 
     def test_same_source_reaches_all_six_saved_joint_targets(self):
         self.source._pose_last_output[5] = 2

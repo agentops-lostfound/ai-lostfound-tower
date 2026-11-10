@@ -16,6 +16,8 @@ def replace(text, old, new):
 
 
 def backend_files(source, poses, follower_id):
+    from robot.phone_carry import augmented_poses
+    poses, motion_profiles = augmented_poses(poses)
     c = (source / "runtime/contract.py").read_text(encoding="utf-8")
     commands = '''class MoveSavedPoseCommand(CommandBase):
     command: Literal["move_saved_pose"] = "move_saved_pose"
@@ -87,7 +89,8 @@ class StopSavedPoseCommand(CommandBase):
     files = {"runtime/contract.py": c, "runtime/action_source.py": a, "runtime/session.py": session, "api/runtime_ws.py": w,
              "runtime/callbacks/stream.py": stream,
              "runtime/saved_pose.py": Path(__file__).with_name("runtime").joinpath("saved_pose.py").read_text(encoding="utf-8"),
-             "runtime/saved_poses.json": json.dumps({"follower_id": follower_id, "poses": poses}, indent=2)}
+             "runtime/saved_poses.json": json.dumps({"follower_id": follower_id, "poses": poses,
+                                                    "motion_profiles": motion_profiles}, indent=2)}
     for name, text in files.items():
         if name.endswith(".py"):
             ast.parse(text, name)

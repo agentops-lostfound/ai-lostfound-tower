@@ -95,6 +95,17 @@ class StudioPoseTransport:
                         raise ValueError('다른 저장 자세 이동이 진행 중입니다')
                     if state.get('saved_pose_robot_id') != self.follower or pose not in state.get('saved_pose_names', []):
                         raise ValueError('Studio에 해당 팔의 저장 자세가 없습니다')
+                    if pose.endswith('_phone') and pose not in state.get('saved_pose_profile_names', []):
+                        raise ValueError('Studio에 휴대폰 보정 도착 판정이 설치되지 않았습니다')
+                    if pose.endswith('_phone'):
+                        from robot.phone_carry import ALIASES, load_config
+                        config = load_config()
+                        expected = {'reference_pose': ALIASES.get(pose),
+                                    'shoulder_offset': config['shoulder_offset_normalized'],
+                                    'shoulder_tolerance': config['shoulder_arrival_tolerance_normalized']}
+                        if (not config['enabled'] or expected['reference_pose'] is None
+                                or state.get('saved_pose_motion_profiles', {}).get(pose) != expected):
+                            raise ValueError('Studio 휴대폰 보정값이 로컬 설정과 다릅니다')
                 return
         raise ValueError('Studio 연결·관측을 확인하지 못했습니다')
 

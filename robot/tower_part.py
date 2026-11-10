@@ -70,15 +70,16 @@ class TowerRobot:
         return robot_result(False, '탑뷰 좌표 접근 미구현 — DB 칸 모드를 사용하세요')
 
     def run_pose_sequence_test(self, target) -> dict:
-        """Explicit no-VLA test: DB pose -> outlet_return_1 -> close -> open -> return -> home.
+        """Complete taught sequence test: home -> approach -> pick -> outlet -> home.
 
         This is not the production robot_grasp/deliver contract and never marks
         a real item returned. Each move blocks until arrival before continuing.
         """
-        from robot.db_pose_sequence import sequence_for_target
+        from robot.db_pose_sequence import sequence_for_target, validate_taught_pose_values
         completed = []
         sequence = []
-        result = {'test_only': True, 'vla_skipped': True, 'item_id': target.get('item_id') if isinstance(target, dict) else None,
+        result = {'test_only': True, 'vla_skipped': True, 'control_mode': 'taught', 'grasp_included': True,
+                  'item_id': target.get('item_id') if isinstance(target, dict) else None,
                   'completed': completed}
         try:
             sequence = sequence_for_target(target)
@@ -88,16 +89,21 @@ class TowerRobot:
             missing = [name for name in sequence if name not in self.poses]
             if missing:
                 raise ValueError('시퀀스 저장 자세 없음: ' + ', '.join(missing))
+            validate_taught_pose_values(sequence, self.poses)
+            from robot.phone_carry import execution_plan
+            commands, _, profiles = execution_plan(sequence, self.poses)
+            result['command_sequence'] = commands
+            result['motion_profiles'] = profiles
         except Exception as exc:
             return {**robot_result(False, str(exc)), **result}
         if not self.operation.acquire(blocking=False):
             return {**robot_result(False, '다른 로봇 명령이 진행 중입니다'), **result}
         try:
             self._approach = None  # A test route is not a production grasp start.
-            for pose in sequence:
+            for pose, command_pose in zip(sequence, commands):
                 if self.cancelled.is_set():
                     raise InterruptedError('정지 요청으로 시퀀스 취소')
-                self.motion.move(pose, self.duration, self.cancelled)
+                self.motion.move(command_pose, self.duration, self.cancelled)
                 if self.cancelled.is_set():
                     raise InterruptedError('정지 요청으로 시퀀스 취소')
                 completed.append(pose)

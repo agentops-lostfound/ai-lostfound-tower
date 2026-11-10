@@ -1,5 +1,21 @@
 # Physical AI Studio 공유 파일과 설치 순서
 
+## 11/10 최신: 티칭 집기 11단계와 하중 운반 보정
+
+이번 공유본은 원본 자세 40개와 하중 보정 파생 자세 9개(설치 총 49개)를 포함한다. 8개 칸 모두 `home → pose_N → open → target → close → 복귀 → 배출구 원복1 → close → open → 원복1 → home`으로 시험한다. 보정 대상은 1·2·3·7번의 6~9단계이며 어깨 명령 −2 normalized, 원래 목표 기준 어깨 허용 ±8이다. 다른 팔 관절은 ±5, 추종 한도는 10이다. 7번 전용 그리퍼를 유지하며, 8번에는 이 보정을 적용하지 않는다. [시퀀스 사용법](../../robot/README-sequence.md)이 아래 과거 VLA 수집 설명보다 우선한다.
+
+최초 v4 설치에는 아래 `install.py` 절차를 사용한다. **기존 공유 확장이 설치된 PC는 새 압축본을 새 폴더에 해제한 뒤 다음 갱신기를 사용한다.** 로봇 runtime과 녹화를 정상 종료하고, 집은 물건을 내려놓은 뒤 실행한다. 기본은 읽기 검사이며 `--apply`는 기존 backend/UI 전체를 백업하고 Studio 컨테이너를 재시작한다. 로봇 연결·이동은 시작하지 않는다. 지원하는 이전 공유본의 정확한 파일 해시 조합만 허용하며, 다른 티칭·소스이면 덮어쓰지 않고 거부한다.
+
+```powershell
+# bundle 경로는 이번 압축본을 새로 푼 실제 경로로 바꾼다.
+wsl -d Ubuntu-24.04 --cd "$PWD" -- python3 -m robot.studio_extension.update_taught --bundle outputs/studio_pose_integration/bundle
+if ($LASTEXITCODE -ne 0) { throw '티칭 시퀀스 갱신 점검 실패' }
+wsl -d Ubuntu-24.04 --cd "$PWD" -- python3 -m robot.studio_extension.update_taught --bundle outputs/studio_pose_integration/bundle --apply
+if ($LASTEXITCODE -ne 0) { throw '티칭 시퀀스 갱신 실패: 백업과 오류를 확인하세요.' }
+```
+
+`update_arrival`은 마진만 바꾸던 과거 도구다. 이번에는 자세와 도착 프로필도 바뀌므로 `update_taught`를 사용한다. 저장소 원본 40개 및 두 설정 JSON과 압축본 내용이 다르면 갱신기가 거부한다. 현재 PC에는 이미 49개/9개 프로필을 적용했으며 다른 PC의 실물 경로·높이·파지는 별도로 검증해야 한다. 코드 pull만으로 실행 중 Studio가 갱신되지는 않는다. 운영 관제탑의 파지 검증·전달·DB 반환 완료 연결은 이번 시퀀스 시험과 별도다.
+
 ## 팀원용 빠른 순서
 
 **흐름: 공유 브랜치 받기 → Studio·장비 준비 → 압축 확인·해제 → 점검 → 설치 또는 기존 설치 갱신 → 화면 확인.**
@@ -12,7 +28,7 @@ git switch LF-21-geontae-tower-robot-part
 git pull --ff-only
 ```
 
-시퀀스 시험 화면의 Python 준비·실행·조작은 [시퀀스 사용법](../../robot/README-sequence.md)을 따른다. 새 압축본은 소스와 해시를 검증한 설치 준비본이며, 이 PC에서 실행 중인 Studio에는 아직 적용하지 않았다.
+시퀀스 시험 화면의 Python 준비·실행·조작은 [시퀀스 사용법](../../robot/README-sequence.md)을 따른다. 현재 PC에는 적용을 확인했고, 다른 PC에는 위 최신 설치·갱신 절차가 필요하다.
 
 이 안내는 Windows PowerShell + WSL `Ubuntu-24.04` + 실행 중인 Studio 컨테이너 `physical-ai-studio-cuda` 기준이다.
 지원 대상은 아래 [다른 PC에서 준비하기](#다른-pc에서-준비하기)에 적힌 Studio revision과 기존 v4 backend, 같은 Follower 등록 ID·장비 조건이다.
@@ -165,10 +181,12 @@ wsl -d Ubuntu-24.04 --cd "$PWD" -- python3 robot/studio_extension/install.py --b
 | `robot/studio_extension/` | 확장 코드, UI 소스, 설치기, 테스트 |
 | `outputs/studio_pose_integration/bundle.tar.xz` | 도착 마진 5 backend와 배포 UI, 파일별 SHA256 목록을 담은 검증된 설치 준비 묶음 |
 | `outputs/studio_pose_integration/bundle.tar.xz.sha256` | 압축본 SHA256 |
-| `outputs/robot_panel_live/poses.json` | 현재 장비에서 티칭한 12개 자세 |
+| `outputs/robot_panel_live/poses.json` | 현재 장비에서 티칭한 원본 40개 자세 |
+| `robot/config/pick_sequences.json` | 8개 칸의 11단계 티칭 시퀀스 |
+| `robot/config/phone_carry.json` | 1·2·3·7번의 운반 보정 설정 |
 
 압축본은 약 2.5MB다. 압축 전에는 약 20MB이며, 5MB가 넘는 UI 파일이 있어 압축해서 공유한다.
-묶음 내부의 `backend/runtime/saved_poses.json`에도 같은 자세와 대상 Follower ID가 들어 있다.
+묶음 내부의 `backend/runtime/saved_poses.json`에는 원본 40개·파생 9개와 도착 프로필 및 대상 Follower ID가 들어 있다. `carry/`의 두 JSON은 저장소 설정과 대조하는 데 사용한다.
 자세 원본을 수정해도 압축본이나 설치된 Studio가 자동으로 바뀌지는 않는다.
 
 Studio 자체, Docker 이미지·볼륨, 프로젝트·로봇 등록, 보정·카메라 설정, USB 연결, 가상환경, 비밀값, 데이터셋·모델은 이 압축본에 들어 있지 않다.

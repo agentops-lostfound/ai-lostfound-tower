@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from collections import deque
 import json
+import math
 from pathlib import Path
 import threading
 import time
 
-from robot.db_pose_sequence import sequence_for_target
+from robot.db_pose_sequence import sequence_for_target, validate_taught_pose_values
 from robot.joint_motion import JOINTS, vector
 from robot.tower_part import TowerRobot
 
@@ -15,13 +16,18 @@ from robot.tower_part import TowerRobot
 class AnimatedSimulation:
     def __init__(self, poses, observe):
         import numpy as np
-        self.poses, self.observe = poses, observe
+        from robot.phone_carry import augmented_poses
+        self.poses, self.profiles = augmented_poses(poses)
+        self.observe = observe
         self.current = np.array(vector(poses['home']), dtype=float)
 
     def move(self, pose, duration, cancelled):
         from robot.studio_extension.runtime.saved_pose import PoseMove
         token = 'sequence-panel-simulation'
-        move = PoseMove(self.current, vector(self.poses[pose]), time.monotonic(), token, duration)
+        profile = self.profiles.get(pose)
+        move = PoseMove(self.current, vector(self.poses[pose]), time.monotonic(), token, duration,
+            arrival_target=vector(self.poses[profile['reference_pose']]) if profile else None,
+            shoulder_tolerance=profile['shoulder_tolerance'] if profile else 5)
         while True:
             if cancelled.is_set():
                 raise InterruptedError('정지 요청')
@@ -57,13 +63,15 @@ class SequenceExperiment:
         self.worker = self.stop_worker = None
         self.selected = 0
         self.seen_motion = False
+        self.last_wait_log = float('-inf')
         self.source = '수동 시험'
         self.prepare('R1-1', 5)
         if lease_seconds is not None:
             threading.Thread(target=self._watch_lease, daemon=True).start()
 
     def _record(self, event, **data):
-        row = {'time': time.time(), 'event': event, 'live': self.live, 'vla_skipped': True, **data}
+        row = {'time': time.time(), 'event': event, 'live': self.live, 'vla_skipped': True,
+               'control_mode': 'taught', 'grasp_included': True, **data}
         with self.lock:
             self.events.append(row)
             if self.log_path:
@@ -95,17 +103,22 @@ class SequenceExperiment:
                 raise ValueError(robot.error)
             if any(pose not in robot.poses for pose in plan):
                 raise ValueError('시퀀스에 필요한 저장 자세가 없습니다')
+            validate_taught_pose_values(plan, robot.poses)
+            from robot.phone_carry import execution_plan
+            commands, robot.poses, profiles = execution_plan(plan, robot.poses)
             if self.motion is None:
                 if self.live:
                     raise ValueError('실물 transport 설정이 필요합니다')
                 self.motion = AnimatedSimulation(robot.poses, self.observe)
             elif isinstance(self.motion, AnimatedSimulation):
-                self.motion.poses = robot.poses
+                self.motion.poses, self.motion.profiles = robot.poses, profiles
             robot.motion = self.motion
             self.robot, self.plan, self.target = robot, plan, target
+            self.command_plan, self.motion_profiles = commands, profiles
             self.seconds, self.source = seconds, source
             self.statuses = ['대기'] * len(plan)
             self.selected = 0
+            self.last_wait_log = float('-inf')
             self.halted = False
             self.message = '준비됨 · 경로를 확인한 뒤 실행하세요'
             self._record('prepared', sequence=plan, slot_id=target['slot_id'], profile_seconds=seconds, source=source)
@@ -127,6 +140,10 @@ class SequenceExperiment:
                     self.joints = dict(data)
                     self.actions = dict(row.get('actions') or {})
                     self.last_packet = time.monotonic()
+                    waiting = self.waiting_diagnostics()
+                    if waiting is not None and self.last_packet - self.last_wait_log >= 1:
+                        self.last_wait_log = self.last_packet
+                        self._record('stage_waiting', **waiting)
             elif row.get('event') == 'state':
                 self.runtime_state = dict(row.get('data') or {})
                 status = self.runtime_state.get('saved_pose_status')
@@ -137,6 +154,31 @@ class SequenceExperiment:
         if stopped:
             self.request_stop('Studio에서 이동 중단 상태를 수신했습니다')
 
+    def waiting_diagnostics(self):
+        """Read-only explanation of fresh, owned target holding; never an ACK."""
+        if (not self.running or self.stopping or self.last_packet is None
+                or time.monotonic() - self.last_packet > .5
+                or not self.runtime_state.get('connected')
+                or self.runtime_state.get('saved_pose_status') != 'holding_target'
+                or self.runtime_state.get('saved_pose_name') != self.command_plan[self.selected]):
+            return None
+        reference = self.robot.poses[self.plan[self.selected]]
+        profile = self.motion_profiles.get(self.command_plan[self.selected])
+        axes = []
+        for joint in JOINTS[:5]:
+            key = joint + '.pos'
+            measured = self.joints.get(key)
+            if type(measured) not in (int, float) or not math.isfinite(measured):
+                return None
+            tolerance = profile['shoulder_tolerance'] if joint == 'shoulder_lift' and profile else 5
+            error = measured - reference[key]
+            axes.append({'joint': joint, 'measured': measured, 'reference': reference[key],
+                         'command_target': self.robot.poses[self.command_plan[self.selected]][key],
+                         'error': error, 'tolerance': tolerance, 'outside': abs(error) > tolerance})
+        return {'index': self.selected, 'pose': self.plan[self.selected],
+                'command_pose': self.command_plan[self.selected], 'axes': axes,
+                'blocked': [axis['joint'] for axis in axes if axis['outside']]}
+
     def set_connected(self, connected, message):
         with self.lock:
             self.connected = connected
@@ -146,7 +188,7 @@ class SequenceExperiment:
     def start(self, mode, index, approved):
         with self.lock:
             if approved is not True:
-                raise ValueError('빈 집게·이동 경로 확인을 체크하세요')
+                raise ValueError('물품 배치·이동 경로 확인을 체크하세요')
             if self.running or self.stopping:
                 raise ValueError('이미 실행·정지 중입니다')
             if self.halted:
@@ -157,6 +199,14 @@ class SequenceExperiment:
                 raise ValueError('Studio를 HOLD·녹화 꺼짐 상태로 준비하세요')
             if self.live and not set(self.plan).issubset(self.runtime_state.get('saved_pose_names', [])):
                 raise ValueError('Studio에 필요한 저장 자세가 없습니다')
+            if self.live and (not set(self.command_plan).issubset(self.runtime_state.get('saved_pose_names', []))
+                    or not {p for p in self.command_plan if p.endswith('_phone')}.issubset(
+                        self.runtime_state.get('saved_pose_profile_names', []))):
+                raise ValueError('Studio에 휴대폰 보정 자세·도착 판정 설치가 필요합니다')
+            if self.live and any(self.motion_profiles[name] !=
+                    self.runtime_state.get('saved_pose_motion_profiles', {}).get(name)
+                    for name in self.command_plan if name.endswith('_phone')):
+                raise ValueError('Studio 휴대폰 보정값이 로컬 설정과 다릅니다')
             if mode not in ('step', 'all') or type(index) is not int or not 0 <= index < len(self.plan):
                 raise ValueError('실행할 단계를 선택하세요')
             if self.lease_seconds is not None and time.monotonic() - self.last_ui > self.lease_seconds:
@@ -177,10 +227,13 @@ class SequenceExperiment:
                     raise InterruptedError('정지 요청')
                 with self.lock:
                     self.selected = current
+                    self.last_wait_log = float('-inf')
                     self.statuses[current] = '도착 대기'
                     self.message = f'{self.plan[current]} 이동·도착 대기'
-                    self._record('stage_start', index=current, pose=self.plan[current])
-                self.motion.move(self.plan[current], self.seconds, self.robot.cancelled)
+                    self._record('stage_start', index=current, pose=self.plan[current],
+                                 command_pose=self.command_plan[current],
+                                 compensation=self.motion_profiles.get(self.command_plan[current]))
+                self.motion.move(self.command_plan[current], self.seconds, self.robot.cancelled)
                 if self.robot.cancelled.is_set():
                     raise InterruptedError('정지 요청')
                 with self.lock:
@@ -224,9 +277,14 @@ class SequenceExperiment:
             return {'live': self.live, 'connected': self.connected, 'running': self.running,
                     'stopping': self.stopping, 'halted': self.halted, 'message': self.message,
                     'sequence': list(self.plan), 'statuses': list(self.statuses), 'selected': self.selected,
+                    'control_mode': 'taught', 'grasp_included': True,
                     'slot_id': self.target['slot_id'], 'seconds': self.seconds, 'source': self.source,
                     'joints': dict(self.joints), 'actions': dict(self.actions), 'target': dict(goal),
                     'targets': [dict(self.robot.poses[name]) for name in self.plan],
+                    'command_plan': list(self.command_plan),
+                    'command_targets': [dict(self.robot.poses[name]) for name in self.command_plan],
+                    'motion_profiles': [self.motion_profiles.get(name) for name in self.command_plan],
+                    'arrival_wait': self.waiting_diagnostics(),
                     'packet_age': None if self.last_packet is None else round(time.monotonic() - self.last_packet, 2),
                     'runtime_state': dict(self.runtime_state), 'events': list(self.events)}
 
