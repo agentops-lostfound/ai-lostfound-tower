@@ -63,7 +63,11 @@ class AgentBrain:
             except Exception as e:          # 모델 꺼짐·형식 오류 → 규칙으로
                 gen.update(level="WARNING", status_message=type(e).__name__)
                 return None
-            gen.update(output=parsed, metadata={"seconds": round(time.perf_counter() - started, 3)})
+            traced = parsed
+            if agent == "supervisor":
+                from agents.chat_supervisor import safe_proposal
+                traced = safe_proposal(parsed)
+            gen.update(output=traced, metadata={"seconds": round(time.perf_counter() - started, 3)})
             return parsed if isinstance(parsed, dict) else None
 
     def coordinate(self, question: str, history: list | None = None) -> tuple[str, bool] | None:
@@ -142,6 +146,17 @@ class AgentBrain:
             return None
         out = {k: v for k, v in parsed.items() if k in ("category", "color") and isinstance(v, str) and v != "모름"}
         return out or None
+
+    def supervise(self, allowed: list, context: dict) -> dict | None:
+        """감독 제안만 생성. 실제 후보 일치 검사는 chat_supervisor.validate가 한다."""
+        from agents.chat_supervisor import ACTIONS
+        schema = {"type": "object", "additionalProperties": False,
+                  "required": ["action", "step", "agent"], "properties": {
+                      "action": {"type": "string", "enum": list(ACTIONS)},
+                      "step": {"type": "integer", "minimum": 0},
+                      "agent": {"type": "string", "enum": ["", "researcher", "item_search", "intake", "ops_analyst", "reporter"]}}}
+        return self._ask("supervisor-llm", "supervisor", schema,
+                         {"allowed": allowed, **context})
 
 
 __all__ = ["AgentBrain", "GREETING_REPLY", "THANKS_REPLY", "INTENTS", "WORKERS"]

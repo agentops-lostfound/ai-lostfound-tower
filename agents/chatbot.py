@@ -54,6 +54,8 @@ class ChatState(TypedDict, total=False):
     steps: list          # [{no, agent, task, status(todo·running·done·skipped), by(planner·supervisor), note}]
     task: str            # supervisor 가 지금 일꾼에게 넘긴 지시(일꾼 칸 입력에 보임)
     work_question: str   # 섞인 질문에서 이 일꾼 몫만 떼어 낸 말(없으면 원래 질문)
+    worker_executions: int  # 결과 종류 수가 아닌 실제 업무 일꾼 호출 횟수(reporter 제외)
+    supervisor_checks: list  # 모델 제안 → 코드 수락/거절 → 실제 선택(민감값 제외)
 
 
 # 계획 이름(planner·supervisor 가 쓰는 짧은 이름) → 그래프 칸(에이전트) 이름. Langfuse 나무의 칸 이름과 같게 보여 준다
@@ -219,7 +221,7 @@ class Chatbot:
             steps = [self._step(i + 1, w, {**state, '_plan_now': plan}, 'planner') for i, w in enumerate(plan)]
             obs.update(output={'plan': plan, 'routing': routing, 'steps': [f"{x['no']}. {x['agent']} — {x['task']}" for x in steps]})
             return {'plan': plan, 'steps': steps, 'results': {}, 'path': state.get('path', []) + ['planner'], 'decisions': [], 'offers': [],
-                    'last': '', 'stop': False, 'task': '',
+                    'last': '', 'stop': False, 'task': '', 'worker_executions': 0, 'supervisor_checks': [],
                     'routing': 'model' if routing == 'model' or state.get('routing') == 'model' else 'rule'}
 
     MAX_STEPS = 6       # 일꾼 호출 상한(다시 계획이 되풀이되지 않게)
@@ -251,19 +253,23 @@ class Chatbot:
                 **({'note': note} if note else {})}
 
     def _supervisor(self, state):
-        """11/9 판단하는 감독: 방금 끝난 일꾼 결과를 보고 (1) 남은 일꾼을 멈출지 (2) 일꾼을 더할지 (3) 다음 행동 버튼을 붙일지 정한다.
-        판단은 규칙(코드)이 하고 근거를 decisions 에 남긴다 — 모델은 일꾼 안에서 답·빈칸 채우기만 한다(로봇·접수 안전 원칙과 같음)"""
+        """업무 정책이 허용 후보를 만들고, LLM 감독 제안을 코드로 검사한 뒤 실행한다."""
         from agents.observability import node_step
+        from agents.chat_supervisor import candidates, decide
         done = state.get('results') or {}
         plan = list(state.get('plan') or [])
         decisions = list(state.get('decisions') or [])
         offers = list(state.get('offers') or [])
         stop = bool(state.get('stop'))
         last = state.get('last') or ''
+        executions = state.get('worker_executions', 0)
+        checks = list(state.get('supervisor_checks') or [])
         with node_step('supervisor', as_type='agent', input={'plan': plan, 'done': list(done), 'last': last}) as obs:
             if state.get('reported'):
-                obs.update(output={'next': 'end', 'why': 'reporter 가 답을 정리함 → 끝'})
-                return {'next': 'end', 'path': state.get('path', []) + ['supervisor']}
+                _, audit = decide(self.brain, candidates([], reported=True), {'reported': True})
+                checks.append(audit)
+                obs.update(output={'next': 'end', 'why': 'reporter 가 답을 정리함 → 끝', 'proposal_check': audit})
+                return {'next': 'end', 'supervisor_checks': checks, 'path': state.get('path', []) + ['supervisor']}
             if last and last in ('intake', 'item_search', 'researcher'):
                 key = 'guidance' if last == 'researcher' else last
                 d = self._judge(last, done.get(key) or {}, state, plan, done)
@@ -286,24 +292,37 @@ class Chatbot:
                     if x['status'] == 'todo':
                         x['status'], x['note'] = 'skipped', (decisions[-1]['decide'] if decisions else 'stop')
                 nxt = 'reporter'
-            elif len(done) >= self.MAX_STEPS:
+            elif executions >= self.MAX_STEPS:
                 nxt = 'reporter'
-                decisions.append({'after': last, 'saw': f'일꾼 {len(done)}번', 'decide': 'finish', 'why': '호출 상한 — 여기서 정리'})
+                decisions.append({'after': last, 'saw': f'일꾼 {executions}번', 'decide': 'finish', 'why': '호출 상한 — 여기서 정리'})
             else:
                 nxt = next((w for w in plan if w not in done), 'reporter')
-                # 11/9 use_llm(기본 끔, Langfuse chat-supervisor config): 계획에 남은 안내·검색 칸과 정리(reporter) 안에서만 모델이 고름.
-                # 접수(intake)·관제(ops)·멈춤(stop)·상한은 규칙만 — 목록 밖·실패면 규칙 값 그대로
-                if self.brain is not None and nxt in ('guidance', 'item_search', 'reporter'):
-                    allowed = [w for w in plan if w not in done and w in ('guidance', 'item_search')] + (['reporter'] if done else [])
-                    got = self.brain.choose('supervisor', allowed, nxt, {'question': state.get('question'), 'done': list(done), 'last': last})
-                    if got and got != nxt:
-                        decisions.append({'after': last, 'saw': f'규칙 다음 칸 {nxt}', 'decide': f'model_next:{got}',
-                                          'why': '모델이 허용 목록 안에서 다른 칸을 고름(chat-supervisor use_llm)'})
-                        nxt = got
+            allowed = candidates(steps, stop=stop, executions=executions, limit=self.MAX_STEPS,
+                                 intake_allowed=bool(state.get('intake_start') or state.get('intake_active') or state.get('intake_action')),
+                                 ops_allowed=bool(state.get('ops_turn') and self.ops is not None))
+            chosen, audit = decide(self.brain, allowed, {
+                'completed': list(done), 'last': last, 'executions': executions,
+                'outcomes': {k: {'has_sources': bool(v.get('sources')), 'candidate_count': len(v.get('candidates') or []),
+                                 'needs_user': v.get('status') in ('intake_question', 'intake_confirm', 'search_needs_details')}
+                             for k, v in done.items()},
+                'steps': [{'step': x['no'], 'agent': x['agent'], 'status': x['status'], 'task': x['task']} for x in steps]})
+            checks.append(audit)
+            if chosen['action'] in ('run_step', 'add_step', 'replan'):
+                selected = next(x for x in steps if x['no'] == chosen['step'])
+                nxt = selected['plan_name']
+            else:
+                nxt = 'reporter'
+            if chosen['action'] == 'ask_user':
+                stop = True
+            if executions >= self.MAX_STEPS:
+                for x in steps:
+                    if x['status'] == 'todo':
+                        x['status'], x['note'] = 'skipped', 'execution_limit'
             task, run, work_q = '', None, ''
-            cur = next((x for x in steps if x['plan_name'] == nxt and x['status'] == 'todo'), None)
+            cur = next((x for x in steps if x['no'] == chosen['step'] and x['status'] == 'todo'), None)
             if cur:                                           # planner 지시서의 다음 단계를 일꾼에게 넘김
                 cur['status'], task, work_q = 'running', cur['task'], cur.get('input', '')
+                executions += 1
                 run = {'step': f"{cur['no']}/{len(steps)}", 'agent': cur['agent'], 'task': task, **({'input': work_q} if work_q else {}),
                        'why': ('planner 계획 순서' if cur['by'] == 'planner' else f"supervisor 가 더한 단계({cur.get('note', '')})")}
             elif nxt == 'reporter':
@@ -311,8 +330,10 @@ class Chatbot:
                 run = {'step': 'report', 'agent': 'reporter', 'task': '일꾼 결과를 답 하나로 정리',
                        'why': (f'계획 {n_done}/{len(steps)}단계 끝' if not stop else '사용자 답이 필요해 남은 단계를 멈추고 정리')}
             obs.update(output={'next': nxt, 'run_step': run, 'plan_status': [self._step_line(x) for x in steps],
-                               'decision': decisions[-1] if decisions else None})
+                               'decision': decisions[-1] if decisions else None, 'proposal_check': audit,
+                               'worker_executions': executions})
         return {'next': nxt, 'plan': plan, 'steps': steps, 'task': task, 'work_question': work_q, 'decisions': decisions, 'offers': offers, 'stop': stop,
+                'worker_executions': executions, 'supervisor_checks': checks,
                 'path': state.get('path', []) + ['supervisor']}
 
     @staticmethod
@@ -607,6 +628,7 @@ class Chatbot:
         finally:
             _search_access.reset(context_token)
         return {**state['result'], 'agent': state['route'],
+                'supervisor_checks': state.get('supervisor_checks', []), 'worker_executions': state.get('worker_executions', 0),
                 'agent_path': state.get('path', []), 'routing': state.get('routing', 'rule'),
                 'context_used': bool(resolved),
                 'orchestration': 'langgraph_guidance_item_search_and_staff_ops' if self.ops is not None
