@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from test_chat_color_multiturn import setUpModule, tearDownModule  # noqa: E402,F401
 
-ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
+ENV = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
 
 
 class SimTowerSearchTest(unittest.TestCase):

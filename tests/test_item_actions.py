@@ -31,7 +31,7 @@ class ItemActionTest(unittest.TestCase):
         from agents.sim_director import build_sim_service
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.svc = build_sim_service({"TOWER_SIM_SPEED": "0.01", "TOWER_AGENT_TALK": "0", "TOWER_SIM_QWEN_WAIT": "20"})
+        self.svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0.01", "TOWER_AGENT_TALK": "0", "TOWER_SIM_QWEN_WAIT": "20"})
         self.svc.photo_dir = self.tmp.name
         self.c = TestClient(build_app(self.svc))
         self.addCleanup(observability.set_listener, "live-board", None)
@@ -124,7 +124,7 @@ class MirrorDeleteTest(unittest.TestCase):
     def test_world_delete_reaches_mirror(self):
         from agents import db_mirror
         from agents.sim_director import build_sim_service
-        svc = build_sim_service({"TOWER_SIM_SPEED": "0.01", "TOWER_AGENT_TALK": "0"})
+        svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0.01", "TOWER_AGENT_TALK": "0"})
         calls = []
 
         class M:

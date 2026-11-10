@@ -965,7 +965,9 @@ def build_sim_service(env: dict | None = None):
         except ValueError:
             return float(default)
     flag = lambda k: str(env.get(k) or "0").strip().lower() in ("1", "true", "yes", "on")  # noqa: E731
-    world = SimWorld(speed=num("TOWER_SIM_SPEED", 1.0))
+    # 11/10 처음 보관함 물건: 기본 = 분홍 핸드크림 하나. TOWER_SIM_SEED=full 이면 예전 5개(휴대폰 2·보조배터리 2·카드지갑 1 — 칸 대기·닮은 물건 장면 연습용)
+    seed = str(env.get("TOWER_SIM_SEED") or "").strip().lower()
+    world = SimWorld(speed=num("TOWER_SIM_SPEED", 1.0), seed=seed if seed == "full" else True)
     board = LiveBoard()
     real_vision = vision_part_from_env(env)
     matcher = matcher_part_from_env(env)

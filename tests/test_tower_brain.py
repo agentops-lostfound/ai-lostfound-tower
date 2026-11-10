@@ -159,7 +159,7 @@ class SimSceneTest(unittest.TestCase):
     def run_scene(self, brain_on):
         from unittest import mock
         from agents.sim_director import build_sim_service
-        env = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_BRAIN": brain_on,
+        env = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_BRAIN": brain_on,
                "LF_CHAT_RAG_MODEL": "", "TOWER_BRAIN_MODEL": ""}
         with mock.patch.dict(os.environ, env):
             svc = build_sim_service(env)

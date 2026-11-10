@@ -108,7 +108,7 @@ class ReviewTest(unittest.TestCase):
 class SimTest(unittest.TestCase):
     def test_conflicting_claim_finishes_story(self):
         from agents.sim_director import RequestError, build_sim_service
-        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_BRAIN": "0"})
+        svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_BRAIN": "0"})
         d = svc.sim
         d.visit_wait_s = 1
         # 11/9 품목 4종: 시연 보조배터리 2개로 R3 가 참 → 빈 칸이 있는 핸드크림(R4)으로 같은 상황을 만든다

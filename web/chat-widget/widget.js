@@ -150,7 +150,7 @@
     ".wrap.kiosk .prog .ptxt{font-size:15px}",
     "@media (max-width:480px){.launcher{width:52px;height:52px;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px))}.launcher .txt{display:none}.launcher svg{width:24px;height:24px}.wrap.kiosk .launcher{width:72px;height:72px}}",
     "/* 휴대폰 폭: 손잡이는 숨기고(손가락으로 잡기 어려움) 작게·크게 단추로 높이를 바꾼다 */",
-    "@media (max-width:600px){.grip{display:none}.panel{border-radius:18px}.wrap.kiosk .icon{width:44px;height:44px;font-size:18px}}",
+    "@media (max-width:600px){.grip{display:none}.panel{border-radius:18px}.wrap.kiosk .icon{width:40px;height:40px;font-size:18px}.wrap.kiosk .panel{font-size:16.5px}.wrap.kiosk header h2{font-size:18px}.wrap.kiosk .opac{display:none}.wrap.kiosk .welcome,.wrap.kiosk .card{font-size:16px}.wrap.kiosk .chip{font-size:16px;padding:12px 14px}.wrap.kiosk textarea{font-size:17px}.wrap.kiosk .send{font-size:16px;height:50px;padding:0 18px}}",
     "header{display:flex;align-items:center;gap:6px;padding:10px 8px 8px 20px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;flex:none}",
     ".wrap.dragging header{cursor:grabbing}",
     "header .tools{display:flex;gap:2px;flex:none}",
@@ -336,7 +336,7 @@
     input = el("textarea");
     input.rows = 1;
     input.maxLength = MAX_LEN;
-    input.placeholder = "궁금한 점을 적어 주세요 (예: 검정 지갑 찾아줘)";
+    input.placeholder = "궁금한 점을 적어 주세요 (예: 검정 카드지갑 찾아줘)";
     input.setAttribute("aria-label", "질문 입력");
     sendBtn = el("button", "send", "보내기");
     sendBtn.type = "submit";
@@ -896,7 +896,8 @@
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function sizeFor(name) {
     var v = vp();
-    if (isPhone()) return [Math.round(v.w * 0.92), Math.round(v.h * (name === "large" ? 0.85 : 0.6))];
+    // 11/10: 좁은 키오스크 화면(통합 시연 화면의 키오스크 틀 460px)은 창이 촬영 영상·단추를 다 가리지 않게 절반까지만
+    if (isPhone()) return [Math.round(v.w * 0.92), Math.round(v.h * (KIOSK ? (name === "large" ? 0.78 : 0.5) : (name === "large" ? 0.85 : 0.6)))];
     return SIZES[name] || SIZES.small;
   }
   function winKey() { return WIN_KEY + (isPhone() ? ":phone" : ""); }
@@ -914,7 +915,7 @@
   }
   function writeStore() {
     var o = {};
-    if (win && win.saved) { o.ax = win.ax; o.ay = win.ay; o.dx = Math.round(win.dx); o.dy = Math.round(win.dy); o.w = Math.round(win.w); o.h = Math.round(win.h); o.size = win.size; }
+    if (!KIOSK && win && win.saved) { o.ax = win.ax; o.ay = win.ay; o.dx = Math.round(win.dx); o.dy = Math.round(win.dy); o.w = Math.round(win.w); o.h = Math.round(win.h); o.size = win.size; }
     if (userTheme) o.theme = userTheme;
     try {
       if (typeof localStorage === "undefined") return;
@@ -923,6 +924,7 @@
     } catch (e) { /* 저장 못 해도 창은 그대로 동작 */ }
   }
   function loadWin() {
+    if (KIOSK) return null;      // 11/10 공용 기기: 앞사람이 키우거나 옮긴 창을 다음 사람에게 남기지 않음(열 때마다 기본 자리·작게)
     try {
       var v = readStore();
       if (v && (v.ax === "l" || v.ax === "r") && (v.ay === "t" || v.ay === "b") &&
@@ -941,7 +943,7 @@
   function clampRect(r) {
     var v = vp(), m = gap();
     var w = clamp(r.w, Math.min(MIN_W, v.w - 2 * m), v.w - 2 * m);
-    var h = clamp(r.h, Math.min(MIN_H, v.h - 2 * m), v.h - 2 * m);
+    var h = clamp(r.h, Math.min(isPhone() ? 300 : MIN_H, v.h - 2 * m), v.h - 2 * m);
     return { x: clamp(r.x, m, v.w - w - m), y: clamp(r.y, m, v.h - h - m), w: w, h: h };
   }
   function rectFromWin(w0) {

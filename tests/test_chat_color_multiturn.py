@@ -81,7 +81,7 @@ class SearchAnswerTest(unittest.TestCase):
         self.assertIn("가장 넓게 보이는 색 하나", out["answer"])
 
     def test_applied_conditions_show_values(self):
-        self.assertIn("찾은 조건: 지갑 · 검정", self.agent.ask("검정 지갑 찾아줘")["answer"])
+        self.assertIn("찾은 조건: 카드지갑 · 검정", self.agent.ask("검정 지갑 찾아줘")["answer"])
         self.assertIn("지갑 · 모든 색", self.agent.ask("지갑 찾아줘")["answer"])
 
 

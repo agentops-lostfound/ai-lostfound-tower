@@ -256,7 +256,7 @@ details.more .robot-note{margin-top:0}
         <span><svg viewBox="0 0 22 18" role="img" aria-label="역 배지: 습득 역" class="c-acc"><rect x="1" y="4" width="20" height="10" rx="5" fill="var(--accent-soft)" stroke="currentColor"/></svg>습득 역</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="옅은 원: 집게 높이, 클수록 높음"><circle cx="6" cy="10" r="3" fill="var(--arm)" opacity=".25"/><circle cx="12.5" cy="9" r="5" fill="var(--arm)" opacity=".18"/></svg>집게 높이</span>
       </div>
-      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 카드지갑 · R3 = 보조배터리 · R4 = 핸드크림(11/9 품목 4종 고정) · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
+      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 보조배터리 · R3 = 핸드크림 · R4 = 카드지갑(11/10 열 순서 확정) · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
       <div class="cap" id="cap" aria-live="polite"></div>
       <div class="places" id="places"></div>
       <details class="purge" id="purgeBox">
@@ -305,7 +305,7 @@ details.more .robot-note{margin-top:0}
   const COLORS = {"검정":"#2b2b2b","흰색":"#f7f7f7","회색":"#a2a8b1","빨강":"#e05252","파랑":"#3d7be0","남색":"#2e3f73",
                   "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
   // 칸 카드의 품목 글자. 립밤은 11/9 운영 품목에서 뺐지만 옛 기록(이미 보관 중인 물건)이 보이도록 남겨 둠
-  const CAT = {"지갑":"지갑","USB":"USB","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리","립밤":"립밤"};
+  const CAT = {"지갑":"카드지갑","USB":"USB","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리","립밤":"립밤"};
   const CAT_LABEL = {"모형폰":"휴대폰"};   // 품목 값('모형폰')은 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   const catName = (c) => CAT_LABEL[c] || c || "";
   // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터, agents/contracts.py station_name 과 같게)
@@ -328,7 +328,7 @@ details.more .robot-note{margin-top:0}
   function drawBench(b) {
     // 11/9 실제 규격(사용자 실측): 보관판 500×250(테두리 종이 테이프 15mm) · 로봇 쪽 덧댄 띠(약 66×15, 가운데) ·
     // 제출보관함 H-1(200×200, 테두리 테이프)은 보관판 위쪽 가운데에 붙음 · 로봇은 H-1 의 로봇 쪽 절반에 놓음 ·
-    // 11/9 열 배정(015·016): R1 휴대폰 전용(45도 '/', 간격 넓음) · R2 카드지갑 · R3 보조배터리 · R4 핸드크림(미정이라 둘 다).
+    // 11/9 열 배정(015·016): R1 휴대폰 전용(45도 '/', 간격 넓음) · R2 보조배터리 · R3 핸드크림 · R4 카드지갑(11/10 018, 왼쪽부터).
     // 열 이름표·품목은 /live/state 의 rows(보관함 정답지 LAYOUT)를 그대로 따른다. 칸 이름 R1-1~R4-2 = 보관함 정답지
     const svg = $("bench");
     const [W, H] = b.size_mm, [x1, y1, x2, y2] = b.bin_mm;

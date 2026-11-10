@@ -456,7 +456,7 @@ let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬�
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
 let step = 1;
 const CATS = ['지갑','모형폰','핸드크림','보조배터리'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/9 운영 품목 4종(목업폰·보조배터리·핸드크림·카드지갑)(LF-13)
-const CAT_LABEL = {'모형폰': '휴대폰'};                                 // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
+const CAT_LABEL = {'모형폰': '휴대폰', '지갑': '카드지갑'};                                 // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
 const catLabel = c => CAT_LABEL[c] || c;
 const Q = new URLSearchParams(location.search);
 const DEMO = Q.get('demo') === '1';      // 11/8 직원용 시연 모드: 실제 카메라 대신 가상 카메라(캔버스)가 물건을 넣은 것처럼 보여 줌
@@ -1167,7 +1167,7 @@ const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')];
 if (START_TAB) tab(START_TAB); else startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
-<script src="/chat-widget/widget.js?v=20261110b" data-mode="kiosk" defer></script>
+<script src="/chat-widget/widget.js?v=20261110c" data-mode="kiosk" defer></script>
 <script>
 // 11/10 화면 키보드(쿼티): 입력칸을 누르면 아래에 키오스크 키보드 — 터치로 누르거나, PC 키보드로 치면 같은 키가 눌려 보임(발표용)
 // 한글 두벌식·영문·숫자, 전화번호·가린 신분증 칸은 숫자 패드. 공통 부품 /ui/vkeyboard.js

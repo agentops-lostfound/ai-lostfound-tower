@@ -51,31 +51,31 @@ class TargetTest(unittest.TestCase):
 
     def test_item_in_slot_gives_pose(self):
         s = store(self.db)
-        s.assign("A-W11", "R3-2")
+        s.assign("A-W11", "R2-2")
         t = robot_target(s.layout(), "A-W11")
         self.assertTrue(t["ok"])
         self.assertEqual((t["slot_id"], t["number"], t["row"], t["column"], t["pose_name"]),
-                         ("R3-2", 6, "far", "R3", "pose_6"))
+                         ("R2-2", 4, "far", "R2", "pose_4"))
         self.assertEqual(t["warnings"], [])
         self.assertEqual(t["outlet_sequence"][-1], "home")
 
     def test_no_slot_no_pose_staff_shelf(self):
         s = store(self.db, poses={})                     # 티칭 전: 자세 이름 없음
         self.assertEqual(robot_target(s.layout(), "A-W11")["code"], "no_slot")
-        s.assign("A-W11", "R3-1")
+        s.assign("A-W11", "R2-1")
         t = robot_target(s.layout(), "A-W11")
-        self.assertEqual((t["ok"], t["code"], t["pose_expected"]), (False, "no_pose", "pose_5"))
+        self.assertEqual((t["ok"], t["code"], t["pose_expected"]), (False, "no_pose", "pose_3"))
         s.move_to_shelf("A-W12")
         self.assertEqual(robot_target(s.layout(), "A-W12")["code"], "staff_shelf")
 
     def test_renamed_pose_warns(self):
         s = store(self.db)
-        s.assign("A-W12", "R2-1")
-        s.set_pose("R2-1", "shelf_r2_1")
+        s.assign("A-W12", "R4-1")
+        s.set_pose("R4-1", "shelf_r4_1")
         t = robot_target(s.layout(), "A-W12")
         self.assertTrue(t["ok"])
-        self.assertEqual(t["pose_name"], "shelf_r2_1")
-        self.assertIn("pose_3", t["warnings"][0])
+        self.assertEqual(t["pose_name"], "shelf_r4_1")
+        self.assertIn("pose_7", t["warnings"][0])
 
 
 class FlowTest(unittest.TestCase):

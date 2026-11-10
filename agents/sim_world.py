@@ -32,7 +32,7 @@ from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa
 # ---------- 작업대 좌표(가상, mm) ----------
 # 11/7: 실제 판(docs/design/storage_slots.md)과 같게 — 보관판 500 × 250 mm, 로봇팔은 아래쪽 긴 변, 제출보관함(H-1, 20×20cm)은
 # 반대쪽 긴 변(위) 가운데. 한 행 = 로봇 쪽(1)·먼 쪽(2) 칸 2개, 행 4개가 긴 변 방향(왼→오).
-# 11/9 사용자 결정(015): 열마다 품목 하나 — R1 휴대폰(45도 사선이라 간격이 넓음) · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB.
+# 11/10 사용자 결정(018): 열마다 품목 하나, 왼쪽부터 R1 휴대폰(45도 사선이라 간격이 넓음) · R2 보조배터리 · R3 핸드크림 · R4 카드지갑.
 # 칸 이름·품목은 정답지 LAYOUT 과 같다. 립밤은 운영 품목이 아님(가상 습득·분실 신고에서 안내하고 만들지 않음, sim_director)
 BENCH_MM = (560.0, 620.0)
 BIN_MM = (0.0, 240.0, 500.0, 490.0)                   # 보관판 x1, y1, x2, y2
@@ -184,13 +184,21 @@ def lost_station(text: str) -> str | None:
 #   11/9: 휴대폰 칸(R1) 2개는 시작부터 참(휴대폰 습득 → 바로 '칸 대기' 장면).
 #   016 열 배정 뒤: 보조배터리 2개(같은 제품) → R3 2칸이 참(보조배터리 습득 → '칸 대기' 장면, 찾기 → '닮은 물건 → 직원 확인' 장면),
 #   카드지갑 → R2-1. 빈 칸 = R2-2(카드지갑) · R4-1·R4-2(핸드크림)
+# 11/10 사용자 결정: 처음 보관함에는 **분홍 핸드크림 하나만** 둔다(R3-1). 전에는 5개(휴대폰 2·보조배터리 2·카드지갑 1)라
+#   휴대폰·보조배터리를 새로 접수하면 열이 꽉 차 늘 '칸 대기'가 됐다 — 발표에서 접수 → 보관 칸 배치가 바로 보이게 비워 둔다
 SEED_ITEMS = [
-    ("목업폰 화이트", "화이트 모형폰"),        # → R1-1
-    ("목업폰 블루", "블루 모형폰"),            # → R1-2
-    ("보조배터리 스피디 1", "흰색 보조배터리"),  # → R3-1 (같은 제품 2개 → '닮은 물건 → 직원 확인' 장면)
-    ("보조배터리 스피디 2", "흰색 보조배터리"),  # → R3-2
-    ("카드지갑 브라운", "브라운 카드지갑"),    # → R2-1
+    ("핸드크림 핑크", "분홍 핸드크림"),          # → R3-1
 ]
+# 예전 묶음(시험·연습용, TOWER_SIM_SEED=full): 휴대폰 2 · 보조배터리 2(같은 제품 → '닮은 물건 → 직원 확인' 장면) · 카드지갑 1.
+#   018 열 배정 뒤 자리: R1-1·R1-2 · R2-1·R2-2 · R4-1 → 휴대폰·보조배터리 열이 꽉 참('칸 대기' 장면), 빈 칸 = R3-1·R3-2 · R4-2
+SEED_FULL = [
+    ("목업폰 화이트", "화이트 모형폰"),
+    ("목업폰 블루", "블루 모형폰"),
+    ("보조배터리 스피디 1", "흰색 보조배터리"),
+    ("보조배터리 스피디 2", "흰색 보조배터리"),
+    ("카드지갑 브라운", "브라운 카드지갑"),
+]
+SEED_SETS = {"default": SEED_ITEMS, "full": SEED_FULL}
 
 
 # ---------- SO-101 로봇팔 관절(11/4, docs/progress/soarm-local-handoff.md 와 같은 번호) ----------
@@ -296,7 +304,7 @@ _REAL_REACH = None   # 실제 크기 팔이 바닥(집기 높이)까지 닿는 �
 class SimWorld:
     """가상 시연의 세계 하나(관제탑이 켜져 있는 동안 기억). IntakeStore 와 DB 부품 역할도 같이 한다."""
 
-    def __init__(self, speed: float = 1.0, seed: bool = True, today: date | None = None):
+    def __init__(self, speed: float = 1.0, seed: bool | str = True, today: date | None = None):
         self.speed = max(0.0, float(speed))
         self._lock = threading.RLock()
         self.today = today
@@ -317,6 +325,7 @@ class SimWorld:
         self.collecting: dict[str, int] = {}
         self.wait_queue: list[str] = []
         self.on_freed = None        # () → None. 칸이 비면(인계 완료) 연출기가 대기 물건을 회수하게 알림
+        self.seed_set = seed if isinstance(seed, str) and seed in SEED_SETS else "default"   # 처음 보관함 물건 묶음(초기화해도 같은 묶음)
         if seed:
             self.seed()
 
@@ -342,7 +351,7 @@ class SimWorld:
         """보관함에 미리 있는 물건(본센터 직접 접수 H-…) — 실제 구매 목록(구매요구서_2조_AgentOps_최종, 11/3) 기준 5개(11/7, 칸 8개).
         디스코드로 신고해 볼 물건(검정 카드지갑·목업폰 블랙·핸드크림)은 일부러 비워 둔다(11/9 품목 4종 고정 — USB·립밤 뺌).
         같은 제품 2개(보조배터리 스피디)를 넣어 '닮은 물건 → 직원 확인' 장면이 실제처럼 나오게 한다. 색·글자는 SEED_ITEMS 주석 참고."""
-        for _, text in SEED_ITEMS:
+        for _, text in SEED_SETS[self.seed_set]:
             row = self.create({"machine_id": "CENTER", "place_id": None, "place_text": "본센터 접수(시연)",
                                "finder": None, "photo_path": None})
             q = sim_qwen(text)
@@ -520,7 +529,7 @@ class SimWorld:
 
     def free_slot(self, category: str | None = None, item_id: str | None = None, res: dict | None = None) -> int | None:
         """빈 칸 고르기(보관함 정답지 recommend_slot 과 같은 규칙, 11/9): 그 품목을 받는 행(또는 제한 없는 행)의 빈 칸 중
-        로봇에 가까운 칸(1번 줄)부터. 품목이 다른 열(R1 휴대폰 · R2 지갑 · R3 보조배터리 · R4 핸드크림·USB)은 섞지 않는다 → 맞는 칸이 없으면 None(칸 대기·선반).
+        로봇에 가까운 칸(1번 줄)부터. 품목이 다른 열(R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑)은 섞지 않는다 → 맞는 칸이 없으면 None(칸 대기·선반).
         품목을 모르면(시연 부품) 아무 빈 칸. 정답지가 이미 예약한 칸(반환 중·보류 물건의 원래 칸)은 비어 보여도 쓰지 않는다"""
         used = self._taken(item_id, self._reserved() if res is None else res)
         free = sorted((i for i in range(len(SLOTS_MM)) if i not in used),
