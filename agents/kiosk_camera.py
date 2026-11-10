@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import threading
+import weakref
 import time
 
 IDLE_CLOSE_S = 60.0
@@ -157,6 +158,14 @@ def is_dark(frame) -> bool:
         return False
 
 
+_ALL: "weakref.WeakSet" = weakref.WeakSet()        # 만들어진 카메라 묶음(관제탑을 끌 때 한꺼번에 놓으려고)
+
+
+def stop_all(timeout: float = 1.5) -> bool:
+    """열려 있는 서버 카메라를 모두 놓는다 → 모두 제때 멈췄는지(tools/run_tower.py · 관제탑 종료 때)"""
+    return all([c.stop(timeout) for c in list(_ALL)])
+
+
 class CameraFeed:
     """카메라 하나를 뒤에서 읽어 최신 JPEG 하나를 들고 있는다. 보는 사람이 없으면 닫는다"""
 
@@ -167,6 +176,7 @@ class CameraFeed:
         self._seen = 0.0
         self._thread: threading.Thread | None = None
         self._failed_at = None
+        self._stop = False            # 11/10 관제탑을 끌 때: 읽기를 멈추고 카메라를 놓는다(안 놓으면 Windows 에서 프로그램이 안 꺼질 수 있음)
         self.error = ""
         self.dark = False
         self.cropped = False          # 11/10 읽은 사진에 까만 띠가 있어 실제 영상만 잘라 보내는 중(카메라가 낮은 화질로 열림)
@@ -176,12 +186,24 @@ class CameraFeed:
         """누군가 보고 있음 → 없으면 읽기 시작"""
         with self._lock:
             self._seen = self._clock()
+            if self._stop:
+                return                                    # 끄는 중 — 다시 열지 않는다
             if self._thread is None or not self._thread.is_alive():
                 if self.error and self._failed_at is not None and self._clock() - self._failed_at < RETRY_S:
                     return                                # 방금 실패 — 잠깐 쉬었다가 다시 연다
                 self.error = ""
                 self._thread = threading.Thread(target=self._run, daemon=True, name=f"kiosk-cam-{self.src}")
                 self._thread.start()
+
+    def stop(self, timeout: float = 1.5) -> bool:
+        """읽기를 멈추고 카메라를 놓는다 → 제때 멈췄는지. 관제탑을 끌 때 부른다"""
+        with self._lock:
+            self._stop = True
+            t = self._thread
+        if t is not None and t.is_alive():
+            t.join(timeout)
+            return not t.is_alive()
+        return True
 
     def latest(self) -> bytes | None:
         with self._lock:
@@ -200,7 +222,7 @@ class CameraFeed:
                 self._fail("카메라를 열 수 없음(번호·USB 연결·다른 프로그램 사용 중 확인 — python tools/list_cameras.py)")
                 return
             fails, dark_run, reopened = 0, 0, False
-            while self._clock() - self._seen < IDLE_CLOSE_S:
+            while not self._stop and self._clock() - self._seen < IDLE_CLOSE_S:
                 ok, frame = cap.read()
                 if not ok or frame is None:
                     fails += 1
@@ -244,6 +266,10 @@ class KioskCameras:
     def __init__(self, config: dict | None = None, opener=_open):
         self.config = parse_config(os.environ.get("TOWER_KIOSK_CAMERAS")) if config is None else config
         self._feeds = {name: CameraFeed(src, opener) for name, src in self.config.items()}
+        _ALL.add(self)
+
+    def stop(self, timeout: float = 1.5) -> bool:
+        return all([f.stop(timeout) for f in self._feeds.values()])
 
     def feed(self, machine: str) -> CameraFeed | None:
         return self._feeds.get(machine)
@@ -262,6 +288,10 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
     from fastapi import HTTPException
     from fastapi.responses import Response, StreamingResponse
     cams = cameras or KioskCameras()
+    try:                                                  # 11/10 관제탑이 꺼질 때 카메라를 놓는다(Windows 에서 안 꺼지던 것 예방)
+        app.add_event_handler("shutdown", lambda: cams.stop(1.5))
+    except Exception:
+        pass
 
     def get(machine: str) -> CameraFeed:
         f = cams.feed(machine)
