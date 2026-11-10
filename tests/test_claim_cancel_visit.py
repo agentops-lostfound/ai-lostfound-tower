@@ -114,6 +114,22 @@ class UnknownPlaceTest(unittest.TestCase):
         self.assertNotIn("모름역", story["title"])
 
 
+class StartupReseedTest(unittest.TestCase):
+    """11/10 실물 연결 모드(김건태 원격 티칭)는 화면의 [가상 세계 초기화]를 막는다. 그래도 관제탑이 켜질 때 팀 DB 와 번호를 맞추는
+    다시 채우기(startup=True)는 되어야 한다 — 안 되면 처음 물건 번호가 진짜 접수와 겹친 채 남고, 찾기 요청이 진짜 물건에 걸린다"""
+
+    def test_startup_reseed_allowed_but_button_blocked(self):
+        svc, d = make()
+        svc.taught_robot = True
+        with self.assertRaises(Conflict):
+            d.reset()
+        first = list(svc.world.items)
+        d.reset(startup=True)
+        (row,) = svc.world.items.values()
+        self.assertNotEqual(list(svc.world.items), first)                   # 번호가 이어져 새 번호를 받음
+        self.assertEqual((row["machine_id"], svc.world.slot_id_of(row["item_id"])), ("KIOSK-A", "R3-1"))
+
+
 class LostStationTest(unittest.TestCase):
     """11/10 본센터(부산역) 키오스크에서 주운 물건: 챗봇 분실 접수의 역 선택지가 서면·해운대뿐이라 "부산역"이라고 답할 길이 없었다"""
 
