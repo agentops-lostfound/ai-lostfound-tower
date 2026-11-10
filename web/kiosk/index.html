@@ -132,6 +132,10 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .phases li.done{color:var(--ui-text-2)}
 .phases li.now{background:var(--ui-primary);color:var(--ui-on-primary)}
 .hint{font-size:19px;color:var(--ui-text-2);margin:-4px 0 0}
+/* 11/10 자동 촬영이 안 될 때의 손잡이: 지금 찍기 · 빈 상자 다시 확인(작게, 눈에 덜 띄게) */
+.camhelp{display:flex;gap:10px;flex-wrap:wrap}
+.camhelp button{flex:1 1 0;min-width:0;font-size:18px;padding:12px 10px;min-height:52px}
+.camhelp button:disabled{opacity:.45}
 .hint b{color:var(--ui-text)}
 .status.again{background:var(--ui-warn-soft);color:var(--ui-warn)}
 .status.shot{background:var(--ui-primary-soft);color:var(--ui-primary)}
@@ -344,10 +348,14 @@ body.demo-mode #stn{flex:1 1 auto}
           </div>
         </div>
         <ol class="phases" id="phases" aria-hidden="true">
-          <li data-p="place">놓기</li><li data-p="hand">손 빼기</li><li data-p="count">3·2·1</li><li data-p="shot">찰칵</li>
+          <li data-p="place">놓기</li><li data-p="hand">손 빼기</li><li data-p="count">5초 세기</li><li data-p="shot">찰칵</li>
         </ol>
         <p class="status wait" id="camStatus" role="status" aria-live="polite">카메라를 찾는 중…</p>
-        <p class="hint" id="camHint">물건이 움직이면 <b>처음부터 다시 3초</b> 세요</p>
+        <p class="hint" id="camHint">물건이 움직이면 <b>처음부터 다시 5초</b> 세요</p>
+        <div class="camhelp" id="camHelp">
+          <button class="ghost" type="button" id="shotNow">지금 찍기</button>
+          <button class="ghost" type="button" id="emptyAgain">빈 상자 다시 확인</button>
+        </div>
         <select id="camSel" hidden aria-label="카메라 고르기(직원용)"></select>
         <p class="note"><svg class="pic" viewBox="0 0 32 32" role="img"><title>주의</title><path d="M16 4L30 28H2z"/><path d="M16 13v7M16 24v.5"/></svg>현금·위험물은 역무실로</p>
       </div>
@@ -356,7 +364,7 @@ body.demo-mode #stn{flex:1 1 auto}
         <ol class="steps">
           <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>한 번에 한 개만</title><rect x="14" y="4" width="52" height="48" rx="4"/><rect class="p" x="30" y="19" width="20" height="18" rx="3"/></svg><span><span class="num">1</span>한 개만</span></li>
           <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>상자 가운데에</title><rect x="14" y="4" width="52" height="48" rx="4"/><path d="M40 8v40M18 28h44" stroke-dasharray="3 4" opacity=".5"/><rect class="p" x="32" y="21" width="16" height="14" rx="3"/></svg><span><span class="num">2</span>가운데에</span></li>
-          <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>손을 빼고 3초 기다리기</title><rect x="4" y="16" width="44" height="36" rx="4"/><rect x="18" y="31" width="16" height="12" rx="3"/><path class="p" d="M26 25V4M20 10l6-6 6 6"/><circle class="p" cx="64" cy="36" r="12"/><path class="p" d="M64 29v7l5 3"/></svg><span><span class="num">3</span>손 빼고 3초</span></li>
+          <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>손을 빼고 5초 기다리기</title><rect x="4" y="16" width="44" height="36" rx="4"/><rect x="18" y="31" width="16" height="12" rx="3"/><path class="p" d="M26 25V4M20 10l6-6 6 6"/><circle class="p" cx="64" cy="36" r="12"/><path class="p" d="M64 29v7l5 3"/></svg><span><span class="num">3</span>손 빼고 5초</span></li>
         </ol>
         <h3><svg class="pic" viewBox="0 0 24 24" aria-hidden="true"><path class="p" d="M12 20V4M5 11l7-7 7 7"/></svg>눕혀서, 이 면이 위로</h3>
         <div class="cards">
@@ -473,16 +481,29 @@ function go(n) {
   sections.forEach((s, i) => s.classList.toggle('on', curTab === 'found' && i === n - 1));
   dots.forEach((d, i) => d.classList.toggle('on', i < n));
 }
-// ---- 11/6 자동 촬영: 상자 안 카메라 화면이 "비어 있을 때"와 달라지고(물건 들어옴) 3초 동안 멈춰 있으면 찍는다 ----
+// ---- 11/6 자동 촬영: 상자 안 카메라 화면이 "비어 있을 때"와 달라지고(물건 들어옴) 5초 동안 멈춰 있으면 찍는다 ----
 // 작은 흑백 화면(64x48)만 비교하므로 사진·영상은 저장하지 않는다. 기준값은 AUTO 객체에서 조절
-// 11/8: 2초 → 3초(stillMs), 진행을 화면에 보여 줌 — 놓기 → 손 빼기 → 3·2·1 원 → 찰칵(번쩍임). 세는 중에 움직이면 처음부터 다시 셈(againMs 동안 알림)
+// 11/10: 3초 → 5초(stillMs, 사용자 결정 — 손을 빼고 물건이 자리 잡을 시간). 11/8: 2초 → 3초, 진행을 화면에 보여 줌 — 놓기 → 손 빼기 → 3·2·1 원 → 찰칵(번쩍임). 세는 중에 움직이면 처음부터 다시 셈(againMs 동안 알림)
 // 11/10: 밝은 바닥 위의 작고 밝은 물건(핸드크림)은 화면 전체 평균으로는 차이가 거의 없어(2 안팎, 기준 14) 못 잡았다 →
 //        색 차이가 pix 넘는 '뭉친' 픽셀이 화면의 area 이상이면 물건으로 본다(휴대폰처럼 큰 변화는 예전 기준 changed 로도 잡힘)
 // 11/10 오후(은박 바닥): 포토박스 안쪽 은박은 화면마다 반짝임이 달라 픽셀이 많이 흔들린다(교육원에서 잰 값: 화면 한 장끼리 상위 5% 픽셀 차 27,
 //        네 장 평균끼리는 14). 그래서 최근 avgN 장을 평균한 화면으로 견주고, 픽셀 기준(pix)은 지금 잡음(평균 화면끼리 상위 5% 차)의 noiseK 배 아래로 내려가지 않게 한다
-const AUTO = {w: 64, h: 48, every: 250, changed: 14, moving: 6, stillMs: 3000, emptyMs: 3000, againMs: 1500, shotMs: 600,
-              pix: 22, area: 0.012, avgN: 4, noiseK: 1.5};
+const AUTO = {w: 64, h: 48, every: 250, changed: 14, moving: 6, stillMs: 5000, emptyMs: 3000, againMs: 1500, shotMs: 600,
+              pix: 22, area: 0.012, avgN: 4, noiseK: 1.5, refMax: 0.45};   // refMax: 기억한 빈 상자와 이만큼(넓이 비율) 넘게 다르면 기억을 버림
 let probe = null, empty = null, trueEmpty = null, lastSmall = null, stillSince = 0, emptySince = 0, autoTimer = null;
+// 11/10 빈 상자 기억(이 브라우저·이 기계·이 카메라 방식): 물건을 둔 채 화면을 새로 열어도 찍히게. 가상 카메라(시연 모드)는 쓰지 않는다
+const EMPTY_KEY = 'kioskEmptyRef:' + (kiosk || '') + ':' + (new URLSearchParams(location.search).get('cam') || 'browser');
+let savedEmpty = null, adoptAsIs = false, shotSince = false;      // 기억한 빈 상자 · 접수 직후(지금 모습을 그대로 기준으로) · 기준을 잡은 뒤 찍은 적 있음
+function loadEmpty() { if (DEMO) return null; try { return unpackFrame(localStorage.getItem(EMPTY_KEY), AUTO.w, AUTO.h); } catch (e) { return null; } }
+function saveEmpty(f) { if (DEMO) return; savedEmpty = f; try { localStorage.setItem(EMPTY_KEY, packFrame(f)); } catch (e) {} }
+function dropEmpty() { savedEmpty = null; try { localStorage.removeItem(EMPTY_KEY); } catch (e) {} }
+function adopt(cur) {            // 기준(빈 상자) 정하기 — 처음 켰을 때와 접수 직후
+  const how = adoptAsIs ? 'cur' : startBase(cur, savedEmpty, AUTO);
+  if (how === 'drop') dropEmpty();
+  if (how === 'ref') { empty = savedEmpty; trueEmpty = savedEmpty; }
+  else { empty = cur; trueEmpty = trueEmpty || cur; }
+  adoptAsIs = false; stillSince = 0; waitSince = 0;
+}
 let waitSince = 0; const noiseHist = [];   // 11/8 잡음 수준(흔들림 최솟값)과 기준 잡기 시작 시각
 let againUntil = 0, phase = '', shooting = false;
 const rgbHist = [], avgHist = [], pixNoise = [];   // 11/10 최근 색 화면 · 그 평균 화면 · 잡음 수준(평균 화면끼리 상위 5% 픽셀 차)
@@ -563,6 +584,40 @@ function hasItem(cur, base, o) {
   const a = cur.avg || cur.rgb, b = base.avg || base.rgb;
   return !!(a && b) && changedArea(a, b, o.w, o.h, o.pixNow || o.pix) >= o.area;
 }
+// 11/10 빈 상자 기억: 화면(흑백 + 색)을 글자(base64)로 바꿔 브라우저에 저장했다가 다시 화면 모양으로 되돌린다
+function packFrame(f) {
+  const rgb = f.avg || f.rgb; if (!rgb) return '';
+  const bytes = new Uint8Array(f.length + rgb.length);
+  for (let i = 0; i < f.length; i++) bytes[i] = Math.max(0, Math.min(255, Math.round(f[i])));
+  for (let i = 0; i < rgb.length; i++) bytes[f.length + i] = Math.max(0, Math.min(255, Math.round(rgb[i])));
+  let t = ''; for (let i = 0; i < bytes.length; i += 4096) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 4096));
+  return btoa(t);
+}
+function unpackFrame(text, w, h) {
+  try {
+    const t = atob(text || ''), n = w * h;
+    if (t.length !== n * 4) return null;                 // 흑백 n + 색 3n — 크기가 다르면 옛 형식·깨진 값
+    const g = new Float32Array(n), rgb = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) g[i] = t.charCodeAt(i);
+    for (let i = 0; i < n * 3; i++) rgb[i] = t.charCodeAt(n + i);
+    g.rgb = rgb; return g;
+  } catch (e) { return null; }
+}
+// 카메라를 켰을 때 무엇을 '빈 상자'로 삼을까. ref = 예전에 기억해 둔 빈 상자(없으면 null)
+//   'cur'  지금 화면을 빈 상자로(기억이 없거나, 지금 화면이 기억과 같음 = 정말 비어 있음)
+//   'ref'  기억해 둔 빈 상자를 쓴다 — 지금 화면에 물건이 이미 들어 있다(물건을 둔 채 새로고침해도 찍히게)
+//   'drop' 기억이 지금 상자와 너무 다르다(배경지를 바꿈·카메라를 옮김) → 기억을 버리고 지금 화면으로
+function startBase(cur, ref, o) {
+  if (!ref) return 'cur';
+  const a = cur.avg || cur.rgb, b = ref.avg || ref.rgb;
+  if (a && b) {
+    // 바닥 색·밝기 자체가 달라졌나: 색마다 밝기 비율이 크게 어긋나거나(흰 → 주황) 전체가 크게 어두워/밝아짐(흰 → 검정)
+    const g = lightGain(a, b), lo = Math.min(g[0], g[1], g[2]), hi = Math.max(g[0], g[1], g[2]);
+    if (hi / Math.max(lo, 0.01) > 1.35 || lo < 0.55 || hi > 1.8) return 'drop';
+    if (changedArea(a, b, o.w, o.h, o.pixNow || o.pix) > o.refMax) return 'drop';      // 화면의 절반 가까이가 다르다
+  }
+  return hasItem(cur, ref, o) ? 'ref' : 'cur';
+}
 // ---- detect:end ----
 function camSay(text, cls) { $('#camStatus').textContent = text; $('#camStatus').className = 'status ' + cls; }
 function setPhase(p) {          // 무대 테두리 색·3·2·1 원·단계 띠(1 놓기 2 손 빼기 3 3·2·1 4 찰칵)
@@ -593,12 +648,16 @@ function tick() {
   const MOVE = Math.min(AUTO.moving * 3, Math.max(AUTO.moving, noise * 1.6 + 1));
   if (!empty) {                                   // 시작: 빈 상자가 1초 멈춰 있으면 기준으로 삼는다
     if (!waitSince) waitSince = now;
-    if (moving < MOVE) { if (!stillSince) stillSince = now; if (now - stillSince > 1000) { empty = cur; trueEmpty = trueEmpty || cur; stillSince = 0; waitSince = 0; } }
+    if (moving < MOVE) { if (!stillSince) stillSince = now; if (now - stillSince > 1000) adopt(cur); }
     else stillSince = 0;
-    if (!empty && now - waitSince > 6000 && noise >= AUTO.moving * 0.8) { empty = cur; trueEmpty = trueEmpty || cur; stillSince = 0; waitSince = 0; }   // 6초 넘게 못 잡으면 지금 화면을 기준으로
+    if (!empty && now - waitSince > 6000 && noise >= AUTO.moving * 0.8) adopt(cur);   // 6초 넘게 못 잡으면 지금 화면을 기준으로
     if (!empty) { setPhase('wait'); camSay('상자를 확인하는 중…', 'wait'); return; }
   }
-  if (trueEmpty && empty !== trueEmpty && !hasItem(cur, trueEmpty, AUTO)) empty = cur;   // 상자를 비웠으면 빈 상자를 기준으로
+  if (trueEmpty && empty !== trueEmpty && !hasItem(cur, trueEmpty, AUTO)) {              // 상자를 비웠으면 빈 상자를 기준으로
+    empty = cur;
+    // 물건을 찍은 뒤 처음 모습으로 돌아왔다 = 처음 모습이 정말 빈 상자였다 → 이때만 기억해 둔다(물건이 든 모습을 빈 상자로 기억하지 않게)
+    if (shotSince) { shotSince = false; saveEmpty(cur); }
+  }
   if (!hasItem(cur, empty, AUTO)) {                // 비어 있음: 조명 변화는 천천히 기준에 반영
     stillSince = 0; againUntil = 0;
     if (moving < MOVE) { if (!emptySince) emptySince = now; if (now - emptySince > AUTO.emptyMs) empty = cur; }
@@ -608,7 +667,7 @@ function tick() {
   if (moving >= MOVE) {
     if (stillSince && now - stillSince > AUTO.every) againUntil = now + AUTO.againMs;   // 세던 중에 움직임 → 처음부터 다시
     stillSince = 0; setPhase('hand');
-    if (now < againUntil) camSay('움직였어요 · 처음부터 다시 3초 셀게요', 'again');
+    if (now < againUntil) camSay(`움직였어요 · 처음부터 다시 ${AUTO.stillMs / 1000}초 셀게요`, 'again');
     else camSay('물건 감지됨 · 손을 빼 주세요', 'move');
     return;
   }
@@ -624,7 +683,7 @@ function tick() {
 function capture() {
   const v = $('#cam');
   if (!(stream && v.videoWidth)) return;
-  shooting = true; setPhase('shot'); camSay('찰칵! 찍었어요', 'shot');
+  shooting = true; shotSince = true; setPhase('shot'); camSay('찰칵! 찍었어요', 'shot');
   const c = $('#cv'); c.width = v.videoWidth; c.height = v.videoHeight;
   c.getContext('2d').drawImage(v, 0, 0);
   const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
@@ -844,6 +903,13 @@ function gotPhoto(blob) {     // 찍힌 사진(실제 카메라·시연 모드 �
   stopCam(); loadPlaces(); go(2);
 }
 $('#retake').onclick = () => { go(1); startCam(); };
+// 11/10 자동 촬영이 안 될 때: [지금 찍기] = 감지와 상관없이 지금 화면을 찍는다 · [빈 상자 다시 확인] = 기억을 지우고 지금 상자를 빈 상자로 다시 잡는다
+$('#shotNow').onclick = () => { if (step === 1 && stream && !shooting && $('#cam').videoWidth) capture(); };
+$('#emptyAgain').onclick = () => {
+  dropEmpty(); empty = null; trueEmpty = null; adoptAsIs = true; shotSince = false; stillSince = 0; waitSince = 0;
+  camSay('상자를 비워 주세요 · 빈 상자를 다시 확인해요', 'wait');
+};
+savedEmpty = loadEmpty();
 $('#back2').onclick = () => { go(1); startCam(); };          // 11/9 이전: 장소 화면 → 다시 찍기
 $('#back3').onclick = () => { $('#err').classList.remove('on'); go(2); };   // 11/9 이전: 연락처 화면 → 장소 고르기(입력한 장소는 그대로)
 $('#copyNo').onclick = async () => {                      // 11/9 접수 번호 복사(복사가 막힌 기기면 번호를 선택해 둠)
@@ -935,7 +1001,7 @@ function done(no) {
 }
 function reset() {
   clearInterval(timer); idleHide();
-  empty = null;          // 접수한 물건이 상자에 남아 있어도 다시 찍지 않게: 지금 상자 모습을 새 기준으로(빈 상자로 돌아가면 위에서 처리)
+  empty = null; adoptAsIs = true;   // 접수한 물건이 상자에 남아 있어도 다시 찍지 않게: 지금 상자 모습을 새 기준으로(빈 상자로 돌아가면 위에서 처리)
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photo = null; photoUrl = ''; place = ''; $('#place').value = ''; $('#next2').disabled = true;
   $('#cname').value = ''; $('#cphone').value = '';      // 연락처 화면에서 떠난 사람의 이름·번호가 다음 사람에게 보이지 않게
