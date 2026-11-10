@@ -301,16 +301,16 @@ class ApiTest(unittest.TestCase):
 class PageContractTest(unittest.TestCase):
     def test_showcase_page(self):
         html = (ROOT / "web" / "showcase" / "index.html").read_text(encoding="utf-8")
-        for needle in ("/api/admin/live/state?after=${seq}&detail=1", "/kiosk?machine=${machine}", '"/kiosk?machine=CENTER"',
-                       '$("fLost").src = "/phone"', '$("full").src = "/live"', 'getElementById("tabRet")', "/ui/theme.css",
+        for needle in ("/api/admin/live/state?after=${seq}&detail=1", "/kiosk?machine=${machine}", '"/kiosk?machine=CENTER&tab=ret&demo=1"',
+                       '$("fLost").src = "/phone"', '$("full").src = "/live"', "/ui/theme.css",
                        "data-theme-slot", "prefers-reduced-motion"):
             self.assertIn(needle, html)
         self.assertNotIn("innerHTML = e.", html)                # 사건 글자는 esc() 를 거쳐 넣는다
         self.assertIsNone(re.search(r"\.(body|note|value|text)\}<", html))
 
     def test_removed_pages_and_admin_tab(self):
-        self.assertFalse((ROOT / "web" / "lost-finder").exists())
-        self.assertFalse((ROOT / "web" / "archive").exists())
+        for gone in ("lost-finder", "archive", "intake"):          # 11/10 정리한 옛 화면 폴더(주소 /intake 는 /kiosk 로 넘김)
+            self.assertFalse((ROOT / "web" / gone).exists(), gone)
         admin = (ROOT / "web" / "admin" / "index.html").read_text(encoding="utf-8")
         self.assertIn("storage: '/storage'}", admin)
 

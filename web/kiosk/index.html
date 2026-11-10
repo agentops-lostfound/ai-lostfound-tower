@@ -478,11 +478,14 @@ function go(n) {
 // 11/8: 2초 → 3초(stillMs), 진행을 화면에 보여 줌 — 놓기 → 손 빼기 → 3·2·1 원 → 찰칵(번쩍임). 세는 중에 움직이면 처음부터 다시 셈(againMs 동안 알림)
 // 11/10: 밝은 바닥 위의 작고 밝은 물건(핸드크림)은 화면 전체 평균으로는 차이가 거의 없어(2 안팎, 기준 14) 못 잡았다 →
 //        색 차이가 pix 넘는 '뭉친' 픽셀이 화면의 area 이상이면 물건으로 본다(휴대폰처럼 큰 변화는 예전 기준 changed 로도 잡힘)
+// 11/10 오후(은박 바닥): 포토박스 안쪽 은박은 화면마다 반짝임이 달라 픽셀이 많이 흔들린다(교육원에서 잰 값: 화면 한 장끼리 상위 5% 픽셀 차 27,
+//        네 장 평균끼리는 14). 그래서 최근 avgN 장을 평균한 화면으로 견주고, 픽셀 기준(pix)은 지금 잡음(평균 화면끼리 상위 5% 차)의 noiseK 배 아래로 내려가지 않게 한다
 const AUTO = {w: 64, h: 48, every: 250, changed: 14, moving: 6, stillMs: 3000, emptyMs: 3000, againMs: 1500, shotMs: 600,
-              pix: 30, area: 0.014};
+              pix: 22, area: 0.012, avgN: 4, noiseK: 1.5};
 let probe = null, empty = null, trueEmpty = null, lastSmall = null, stillSince = 0, emptySince = 0, autoTimer = null;
 let waitSince = 0; const noiseHist = [];   // 11/8 잡음 수준(흔들림 최솟값)과 기준 잡기 시작 시각
 let againUntil = 0, phase = '', shooting = false;
+const rgbHist = [], avgHist = [], pixNoise = [];   // 11/10 최근 색 화면 · 그 평균 화면 · 잡음 수준(평균 화면끼리 상위 5% 픽셀 차)
 const PHASES = ['place', 'hand', 'count', 'shot'];
 function small() {
   const v = $('#cam'); if (!v.videoWidth) return null;
@@ -535,10 +538,30 @@ function changedArea(a, b, w, h, pix) {
   }
   return cnt / n;
 }
-// 기준 화면(빈 상자)과 견주어 물건이 있는가: 큰 변화(예전 기준) 또는 작지만 뭉친 색 변화(11/10)
+// 11/10 여러 장의 평균 화면(반짝임·센서 잡음을 줄임)
+function meanFrames(list) {
+  const n = list.length, out = new Float32Array(list[0].length);
+  for (const f of list) for (let i = 0; i < out.length; i++) out[i] += f[i] / n;
+  return out;
+}
+// 11/10 잡음 수준: 조명을 맞춘 두 화면의 픽셀 색 차이 가운데 위에서 5% 자리 값
+function pixP95(a, b) {
+  const g = lightGain(a, b), n = a.length / 3, d = new Float32Array(n);
+  for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) d[i] += Math.abs(a[i*3+c] - Math.min(255, b[i*3+c] * g[c]));
+  d.sort();
+  return d[Math.floor(n * 0.95)];
+}
+// 지금 쓸 픽셀 기준: 기본값과 '잡음의 noiseK 배' 중 큰 쪽(잡음 기록이 6개 모이기 전에는 기본값)
+function pixLimit(noises, o) {
+  if (noises.length < 6) return o.pix;
+  const s = noises.slice().sort((x, y) => x - y);
+  return Math.max(o.pix, s[s.length >> 1] * o.noiseK);
+}
+// 기준 화면(빈 상자)과 견주어 물건이 있는가: 큰 변화(예전 기준) 또는 작지만 뭉친 색 변화(11/10). 평균 화면(avg)이 있으면 그것으로 견준다
 function hasItem(cur, base, o) {
   if (diff(cur, base) >= o.changed) return true;
-  return !!(cur.rgb && base.rgb) && changedArea(cur.rgb, base.rgb, o.w, o.h, o.pix) >= o.area;
+  const a = cur.avg || cur.rgb, b = base.avg || base.rgb;
+  return !!(a && b) && changedArea(a, b, o.w, o.h, o.pixNow || o.pix) >= o.area;
 }
 // ---- detect:end ----
 function camSay(text, cls) { $('#camStatus').textContent = text; $('#camStatus').className = 'status ' + cls; }
@@ -555,6 +578,14 @@ function tick() {
   if (step !== 1 || !stream || shooting) return;
   const now = Date.now(), cur = small(); if (!cur) return;
   const moving = lastSmall ? diff(cur, lastSmall) : 99; lastSmall = cur;
+  // 11/10 최근 avgN 장 평균 화면으로 물건을 판단(은박 바닥 반짝임 대응) + 잡음 수준에 맞춘 픽셀 기준
+  rgbHist.push(cur.rgb); if (rgbHist.length > AUTO.avgN) rgbHist.shift();
+  cur.avg = meanFrames(rgbHist);
+  avgHist.push(cur.avg); if (avgHist.length > AUTO.avgN + 1) avgHist.shift();
+  if (avgHist.length > AUTO.avgN && moving < AUTO.moving * 3) {     // 겹치지 않는 두 평균 화면(avgN 번 전과 지금)의 차이 = 잡음
+    pixNoise.push(pixP95(cur.avg, avgHist[0])); if (pixNoise.length > 12) pixNoise.shift();
+  }
+  AUTO.pixNow = pixLimit(pixNoise, AUTO);
   // 11/8: 조명 깜박임·카메라 잡음으로 화면이 늘 조금 흔들리면 '멈춤'이 안 나와 영영 확인 중이던 것 →
   // 최근 3초(12번)의 흔들림 중앙값을 잡음 수준으로 보고 멈춤 기준을 그 위로 올린다(최대 3배)
   noiseHist.push(moving); if (noiseHist.length > 12) noiseHist.shift();
@@ -951,7 +982,10 @@ $('#rsend').onclick = async () => {
 };
 $('#rstop').onclick = () => { fetch(API + '/api/robot/stop', {method:'POST'}).catch(() => {}); };   // 항상 열려 있는 정지
 $('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rcheck(); rshow('rform'); tab('found'); };
-startCam();
+// 11/10 주소 ?tab=ret(회수)·lost(분실접수): 처음부터 그 탭으로 연다(통합 시연 화면의 회수 장면). 습득 탭이 아니면 카메라를 켜지 않는다
+// — 본센터 키오스크가 웹캠을 잡아 해운대역 키오스크의 PC 카메라와 다투던 문제(11/10)
+const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')];
+if (START_TAB) tab(START_TAB); else startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
 <script src="/chat-widget/widget.js" data-mode="kiosk" defer></script>

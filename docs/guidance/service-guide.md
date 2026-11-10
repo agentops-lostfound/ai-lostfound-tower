@@ -1,7 +1,7 @@
 # 분실물 서비스 안내 근거 (챗봇 전용, 11/6 기준)
 
 이 문서는 AI 챗봇(`agents/guidance.py`)이 답할 때 근거로 쓰는 문장 모음이다. 문장을 바꾸면 `docs/guidance/knowledge.json` 의 근거(evidence)와 `APPROVED_CORPUS_SHA256` 을 함께 고쳐야 챗봇이 켜진다.
-출처: `web/README.md` 2·3절(11/5 칠판 정리), `web/intake/README.md`(습득 신고 화면), `agents/contracts.py`(운영 품목 5종 ACTIVE_CATEGORIES, 11/9 립밤 제외). 운영시간·보관기간 등 운영값은 11/6 "시연 운영 기준"(아래 절, 확정 변재원)으로 정했다 — 프로젝트 시연용이며 실제 기관 안내가 아니다.
+출처: `web/README.md` 2·3절(11/5 칠판 정리), 키오스크 습득 탭(`web/kiosk/`, 옛 `web/intake/` 화면은 11/10 키오스크로 합쳐 삭제), `agents/contracts.py`(운영 품목 5종 ACTIVE_CATEGORIES, 11/9 립밤 제외). 운영시간·보관기간 등 운영값은 11/6 "시연 운영 기준"(아래 절, 확정 변재원)으로 정했다 — 프로젝트 시연용이며 실제 기관 안내가 아니다.
 
 ## 분실 확인과 물건 받기
 - 분실 확인은 모든 역 키오스크, 분실인 웹, 챗봇에서 할 수 있다.
