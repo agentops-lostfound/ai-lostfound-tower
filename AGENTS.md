@@ -69,6 +69,7 @@ python -m unittest discover -s tests
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`
 - DB 가 동작마다 어떻게 바뀌는지(키오스크 등록 → 회수·보관 → 분실 접수 → 방문·반환 → 인계 완료 · 취소, DBeaver 조회문): docs/design/db_change_flow.md
 - 잘못 들어간 접수 지우기(11/10, 되돌릴 수 없음): `python tools/purge_items.py A-20261110-0001..0007` (미리보기) → `--apply`. 찾기·반환·보관 칸에 걸린 물건은 지우지 않음
+- 지난 가상 시연 물건 정리(11/10, 되돌릴 수 없음): `python tools/purge_sim_items.py`(미리보기, 오늘 이전 가상 물건 `object_id='SIM'`과 딸린 찾기 요청·반환 기록) → `--apply`. 오늘 것까지는 관제탑을 끈 뒤 `--all`. 진짜 접수는 건드리지 않음
 - 로봇팔 ↔ DB 연결(탑뷰 없이 칸 번호 1~8 = pose_1~8, 가까운 줄 1·3·5·7 · 먼 줄 2·4·6·8): `.env` TOWER_ROBOT_TARGET=db · TOWER_ROBOT_PART=모듈:클래스, 읽기 `GET /api/admin/storage/robot-target/{물건번호}` — 안내 docs/contracts/robot_db_target.md
 - 회수 버튼 → 원격 티칭 로봇(11/10 #203·#202, 두 PC): 관제탑 `.env` 에 `TOWER_ROBOT_SEQUENCE=taught` · `TOWER_ROBOT_TARGET=db` · `TOWER_ROBOT_PART=robot.remote_client:RemoteTowerRobot` · `TOWER_REMOTE_ROBOT_URL` · `TOWER_REMOTE_ROBOT_TOKEN`(값은 공유하지 않음) — 넣으면 본센터 키오스크 회수와 [직원 확인 후 진행]이 **진짜 로봇을 움직이므로** 로봇 옆에서 정지 수단을 확인한 사람이 있을 때만. 비우면 기존 흐름. 안내 docs/handoff/2026-11-10-showcase-taught-robot.md
 - 키오스크 서버 카메라(태블릿은 화면만, 웹캠은 관제탑 PC): 번호 찾기 `python tools/list_cameras.py`(관제탑을 끈 상태에서, "영상이 보이는 번호") → `.env` TOWER_KIOSK_CAMERAS=KIOSK-A=번호(교육원 PC 웹캠 1대 = 0, 11/9 확인) → 태블릿 `/kiosk?machine=KIOSK-A&cam=server` — 안내 web/README.md 키오스크 카메라 설정
