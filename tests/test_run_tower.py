@@ -141,5 +141,16 @@ class BatTest(unittest.TestCase):
                 line.decode("ascii")
 
 
+class QwenSetupBatTest(unittest.TestCase):
+    def test_setup_qwen_bat_is_ascii_and_has_steps(self):
+        raw = (ROOT / "tools" / "setup_qwen.bat").read_bytes()
+        text = raw.decode("ascii")                           # 한글 Windows 의 cmd 가 깨뜨리지 않게 영문만
+        self.assertIn(b"\r\n", raw)
+        for needle in ("-m venv .venv-qwen", "pip install -r qwen\\requirements.txt", "scripts.check_environment --load-model",
+                       "tools\\intake_qwen_worker.py --check", "if exist .venv-qwen\\Scripts\\python.exe goto have_venv"):
+            self.assertIn(needle, text)
+        self.assertNotIn(".env ", text)                      # 비밀값 파일을 읽거나 출력하지 않는다
+
+
 if __name__ == "__main__":
     unittest.main()
