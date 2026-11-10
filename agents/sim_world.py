@@ -398,6 +398,27 @@ class SimWorld:
             self._touch()
             return {k: copy.deepcopy(v) for k, v in row.items() if k not in ("qwen", "private_features")}
 
+    def purge_item(self, item_id: str) -> dict | None:
+        """11/10 물건 기록 전체 삭제(직원, 로봇 작업대 화면): 어디에 있든(등록기계·보관 칸·선반·인계 완료) 그 물건을 지운다 → 지운 행.
+        로봇이 들고 있거나 반환 중인 물건은 지우지 않는다(None). 칸은 비게 된다. 번호는 다시 쓰지 않는다"""
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None or row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or self.arm.get("holding") == item_id:
+                return None
+            del self.items[item_id]
+            self.contacts.pop(item_id, None)
+            self.collecting.pop(item_id, None)
+            if item_id in self.wait_queue:
+                self.wait_queue.remove(item_id)
+            self._touch()
+            out = {k: copy.deepcopy(v) for k, v in row.items() if k not in ("qwen", "private_features")}
+        if self.on_freed is not None and row.get("loc") == LOC_BIN:      # 칸이 비었으니 칸 대기 물건이 있으면 이어서 회수
+            try:
+                self.on_freed()
+            except Exception:
+                pass
+        return out
+
     def set_features(self, item_id: str, feats: dict, qwen: dict | None = None) -> bool:
         cat, pub, priv = split_features(feats)
         with self._lock:

@@ -60,6 +60,14 @@ class MemoryRecorder:
             rows = list(self._rows.values())[-limit:]
             return [{k: v for k, v in r.items() if k != "steps"} for r in reversed(rows)]
 
+    def delete_for_item(self, item_id: str) -> list[str]:
+        """11/10 물건 기록 전체 삭제: 그 물건의 반환 기록(단계 포함)을 모두 지운다 → 지운 사례 번호"""
+        with self._lock:
+            gone = [k for k, r in self._rows.items() if r.get("item_id") == item_id]
+            for k in gone:
+                del self._rows[k]
+            return gone
+
 
 SQL_HAS = "SELECT 1 FROM return_case WHERE case_id = %s"
 SQL_INSERT_CASE = (

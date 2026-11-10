@@ -145,6 +145,14 @@ class MemoryClaimStore:
             if claim_id in self._rows:
                 self._rows[claim_id]["status"] = "visited"
 
+    def delete_for_item(self, item_id: str) -> list[str]:
+        """11/10 물건 기록 전체 삭제: 그 물건의 찾기 요청을 모두 지운다 → 지운 찾기 번호. 번호는 다시 쓰지 않는다(seq_floor 유지)"""
+        with self._lock:
+            gone = [k for k, r in self._rows.items() if r.get("item_id") == item_id]
+            for k in gone:
+                del self._rows[k]
+            return gone
+
 
 SQL_NEXT_SEQ = ("SELECT COALESCE(MAX(CAST(RIGHT(claim_id, 4) AS INTEGER)), 0) + 1 FROM claim "
                 "WHERE claim_id LIKE %s")

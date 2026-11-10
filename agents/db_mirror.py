@@ -255,6 +255,34 @@ class DbMirror:
             return True
         self._put("item 지움", run, item_id)
 
+    def item_purge(self, item_id: str) -> None:
+        """11/10 물건 기록 전체 삭제: 팀 DB 에서 그 물건에 딸린 행을 전부 지운다(찌꺼기 없이).
+        반환 단계 → 반환 기록 → 확인 질문·방문 예약·후보 → (남는 것이 없는) 찾기 요청 → 보관 칸·개수 확인·회수 묶음 → 연락처·상태 기록 → 물건.
+        한 번에(트랜잭션 하나로) 지운다 — 중간에 실패하면 아무것도 지워지지 않는다"""
+        def run(cur):
+            cur.execute("SELECT 1 FROM item WHERE item_id = %s", (item_id,))
+            if cur.fetchone() is None:
+                return False
+            cur.execute("SELECT claim_id FROM claim_candidate WHERE item_id = %s UNION SELECT claim_id FROM quiz_attempt WHERE item_id = %s "
+                        "UNION SELECT claim_id FROM reservation WHERE item_id = %s UNION SELECT claim_id FROM return_case WHERE item_id = %s "
+                        "AND claim_id IS NOT NULL", (item_id,) * 4)
+            claims = [r[0] for r in cur.fetchall()]
+            cur.execute("DELETE FROM return_step WHERE case_id IN (SELECT case_id FROM return_case WHERE item_id = %s)", (item_id,))
+            cur.execute("DELETE FROM return_case WHERE item_id = %s", (item_id,))
+            for table in ("quiz_attempt", "reservation", "claim_candidate"):          # 표 이름은 이 고정 목록뿐
+                cur.execute(f"DELETE FROM {table} WHERE item_id = %s", (item_id,))
+            if claims:                                   # 이 물건만 가리키던 찾기 요청은 함께 지운다(다른 물건 후보가 남은 요청은 둔다)
+                cur.execute("DELETE FROM claim c WHERE c.claim_id = ANY(%s) "
+                            "AND NOT EXISTS (SELECT 1 FROM claim_candidate x WHERE x.claim_id = c.claim_id) "
+                            "AND NOT EXISTS (SELECT 1 FROM quiz_attempt x WHERE x.claim_id = c.claim_id) "
+                            "AND NOT EXISTS (SELECT 1 FROM reservation x WHERE x.claim_id = c.claim_id) "
+                            "AND NOT EXISTS (SELECT 1 FROM return_case x WHERE x.claim_id = c.claim_id)", (claims,))
+            for table in ("storage_assignment", "inventory_check", "collection_item", "finder_contact", "item_status_log"):
+                cur.execute(f"DELETE FROM {table} WHERE item_id = %s", (item_id,))
+            cur.execute("DELETE FROM item WHERE item_id = %s", (item_id,))
+            return True
+        self._put("item 전체 삭제", run, item_id)
+
     def item_features(self, item_id: str, category: str, pub: dict, priv: dict) -> None:
         args = (_cut(category or "확인 불가", 16), json.dumps(pub, ensure_ascii=False), json.dumps(priv, ensure_ascii=False), item_id)
         self._put("item 특징", lambda cur: cur.execute(SQL_FEATURES, args) and None, item_id)
@@ -389,6 +417,8 @@ def attach(svc, mirror: DbMirror):
 
     # 11/10 접수 취소: 가상 세계에서 지운 물건은 팀 DB 에서도 지운다
     after(world, "delete_item", lambda out, pre, item_id, *a, **k: mirror.item_delete(item_id) if out is not None else None)
+    # 11/10 물건 기록 전체 삭제(로봇 작업대 화면의 [기록 삭제])
+    after(world, "purge_item", lambda out, pre, item_id, *a, **k: mirror.item_purge(item_id) if out is not None else None)
     # 접수: 번호를 팀 DB 와 맞춘 뒤 원래 접수 → 팀 DB 에도 저장. 사진이 있으면 키오스크의 진짜 접수(표시 없음), 없으면 가상 물건
     after(world, "create",
           lambda row, _pre, intake, today=None: mirror.item_new(
