@@ -228,6 +228,14 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """등록기계 화면: 습득물 접수 → 접수 번호. 본문: machine_id, place_text(필수), place_id(추천 고른 경우),
         finder {name, phone}(둘 다 선택 — 비우면 저장 안 함), photo(선택, data:image/jpeg;base64,… 5MB 이하) 또는 photo_path.
         연락처는 응답에 나오지 않음"""
+        # 11/10 조작 화면은 하나(agents/kiosk_control.py): 사진 접수는 그 기계의 조작 화면에서 온 것만 받는다.
+        # 조작 화면이 없으면(아무도 안 열었거나 옛 화면만 있음) 예전처럼 받는다. client 는 화면 ID 라 저장하지 않는다
+        if isinstance(payload, dict):
+            client = payload.pop("client", None)
+            ctl = getattr(app.state, "kiosk_control", None)
+            owner = ctl.owner(str(payload.get("machine_id") or "")) if ctl is not None and payload.get("photo") else None
+            if owner is not None and client != owner:
+                raise HTTPException(status_code=409, detail="다른 화면에서 사용 중이에요. 그 화면에서 접수하거나, 이 화면에서 [여기서 조작하기]를 눌러 주세요")
         try:
             rec = svc.create_item(payload)
         except RequestError as e:
@@ -840,6 +848,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     try:
         from agents.kiosk_camera import add_camera_routes
         add_camera_routes(app)
+        from agents.kiosk_control import add_control_routes      # 11/10 같은 기계 화면을 여러 PC 에서 열어도 조작 화면은 하나
+        add_control_routes(app)
     except ImportError:          # 시험용 가짜 fastapi(응답 클래스 없음)에서는 건너뜀
         pass
     return app
