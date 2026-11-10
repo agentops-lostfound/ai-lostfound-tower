@@ -464,6 +464,6 @@ class LostWebApiTest(unittest.TestCase):
     def test_lost_page_contract(self):
         html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
         for needle in ("visit: 'kiosk'", "maskName(", "******-${$('#gender').value}******", "/sim/stories/",
-                       "data-chatbot-open", '<script src="/chat-widget/widget.js" defer></script>', "부산역 본센터"):
+                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261110b" defer></script>', "부산역 본센터"):
             self.assertIn(needle, html)
         self.assertNotIn("저장되거나 역무실로 전송되지 않습니다", html)        # 예전 데모 양식 문구 제거
