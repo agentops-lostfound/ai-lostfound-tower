@@ -23,11 +23,11 @@ MASK_RE = re.compile(r"^[^\s*]{1,8}\*{0,8}[^\s*]?$")
 ID_MASK_RE = re.compile(r"^\*{6}-[1-4]\*{6}$")
 
 START_LOST = re.compile(r"분실\s*(?:접수|신고)|잃어버린\s*물건\s*(?:접수|신고|등록)|찾기\s*(?:접수|신청|요청)|접수\s*해\s*주|신고\s*해\s*주|"
-                        r"(?:잃어버|잃었|분실)[^.?!]{0,12}(?:접수|신고|등록)")
+                        r"(?:잃어버|잃었|분실)[^?!]{0,16}(?:접수|신고|등록)")   # 11/9 채점표: "…잃어버렸어요. 신고할게요"처럼 문장이 나뉘어도
 START_FOUND = re.compile(r"습득\s*(?:신고|접수|등록)|주운\s*물건\s*(?:신고|접수|등록|맡기)|"
-                         r"(?:주웠|주운|주워|습득)[^.?!]{0,14}(?:신고|접수|등록|맡기|맡길|맡겨)")
+                         r"(?:주웠|주운|주워|습득)[^?!]{0,18}(?:신고|접수|등록|맡기|맡길|맡겨)")
 HOW_ASK = re.compile(r"어디|어떻게|방법|절차|나요\s*\??\s*$|까요\s*\??\s*$|[?？]\s*$")
-WANT = re.compile(r"싶|해\s*주|할게|하려고|해줘|부탁|접수하기|신고하기|시작")
+WANT = re.compile(r"싶|해\s*주|해\s*줄\s*(?:수|래)|할게|하려고|해줘|부탁|접수하기|신고하기|시작")
 LOST_SAY = re.compile(r"잃어버|잃었|잊어버|분실|두고\s*내|놓고\s*내")
 FOUND_SAY = re.compile(r"주웠|주운|주워|습득|발견했|떨어져\s*있|놓여\s*있")
 CANCEL = re.compile(r"^(?:취소|그만|접수\s*취소|안\s*할래|처음부터|됐어요?|괜찮아요)\s*[.!]*$")
@@ -101,6 +101,8 @@ class IntakeSessions:
 
 
 WAIT_RE = re.compile(r"\bL-\d{8}-\d{4}\b")
+# 11/9 채점표: "우산 분실 신고하고 싶어요"가 접수를 시작해 물건 종류를 다시 물었다 → 운영 4종 밖 물건 이름이면 바로 역무실 안내
+OTHER_ITEM = re.compile(r"우산|가방|백팩|배낭|이어폰|에어팟|노트북|태블릿|아이패드|안경|선글라스|교통카드|옷|외투|패딩|모자|목도리|장갑|책|서류|열쇠|키\s|시계|반지|목걸이|인형|텀블러")
 
 
 def detect_start(question: str) -> str | None:
@@ -151,7 +153,8 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
             out["place"] = re.sub(r"\s+", " ", pm.group(1)).strip()
     if want and UNKNOWN_SAY.match(t.strip()):
         out[want] = "없음" if want == "detail" and re.match(r"^(?:없어요|없음)", t.strip()) else "모름"
-    elif want in ("detail", "place") and want not in out and len(t.strip()) <= 30 and not LOST_SAY.search(t):
+    elif want in ("detail", "place") and not out and len(t.strip()) <= 30 and not LOST_SAY.search(t):
+        # 11/9 채점표: "아 오늘 아침이었어요"(때 고치기)가 특징 칸에도 통째로 들어갔다 → 이 말에서 다른 칸을 읽었으면 자유 답으로 쓰지 않음
         out[want] = t.strip().rstrip(".!요").strip() or "모름"
     return out
 
@@ -204,6 +207,11 @@ class IntakeAgent:
             kind = start or detect_start(question)
             if kind is None:
                 return self._out("intake_none", "", None, progress=False)
+            m = OTHER_ITEM.search(question or "")
+            if m and kind in ("lost", "found") and not extract(question, kind).get("category"):
+                where = "역무실에 맡겨 주세요" if kind == "found" else "역무실에 문의해 주세요"
+                return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — 지갑·휴대폰·핸드크림·보조배터리 "
+                                                  f"4가지만 접수해요. {where}.", None, done=True)
             s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True,
                  "version": 0}
             for said in [p for p in (prior or []) if isinstance(p, str)][-3:]:
@@ -230,6 +238,15 @@ class IntakeAgent:
                 s["stage"], s["slots"], s["asked"] = "collect", {k: v for k, v in s["slots"].items() if k == "category"}, None
                 self.sessions.put(sid, s)
                 return self._ask_next(sid, s, note="처음 물건 종류만 남기고 다시 물어볼게요.")
+        if not action and not s.get("fresh") and ((s["kind"] == "found" and LOST_SAY.search(q) and not FOUND_SAY.search(q))
+                                                   or (s["kind"] == "lost" and FOUND_SAY.search(q) and not LOST_SAY.search(q))):
+            # 11/9 채점표: 습득 신고 중 "저도 휴대폰 잃어버렸어요"가 주운 물건 종류를 휴대폰으로 바꿨다 → 다른 종류 이야기는 값으로 쓰지 않음
+            other = "분실 접수" if s["kind"] == "found" else "습득 신고"
+            self.sessions.put(sid, s)
+            out = self._ask_next(sid, s, progress=False)
+            out["answer"] = (f"지금은 {'습득 신고' if s['kind'] == 'found' else '분실 접수'} 중이에요. 이걸 먼저 끝내거나 '취소'한 뒤 "
+                             f"{other}를 따로 시작해 주세요. ") + out["answer"]
+            return out
         before = dict(s["slots"])
         self._fill(s, q, action)
         progressed = s["slots"] != before

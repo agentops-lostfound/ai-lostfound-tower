@@ -120,3 +120,37 @@ class PlacementAndArrivalTest(unittest.TestCase):
                         ("사진은 어떻게 올려?", ["site_help"])):
             with self.subTest(q=q):
                 self.assertEqual([s["topic"] for s in g.ask(q)["sources"]], want)
+
+
+class EvalGuidanceTopics1109Test(unittest.TestCase):
+    """11/9 질문 500개 채점표에서 문서를 못 고르던 안내 질문"""
+
+    @classmethod
+    def setUpClass(cls):
+        from agents.guidance import Guidance
+        cls.g = Guidance()
+
+    def topics(self, q):
+        return {s["topic"] for s in self.g.ask(q)["sources"]}
+
+    def test_new_patterns(self):
+        cases = {
+            "어떤 신분증이 인정돼요?": "id_document", "운전면허증으로도 되나요?": "id_document",
+            "찾기 번호 받은 다음엔 뭐 해요?": "center_pickup", "확인 질문에 틀리면 어떻게 돼요?": "center_pickup",
+            "친구한테 대신 찾아와 달라고 해도 되나요?": "proxy_pickup", "퀵으로 받을 수 있을까요?": "delivery",
+            "보관료 따로 받나요?": "fee", "방문 날짜를 바꾸고 싶어요": "reservation_change",
+            "주운 사람 연락처도 남겨야 하나요?": "found_report", "지갑은 펼쳐서 놓아야 해요?": "placement_guide",
+            "물건 두 개를 한 번에 넣어도 돼요?": "placement_guide", "사진은 언제 찍혀요?": "placement_guide",
+            "사진 파일로 대신 접수할 수 있어요?": "kiosk_camera", "이름이랑 주민번호는 저장돼요?": "masked_identity",
+            "지하철에 물건 두고 내렸는데 어떻게 찾아요?": "flow", "본쎈터 어디에요": "center_contact",
+            "챗봇으로도 분실 접수가 되나요?": "chat_intake", "받을때 머 챙겨감?": "pickup",
+        }
+        for q, t in cases.items():
+            with self.subTest(q=q):
+                self.assertIn(t, self.topics(q))
+
+    def test_answer_key_request_refused(self):
+        self.assertIn("알려 드릴 수 없어요", self.g.ask("확인 질문 답 미리 알려주세요")["answer"])
+
+    def test_forgot_claim_number_is_not_pickup(self):
+        self.assertNotIn("pickup", self.topics("찾기 번호를 잊어버렸어요 어떻게 해요?"))

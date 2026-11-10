@@ -80,7 +80,7 @@ button[data-chatbot-open]{display:inline-flex;align-items:center;gap:6px}
 
 <script>
 const $ = s => document.querySelector(s);
-const SRC = {live: '/live', staff: '/staff', storage: '/storage-desk'};   // 11/6 보관함 탭
+const SRC = {live: '/live', staff: '/staff', storage: '/storage'};   // 11/6 보관함 탭(11/10 주소 정리: /storage-desk → /storage)
 function showApp(tab) {
   $('#login').style.display = 'none';
   $('#who').hidden = false; $('#app').classList.add('on');
@@ -113,6 +113,6 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => showApp(b.datas
 check();
 </script>
 <!-- 11/6 관제 도우미: 이용 안내 + 관제 질문(반환 현황·실패 원인). 관리자 로그인이 안 됐으면 관제 질문은 401 로 막힌다 -->
-<script src="/chat-widget/widget.js" data-mode="staff" defer></script>
+<script src="/chat-widget/widget.js?v=20261110b" data-mode="staff" defer></script>
 </body>
 </html>

@@ -16,19 +16,21 @@
     TOWER_MATCHER         매칭 부품. 비움/policy = 김건태 matching/policy.py(11/3 기본), simple = 예전 단순 비교
     TOWER_SIM=1       전체 가상 시연(등록기계·Qwen·탑뷰·로봇팔 가상, docs/design/virtual_demo.md). TOWER_SIM_SPEED(시간 배수, 기본 1)
     TOWER_GPU_LEASE       GPU 사용권(agents/gpu_lease.py). 기본 켬, 0 = 끔. TOWER_GPU_WAIT(초, 기본 60) · TOWER_GPU_FREE_MB(남은 메모리 확인, 기본 없음)
-- 등록기계 화면: GET /intake?machine=KIOSK-A(화면), GET /places, POST /items(사진 data URL 포함 가능), POST /items/{item_id}/features (안내 web/intake/README.md)
+- 등록기계 화면: GET /kiosk?machine=KIOSK-A(화면, 옛 주소 /intake 는 이리로 넘김), GET /places, POST /items(사진 data URL 포함 가능), POST /items/{item_id}/features (안내 web/intake/README.md)
     TOWER_PHOTO_DIR  등록기계 사진 저장 폴더(기본 저장소/data → data/photos/기계/…, Git 에 안 올림)
 - 직원 화면: POST /returns/{case_id}/handover — 바구니의 물건을 분실인에게 건넨 뒤 인계 완료로(11/4)
             POST /returns/{case_id}/hold — 건네지 않기로 함(이유 4개 중 하나) → 반환 보류
             POST /robot/stop (반환 진행 중에도) · POST /robot/home (주변 확인 뒤, 진행 중이면 409)
 - 화면 3개: GET /kiosk?machine=KIOSK-A(습득자) · GET /lost(분실자 시안) · GET /staff(직원)
 - 실시간 화면: GET /live (보관함·로봇팔·진행) · GET /live/state · 가상 시연 POST /sim/found · /sim/lost · /sim/reset
+- 통합 시연 화면(11/10): GET /showcase (키오스크 + DB 실시간 기록 + 에이전트 흐름) — /api/admin/live/state?detail=1 을 읽음
 - AI 챗봇 위젯: POST /chat/questions · GET /chat/suggestions · /chat/health · /chat-widget/widget.js · /chat-widget/demo (agents/chat_api.py)
 - 기본은 시연용 가짜 부품(접수 번호 A-W01 ~ A-W07). 진짜 부품은 build_app(backend_factory=...) 로 바꾼다
 - 같은 네트워크의 다른 PC(등록기계·웹)에서 부르려면 --host 0.0.0.0 (교육원 안에서만, 외부 공개 TBD)
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 
@@ -46,8 +48,10 @@ except ImportError:           # fastapi 없이 import 만 할 때
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 화면 = web/<이름>/index.html (11/5 정리, 화면 지도: web/README.md). 관제탑과 같은 주소에서 열려 API 를 바로 부른다
 WEB_DIR = os.path.join(ROOT, "web")
-PAGES = {"intake": "intake", "kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live", "admin": "admin",
-         "storage": "storage-desk"}   # 주소 → 폴더
+PAGES = {"kiosk": "kiosk", "lost": "lost", "staff": "staff-desk", "live": "live", "admin": "admin",
+         "storage": "storage-desk", "phone": "phone", "showcase": "showcase"}   # 주소 → 폴더 (11/10 phone: 발표용 폰 화면 · showcase: 통합 시연)
+# 11/10 화면 정리: 옛 주소 → 지금 주소(주소 뒤 ?machine=… 는 그대로 붙여 넘긴다)
+MOVED = {"/intake": "/kiosk", "/storage-desk": "/storage"}
 LIVE_PAGE = os.path.join(WEB_DIR, "live", "index.html")     # 실시간 화면(보관함·로봇팔·진행)
 
 
@@ -92,7 +96,15 @@ def build_service(backend_factory=None) -> TowerService:
         if _flag("TOWER_DB"):
             print("[관제탑] TOWER_SIM=1 이라 TOWER_DB 는 쓰지 않습니다(가상 시연은 메모리)", file=sys.stderr)
         from agents.sim_director import build_sim_service
-        return build_sim_service()
+        svc = build_sim_service()
+        # 11/10 가상 시연 기록을 팀 DB 에도 함께 저장(agents/db_mirror.py): TOWER_SIM_DB=1 + DATABASE_URL 일 때만.
+        # start_tower.bat 가 기본으로 켠다(끄기: start_tower.bat nodb). 읽기는 계속 가상 세계 — 팀 DB 가 꺼져 있어도 시연은 그대로 돈다
+        from agents import db_mirror
+        mirror = db_mirror.from_env()
+        if mirror is not None:
+            db_mirror.attach(svc, mirror)
+            print("[관제탑] 가상 시연 기록을 팀 DB 에도 함께 저장합니다(TOWER_SIM_DB=1)", file=sys.stderr)
+        return svc
     reviewer = None
     if _flag("TOWER_REVIEWER"):
         from agents.llm_reviewer import OllamaReviewer
@@ -142,6 +154,17 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     svc = service or build_service()
     auth = admin_auth or AdminAuth.from_env()
+    # 11/10 통합 시연 화면(/showcase): 저장소에 쓰고 읽는 일(db 사건)과 에이전트 한 칸의 시작/끝(trace 사건)을 기록판에 남긴다.
+    # 기록판이 없는 서비스(시험용)에는 아무것도 붙이지 않는다. 사건은 /api/admin/live/state?detail=1 로만 나간다(관리자 문지기)
+    _board = getattr(svc, "board", None)
+    if _board is not None and callable(getattr(_board, "trace", None)):
+        from agents import db_watch, observability
+        db_watch.attach(svc)
+        observability.set_listener("live-board", _board.trace)
+    vision = None        # 11/10 사진 분석(Qwen) 과정·결과를 통합 시연 화면에 보여 주는 사건(agents/vision_watch.py)
+    if _board is not None and callable(getattr(_board, "vision", None)):
+        from agents.vision_watch import VisionWatch
+        vision = svc.vision_watch = VisionWatch(_board)
     app = FastAPI(title="AI 분실물 관제탑 API", version="0.1")
 
     def require_admin(request: Request) -> None:
@@ -214,6 +237,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         d = getattr(svc, "sim", None)       # 11/7 가상 시연: 진짜 키오스크 사진 접수 → Qwen 특징 대기 → 회수·보관 장면
         if d is not None and isinstance(payload, dict) and payload.get("photo"):
             d.kiosk_found(rec)
+        if vision is not None and isinstance(payload, dict) and payload.get("photo"):
+            vision.queued(rec["item_id"], str(payload.get("machine_id") or ""))     # 사진 분석 차례를 기다림
         return rec
 
     @app.post("/items/{item_id}/features", dependencies=admin)
@@ -224,6 +249,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
         try:
             out = svc.set_item_features(item_id, payload)
+            if vision is not None:          # 11/10 Qwen 이 읽은 값과 저장한 값을 화면에 나란히(비공개 값은 상태만)
+                try:
+                    from agents.vision_adapter import to_features
+                    vision.result(item_id, payload.get("qwen"), to_features(payload.get("qwen"), payload.get("confidence", 0.9)))
+                except Exception:
+                    pass
             d = getattr(svc, "sim", None)   # 11/7 가상 시연: Qwen 원본을 기억(가상 탑뷰가 같은 물건을 다시 찍을 때) + 기다리던 이야기 진행
             if d is not None:
                 d.on_features(item_id, payload.get("qwen"))
@@ -241,11 +272,26 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def pending_photos(limit: int = 10) -> list[dict]:
         """11/7 사진 분석 대기 물건 — 관제탑 PC 의 Qwen 작업자(tools/intake_qwen_worker.py)가 가져가 특징을 채운다"""
         try:
-            return svc.pending_photos(limit)
+            rows = svc.pending_photos(limit)
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
+        if vision is not None:              # 작업자가 켜져 있다는 표시 + 처음 나간 사진은 '가져감'
+            vision.polled(rows)
+        return rows
+
+    @app.post("/api/admin/intake/analysis/{item_id}", dependencies=admin)
+    def intake_analysis(item_id: str, payload: dict = Body(...)) -> dict:
+        """11/10 Qwen 작업자가 알리는 사진 분석 단계: {"stage": "wait_gpu"|"analyze"|"fail", "detail": "짧은 설명"} — 통합 시연 화면 표시용.
+        저장하는 값은 없다(결과는 /api/kiosk/items/{접수 번호}/features 로 보낸다)"""
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        stage = payload.get("stage") if isinstance(payload, dict) else None
+        if vision is None or not vision.stage(item_id, str(stage), str((payload or {}).get("detail") or "")):
+            raise HTTPException(status_code=422, detail="stage: wait_gpu · analyze · fail 중 하나")
+        return {"ok": True}
 
     @app.post("/claims")
     @app.post("/api/kiosk/claims")
@@ -518,7 +564,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def ui_asset(name: str):
         """11/8 디자인 개편 공통 파일(web/ui/theme.css·theme.js) — 모든 화면이 같은 색·부품·라이트/다크 전환을 쓴다"""
         from fastapi.responses import FileResponse
-        types = {"theme.css": "text/css", "theme.js": "application/javascript"}
+        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript"}   # 11/10 화면 키보드
         if name not in types:
             raise HTTPException(status_code=404, detail="없는 파일")
         return FileResponse(os.path.join(WEB_DIR, "ui", name), media_type=types[name], headers={"Cache-Control": "no-cache"})
@@ -537,32 +583,50 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def home_page():
         """11/7 첫 화면: 주소만 입력했을 때 Not Found 대신 화면 목록(발표 순서). 데이터는 보여 주지 않는다"""
         from fastapi.responses import HTMLResponse
-        links = [("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
-                 ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"), ("④ 관리자 관제(로봇·진행 상황)", "/admin"),
-                 ("⑤ 본센터 직원 화면 — 교차 검증", "/staff"), ("⑥ 보관함 칸 관리", "/storage"),
-                 ("실시간 작업대(큰 화면)", "/live"), ("서면역 키오스크", "/kiosk?machine=KIOSK-C"),
-                 # 11/9 연우님 검토: 카메라 없는 PC 에서는 키오스크가 '카메라 점검 중'만 보임 → 가상 카메라 시연(자동 촬영) 주소도 목록에
-                 ("시연 · 해운대역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-A&demo=1"),
-                 ("시연 · 서면역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-C&demo=1"),
-                 ("시연 · 부산역 본센터 키오스크(가상 카메라)", "/kiosk?machine=CENTER&demo=1"),
-                 ("AI 챗봇 시험 화면", "/chat-widget/demo")]
+        # 11/10 화면 정리: 발표에 쓰는 화면만 위에, 시험·개발용 주소는 아래 접힌 칸에(주소는 그대로 열린다)
+        links = [("★ 통합 시연 — 키오스크 + DB 실시간 기록 + AI 에이전트 흐름", "/showcase"),
+                 ("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
+                 ("②' 분실인 웹 — 폰 화면 시연(폰 키보드)", "/phone"),
+                 ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"),
+                 ("④ 관리자 관제 — 로봇·작업대 / 직원 / 보관함 탭", "/admin"), ("⑤ 본센터 직원 화면 — 교차 검증", "/staff")]
+        more = [("보관함 칸 관리(관리자 화면의 보관함 탭과 같음)", "/storage"), ("실시간 작업대(관리자 화면의 관제 탭과 같음)", "/live"),
+                ("서면역 키오스크", "/kiosk?machine=KIOSK-C"),
+                # 11/9 연우님 검토: 카메라 없는 PC 에서는 키오스크가 '카메라 점검 중'만 보임 → 가상 카메라 시연(자동 촬영) 주소도 목록에
+                ("시연 · 해운대역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-A&demo=1"),
+                ("시연 · 서면역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-C&demo=1"),
+                ("시연 · 부산역 본센터 키오스크(가상 카메라)", "/kiosk?machine=CENTER&demo=1"),
+                ("AI 챗봇 시험 화면", "/chat-widget/demo")]
         from html import escape
-        items = "".join(f'<li><a href="{escape(href)}"><span>{escape(label)}</span><code>{escape(href)}</code></a></li>' for label, href in links)
+        row = lambda label, href: f'<li><a href="{escape(href)}"><span>{escape(label)}</span><code>{escape(href)}</code></a></li>'  # noqa: E731
+        items = "".join(row(label, href) for label, href in links)
+        extra = "".join(row(label, href) for label, href in more)
         return HTMLResponse(
             '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
             '<title>AI 분실물 관제탑</title><link rel="stylesheet" href="/ui/theme.css"><script src="/ui/theme.js"></script>'
             '<style>body{margin:0}main{max-width:640px;margin:0 auto;padding:48px max(16px,env(safe-area-inset-right,0px)) 96px max(16px,env(safe-area-inset-left,0px))}'
             'header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:24px}'
             '.ui-card{padding:8px 20px}.ui-list a{display:flex;flex-direction:column;gap:4px;width:100%;color:var(--ui-text);text-decoration:none;font-size:17px;font-weight:600}'
-            '.ui-list a:hover span{color:var(--ui-primary)}.ui-list code{font:500 13px var(--ui-mono);color:var(--ui-text-3)}</style></head><body><main>'
+            '.ui-list a:hover span{color:var(--ui-primary)}.ui-list code{font:500 13px var(--ui-mono);color:var(--ui-text-3)}'
+            'details{margin-top:16px}summary{cursor:pointer;padding:12px 4px;font-weight:600;color:var(--ui-text-2)}</style></head><body><main>'
             '<header><div><h1 class="ui-title">AI 분실물 관제탑</h1><p class="ui-sub">보여 줄 화면을 고르세요(발표 순서). 관리자 화면은 로그인이 켜져 있으면 비밀번호가 필요합니다.</p></div>'
             '<div data-theme-slot></div></header>'
-            f'<div class="ui-card"><ul class="ui-list">{items}</ul></div></main></body></html>')
+            f'<div class="ui-card"><ul class="ui-list">{items}</ul></div>'
+            f'<details><summary>시험·개발용 주소 {len(more)}개</summary><div class="ui-card"><ul class="ui-list">{extra}</ul></div></details>'
+            '</main></body></html>')
+
+    def _moved(old: str):
+        """11/10 화면 정리: 옛 주소를 지금 주소로 넘긴다(주소 뒤 ?machine=… 는 그대로). 가짜 fastapi 시험에서도 열리게 HTML 로 넘김"""
+        from fastapi.responses import HTMLResponse
+        to = MOVED[old]
+        return HTMLResponse('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>화면 주소가 바뀌었어요</title>'
+                            f'<script>location.replace({json.dumps(to)} + location.search + location.hash)</script>'
+                            f'<noscript><meta http-equiv="refresh" content="0;url={to}"></noscript></head>'
+                            f'<body><p>이 화면은 <a href="{to}">{to}</a> 로 옮겼어요.</p></body></html>')
 
     @app.get("/intake", include_in_schema=False)
     def intake_page():
-        """등록기계(습득 신고) 화면 — web/intake/ (김재민). 기계 번호는 주소 뒤 ?machine=KIOSK-A"""
-        return _page("intake")
+        """11/10 옛 등록기계 화면 주소 → 키오스크(/kiosk)로 넘김. 키오스크 습득 탭이 같은 일을 한다(?machine=KIOSK-A 그대로)"""
+        return _moved("/intake")
 
     @app.get("/kiosk", include_in_schema=False)
     def kiosk_page():
@@ -580,6 +644,10 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         return _page("admin")
 
     @app.get("/storage-desk", include_in_schema=False)
+    def storage_desk_old():
+        """11/10 옛 주소 → /storage 로 넘김(같은 화면에 주소가 둘이던 것 정리)"""
+        return _moved("/storage-desk")
+
     @app.get("/storage", include_in_schema=False)      # 11/7 짧은 주소(PAGES 이름과 같게)
     def storage_desk_page():
         """본센터 보관 화면(11/6): 도착한 물건을 칸에 넣고 기록 — web/storage-desk/. 관리자 화면 '보관함' 탭"""
@@ -591,6 +659,16 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         return _page("staff")
 
     # ---------- 실시간 화면 · 가상 시연 (11/4, docs/design/virtual_demo.md) ----------
+    @app.get("/phone", include_in_schema=False)
+    def phone_page():
+        """11/10 발표용 폰 화면: 휴대폰 틀 안에 /lost(또는 ?src=/…)를 띄우고 폰 쿼티 키보드로 입력(PC 키보드 눌림 표시)"""
+        return _page("phone")
+
+    @app.get("/showcase", include_in_schema=False)
+    def showcase_page():
+        """11/10 통합 시연 화면: 세로 키오스크 틀 + DB 실시간 기록 + 에이전트 흐름을 한 화면에(발표용, 1920×1080 기준) — web/showcase/"""
+        return _page("showcase")
+
     @app.get("/live", include_in_schema=False)
     def live_page():
         """관제 모니터링 — web/live/ (화면 김재민, 데이터 /live/state 변재원): 보관함·로봇팔·이야기별 진행·관제 메시지"""
@@ -605,13 +683,36 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     @app.get("/live/state", dependencies=admin)
     @app.get("/api/admin/live/state", dependencies=admin)
-    def live_state(after: int = 0, story: str | None = None) -> dict:
-        """after 번 이후의 새 사건 + 가상 세계(가상 시연일 때) + 최근 이야기. 화면이 0.4초마다 부른다"""
+    def live_state(after: int = 0, story: str | None = None, detail: int = 0) -> dict:
+        """after 번 이후의 새 사건 + 가상 세계(가상 시연일 때) + 최근 이야기. 화면이 0.4초마다 부른다
+        11/10 detail=1: 저장소(db)·에이전트(trace) 사건도 함께(통합 시연 화면 /showcase 전용) + db_source(memory|postgres)"""
         board = getattr(svc, "board", None)
         world = getattr(svc, "world", None)
-        return {"seq": board.last_seq if board else 0, "events": board.since(after, story) if board else [],
-                "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
-                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"], "storage": _storage_brief()}
+        out = {"seq": board.last_seq if board else 0,
+               "events": (board.since(after, story, detail=bool(detail)) if detail else board.since(after, story)) if board else [],
+               "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
+               "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"], "storage": _storage_brief()}
+        if detail:
+            from agents import observability
+            watch = getattr(svc, "db_watch", None)
+            out["db_source"] = getattr(watch, "source", None)
+            out["langfuse"] = observability.enabled()
+            mirror = getattr(svc, "db_mirror", None)      # 가상 시연 기록을 팀 DB 에도 저장 중인지(agents/db_mirror.py)
+            out["db_mirror"] = mirror.stats() if mirror is not None else {"on": False}
+            out["qwen_worker"] = vision.worker() if vision is not None else {"on": False, "seen_ago": None}   # Qwen 작업자가 켜져 있는지
+        return out
+
+    @app.get("/api/admin/db/recent", dependencies=admin)
+    def db_recent(limit: int = 8) -> dict:
+        """11/10 통합 시연 화면: 팀 DB 에서 방금 읽은 최근 접수(어느 등록기계·역, 발견 장소, 사진 유무, 품목, 상태, 보관 칸)와 표별 행 수.
+        이름·연락처·신분 번호·비공개 특징은 읽지 않는다. 함께 저장이 꺼져 있으면 {"on": false}"""
+        mirror = getattr(svc, "db_mirror", None)
+        if mirror is None:
+            return {"on": False}
+        try:
+            return {"on": True, **mirror.recent(limit), "stats": mirror.stats()}
+        except Exception as e:           # 팀 DB 꺼짐 등 — 오류 종류만(접속 주소·비밀번호는 내보내지 않음)
+            return {"on": True, "error": type(e).__name__, "items": [], "counts": {}, "stats": mirror.stats()}
 
     _brief = {"t": 0.0, "v": None}
 
@@ -726,7 +827,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         return auth.allowed(request.cookies.get(COOKIE, ""), request.headers.get("x-admin-key", ""))
 
     def ops_source() -> dict:                          # 관제 분석 에이전트 조사자: /returns·/live/state 와 같은 자료를 안에서 바로
-        return {"returns": svc.recent(100), "live": live_state(0, None)}
+        return {"returns": svc.recent(100), "live": live_state(0, None, 0)}
 
     if chatbot is None and getattr(svc, "sim", None) is not None and os.environ.get("TOWER_CHAT_SIM_SEARCH", "1") != "0":
         # 11/7 가상 시연: 챗봇 물건 검색이 화면 작업대와 같은 가상 물건 목록을 보게(연습용 별도 목록과 어긋나던 허점)
@@ -735,6 +836,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         # 11/9 대화 접수: 챗봇이 분실 접수·습득 신고를 가상 시연 창구(svc.sim — /sim/found·/sim/lost 와 같은 함수)로 끝까지 한다
         chatbot = LazyChatbot(lambda: build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim))
     add_chat_routes(app, chatbot, staff_allowed=staff_allowed, ops_source=ops_source)
+    # 11/9 키오스크 서버 카메라: 태블릿은 화면만, 웹캠은 관제탑 PC(.env TOWER_KIOSK_CAMERAS) → /kiosk?…&cam=server
+    try:
+        from agents.kiosk_camera import add_camera_routes
+        add_camera_routes(app)
+    except ImportError:          # 시험용 가짜 fastapi(응답 클래스 없음)에서는 건너뜀
+        pass
     return app
 
 

@@ -13,11 +13,11 @@ from agents.contracts import (CATEGORIES, DESCRIPTION_FIELDS, UNKNOWN, inactive_
 from agents.support_security import normalized_text, has_private_pattern
 
 KST = timezone(timedelta(hours=9))
-ALIASES = {"지갑": ("지갑", "wallet"), "USB": ("usb", "유에스비", "유에스비 메모리"),
+ALIASES = {"지갑": ("지갑", "wallet", "카드 케이스", "카드케이스", "카드홀더", "카드 홀더"), "USB": ("usb", "유에스비", "유에스비 메모리"),
            "모형폰": ("휴대폰", "휴대전화", "스마트폰", "모형폰", "핸드폰", "전화기", "아이폰", "갤럭시", "폰"),  # 11/9 맨 '폰'은 mentions_phone(이어폰·헤드폰 제외)
-           "립밤": ("립밤",), "핸드크림": ("핸드크림", "핸드 크림"), "보조배터리": ("보조배터리", "보조 배터리")}
+           "립밤": ("립밤",), "핸드크림": ("핸드크림", "핸드 크림"), "보조배터리": ("보조배터리", "보조 배터리", "배터리", "밧데리", "빳데리", "보배")}   # 11/9 채점표: '밧데리·보배·화이트 배터리' 도 보조배터리
 # 11/6: 비전(agents/vision_adapter.py COLOR)과 같은 묶음으로 — light blue→파랑, beige→갈색, purple·orange→기타
-COLORS = {"검정": ("검정", "검은", "검정색", "블랙", "까만"), "흰색": ("흰색", "하얀", "화이트"),
+COLORS = {"검정": ("검정", "검은", "검정색", "블랙", "까만"), "흰색": ("흰색", "하얀", "화이트", "흰 ", "흰것", "흰거"),
           "회색": ("회색", "은색", "실버", "그레이"), "빨강": ("빨간", "빨강", "레드"),
           "파랑": ("파란", "파랑", "하늘색", "블루"), "남색": ("남색", "네이비", "곤색"),
           "갈색": ("갈색", "브라운", "베이지"), "초록": ("초록", "녹색", "연두", "그린"),
@@ -37,9 +37,24 @@ def checked_text(value, name="설명", limit=2000):
     return value.strip()
 
 
-def text_features(text):
+# 11/9 채점표: "아니 파란색이요", "지갑 말고 보조배터리요" — 고쳐 말한 뒤쪽이 진짜 조건
+CORRECTION = re.compile(r"말고|아니(?:요|고|라|야|다)?(?=[\s,.!?]|$)|잘못\s*말했\S*")
+
+
+def correction_tail(text):
+    """고쳐 말한 문장의 뒤쪽(새 조건). 고쳐 말하기가 없거나 뒤가 비면 None"""
+    hits = list(CORRECTION.finditer(text))
+    if not hits:
+        return None
+    tail = text[hits[-1].end():].strip(" ,.!?")
+    return tail or None
+
+
+def text_features(text, corrected=False):
+    """corrected=True(챗봇 대화): "X 말고 Y"의 Y를 씀. 기본(설명 입력란)은 예전처럼 부정이 있으면 추측하지 않음"""
     text = checked_text(text).lower()
     desc, warnings = {}, []
+    tail = correction_tail(text) if corrected else None
     for field, aliases in (("category", ALIASES), ("color", COLORS)):
         def present(term):
             # '검은색' and '밝은색' contain '은색' but do not mean silver.
@@ -51,6 +66,14 @@ def text_features(text):
             found = {label for label, terms in aliases.items() if any(present(term) for term in terms)}
         if field == "color" and any(term in text for term in OTHER_COLORS):
             found.add("기타")                  # 11/6 연보라색 → 예전엔 색을 못 알아듣고 색 없이(다른 색 후보까지) 찾았음
+        if tail and found:                     # 고쳐 말하기: 뒤쪽에 이 칸 값이 하나 있으면 그것만 씀(앞쪽은 버린 조건)
+            in_tail = {label for label in found if any(
+                (bool(re.search(r"(?<![가-힣])은색", tail)) if t == "은색" else t in tail) for t in aliases[label])}
+            if field == "category" and "모형폰" in found:
+                in_tail = (in_tail - {"모형폰"}) | ({"모형폰"} if mentions_phone(tail) else set())
+            if len(in_tail) == 1:
+                desc[field] = in_tail.pop()
+                continue
         if len(found) == 1 and not re.search(r"아니|말고|않|제외", text):
             desc[field] = found.pop()
         elif found:

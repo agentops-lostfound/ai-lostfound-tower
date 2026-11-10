@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>통합 시연</title>
+<!--
+  통합 시연 화면 (LF-18 · 11/10 변재원) — 발표용, 1920×1080 한 화면 기준
+  한줄 설명: 왼쪽에 실제 키오스크(세로 화면)와 분실인 휴대폰을 띄우고, 그 옆에서 ① 저장소(DB)에 행이 생기고 칸이 바뀌는 모습과
+            ② AI 에이전트들이 주고받는 흐름을 같은 순서로 보여 준다.
+  - 왼쪽 틀 안은 실제 화면 그대로다: /kiosk?machine=KIOSK-A(습득) · /phone(분실인 웹) · /kiosk?machine=CENTER(회수)
+  - 가운데·오른쪽은 /api/admin/live/state?detail=1 을 0.5초마다 읽어 그린다.
+      db 사건    = 저장소에 쓰고 읽은 일(agents/db_watch.py). 이름·연락처·신분 번호·비공개 특징 값은 서버가 보내지 않는다
+      trace 사건 = 챗봇·메인 AI 에이전트 한 칸의 시작/끝(agents/observability.py 리스너 — Langfuse 에 남는 것과 같은 단계)
+      agent 사건 = 관제탑 에이전트 대화(agents/agent_talk.py)
+      vision 사건 = 키오스크 사진 분석(Qwen)의 단계와 결과(agents/vision_watch.py) — 습득 장면의 '사진 분석' 카드. 비공개 값은 개수·상태만 온다
+  - 사건이 한꺼번에 와도 하나씩 순서대로 재생한다(밀리면 빨라짐). 처음 열 때 이미 있던 사건은 바로 반영한다
+  - 11/10 팀 DB 조회: 가상 시연 기록을 팀 DB 에도 함께 저장할 때(agents/db_mirror.py) /api/admin/db/recent 로 팀 DB 에서 방금 읽은
+    최근 접수(어느 등록기계·역, 발견 장소, 사진, 품목, 상태, 보관 칸)를 보여 준다 — "정말 DB 에 들어갔는지"를 화면에서 확인
+  - 주소 옵션: ?scene=found|lost|pickup|robot · ?cam=server|demo|browser(키오스크 카메라, 기본은 서버 카메라가 설정돼 있으면 server 아니면 demo)
+  색·글자는 공통 디자인(/ui/theme.css)을 쓴다. 화면 지도: web/README.md
+-->
+<link rel="stylesheet" href="/ui/theme.css">
+<script src="/ui/theme.js"></script>
+<style>
+:root{
+  --ins:var(--ui-ok); --ins-soft:var(--ui-ok-soft); --upd:var(--ui-primary); --upd-soft:var(--ui-primary-soft);
+  --del:var(--ui-err); --del-soft:var(--ui-err-soft); --sel:var(--ui-warn); --sel-soft:var(--ui-warn-soft);
+  --dev-body:#f4f5f7; --dev-body-2:#e3e6ea; --dev-bezel:#15161a; --dev-ink:#3a414b;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ui-bg);color:var(--ui-text);font-family:var(--ui-font);font-size:15px;line-height:1.5;
+  display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit}
+code,.mono{font-family:var(--ui-mono)}
+[hidden]{display:none!important}
+
+/* ---------- 머리말 ---------- */
+.bar{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;min-height:56px;padding-block:8px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--ui-surface);border-bottom:1px solid var(--ui-line);flex:none}
+.bar h1{font-size:18px;margin:0;white-space:nowrap;letter-spacing:-.01em}
+.bar h1 small{font-weight:600;color:var(--ui-text-3);margin-left:6px;font-size:14px}
+.scenes{display:flex;gap:6px;min-width:0;flex-wrap:wrap}
+.scenes button{border:0;background:var(--ui-fill);border-radius:999px;padding:8px 14px;font-weight:650;cursor:pointer;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:8px;color:var(--ui-text-2)}
+.scenes button:hover{background:var(--ui-fill-hover)}
+.scenes button[aria-selected="true"]{background:var(--ui-primary);color:var(--ui-on-primary)}
+.scenes button .no{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(127,127,127,.22);font-size:12px;font-weight:700}
+.scenes button[aria-selected="true"] .no{background:rgba(255,255,255,.26)}
+.chips{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--ui-fill);font-size:13px;font-weight:600;color:var(--ui-text-2);white-space:nowrap}
+.chip b{color:var(--ui-text)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ui-text-3)}
+.dot.on{background:var(--ui-ok)} .dot.off{background:var(--ui-err)}
+.bar .ghost{border:0;background:var(--ui-fill);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:650;cursor:pointer}
+.bar .ghost:hover{background:var(--ui-fill-hover)}
+.bar .ghost.armed{background:var(--ui-err);color:#fff}
+
+/* ---------- 이야기 진행 막대 ---------- */
+.steps{display:flex;align-items:center;gap:10px;min-height:44px;padding-block:6px;flex:none;overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.steps .who{font-weight:700;white-space:nowrap}
+.steps .who small{color:var(--ui-text-3);font-weight:600;margin-left:6px}
+.steps ol{list-style:none;margin:0;padding:0;display:flex;gap:6px;min-width:0;flex-wrap:nowrap;overflow:hidden}
+.steps li{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--ui-fill);font-size:13px;font-weight:600;color:var(--ui-text-3);white-space:nowrap}
+.steps li::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.5}
+.steps li.done{background:var(--ui-ok-soft);color:var(--ui-ok)} .steps li.done::before{opacity:1}
+.steps li.active{background:var(--ui-primary-soft);color:var(--ui-primary)} .steps li.active::before{opacity:1;animation:pulse 1s infinite}
+.steps li.fail{background:var(--ui-err-soft);color:var(--ui-err)} .steps li.skip{text-decoration:line-through}
+.steps .result{margin-left:auto;font-size:13px;font-weight:650;color:var(--ui-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.steps .empty{color:var(--ui-text-3);font-size:13.5px}
+@keyframes pulse{50%{opacity:.25}}
+
+/* ---------- 본문 3칸 ---------- */
+main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) minmax(0,1fr) minmax(0,1fr);gap:14px;
+  padding-block:0 14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.panel{background:var(--ui-surface);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow);min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.panel > header{display:flex;align-items:center;gap:10px;padding:14px 18px 10px;flex:none;flex-wrap:wrap}
+.panel h2{font-size:17px;margin:0;letter-spacing:-.01em}
+.panel h3{font-size:13px;margin:0;color:var(--ui-text-3);font-weight:700;letter-spacing:.02em}
+.panel .hint{font-size:12.5px;color:var(--ui-text-3);font-weight:600}
+.sub{padding:8px 18px 6px;display:flex;align-items:center;gap:8px;flex:none}
+#full{flex:1;min-height:0;border:0;width:100%;background:var(--ui-bg)}
+
+/* ---------- 왼쪽: 기기 ---------- */
+.device{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px}
+.stage{flex:1;min-height:0;width:100%;display:flex;align-items:flex-start;justify-content:center}
+.cap{flex:none;text-align:center;font-size:12.5px;color:var(--ui-text-3);font-weight:600;line-height:1.45;max-width:100%}
+.cap b{color:var(--ui-text-2)}
+/* 세로 키오스크(스탠드형): 검은 테두리 화면 + 밝은 몸체(촬영 카메라 창 · 접수증 나오는 곳 · 옆 단말기) */
+.stand{display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 18px 28px rgba(0,0,0,.22))}
+.k-head{background:var(--dev-bezel);border-radius:22px;padding:10px;position:relative;z-index:1;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+.k-screen{position:relative;overflow:hidden;border-radius:14px;background:#fff}
+.k-screen iframe{position:absolute;left:0;top:0;border:0;transform-origin:0 0;background:#fff}
+.k-body{position:relative;margin-top:-14px;padding:22px 9% 8px;border-radius:0 0 18px 18px;
+  background:linear-gradient(180deg,var(--dev-body) 0%,var(--dev-body) 62%,var(--dev-body-2) 100%);
+  display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:12%;row-gap:4px}
+.k-cam{height:58%;min-height:38px;aspect-ratio:1.15;border-radius:8px;background:#1b1d22;display:grid;place-items:center;border:3px solid #2b2e35;grid-row:1 / span 2}
+.k-cam i{width:30%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 35%,#6b7686,#0c0d10 60%)}
+.k-slot{height:9px;border-radius:5px;background:#1b1d22;box-shadow:inset 0 2px 3px rgba(0,0,0,.6);align-self:end}
+.k-label{font-size:10.5px;font-weight:700;color:var(--dev-ink);letter-spacing:.02em;opacity:.75;align-self:start;text-align:center}
+.k-pad{position:absolute;right:-15%;bottom:14%;width:19%;aspect-ratio:.9;border-radius:8px;background:var(--dev-body);
+  border:1px solid var(--dev-body-2);transform:rotate(-8deg);display:grid;place-items:center;box-shadow:0 6px 12px rgba(0,0,0,.18)}
+.k-pad i{width:62%;aspect-ratio:1.3;border-radius:4px;background:#2b2e35}
+/* 분실인 휴대폰 */
+.handset{background:var(--dev-bezel);border-radius:44px;padding:11px;filter:drop-shadow(0 18px 28px rgba(0,0,0,.25));box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+.handset iframe{display:block;border:0;border-radius:34px;background:#fff}
+
+/* ---------- 가운데: DB ---------- */
+.tables{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 10px;flex:none}
+.tbl{display:inline-flex;align-items:baseline;gap:5px;padding:3px 8px;border-radius:8px;background:var(--ui-fill);font-size:11.5px;color:var(--ui-text-2);font-weight:600;transition:background .3s}
+.tbl code{font-size:11.5px;color:var(--ui-text)} .tbl b{font-variant-numeric:tabular-nums;color:var(--ui-text);font-size:12.5px}
+.tbl.zero{display:none} .tbl.hit{background:var(--upd-soft)}
+.tables:not(:has(.tbl:not(.zero)))::after{content:"기록이 생긴 표가 여기에 나타나요";font-size:12.5px;color:var(--ui-text-3)}
+.rows{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 18px 4px;flex:none}
+.rowcard{border:1.5px solid var(--ui-line);border-radius:14px;padding:10px 12px;min-width:0;transition:border-color .25s, box-shadow .25s}
+.rowcard.write{border-color:var(--upd);box-shadow:0 0 0 3px var(--upd-soft)}
+.rowcard.read{border-color:var(--sel);box-shadow:0 0 0 3px var(--sel-soft)}
+.rowcard h4{margin:0 0 6px;font-size:13.5px;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.rowcard h4 code{font-size:13px;padding:1px 6px;border-radius:6px;background:var(--ui-fill)}
+.rowcard h4 .pk{margin-left:auto;font-family:var(--ui-mono);font-size:12px;color:var(--ui-primary);font-weight:700}
+.rowcard dl{margin:0;display:grid;grid-template-columns:minmax(0,46%) minmax(0,1fr);row-gap:1px;column-gap:8px;font-size:12.5px}
+.rowcard dt{color:var(--ui-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 0}
+.rowcard dt code{color:var(--ui-text-2);font-size:11.5px}
+.rowcard dd{margin:0;padding:2px 5px;border-radius:6px;font-weight:600;overflow-wrap:anywhere;min-width:0;transition:background .8s}
+.rowcard dd.none{color:var(--ui-text-3);font-weight:500}
+.rowcard dd.locked{color:var(--ui-text-3);font-weight:500;font-size:12px}
+.rowcard dd.flash{background:var(--upd-soft);color:var(--upd);transition:none}
+.log{list-style:none;margin:0;padding:0 18px 16px;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.log:empty::after{content:attr(data-empty);color:var(--ui-text-3);font-size:13.5px;padding:8px 0}
+.ev{border-radius:12px;background:var(--ui-surface-2);padding:9px 11px;border-left:4px solid var(--ui-line);animation:drop .28s ease-out;min-width:0}
+@keyframes drop{from{opacity:0;transform:translateY(-8px)}}
+.ev.INSERT{border-left-color:var(--ins)} .ev.UPDATE{border-left-color:var(--upd)} .ev.DELETE{border-left-color:var(--del)} .ev.SELECT{border-left-color:var(--sel)}
+.ev .top{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-size:13px}
+.op{font-family:var(--ui-mono);font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:6px;letter-spacing:.02em}
+.op.INSERT{background:var(--ins-soft);color:var(--ins)} .op.UPDATE{background:var(--upd-soft);color:var(--upd)}
+.op.DELETE{background:var(--del-soft);color:var(--del)} .op.SELECT{background:var(--sel-soft);color:var(--sel)}
+.ev .top code{font-size:12.5px;font-weight:700}
+.ev .top .easy{color:var(--ui-text-2);font-weight:600}
+.ev .top .key{font-family:var(--ui-mono);font-size:12px;color:var(--ui-primary);font-weight:700;overflow-wrap:anywhere}
+.ev .top .by{margin-left:auto;font-size:12px;color:var(--ui-text-3);font-weight:600;white-space:nowrap}
+.ev .note{margin:3px 0 0;font-size:12.5px;color:var(--ui-text-2)}
+.ev .cols{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.ev .c{font-size:12px;padding:2px 7px;border-radius:7px;background:var(--ui-fill);color:var(--ui-text-2);overflow-wrap:anywhere;max-width:100%}
+.ev .c code{font-size:11.5px;color:var(--ui-text-3)} .ev .c b{color:var(--ui-text);font-weight:650}
+.ev .c.chg{background:var(--ui-surface);box-shadow:inset 0 0 0 1px var(--ui-line)}
+.ev .c.lock b{color:var(--ui-text-3);font-weight:500}
+
+/* ---------- 오른쪽: 에이전트 ---------- */
+.seg{display:inline-flex;background:var(--ui-fill);border-radius:999px;padding:3px;margin-left:auto}
+.seg button{border:0;background:none;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:650;color:var(--ui-text-2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ui-surface);color:var(--ui-text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.sub .seg{margin-left:0} .sub .seg button{padding:4px 11px;font-size:12.5px}
+/* 사진 분석(Qwen) 카드 — 습득 장면에서 찾기 요청 카드 자리에 */
+.vcard h4 .stg{margin-left:auto;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--ui-fill);color:var(--ui-text-2);white-space:nowrap}
+.vcard h4 .stg.run{background:var(--upd-soft);color:var(--upd)} .vcard h4 .stg.ok{background:var(--ui-ok-soft);color:var(--ui-ok)} .vcard h4 .stg.bad{background:var(--del-soft);color:var(--del)}
+.vhead{display:flex;gap:9px;align-items:center;margin-bottom:6px;min-width:0}
+.vhead img,.vhead .noimg{width:58px;height:44px;border-radius:8px;object-fit:cover;background:var(--ui-fill);flex:none;display:grid;place-items:center;font-size:10.5px;color:var(--ui-text-3)}
+.vsteps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:3px 4px;font-size:11px;font-weight:600;color:var(--ui-text-3);min-width:0}
+.vsteps li{padding:1px 7px;border-radius:999px;background:var(--ui-fill);white-space:nowrap}
+.vsteps li.done{background:var(--ui-ok-soft);color:var(--ui-ok)} .vsteps li.now{background:var(--upd-soft);color:var(--upd)} .vsteps li.bad{background:var(--del-soft);color:var(--del)}
+.vnote{margin:0 0 6px;font-size:11.5px;color:var(--ui-text-2);line-height:1.45} .vnote.warn{color:var(--del)} .vnote code{font-size:11px}
+.vtable{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.vtable th{font-size:10.5px;font-weight:700;color:var(--ui-text-3);text-align:left;padding:2px 4px;border-bottom:1px solid var(--ui-line)}
+.vtable td{padding:2px 4px;overflow-wrap:anywhere;vertical-align:top;font-weight:600}
+.vtable td:first-child{color:var(--ui-text-3);font-weight:500;width:27%} .vtable td.lock{color:var(--ui-text-3);font-weight:500;font-size:11.5px}
+.vtable td.none{color:var(--ui-text-3);font-weight:500} .vtable tr.flash td{background:var(--upd-soft)}
+.dbok{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--ui-ok-soft);color:var(--ui-ok);white-space:nowrap}
+.chip.warn{background:var(--ui-warn-soft);color:var(--ui-warn)} .chip.warn b{color:var(--ui-warn)}
+.chip.good{background:var(--ui-ok-soft);color:var(--ui-ok)} .chip.good b{color:var(--ui-ok)}
+.dbview{flex:1;min-height:0;overflow:auto;padding:0 18px 16px}
+.dbview .counts{margin:0 0 8px;font-size:12.5px;color:var(--ui-text-2);display:flex;flex-wrap:wrap;gap:4px 10px}
+.dbview .counts code{font-size:12px;color:var(--ui-text)} .dbview .counts b{font-variant-numeric:tabular-nums}
+.dbview .off{margin:8px 0;padding:12px 14px;border-radius:12px;background:var(--ui-fill);color:var(--ui-text-2);font-size:13.5px;line-height:1.6}
+.dbtable{width:100%;border-collapse:collapse;font-size:12.5px}
+.dbtable th{text-align:left;font-size:11.5px;color:var(--ui-text-3);font-weight:700;padding:5px 6px;border-bottom:1px solid var(--ui-line);white-space:nowrap;position:sticky;top:0;background:var(--ui-surface)}
+.dbtable th code{font-size:11px;color:var(--ui-text-3);font-weight:500;display:block}
+.dbtable td{padding:6px;border-bottom:1px solid var(--ui-line);vertical-align:middle;overflow-wrap:anywhere}
+.dbtable tr.new td{background:var(--ui-ok-soft)} .dbtable tr.cur td{background:var(--ui-primary-soft)}
+.dbtable .id{font-family:var(--ui-mono);font-size:12px;color:var(--ui-primary);font-weight:700;white-space:nowrap}
+.dbtable .where b{display:block} .dbtable .where small{color:var(--ui-text-3)}
+.dbtable .ph{width:46px;height:36px;border-radius:7px;object-fit:cover;display:block;background:var(--ui-fill)}
+.dbtable .noph{font-size:11.5px;color:var(--ui-text-3)}
+.dbtable .tag{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--ui-fill);color:var(--ui-text-3);margin-left:4px}
+.graphwrap{padding:0 12px;flex:none}
+#graph{width:100%;height:auto;display:block}
+.edge{stroke:var(--ui-line);stroke-width:1.6;fill:none}
+.edge.hot{stroke:var(--ui-primary);stroke-width:2.4}
+.node rect{fill:var(--ui-surface-2);stroke:var(--ui-line);stroke-width:1.5;transition:fill .2s,stroke .2s}
+.node text{fill:var(--ui-text);font-size:13px;font-weight:700;text-anchor:middle;font-family:var(--ui-font)}
+.node text.role{fill:var(--ui-text-3);font-size:10.5px;font-weight:600}
+.node.main rect{fill:var(--ui-primary-soft);stroke:var(--ui-primary)}
+.node.on rect{fill:var(--ui-primary);stroke:var(--ui-primary)}
+.node.on text,.node.on text.role{fill:var(--ui-on-primary)}
+.node.done rect{stroke:var(--ui-ok)}
+.node.run rect{stroke:var(--ui-primary);stroke-width:2.5;animation:pulse 1s infinite}
+.node.err rect{stroke:var(--ui-err)}
+.node.idle{opacity:.55}
+.badge rect{fill:var(--ui-warn-soft);stroke:none} .badge text{fill:var(--ui-warn);font-size:10.5px;font-weight:700;text-anchor:middle}
+.pkt{fill:var(--ui-primary)}
+.ms{fill:var(--ui-ok);font-size:10.5px;font-weight:700;text-anchor:middle;font-family:var(--ui-mono)}
+.msg{border-radius:12px;background:var(--ui-surface-2);padding:8px 11px;animation:drop .28s ease-out;min-width:0}
+.msg .top{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:13px}
+.kind{font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--ui-primary-soft);color:var(--ui-primary);white-space:nowrap}
+.kind.score{background:var(--ui-ok-soft);color:var(--ui-ok)} .kind.coach,.kind.reflect{background:var(--ui-warn-soft);color:var(--ui-warn)}
+.kind.gen{background:var(--ui-warn-soft);color:var(--ui-warn)} .kind.err{background:var(--ui-err-soft);color:var(--ui-err)}
+.msg .who{font-weight:700} .msg .arrow{color:var(--ui-text-3)}
+.msg .t{margin-left:auto;font-size:11.5px;color:var(--ui-text-3);font-family:var(--ui-mono);white-space:nowrap}
+.msg p{margin:3px 0 0;font-size:12.8px;color:var(--ui-text-2);overflow-wrap:anywhere}
+.msg.sep{background:none;padding:2px 0;font-size:12px;font-weight:700;color:var(--ui-text-3);display:flex;align-items:center;gap:8px}
+.msg.sep::before,.msg.sep::after{content:"";flex:1;height:1px;background:var(--ui-line)}
+.banner{margin:0 16px 8px;padding:10px 14px;border-radius:12px;background:var(--ui-warn-soft);color:var(--ui-warn);font-weight:650;font-size:13.5px;flex:none}
+.banner a{color:inherit}
+@media (prefers-reduced-motion:reduce){.ev,.msg{animation:none} .steps li.active::before,.node.run rect{animation:none}}
+/* 좁은 화면(노트북·세로)에서는 위아래로 쌓는다 — 발표 기준은 1920×1080 */
+@media (max-width:1180px){
+  body{overflow:auto;height:auto} main{grid-template-columns:minmax(0,1fr);overflow:visible}
+  .device{min-height:640px} .panel{min-height:520px} .rows{grid-template-columns:minmax(0,1fr)}
+  .chips{margin-left:0}
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>AI 분실물 관제탑<small>통합 시연</small></h1>
+  <nav class="scenes" role="tablist" aria-label="시연 장면">
+    <button role="tab" data-scene="found" aria-selected="true"><span class="no">1</span>습득 · 해운대역 키오스크</button>
+    <button role="tab" data-scene="lost" aria-selected="false"><span class="no">2</span>분실 신고 · 분실인 휴대폰</button>
+    <button role="tab" data-scene="pickup" aria-selected="false"><span class="no">3</span>회수 · 본센터 키오스크</button>
+    <button role="tab" data-scene="robot" aria-selected="false"><span class="no">4</span>로봇 작업대</button>
+  </nav>
+  <div class="chips">
+    <span class="chip"><span class="dot" id="conn"></span><span id="connText">연결 중</span></span>
+    <span class="chip" id="srcChip" title="가운데 칸이 보여 주는 저장소">저장소 <b id="src">-</b></span>
+    <span class="chip" id="lfChip" title="같은 단계가 Langfuse 에도 남는지">Langfuse <b id="lf">-</b></span>
+    <button class="ghost" id="btnReset" hidden title="가상 세계를 처음 상태로(두 번 눌러 실행)">처음으로</button>
+    <span data-theme-slot></span>
+  </div>
+</header>
+<div class="banner" id="banner" hidden></div>
+<div class="steps" id="steps" aria-live="polite"><span class="empty">아직 진행 중인 건이 없어요 — 왼쪽 화면에서 시작해 보세요.</span></div>
+
+<main id="main">
+  <section class="device" id="deviceCol" aria-label="사용자 화면">
+    <div class="stage" id="stage">
+      <div class="stand" id="standKiosk">
+        <div class="k-head"><div class="k-screen" id="kScreen">
+          <iframe id="fFound" title="해운대역 키오스크(습득)" allow="camera"></iframe>
+          <iframe id="fPickup" title="부산역 본센터 키오스크(회수)" allow="camera" hidden></iframe>
+        </div></div>
+        <div class="k-body" id="kBody">
+          <div class="k-cam" aria-hidden="true"><i></i></div>
+          <div class="k-slot" aria-hidden="true"></div>
+          <span class="k-label" id="kLabel">촬영 카메라 · 접수증</span>
+          <div class="k-pad" aria-hidden="true"><i></i></div>
+        </div>
+      </div>
+      <div class="handset" id="standPhone" hidden><iframe id="fLost" title="분실인 휴대폰(분실인 웹)"></iframe></div>
+    </div>
+    <p class="cap" id="cap"></p>
+  </section>
+
+  <section class="panel" aria-label="DB 실시간 기록">
+    <header><h2>DB 실시간 기록</h2><span class="hint" id="srcHint"></span></header>
+    <div class="tables" id="tables"></div>
+    <div class="rows">
+      <article class="rowcard" id="cardItem"></article>
+      <article class="rowcard" id="cardClaim"></article>
+      <article class="rowcard vcard" id="cardVision" hidden></article>
+    </div>
+    <div class="sub">
+      <div class="seg" id="dbSeg" role="group" aria-label="DB 보기">
+        <button data-v="log" aria-pressed="true">기록 흐름</button>
+        <button data-v="table" aria-pressed="false">팀 DB 조회</button>
+      </div>
+      <span class="hint" id="dbHint">새 기록이 위에 쌓여요 · 🔒 값은 서버가 보내지 않음</span>
+    </div>
+    <ol class="log" id="dbLog" data-empty="아직 기록이 없어요. 물건을 접수하면 여기에 한 줄씩 생겨요."></ol>
+    <div class="dbview" id="dbView" hidden></div>
+  </section>
+
+  <section class="panel" aria-label="AI 에이전트 흐름">
+    <header><h2>AI 에이전트 흐름</h2>
+      <div class="seg" id="agSeg" role="group" aria-label="에이전트 묶음">
+        <button data-g="tower" aria-pressed="true">관제탑 에이전트</button>
+        <button data-g="chat" aria-pressed="false">챗봇 에이전트</button>
+      </div>
+    </header>
+    <div class="graphwrap"><svg id="graph" viewBox="0 0 680 320" role="img" aria-label="에이전트 연결 그림"></svg></div>
+    <div class="sub"><h3>주고받은 말</h3><span class="hint" id="agHint"></span></div>
+    <ol class="log" id="agLog" data-empty="아직 대화가 없어요. 접수·신고·챗봇 질문이 들어오면 에이전트가 일하는 순서가 보여요."></ol>
+  </section>
+</main>
+<iframe id="full" title="로봇 작업대(실시간 관제)" hidden></iframe>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+  const qs = new URLSearchParams(location.search);
+  const SVG = "http://www.w3.org/2000/svg";
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ================= 장면 =================
+  const SCENES = {
+    found:  {frame: "fFound",  kind: "found", label: "촬영 카메라 · 접수증",
+             cap: "<b>해운대역 등록기계 KIOSK-A</b><br>물건을 놓으면 자동으로 찍고 → 가운데 <code>item</code> 표에 새 행이 생겨요"},
+    lost:   {frame: "fLost",   kind: "lost",
+             cap: "<b>분실인 휴대폰 · 분실인 웹</b><br>신고하면 닮은 습득물을 찾고 → <code>claim</code> 표에 찾기 요청이 저장돼요"},
+    pickup: {frame: "fPickup", kind: "lost", label: "물건 나오는 곳",
+             cap: "<b>부산역 본센터 키오스크 CENTER</b><br>찾기 번호로 <code>claim</code> 을 읽어 본인 확인 → 로봇이 꺼내고 반환 기록 저장"},
+    robot:  {kind: "lost"},
+  };
+  let scene = SCENES[qs.get("scene")] ? qs.get("scene") : "found";
+  let camMode = ["server", "demo", "browser"].includes(qs.get("cam")) ? qs.get("cam") : null;   // null = 서버 설정을 보고 정함
+  const loaded = {};
+
+  function kioskUrl(machine) {
+    const cam = camMode === "server" ? "&cam=server" : camMode === "demo" ? "&demo=1" : "";
+    return `/kiosk?machine=${machine}${cam}`;
+  }
+  function bare(frame) {                         // 기기 틀 안 화면에서는 스크롤 막대를 숨긴다(스크롤은 그대로 됨)
+    frame.addEventListener("load", () => {
+      try { const st = frame.contentDocument.createElement("style"); st.textContent = "*{scrollbar-width:none}*::-webkit-scrollbar{width:0;height:0}"; frame.contentDocument.head.appendChild(st); } catch (_) {}
+    });
+  }
+  ["fFound", "fPickup", "fLost"].forEach((id) => bare($(id)));
+  function load(sc) {
+    if (loaded[sc]) return;
+    loaded[sc] = true;
+    if (sc === "found") $("fFound").src = kioskUrl("KIOSK-A");
+    // 본센터 키오스크는 회수 탭으로 바로 연다(?tab=ret → 카메라를 켜지 않음). &demo=1: 습득 탭으로 넘어가도 실제 웹캠을 잡지 않게
+    // — 해운대역 키오스크가 쓰는 PC 웹캠과 다투면 영상이 깨진다(11/10)
+    else if (sc === "pickup") $("fPickup").src = "/kiosk?machine=CENTER&tab=ret&demo=1";
+    else if (sc === "lost") $("fLost").src = "/phone";
+    else if (sc === "robot") $("full").src = "/live";
+  }
+  function setScene(sc) {
+    scene = sc;
+    document.querySelectorAll(".scenes button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.scene === sc)));
+    const robot = sc === "robot";
+    $("main").hidden = robot; $("full").hidden = !robot; $("steps").hidden = robot;
+    load(sc);
+    if (!robot) {
+      const phone = sc === "lost";
+      $("standKiosk").hidden = phone; $("standPhone").hidden = !phone;
+      $("fFound").hidden = sc !== "found"; $("fPickup").hidden = sc !== "pickup";
+      $("cardVision").hidden = sc !== "found"; $("cardClaim").hidden = sc === "found";     // 습득 장면: 찾기 요청 대신 사진 분석(Qwen)
+      $("cap").innerHTML = SCENES[sc].cap;
+      if (SCENES[sc].label) $("kLabel").textContent = SCENES[sc].label;
+      fit();
+    }
+    renderSteps();
+    try { history.replaceState(null, "", location.pathname + "?scene=" + sc + (qs.get("cam") ? "&cam=" + qs.get("cam") : "")); } catch (_) {}
+  }
+  document.querySelectorAll(".scenes button").forEach((b) => b.onclick = () => setScene(b.dataset.scene));
+
+  // 기기 크기: 왼쪽 칸 높이에 맞춰 세로 키오스크(화면 9:16)와 휴대폰을 줄여 그린다. 안쪽 화면은 460×818 로 그린 뒤 축소(글자 비율 유지)
+  const KW = 460, KH = 818;
+  function fit() {
+    const stage = $("stage"); if (!stage || $("main").hidden) return;
+    const narrow = window.innerWidth <= 1180;
+    const H = Math.max(420, narrow ? 620 : stage.clientHeight);
+    const bodyH = Math.round(Math.min(150, Math.max(84, H * 0.13)));
+    const screenH = H - bodyH - 20;                              // 테두리 10px × 2
+    const scale = screenH / KH, screenW = Math.round(KW * scale);
+    const ks = $("kScreen");
+    ks.style.width = screenW + "px"; ks.style.height = Math.round(screenH) + "px";
+    for (const id of ["fFound", "fPickup"]) { const f = $(id); f.style.width = KW + "px"; f.style.height = KH + "px"; f.style.transform = `scale(${scale})`; }
+    const body = $("kBody"); body.style.width = Math.round((screenW + 20) * 0.9) + "px"; body.style.height = (bodyH + 14) + "px";
+    const pw = 390, ph = Math.min(844, H - 22);
+    const lost = $("fLost"); lost.style.width = pw + "px"; lost.style.height = ph + "px";
+    const devw = Math.max(screenW + 20 + 54, scene === "lost" ? pw + 22 : 0);    // 옆 단말기 자리까지
+    if (!narrow) $("main").style.setProperty("--devw", Math.round(devw) + "px");
+  }
+  window.addEventListener("resize", fit);
+
+  // ================= DB 칸 =================
+  const TABLES = [["item", "습득물"], ["finder_contact", "습득자 연락처"], ["item_status_log", "상태 변경 기록"], ["claim", "찾기 요청"],
+                  ["quiz_attempt", "확인 질문 결과"], ["reservation", "방문 예약"], ["storage_assignment", "보관 칸 배정"],
+                  ["return_case", "반환 기록"], ["return_step", "반환 단계"]];
+  const counts = {};
+  $("tables").innerHTML = TABLES.map(([t, easy]) => `<span class="tbl zero" id="tbl-${t}" title="${easy} 표에 쓴 횟수"><code>${t}</code>${easy}<b>0</b></span>`).join("");
+  // '지금 보는 행' 두 장: 표의 칸을 미리 그려 두고 값이 채워지는 모습을 보여 준다. [칸 이름, 쉬운 이름]
+  const CARD = {
+    item:  {el: "cardItem",  title: "습득물", pk: "item_id", cols: [["machine_id", "등록기계"], ["place_text", "발견 장소"], ["photo_path", "사진"],
+            ["category", "품목"], ["features", "공개 특징"], ["private_features", "비공개 특징"], ["finder_contact", "습득자 연락처"],
+            ["status", "상태"], ["slot_id", "보관 칸"]]},
+    claim: {el: "cardClaim", title: "찾기 요청", pk: "claim_id", cols: [["item_id", "접수 번호"], ["name_masked", "가린 이름"],
+            ["id_no_masked", "가린 신분 번호"], ["id_verified", "본인 확인"], ["description", "분실물 설명"], ["quiz", "확인 질문"],
+            ["visit_date", "방문 날짜"], ["visit", "방문 상태"], ["decision", "반환 결과"]]},
+  };
+  const rows = {item: {}, claim: {}};
+  const cur = {item: null, claim: null};
+  const dbSaved = new Set();              // 팀 DB 에서 읽힌 접수 번호(팀 DB 조회 결과)
+  function drawCard(t) {
+    const c = CARD[t], key = cur[t], row = (key && rows[t][key]) || {};
+    const saved = t === "item" && key && dbSaved.has(key) ? `<span class="dbok" title="팀 DB 의 item 표에서 이 접수 번호를 읽었어요">팀 DB 저장됨</span>` : "";
+    $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4><dl>` +
+      c.cols.map(([n, easy]) => { const v = row[n];
+        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + esc(v.text)}</dd>`; }).join("") + "</dl>";
+  }
+  function setCell(t, key, name, text, locked, live) {
+    if (!key) return;
+    const row = rows[t][key] = rows[t][key] || {};
+    row[name] = {text, locked: !!locked};
+    if (cur[t] !== key) return;
+    const dd = $(CARD[t].el).querySelector(`dd[data-col="${name}"]`);
+    if (!dd) return;
+    dd.className = locked ? "locked" : ""; dd.textContent = (locked ? "🔒 " : "") + text;
+    if (live) { dd.classList.add("flash"); setTimeout(() => dd.classList.remove("flash"), 60); }
+  }
+  function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; drawCard(t); } }
+  function ring(t, cls) { const el = $(CARD[t].el); el.classList.add(cls); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("write", "read"), 900); }
+
+  function applyDb(d, live) {
+    const colsBy = Object.fromEntries((d.cols || []).map((c) => [c.name, c]));
+    const val = (n) => colsBy[n] ? colsBy[n].value : null;
+    const write = d.op !== "SELECT";
+    if (write) {
+      counts[d.table] = (counts[d.table] || 0) + 1;
+      const chip = $("tbl-" + d.table);
+      if (chip) { chip.classList.remove("zero"); chip.querySelector("b").textContent = counts[d.table]; if (live) { chip.classList.add("hit"); setTimeout(() => chip.classList.remove("hit"), 700); } }
+    }
+    const k = d.key;
+    if (d.table === "item" && k) {
+      if (write) { focusRow("item", k); for (const c of d.cols) if (CARD.item.cols.some(([n]) => n === c.name)) setCell("item", k, c.name, c.value, c.hidden, live); if (live) ring("item", "write"); }
+      else if (cur.item === k && live) ring("item", "read");
+    } else if (d.table === "finder_contact" && k) { setCell("item", k, "finder_contact", "저장됨(이름·전화번호 가림)", true, live);
+    } else if (d.table === "storage_assignment" && k) { focusRow("item", k); setCell("item", k, "slot_id", d.op === "DELETE" ? "비움" : val("slot_id"), false, live); if (live) ring("item", "write");
+    } else if (d.table === "claim" && k) {
+      if (write) { focusRow("claim", k); for (const c of d.cols) if (CARD.claim.cols.some(([n]) => n === c.name)) setCell("claim", k, c.name, c.value, c.hidden, live); if (live) ring("claim", "write");
+        const iid = val("item_id"); if (iid && rows.item[iid]) focusRow("item", iid); }
+      else { focusRow("claim", k); if (live) ring("claim", "read"); }
+    } else if (d.table === "quiz_attempt" && k) {
+      const prev = (rows.claim[k] && rows.claim[k].quiz && rows.claim[k].quiz.text) || "";
+      setCell("claim", k, "quiz", (prev ? prev + " · " : "") + `${val("field")} ${val("passed") === "예" ? "통과" : "틀림"}`, false, live);
+    } else if (d.table === "reservation" && k) {
+      if (val("visit_date")) setCell("claim", k, "visit_date", val("visit_date"), false, live);
+      if (val("status")) setCell("claim", k, "visit", val("status") === "visited" ? "방문함(visited)" : "예약됨(booked)", false, live);
+    } else if (d.table === "return_case") {
+      const cid = val("claim_id"); if (cid && cid !== "-") { focusRow("claim", cid); setCell("claim", cid, "decision", `${val("decision")} — ${val("reason")}`, false, live); if (live) ring("claim", "write"); }
+    }
+  }
+  // ================= 사진 분석(Qwen) 카드 =================
+  // vision 사건(agents/vision_watch.py): 접수 → 작업자가 가져감 → 분석 중 → 결과. 결과에는 Qwen 이 읽은 값(raw)과 저장한 값(saved)이 같이 온다.
+  // 비공개 값(읽은 글자·스티커·특이점)은 서버가 개수·상태만 보낸다
+  const VSTEPS = [["queued", "사진 접수"], ["picked", "작업자가 가져감"], ["analyze", "Qwen 분석"], ["result", "결과 → 저장"]];
+  const VROWS = [["종류", (r) => r.category, (v) => v.category, false], ["색", (r) => (r.colors || []).join(", "), (v) => v.color, false],
+                 ["모양", (r) => r.shape, (v) => v.shape, false], ["재질", (r) => (r.materials || []).join(", "), (v) => v.material, false],
+                 ["읽은 글자", (r) => r.logos_or_text, (v) => v.visible_text, true],
+                 ["스티커·특이점", (r) => `스티커 ${r.stickers} · 특이점 ${r.distinctive_features}`, (v) => v.mark, true],
+                 ["확신도", () => "", (v) => v.confidence == null ? "" : String(v.confidence), false]];
+  const vis = {};                    // 접수 번호 → {stage, t0, t, detail, raw, saved, seconds, machine}
+  let visCur = null, worker = {on: false, seen_ago: null};
+  function drawVision(flash) {
+    const box = $("cardVision"), v = visCur && vis[visCur];
+    const head = `<h4>Qwen3-VL 사진 분석`;
+    if (!v) {
+      box.innerHTML = head + `<span class="stg">${worker.on ? "작업자 켜짐 · 대기" : "작업자 꺼짐"}</span></h4>` +
+        `<p class="vnote">키오스크가 찍은 사진을 Qwen 이 읽어 <b>종류·색·모양·재질</b>을 뽑고, 그 값이 <code>item</code> 표에 저장돼요.</p>` +
+        (worker.on ? "" : `<p class="vnote warn">Qwen 작업자가 꺼져 있어요. 관제탑 PC 에서 <code>.\\.venv-qwen\\Scripts\\python.exe tools\\intake_qwen_worker.py</code> 를 켜 주세요.</p>`);
+      return;
+    }
+    const idx = {queued: 0, picked: 1, wait_gpu: 1, analyze: 2, fail: 2, result: 3}[v.stage] ?? 0;
+    const bad = v.stage === "fail", done = v.stage === "result";
+    const secs = done ? v.seconds : Math.max(0, Math.round(Date.now() / 1000 - v.t0));
+    const label = done ? `완료 ${v.seconds != null ? v.seconds + "초" : ""}` : bad ? "분석 실패 · 다시 시도" : v.stage === "wait_gpu" ? "그래픽카드 기다림" :
+      v.stage === "analyze" ? `분석 중 ${secs}초` : v.stage === "picked" ? "작업자가 가져감" : `차례 기다림 ${secs}초`;
+    const steps = VSTEPS.map(([k, t], i) => `<li class="${i < idx || done ? "done" : i === idx ? (bad ? "bad" : "now") : ""}">${t}</li>`).join("");
+    let note = "";
+    if (v.stage === "queued" && !worker.on) note = `<p class="vnote warn">Qwen 작업자가 꺼져 있어 분석이 시작되지 않아요. 관제탑 PC 에서 <code>.\\.venv-qwen\\Scripts\\python.exe tools\\intake_qwen_worker.py</code></p>`;
+    else if (v.detail && !done) note = `<p class="vnote${bad ? " warn" : ""}">${esc(v.detail)}</p>`;
+    const raw = v.raw || {}, saved = v.saved || {};
+    const cell = (text, lock) => !done ? `<td class="none">—</td>` : `<td class="${lock ? "lock" : text ? "" : "none"}">${lock ? "🔒 " : ""}${esc(text || "—")}</td>`;
+    box.innerHTML = head + `<span class="stg ${done ? "ok" : bad ? "bad" : "run"}">${esc(label)}</span><span class="pk">${esc(visCur)}</span></h4>` +
+      `<div class="vhead"><img src="/api/admin/items/${encodeURIComponent(visCur)}/photo" alt="접수 사진" onerror="this.outerHTML='&lt;span class=&quot;noimg&quot;&gt;사진&lt;/span&gt;'"><ol class="vsteps">${steps}</ol></div>` + note +
+      `<table class="vtable"><thead><tr><th></th><th>Qwen 이 읽은 값</th><th>DB 에 저장한 값</th></tr></thead><tbody>` +
+      VROWS.map(([name, r, sv, lock]) => `<tr class="${flash && done ? "flash" : ""}"><td>${name}</td>${cell(done ? r(raw) : "", false)}${cell(done ? sv(saved) : "", lock)}</tr>`).join("") + `</tbody></table>`;
+    if (flash && done) setTimeout(() => box.querySelectorAll("tr.flash").forEach((tr) => tr.classList.remove("flash")), 900);
+  }
+  function applyVision(e, live) {
+    const d = e.vision || {}, id = d.item_id;
+    if (!id) return;
+    const v = vis[id] = vis[id] || {t0: e.t};
+    if (d.stage === "queued") { v.t0 = e.t; v.raw = v.saved = null; v.seconds = null; }
+    if (v.stage === "result" && d.stage !== "queued" && d.stage !== "result") return;      // 늦게 온 중간 단계는 결과를 덮지 않는다
+    v.stage = d.stage; v.detail = d.detail || ""; v.t = e.t;
+    if (d.stage === "result") { v.raw = d.raw; v.saved = d.saved; v.seconds = d.seconds; }
+    visCur = id; drawVision(live);
+    // 에이전트 그림: 키오스크 AI 가 사진을 넘기고 → 비전 에이전트(Qwen)가 읽고 → 결과가 메인 AI(→ DB)로
+    const N = "비전 에이전트";
+    if (live) follow("tower");
+    if (d.stage === "queued") { if (live) { packet("tower", "키오스크 AI", N); flashNode("tower", "키오스크 AI", 700); } mark("tower", N, {cls: live ? "run" : "done", ms: null, badge: null}); }
+    else if (d.stage === "analyze") mark("tower", N, {cls: live ? "run" : "done", badge: live ? "🧠 Qwen3-VL" : null});
+    else if (d.stage === "fail") mark("tower", N, {cls: "err", badge: null});
+    else if (d.stage === "result") { mark("tower", N, {cls: "done", badge: null, ms: d.seconds != null ? Math.round(d.seconds * 1000) : null});
+      if (live) { packet("tower", N, "메인 AI"); setTimeout(() => packet("tower", "메인 AI", "DB 에이전트"), 420); } }
+    const say = {queued: `사진 접수 — 분석 차례를 기다려요${d.worker === false ? " (작업자 꺼짐)" : ""}`, picked: "작업자가 사진을 가져갔어요", wait_gpu: d.detail || "그래픽카드 차례를 기다려요",
+                 analyze: "Qwen3-VL 이 사진을 읽는 중", fail: `분석 실패 — ${d.detail || ""}`,
+                 result: d.raw ? `읽은 값: 종류 ${d.raw.category} · 색 ${(d.raw.colors || []).join(", ") || "-"} · 모양 ${d.raw.shape} → 저장: ${(d.saved || {}).category} / ${(d.saved || {}).color}` : "결과 도착"}[d.stage];
+    if (say) agLine(`<div class="top"><span class="kind${d.stage === "fail" ? " err" : d.stage === "result" ? " gen" : ""}">사진 분석</span><span class="who">${N}(Qwen)</span>` +
+      `<span class="arrow">·</span><span>${esc(id)}</span><span class="t">${d.stage === "result" && d.seconds != null ? d.seconds + "초" : clock(e.t)}</span></div><p>${esc(say)}</p>`);
+  }
+  setInterval(() => { const v = visCur && vis[visCur]; if (v && v.stage !== "result" && v.stage !== "fail" && !$("cardVision").hidden) drawVision(false); }, 1000);
+
+  let lastDb = null;
+  function logDb(e) {
+    const d = e.db, log = $("dbLog");
+    const sig = [d.table, d.op, d.by, d.note].join("|");
+    if (lastDb && lastDb.sig === sig && e.t - lastDb.t < 3 && d.key && lastDb.li.isConnected) {      // 같은 일이 여러 행에 연달아 → 한 줄로 묶음
+      lastDb.keys.push(d.key); lastDb.t = e.t;
+      lastDb.li.querySelector(".key").textContent = `${lastDb.keys.length}건: ${lastDb.keys.join(", ")}`;
+      const cols = lastDb.li.querySelector(".cols"); if (cols) cols.remove();
+      return;
+    }
+    const li = document.createElement("li");
+    li.className = "ev " + d.op;
+    const shown = (d.cols || []).filter((c) => d.op === "SELECT" || c.changed);
+    li.innerHTML = `<div class="top"><span class="op ${d.op}">${d.op}</span><code>${esc(d.table)}</code><span class="easy">${esc(d.label || "")}</span>` +
+      `<span class="key">${esc(d.key || "")}</span><span class="by">${esc(d.by || "")} · ${clock(e.t)}</span></div>` +
+      (d.note ? `<p class="note">${esc(d.note)}</p>` : "") +
+      (shown.length ? `<div class="cols">${shown.map((c) => `<span class="c${c.changed ? " chg" : ""}${c.hidden ? " lock" : ""}"><code>${esc(c.name)}</code> ${esc(c.label)} = <b>${c.hidden ? "🔒 " : ""}${esc(c.value)}</b></span>`).join("")}</div>` : "");
+    log.prepend(li);
+    while (log.children.length > 80) log.lastChild.remove();
+    lastDb = {sig, t: e.t, li, keys: d.key ? [d.key] : []};
+  }
+  const two = (n) => String(n).padStart(2, "0");
+  const clock = (t) => { const d = new Date(t * 1000); return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`; };
+
+  // ================= 팀 DB 조회(가상 시연 기록을 팀 DB 에도 저장할 때) =================
+  let dbTab = "log", mirror = {on: false}, dbSeen = null;
+  document.querySelectorAll("#dbSeg button").forEach((b) => b.onclick = () => setDbTab(b.dataset.v));
+  function setDbTab(v) {
+    dbTab = v;
+    document.querySelectorAll("#dbSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+    $("dbLog").hidden = v !== "log"; $("dbView").hidden = v !== "table";
+    $("dbHint").textContent = v === "log" ? "새 기록이 위에 쌓여요 · 🔒 값은 서버가 보내지 않음" : "팀 DB(PostgreSQL)에서 방금 읽은 값 · 3초마다 다시 읽어요";
+    if (v === "table") readDb();
+  }
+  const WHERE_KIND = {kiosk: "등록기계", center: "본센터"};
+  function drawDb(d) {
+    const box = $("dbView");
+    if (!d || !d.on) {
+      box.innerHTML = `<p class="off"><b>팀 DB 에 함께 저장이 꺼져 있어요.</b><br>지금은 메모리 저장소만 써요. <code>tools\\start_tower.bat</code> 로 관제탑을 켜면 가상 시연 기록이 팀 DB 에도 저장돼요(끄기: <code>start_tower.bat nodb</code>).</p>`;
+      return;
+    }
+    if (d.error) { box.innerHTML = `<p class="off"><b>팀 DB 에 연결하지 못했어요</b> (${esc(d.error)}).<br>Docker 의 팀 DB 가 켜져 있는지 확인해 주세요. 시연은 메모리 저장소로 계속돼요.</p>`; return; }
+    const c = d.counts || {};
+    const counts = [["item", "습득물"], ["item_status_log", "상태 변경 기록"], ["claim", "찾기 요청"], ["reservation", "방문 예약"], ["storage_assignment", "보관 칸 배정"], ["return_case", "반환 기록"]]
+      .map(([t, easy]) => `<span><code>${t}</code> ${easy} <b>${esc(c[t] ?? "-")}</b>행</span>`).join("");
+    const body = (d.items || []).map((r) => {
+      const fresh = dbSeen && !dbSeen.has(r.item_id);
+      const photo = r.has_photo ? `<img class="ph" src="/api/admin/items/${encodeURIComponent(r.item_id)}/photo" alt="접수 사진" loading="lazy" onerror="this.outerHTML='&lt;span class=&quot;noph&quot;&gt;사진 있음&lt;/span&gt;'">` : `<span class="noph">없음</span>`;
+      const t = r.received_at ? new Date(r.received_at) : null;
+      return `<tr class="${fresh ? "new" : ""}${r.item_id === cur.item ? " cur" : ""}"><td>${photo}</td>` +
+        `<td class="id">${esc(r.item_id)}${r.virtual ? `<span class="tag" title="글로 한 가상 신고·시연용 물건">시연</span>` : ""}</td>` +
+        `<td class="where"><b>${esc(r.station || "")}${r.kind === "center" ? " 본센터" : "역"}</b><small>${esc(WHERE_KIND[r.kind] || "")} ${esc(r.machine_id)}</small></td>` +
+        `<td>${esc(r.place_text)}</td><td>${esc(r.category)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
+        `<td>${t ? `${two(t.getHours())}:${two(t.getMinutes())}:${two(t.getSeconds())}` : ""}</td></tr>`; }).join("");
+    box.innerHTML = `<p class="counts">${counts}</p><table class="dbtable"><thead><tr>` +
+      `<th>사진<code>photo_path</code></th><th>접수 번호<code>item_id</code></th><th>접수한 곳<code>machine_id</code></th><th>발견 장소<code>place_text</code></th>` +
+      `<th>품목<code>category</code></th><th>상태<code>status</code></th><th>칸<code>slot_id</code></th><th>접수 시각<code>received_at</code></th></tr></thead>` +
+      `<tbody>${body || `<tr><td colspan="8" class="noph">아직 접수된 물건이 없어요.</td></tr>`}</tbody></table>`;
+  }
+  let dbBusy = false;
+  async function readDb() {
+    if (!mirror.on) { drawDb(null); return; }
+    if (dbBusy) return;
+    dbBusy = true;
+    try {
+      const r = await fetch("/api/admin/db/recent?limit=12", {cache: "no-store"});
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      const before = dbSaved.size;
+      (d.items || []).forEach((x) => dbSaved.add(x.item_id));
+      if (dbTab === "table") drawDb(d);
+      dbSeen = new Set((d.items || []).map((x) => x.item_id));
+      if (dbSaved.size !== before && cur.item && dbSaved.has(cur.item)) drawCard("item");
+    } catch (_) {} finally { dbBusy = false; }
+  }
+  setInterval(() => { if (mirror.on && !document.hidden) readDb(); }, 3000);
+  function showMirror(d) {
+    const was = mirror.on;
+    mirror = d.db_mirror || {on: false};
+    const chip = $("srcChip");
+    chip.classList.remove("good", "warn");
+    if (mirror.on && mirror.connected) {
+      chip.classList.add("good"); $("src").textContent = `팀 DB 저장 ${mirror.ok}건`;
+      $("srcHint").textContent = `${d.sim ? "가상 시연 · " : ""}팀 DB(PostgreSQL)에도 함께 저장 중` + (mirror.fail ? ` · 실패 ${mirror.fail}건` : "") + (mirror.skipped ? ` · 넘김 ${mirror.skipped}건` : "");
+    } else if (mirror.on && mirror.connected === false) {
+      chip.classList.add("warn"); $("src").textContent = "팀 DB 연결 안 됨";
+      $("srcHint").textContent = "팀 DB 에 연결하지 못해 메모리 저장소로 진행 중(Docker 의 팀 DB 확인)";
+    } else if (mirror.on) {
+      $("src").textContent = "팀 DB 준비 중"; $("srcHint").textContent = "팀 DB(PostgreSQL)에도 함께 저장";
+    } else {
+      $("src").textContent = d.db_source === "postgres" ? "팀 DB" : "메모리";
+      $("srcHint").textContent = d.db_source === "postgres" ? "팀 DB(PostgreSQL)에 실제로 쓰고 읽는 기록" : (d.sim ? "가상 시연 · 메모리 저장소(팀 DB 와 같은 표 모양)" : "메모리 저장소(팀 DB 와 같은 표 모양)");
+    }
+    if (mirror.on && !was) readDb();
+  }
+
+  // ================= 에이전트 칸 =================
+  // 묶음 둘: tower = 관제탑 에이전트(메인 AI 를 거쳐 주고받음) · chat = 챗봇 에이전트(coordinator → planner → supervisor ⇄ 일꾼 → reporter)
+  const G = {
+    tower: {nodes: {
+        "메인 AI": [340, 160, "요청을 나누고 결정", "main"], "키오스크 AI": [110, 60, "습득 접수"], "매칭 에이전트": [340, 40, "탑뷰 물건 찾기"],
+        "DB 에이전트": [570, 60, "기록 읽기"], "보관 칸 에이전트": [570, 262, "칸 고르기"], "채점 에이전트": [340, 282, "답 점수·도움"],
+        "로봇팔 에이전트": [110, 262, "집기·전달"], "비전 에이전트": [110, 160, "사진 읽기(Qwen)"]},
+      edges: [["메인 AI", "키오스크 AI"], ["메인 AI", "매칭 에이전트"], ["메인 AI", "DB 에이전트"], ["메인 AI", "보관 칸 에이전트"],
+              ["메인 AI", "채점 에이전트"], ["메인 AI", "로봇팔 에이전트"], ["메인 AI", "비전 에이전트"]],
+      hint: "관제탑: 모든 말은 메인 AI 를 거쳐요"},
+    chat: {nodes: {
+        "질문": [52, 150, "분실인·직원", "io"], "coordinator": [170, 150, "말 분류"], "planner": [300, 150, "일 순서 계획"],
+        "supervisor": [440, 150, "감독 · 다음 판단", "main"], "researcher": [606, 42, "안내 문서 답"], "item_search": [606, 114, "물건 검색(읽기)"],
+        "intake": [606, 186, "대화로 접수"], "ops_analyst": [606, 258, "관제 분석(직원)"], "reporter": [440, 274, "답 정리"], "답": [300, 274, "화면에 표시", "io"]},
+      edges: [["질문", "coordinator"], ["coordinator", "planner"], ["planner", "supervisor"], ["supervisor", "researcher"],
+              ["supervisor", "item_search"], ["supervisor", "intake"], ["supervisor", "ops_analyst"], ["supervisor", "reporter"], ["reporter", "답"]],
+      hint: "챗봇: Langfuse 에 남는 단계와 같은 순서예요"},
+  };
+  // trace 사건의 칸 이름 → 그림의 칸(관제탑 메인 AI 묶음은 한글 이름으로)
+  const TOWER_TRACE = {main_ai: "메인 AI", matching_agent: "매칭 에이전트", storage_agent: "보관 칸 에이전트", vision_agent: "비전 에이전트"};
+  // 어느 묶음을 보여 줄지: **일이 생긴 쪽으로 자동 전환**한다(11/10). 챗봇 질문이 들어오면 챗봇 그림, 관제탑 에이전트가 일하면 관제탑 그림.
+  //  - 챗봇 질문이 진행 중이거나 막 끝났으면(4초) 관제탑 사건이 그림을 뺏지 않는다(둘이 번갈아 깜빡이지 않게)
+  //  - 사용자가 직접 고르면 8초 동안은 그대로 둔다. 그 뒤 새 일이 생기면 다시 자동으로 따라간다
+  let graph = "tower", holdUntil = 0, chatSince = 0, chatEndAt = 0;
+  const CHAT_KEEP_MS = 4000, USER_HOLD_MS = 8000, CHAT_BUSY_MAX_MS = 90000;
+  function follow(name) {
+    const now = Date.now();
+    if (name === graph) return;
+    if (now < holdUntil) return;
+    const chatBusy = chatSince && now - chatSince < CHAT_BUSY_MAX_MS;
+    if (name === "tower" && (chatBusy || now < chatEndAt + CHAT_KEEP_MS)) return;
+    showGraph(name);
+  }
+  const state = {tower: {}, chat: {}};          // 칸 이름 → {cls, ms, badge}
+  const NW = 122, NH = 42;
+  function drawGraph() {
+    const g = G[graph], svg = $("graph");
+    let s = "";
+    for (const [a, b] of g.edges) { const A = g.nodes[a], B = g.nodes[b]; s += `<line class="edge" data-e="${a}|${b}" x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}"/>`; }
+    s += `<g id="extra"></g>`;
+    for (const [name, [x, y, role, kind]] of Object.entries(g.nodes)) {
+      const st = state[graph][name] || {};
+      const w = kind === "io" ? 84 : NW;
+      s += `<g class="node ${kind || ""} ${st.cls || (kind === "main" || kind === "io" ? "" : "idle")}" data-n="${name}" transform="translate(${x},${y})">` +
+        `<rect x="${-w / 2}" y="${-NH / 2}" width="${w}" height="${NH}" rx="${kind === "io" ? 21 : 12}"/>` +
+        `<text y="-2">${esc(name)}</text><text class="role" y="13">${esc(role)}</text>` +
+        (st.ms != null ? `<text class="ms" y="${NH / 2 + 12}">${fmtMs(st.ms)}</text>` : "") +
+        (st.badge ? `<g class="badge" transform="translate(0,${-NH / 2 - 11})"><rect x="-58" y="-9" width="116" height="17" rx="8.5"/><text y="3.5">${esc(st.badge)}</text></g>` : "") + `</g>`;
+    }
+    svg.innerHTML = s + `<g id="pkts"></g>`;
+    $("agHint").textContent = g.hint + " · 일이 생긴 쪽으로 자동 전환";
+    document.querySelectorAll("#agSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.g === graph)));
+  }
+  const fmtMs = (ms) => ms >= 1000 ? (ms / 1000).toFixed(1) + "초" : ms + "ms";
+  function showGraph(name, byUser) {
+    if (byUser) holdUntil = Date.now() + USER_HOLD_MS;
+    if (graph === name) return;
+    graph = name; drawGraph();
+  }
+  document.querySelectorAll("#agSeg button").forEach((b) => b.onclick = () => showGraph(b.dataset.g, true));
+  function mark(gname, node, patch) {
+    if (!G[gname].nodes[node]) return;
+    state[gname][node] = Object.assign(state[gname][node] || {}, patch);
+    if (graph === gname) redrawNode(gname, node);
+  }
+  function redrawNode() { drawGraphKeepPackets(); }
+  function drawGraphKeepPackets() { const keep = Array.from(document.querySelectorAll("#pkts > *")); drawGraph(); const p = $("pkts"); keep.forEach((k) => p.appendChild(k)); }
+  function packet(gname, from, to) {
+    if (graph !== gname || reduce) return;
+    const g = G[gname], A = g.nodes[from], B = g.nodes[to];
+    if (!A || !B) return;
+    const svg = $("graph");
+    let line = svg.querySelector(`[data-e="${from}|${to}"],[data-e="${to}|${from}"]`);
+    if (!line) {                                   // 그림에 없는 쌍(채점 에이전트 → DB 에이전트 등)은 잠깐 선을 그린다
+      line = document.createElementNS(SVG, "line"); line.setAttribute("class", "edge");
+      line.setAttribute("x1", A[0]); line.setAttribute("y1", A[1]); line.setAttribute("x2", B[0]); line.setAttribute("y2", B[1]);
+      line.setAttribute("stroke-dasharray", "5 5"); $("extra").appendChild(line); setTimeout(() => line.remove(), 1400);
+    }
+    line.classList.add("hot"); setTimeout(() => line.classList.remove("hot"), 900);
+    const c = document.createElementNS(SVG, "circle"); c.setAttribute("class", "pkt"); c.setAttribute("r", "7");
+    $("pkts").appendChild(c);
+    const anim = c.animate([{transform: `translate(${A[0]}px,${A[1]}px)`}, {transform: `translate(${B[0]}px,${B[1]}px)`}], {duration: 560, easing: "ease-in-out"});
+    anim.onfinish = () => c.remove();
+  }
+  function flashNode(gname, node, ms) { mark(gname, node, {cls: "on"}); setTimeout(() => { const st = state[gname][node]; if (st && st.cls === "on") mark(gname, node, {cls: "done"}); }, ms || 900); }
+  function agLine(html) {
+    const log = $("agLog"), li = document.createElement("li");
+    li.className = "msg"; li.innerHTML = html; log.prepend(li);
+    while (log.children.length > 90) log.lastChild.remove();
+    return li;
+  }
+  const KIND = {request: "요청", reply: "답", check: "확인", score: "점수", coach: "도움", reflect: "되돌아보기", retry: "다시 답", decide: "결정", learn: "배운 점"};
+
+  function applyAgent(e, live) {                 // 관제탑 에이전트 대화 한 마디
+    const a = e.agent || {};
+    if (live) { follow("tower"); packet("tower", a.from, a.to); flashNode("tower", a.from, 700); setTimeout(() => flashNode("tower", a.to, 700), 420); }
+    else { mark("tower", a.from, {cls: "done"}); mark("tower", a.to, {cls: "done"}); }
+    agLine(`<div class="top"><span class="kind ${esc(a.kind || "")}">${esc(KIND[a.kind] || a.kind || "말")}</span><span class="who">${esc(a.from)}</span><span class="arrow">→</span>` +
+      `<span class="who">${esc(a.to)}</span>${a.score != null ? `<span class="kind score">${a.score}점</span>` : ""}<span class="t">${clock(e.t)}</span></div><p>${esc(e.body)}</p>`);
+  }
+  let chatPrev = "질문", chatReported = false;    // 챗봇 그림에서 바로 앞에 일한 칸(점이 출발하는 곳) · 이번 질문에서 reporter 단계를 봤는지
+  function applyTrace(e, live) {
+    const t = e.trace || {};
+    const tower = t.trace_name === "tower-main-ai";
+    const gname = tower ? "tower" : "chat";
+    if (t.kind === "trace_start") {
+      if (!tower) { state.chat = {}; chatPrev = "질문"; chatReported = false; if (graph === "chat") drawGraph(); if (live) { chatSince = Date.now(); holdUntil = Math.min(holdUntil, Date.now()); } }
+      const li = agLine(`${tower ? "메인 AI 판단" : "챗봇 질문"} ${esc(t.trace || "")}${t.langfuse ? " · Langfuse 기록" : ""}`); li.className = "msg sep";
+      if (live) follow(gname);
+      if (!tower) mark("chat", "질문", {cls: live ? "on" : "done"});
+      return;
+    }
+    if (t.kind === "trace_end") { if (!tower) { mark("chat", "답", {cls: "done", ms: t.ms}); mark("chat", "질문", {cls: "done"}); if (live) { chatSince = 0; chatEndAt = Date.now(); } } return; }
+    if (t.type === "chain") {                    // 질문 하나 전체(바깥 틀) — 끝날 때 답을 정리한 것으로 보여 준다
+      if (t.kind === "end" && !tower) {            // 질문 하나가 끝남 → 정리된 답이 화면으로 나간다
+        if (!chatReported) {                       // reporter 단계 기록이 없는 옛 서버: 여기서 정리한 것으로 그린다
+          if (live) packet("chat", "supervisor", "reporter");
+          mark("chat", "reporter", {cls: "done"});
+        }
+        if (live) packet("chat", "reporter", "답");
+        mark("chat", "답", {cls: live ? "on" : "done"});
+        agLine(`<div class="top"><span class="kind gen">답</span><span class="who">화면에 표시</span><span class="t">전체 ${fmtMs(t.ms || 0)}</span></div><p>${esc(short(t.output))}</p>`);
+      }
+      return;
+    }
+    if (t.type === "generation") {               // 모델 호출: 부른 칸에 모델 이름 배지
+      const owner = tower ? (TOWER_TRACE[t.parent] || "메인 AI") : t.parent;
+      if (t.kind === "start") mark(gname, owner, {badge: "🧠 " + (t.model || "모델") });
+      else { mark(gname, owner, {badge: null});
+        agLine(`<div class="top"><span class="kind ${t.error ? "err" : "gen"}">${t.error ? "모델 실패 → 규칙" : "모델 호출"}</span><span class="who">${esc(owner || "")}</span>` +
+          `<span class="arrow">·</span><span>${esc(t.model || "")}</span><span class="t">${fmtMs(t.ms || 0)}</span></div><p>${esc(t.error || short(t.output))}</p>`); }
+      return;
+    }
+    const node = tower ? (TOWER_TRACE[t.name] || t.name) : t.name;
+    if (!G[gname].nodes[node]) return;
+    if (t.kind === "start") {
+      if (live) { follow(gname); if (!tower) packet("chat", chatPrev, node); else if (node !== "메인 AI") packet("tower", "메인 AI", node); }
+      mark(gname, node, {cls: live ? "run" : "done", ms: null});
+    } else {
+      mark(gname, node, {cls: t.error ? "err" : "done", ms: t.ms});
+      if (!tower) { chatPrev = node; if (node === "reporter") chatReported = true; }
+      else if (live && node !== "메인 AI") packet("tower", node, "메인 AI");
+      agLine(`<div class="top"><span class="kind${t.error ? " err" : ""}">${esc(node)}</span><span class="who">${esc(roleOf(gname, node))}</span><span class="t">${fmtMs(t.ms || 0)}</span></div>` +
+        `<p>${esc(t.error ? t.error : draft(node, short(t.output)))}</p>`);
+    }
+  }
+  // 일꾼(researcher 등)이 만든 글은 아직 '초안'이다 — 화면에 나가는 답은 reporter 가 정리한 것 하나뿐이라는 점이 보이게
+  const draft = (node, text) => node === "reporter" ? text : text.replace(/(^|· )answer: /, "$1답 초안(reporter 가 정리하기 전): ");
+  const roleOf = (gname, node) => (G[gname].nodes[node] || [])[2] || "";
+  const short = (out) => String(out || "").slice(0, 260);      // 서버(observability.brief)가 이미 가리고 줄인 한 줄
+
+  // ================= 이야기 진행 막대 =================
+  let stories = [];
+  function renderSteps() {
+    const want = (SCENES[scene] || {}).kind;
+    const st = stories.find((s) => s.kind === want);
+    const box = $("steps");
+    if (!st) { box.innerHTML = `<span class="empty">${want === "lost" ? "아직 분실 신고·회수 건이 없어요 — ② 분실 신고에서 찾기 번호를 받은 뒤 ③ 회수에서 입력해 보세요." : "아직 진행 중인 건이 없어요 — 왼쪽 화면에서 시작해 보세요."}</span>`; return; }
+    const ids = Object.values(st.ids || {}).filter(Boolean).join(" · ");
+    box.innerHTML = `<span class="who">${st.kind === "found" ? "습득" : "분실·반환"} ${esc(st.story_id)}<small>${esc(ids)}</small></span><ol>` +
+      st.stages.map((s) => `<li class="${esc(s.state)}" title="${esc(s.detail || "")}">${esc(s.label)}</li>`).join("") + `</ol>` +
+      (st.result ? `<span class="result">${st.result.ok ? "✅" : "⚠️"} ${esc(st.result.text)}</span>` : "");
+  }
+
+  // ================= 읽기 · 순서대로 재생 =================
+  let seq = 0, first = true, fails = 0, pollTimer = null;
+  // 틀 안의 챗봇 창이 "질문을 보냈다"고 알리면(web/chat-widget/widget.js) 기다리지 않고 챗봇 그림으로 바꾸고 바로 읽는다
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.source !== "lostfound-chat" || e.data.phase !== "ask") return;
+    chatSince = Date.now(); holdUntil = 0; showGraph("chat");
+    clearTimeout(pollTimer); pollTimer = setTimeout(poll, 60);
+  });
+  const queue = [];
+  function handle(e, live) {
+    if (e.channel === "db") { applyDb(e.db, live); logDb(e); }
+    else if (e.channel === "agent") applyAgent(e, live);
+    else if (e.channel === "trace") applyTrace(e, live);
+    else if (e.channel === "vision") applyVision(e, live);
+  }
+  // 재생 속도: 사건을 하나씩 보여 주되 **실제보다 늦어지지 않게** 밀린 시간(받은 뒤 기다린 시간)에 맞춰 빨라진다(11/10).
+  // 전에는 사건마다 0.38초씩 쉬어, 챗봇 답이 이미 화면에 나왔는데 그림은 아직 researcher 에 있는 것처럼 보였다
+  function pump() {
+    const e = queue.shift();
+    if (e) handle(e, true);
+    const n = queue.length, late = n ? Date.now() - (queue[0]._at || Date.now()) : 0;
+    // _rush: 이미 끝난 챗봇 질문의 남은 단계 — 답이 벌써 사용자 화면에 나갔으니 그림도 곧바로 '답'까지 간다
+    setTimeout(pump, !n ? 60 : queue[0]._rush ? 15 : (n > 60 || late > 4000) ? 20 : (n > 25 || late > 2000) ? 60 : (n > 8 || late > 900) ? 130 : 280);
+  }
+  async function poll() {
+    try {
+      const r = await fetch(`/api/admin/live/state?after=${seq}&detail=1`, {cache: "no-store"});
+      if (r.status === 401) { banner(`관리자 로그인이 켜져 있어요 — <a href="/admin">관리자 화면</a>에서 로그인한 뒤 이 화면을 다시 열어 주세요.`); throw new Error(401); }
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      fails = 0; banner("");
+      $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
+      showMirror(d);
+      $("lf").textContent = d.langfuse ? "기록 중" : "꺼짐";
+      $("btnReset").hidden = !d.sim;
+      const w = d.qwen_worker || {on: false};
+      if (w.on !== worker.on) { worker = w; drawVision(false); } else worker = w;
+      const evs = (d.events || []).filter((e) => e.channel === "db" || e.channel === "agent" || e.channel === "trace" || e.channel === "vision");
+      if (first) { evs.forEach((e) => handle(e, false)); first = false; drawGraph(); }
+      else {
+        const at = Date.now(); evs.forEach((e) => { e._at = at; }); queue.push(...evs);
+        const isChat = (e) => e.channel === "trace" && e.trace && e.trace.trace_name !== "tower-main-ai";
+        const end = queue.findLastIndex((e) => isChat(e) && e.trace.kind === "trace_end");
+        if (end >= 0) for (let i = 0; i <= end; i++) if (isChat(queue[i])) queue[i]._rush = true;
+      }
+      stories = d.stories || []; renderSteps();
+      seq = d.seq;
+    } catch (e) {
+      fails++;
+      if (fails > 2) { $("conn").className = "dot off"; $("connText").textContent = "관제탑 연결 끊김"; }
+    }
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(poll, chatSince && Date.now() - chatSince < CHAT_BUSY_MAX_MS ? 120 : 500);        // 챗봇 질문이 진행 중이면 더 자주 읽는다(답과 그림이 같은 때에 끝나게)
+  }
+  function banner(html) { const b = $("banner"); b.hidden = !html; if (html) b.innerHTML = html; }
+
+  // 처음으로(가상 세계 초기화): 실수로 누르지 않게 두 번 눌러야 실행
+  let armed = null;
+  $("btnReset").onclick = async () => {
+    const b = $("btnReset");
+    if (!armed) { b.classList.add("armed"); b.textContent = "한 번 더 누르면 초기화"; armed = setTimeout(() => { armed = null; b.classList.remove("armed"); b.textContent = "처음으로"; }, 4000); return; }
+    clearTimeout(armed); armed = null; b.classList.remove("armed"); b.textContent = "처음으로";
+    try {
+      const r = await fetch("/sim/reset", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
+      if (!r.ok) { const d = await r.json().catch(() => ({})); banner(esc(typeof d.detail === "string" ? d.detail : "초기화하지 못했어요(반환이 진행 중이면 끝난 뒤 다시)")); return; }
+      dbSaved.clear(); dbSeen = null;
+      for (const t of ["item", "claim"]) { rows[t] = {}; cur[t] = null; drawCard(t); }
+      for (const k of Object.keys(vis)) delete vis[k]; visCur = null; drawVision(false);
+      $("dbLog").innerHTML = ""; $("agLog").innerHTML = ""; state.tower = {}; state.chat = {}; lastDb = null; drawGraph();
+      for (const id of ["fFound", "fPickup", "fLost"]) { const f = $(id); if (f.getAttribute("src")) f.src = f.getAttribute("src"); }
+    } catch (_) { banner("관제탑에 연결할 수 없어요"); }
+  };
+
+  // ================= 시작 =================
+  async function start() {
+    if (!camMode) {                               // 서버 카메라가 설정된 기계면 server, 아니면 가상 카메라(자동 촬영)
+      try { const d = await (await fetch("/api/kiosk/cameras", {cache: "no-store"})).json(); camMode = d.machines && d.machines["KIOSK-A"] ? "server" : "demo"; }
+      catch (_) { camMode = "demo"; }
+    }
+    drawCard("item"); drawCard("claim"); drawVision(false); drawGraph();
+    setScene(scene);
+    poll(); pump();
+  }
+  start();
+})();
+</script>
+</body>
+</html>

@@ -279,8 +279,9 @@ class ApiRoutesTest(unittest.TestCase):
                                         "/api/admin/handovers", "/api/admin/returns/{case_id}/secret", "/api/admin/items/{item_id}/photo", "/api/admin/intake/pending-photos",
                                         "/api/admin/storage/arrivals", "/storage-desk", "/storage",
                                         "/api/admin/storage/status",
-                                        "/api/admin/storage/robot-targets", "/api/admin/storage/robot-target/{item_id}")] + \
-                  [("POST", p) for p in ("/api/admin/login", "/api/admin/logout", "/api/admin/returns",
+                                        "/api/admin/storage/robot-targets", "/api/admin/storage/robot-target/{item_id}",
+                                        "/api/admin/db/recent")] + \
+                  [("POST", p) for p in ("/api/admin/intake/analysis/{item_id}", "/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
                                          "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",
                                          "/api/kiosk/items/{item_id}/features", "/api/kiosk/returns", "/api/lost/claims", "/api/robot/stop",
@@ -289,7 +290,7 @@ class ApiRoutesTest(unittest.TestCase):
                                          "/api/admin/returns/{case_id}/verify", "/api/admin/returns/{case_id}/restock",
                                          "/api/admin/storage/arrivals/{item_id}/place",
                                          "/api/admin/storage/shelf")]   # 11/9 보관함 꽉 참: 현황·직원 보관 선반   # 11/6 교차 검증   # 11/5 /api/ 주소 체계
-        self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/metrics"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/places"),
+        self.assertEqual(sorted(r), sorted(new_api + [("GET", "/chat-widget/demo"), ("GET", "/chat-widget/widget.js"), ("GET", "/chat/health"), ("GET", "/chat/metrics"), ("GET", "/chat/suggestions"), ("GET", "/claims/{claim_id}"), ("GET", "/health"), ("GET", "/intake"), ("GET", "/kiosk"), ("GET", "/live"), ("GET", "/live/so101_shape.js"), ("GET", "/live/state"), ("GET", "/lost"), ("GET", "/phone"), ("GET", "/showcase"), ("GET", "/places"),
                                      ("GET", "/returns"), ("GET", "/returns/{case_id}"), ("GET", "/robot/state"), ("GET", "/sim/stories/{story_id}"), ("GET", "/staff"), ("GET", "/ui/{name}"), ("GET", "/ui/fonts/{name}"),
                                      ("GET", "/tools"), ("POST", "/chat/questions"), ("POST", "/claims"), ("POST", "/items"),
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
@@ -306,7 +307,10 @@ class ApiRoutesTest(unittest.TestCase):
         self.assertEqual(cm.exception.status_code, 404)
         self.assertEqual(r[("GET", "/returns/{case_id}")]("R1")["case_id"], "R1")
         self.assertEqual(len(r[("GET", "/tools")]()), 12)
-        self.assertIn("습득물", r[("GET", "/intake")]().body.decode("utf-8"))     # 11/4 등록기계 화면을 같은 주소에서
+        moved = r[("GET", "/intake")]().body.decode("utf-8")                      # 11/10 화면 정리: 옛 등록기계 주소 → 키오스크로 넘김
+        self.assertIn('location.replace("/kiosk" + location.search', moved)
+        self.assertIn('location.replace("/storage" + location.search', r[("GET", "/storage-desk")]().body.decode("utf-8"))
+        self.assertIn("detail=1", r[("GET", "/showcase")]().body.decode("utf-8"))  # 11/10 통합 시연 화면
         kiosk = r[("GET", "/kiosk")]().body.decode("utf-8")                       # 11/4 습득자 키오스크: 관제탑 API 모양(machine_id·JSON)으로 부름
         self.assertIn("machine_id", kiosk)
         self.assertNotIn("FormData", kiosk)

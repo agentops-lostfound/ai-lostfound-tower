@@ -112,7 +112,7 @@ class AdminApi(unittest.TestCase):
         self.assertIn('"/api/admin" + path', read("staff-desk"))
         self.assertIn("/api/kiosk/places", read("kiosk"))
         self.assertIn("/api/kiosk/items", read("kiosk"))
-        self.assertIn("/api/kiosk/places", read("intake"))
+        self.assertFalse(os.path.isdir(os.path.join(root, "intake")))      # 11/10 옛 등록기계 화면 폴더 삭제(주소 /intake 는 /kiosk 로 넘김)
         self.assertIn("분실접수", read("kiosk"))
 
 

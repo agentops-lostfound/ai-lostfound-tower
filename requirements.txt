@@ -2,3 +2,4 @@
 numpy
 opencv-python
 huggingface_hub
+openpyxl          # evaluation/chat_eval.py 채점표 엑셀

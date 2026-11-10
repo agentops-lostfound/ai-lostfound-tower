@@ -21,7 +21,12 @@ MIN_SCORE = 0.13          # 이보다 낮으면 주제 밖 질문으로 보고 �
 DEMO_SUFFIX = " (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)"
 MENU = ["물건을 잃어버렸어요", "물건을 주웠어요", "물건 받는 방법 알려줘", "운영시간 알려줘"]
 # 잃어버림 → 무엇을? (품목 버튼을 누르면 물건 검색으로 이어짐)
-LOST_RE = re.compile(r"잃어버|분실|두고내렸|놓고내렸|놓고왔|두고왔|없어졌|잃었")
+# 질문 꼴 → 답에 꼭 남아야 할 핵심 낱말(하나라도). 근거 문서에 그 낱말이 있을 때만 요구한다
+KEY_FACTS = ((r'준비물|챙겨|가져가|가져와|필요한게|필요한거|뭐가필요|뭘가져', ('신분증',)),
+             (r'몇시|운영시간|영업시간|언제까지(?:해|열)', ('09:00', '18:00', '9시', '6시')),
+             (r'보관기간|며칠|몇일|언제까지보관', ('14일',)),
+             (r'수수료|비용|요금|돈', ('무료', '없어요')))
+LOST_RE = re.compile(r"잃어버|분실|두고내렸|놓고내렸|놓고왔|두고왔|없어졌|잃었|번호를?잊")   # 11/9 찾기 번호를 잊음
 LOST_CHOICES = ["지갑 잃어버렸어요", "휴대폰 잃어버렸어요", "보조배터리 잃어버렸어요", "찾을 수 있는 물건 종류"]   # 11/9 품목 4종(USB 뺌)
 # 11/7 규칙 문장 그대로 쓰는 주제: 모델이 바꿔 말하면 뜻이 틀어지는 규칙(실측: 4개 모델 38문항 비교, docs/design/chatbot_sllm_rag.md §9)
 # 예) 습득자 연락처 "인계 완료 뒤 30일"을 "반환 보류 30일"로, "동의 시각"을 "분실 시각"으로, "전화번호 적지 마세요"를 "안 적어도 돼요"로
@@ -348,6 +353,14 @@ class GroundedRag:
                 method = 'retrieval_augmented_extractive_generation'
             else:
                 answer, method = parsed['answer'], 'retrieval_augmented_generation'
+            # 11/9 채점표(Mi:dm): "본센터 갈 때 준비물 알려줘"에 모델이 문서를 다시 쓰며 '신분증'을 빼먹음 → 문서의 핵심 낱말을
+            # 절반 넘게 잃은 답은 받지 않고 문서 글로(지어내기뿐 아니라 빠뜨리기도 막음)
+            compact, cq = re.sub(r'\s+', '', answer), re.sub(r'\s+', '', question)
+            evidence = re.sub(r'\s+', '', ' '.join(d['answer'] for d in docs))
+            for pattern, need in KEY_FACTS:
+                need = [n for n in need if n in evidence]          # 근거 문서에 있는 핵심 낱말만 요구
+                if need and re.search(pattern, cq) and not any(n in compact for n in need):
+                    raise ValueError('key facts dropped')
             if rule_topics:
                 if 'answer' not in parsed:
                     return {**result, 'generation_status': fixed_status, 'generation_note': 'rule_extractive_only'}
@@ -394,16 +407,20 @@ class GroundedRag:
         questions = [h for h in history if isinstance(h, str)]
         from agents import prompts
         from agents.observability import step
-        system, prompt_obj = prompts.get('chat-guidance-answer', clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
-        payload = {'model': self.model, 'stream': False, 'format': schema,
+        # 11/9 칸별 설정(chat-researcher config): use_llm 끔이면 ValueError → 부른 쪽이 문서 문장으로 답함
+        cfg = prompts.settings('researcher', model=self.model, temperature=0)
+        if not cfg['use_llm'] or not cfg['model']:
+            raise ValueError('use_llm off')
+        system, prompt_obj = prompts.for_agent('researcher', clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
+        payload = {'model': cfg['model'], 'stream': False, 'format': schema,
             'messages': [{'role': 'system', 'content': system},
                          {'role': 'user', 'content': json.dumps({**({'previous_questions': questions} if questions else {}),
                                                                   **({'previous_turns': turns} if turns else {}),
                                                                   'question': question, 'retrieved_passages': passages,
                                                                   **({'feedback': feedback} if feedback else {})}, ensure_ascii=False)}],
-            'options': {'temperature': 0, 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
-        with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=self.model, input=payload['messages'], prompt=prompt_obj,
-                  model_parameters={'temperature': 0, 'num_predict': 400}) as gen:
+            'options': {'temperature': cfg['temperature'], 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
+        with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=cfg['model'], input=payload['messages'], prompt=prompt_obj,
+                  model_parameters={'temperature': cfg['temperature'], 'num_predict': 400}) as gen:
             from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로)
             notify('rewrite' if feedback else 'write')
             generated = self.request(payload)
@@ -521,7 +538,7 @@ class GroundedRag:
             # 11/8 집 PC 무작위 시험: 물건을 이미 말했거나("검정 반지갑 잃어버렸어요"), 물건이 아니라 번호를 잃어버린 경우에도
             # "어떤 물건을 잃어버리셨나요?"라고 되묻던 것 → 경우를 나눔
             named = items_named(question)
-            if re.search(r'(?:찾기|접수|예약)번호|번호를?(?:잃|분실|까먹|모르)', compact) and not named:
+            if re.search(r'(?:찾기|접수|예약)번호|번호를?(?:잃|잊|분실|까먹|모르)', compact) and not named:
                 return {**base, 'status': 'answered', 'generation_status': 'fixed_policy_text',
                         'answer': '찾기 번호(C-로 시작)는 분실인 웹이나 키오스크에서 물건을 확인하면 받는 번호예요. '
                                   '잃어버린 번호를 다시 찾는 방법은 아직 안내 자료에 없어요. 본센터 직원에게 확인해 주세요.',

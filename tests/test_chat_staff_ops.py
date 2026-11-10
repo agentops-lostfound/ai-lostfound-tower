@@ -301,7 +301,7 @@ class WidgetStaffTest(unittest.TestCase):
         self.assertIn('if (STAFF) body.mode = "staff";', js)
         self.assertIn('res.agent === "ops"', js)
         admin = (root / "web" / "admin" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('<script src="/chat-widget/widget.js" data-mode="staff" defer></script>', admin)
+        self.assertIn('<script src="/chat-widget/widget.js?v=20261110b" data-mode="staff" defer></script>', admin)
         for page in ("lost", "kiosk"):                                            # 분실인·키오스크는 staff 아님
             html = (root / "web" / page / "index.html").read_text(encoding="utf-8")
             self.assertNotIn('data-mode="staff"', html)

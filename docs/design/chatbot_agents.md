@@ -30,10 +30,37 @@ flowchart TD
 
 ---
 
-## 1. 교수님 지시(11/7)와 지금 구조 맞춰 보기
-교수님 그림: `__start__ → coordinator → planner → supervisor ⇄ researcher · coder · browser · reporter → __end__`
+## 0. 11/9 팀 결정 — 챗봇은 "혼합 구조"로 간다
+한줄 설명: **말을 이해하고 판단하는 칸(에이전트)은 모델 + 프롬프트, 기록을 남기거나 숫자를 다루는 일(도구)은 코드**로 나눈다.
 
-| 교수님 그림 | 우리 챗봇 | 하는 일 | 모델 사용 |
+| 나눔 | 무엇 | 어디서 바꾸나 |
+|---|---|---|
+| 에이전트 = 모델 + 프롬프트 | coordinator · planner · **supervisor** · researcher · item_search · intake · reporter (+ 관제 분석 6칸) — 13개 모두 자기 프롬프트와 모델 설정(model·temperature·use_llm)을 가진다 | Langfuse **Prompts** 에서 새 버전을 만들어 계속 고친다(코드 배포 없이, 되돌리기는 예전 버전에 `production` 라벨) |
+| 도구 = 코드 | 분실물 후보 검색(DB 읽기 전용) · 접수 창구 호출(확인 버튼 뒤에만) · 숫자 계산 · 근거 검사 · 개인정보 가림 | 저장소 코드 + 시험 |
+| 규칙의 거부권 | 모델은 "규칙이 허용한 값 목록 안에서 고르기"만 — 목록 밖·실패면 규칙 결과 그대로 | `agents/chat_agents.py`, `agents/chatbot.py` `_judge` |
+
+- **왜 이 구조인가**
+  - 칸마다 모델·프롬프트가 있어야 Langfuse 에서 "어느 에이전트가 무엇을 보고 무엇을 정했는지"가 칸별로 보인다(5장)
+  - 접수는 기록을 남기는 행동이라, 작은 모델 하나가 잘못 고르면 엉뚱한 접수가 생긴다 → 실행은 코드가 정해진 기준으로(1장 "왜 supervisor 판단을…")
+  - 틀린 답이 나오면 그 칸의 프롬프트만 고치면 된다 → 채점표(아래)로 어느 칸이 틀렸는지 좁힌다
+- **검토했지만 고르지 않은 안**: 대화 에이전트 1개가 대화·검색·접수를 모두 맡는 단일 에이전트 안. 대화는 자연스럽지만 칸별 기록·칸별 프롬프트 수정·접수 안전장치를 따로 보여 주기 어렵다. 그 안의 좋은 점(자연스러운 말투)은 researcher·intake 프롬프트에 옮겨 담는다
+- **평가 방식(같은 날 결정)**: 사용자 말투 질문 500개(기본 안내 → 검색 → 이어 묻기 → 대화로 접수 끝까지 → 안전·직원 관제)를 문항마다 0/1 로 채점하고, 돌릴 때마다 엑셀에 **단계(Step) 열**을 더해 누적한다. 원본 기록은 `evaluation/runs/*.json` 으로 저장소에 남아 언제든 다시 연다 — 안내 `evaluation/README.md`
+
+| 단계 | 모델 | 코드 | 점수(500) |
+|---|---|---|---|
+| 11/9 01 · 02 | 규칙만 | 채점표 처음 · 보강 | 355 · 373 |
+| 11/9 03 | Mi:dm 2.0 Mini | #166 | 403 |
+| 11/9 06 | Mi:dm 2.0 Mini | #171(프롬프트 13개·단계 지시서) | **459** |
+| 11/9 07 | 규칙만 | #176(남은 실패 41문항 보강) | 500 — Mi:dm 다시 측정은 TBD |
+
+(04·05 는 교육원 PC 가 옛 코드로 다시 돈 것이라 참고용. 규칙만 100% 는 채점표에 맞춘 면이 있으니 Mi:dm 점수와 채점표 밖 질문으로 함께 본다)
+
+---
+
+## 1. DeerFlow(LangManus) 기준 그림(11/7)과 지금 구조 맞춰 보기
+기준 그림: `__start__ → coordinator → planner → supervisor ⇄ researcher · coder · browser · reporter → __end__`
+
+| 기준 그림 | 우리 챗봇 | 하는 일 | 모델 사용 |
 |---|---|---|---|
 | coordinator | coordinator | 들어온 말을 분류: 인사·감사(바로 끝) / 서비스 질문 / 주제 밖 / **접수 대화 중** | Mi:dm(값 4개 중 하나만 고르게 JSON 고정) |
 | planner | planner | 부를 일꾼과 순서를 정함 | Mi:dm(일꾼 이름 목록 안에서만) |
@@ -44,14 +71,66 @@ flowchart TD
 | (추가) | ops_analyst | 직원 관제 질문(관리자 화면만) — 안에 또 하나의 LangManus 구조 | 있음 |
 | reporter | reporter | 일꾼 결과를 하나로 합치고 다음 행동 버튼을 붙임 → supervisor 에게 돌려줌 | 없음 |
 
+- 11/10 reporter 도 다른 일꾼처럼 실행 기록(Langfuse·통합 시연 화면)에 남는다 — 전에는 기록이 없어 "researcher 다음에 바로 답"처럼 보였다. 기록 순서: 일꾼 → supervisor(next: reporter) → reporter → supervisor(next: end). 답 내용·동작은 그대로(기록만 추가)
 - 그래프는 LangGraph 로 만들었다. `Chatbot(Guidance()).graph.get_graph().draw_mermaid()` 를 그리면 위 그림과 같은 모양이 나온다(reporter 도 supervisor 아래 일꾼, 끝은 supervisor 가 정함)
-- 프롬프트는 Langfuse Prompts 에서 이름으로 관리: `chat-coordinator` · `chat-planner` · `chat-intake-extract`(11/9) · `chat-guidance-answer`
+- 프롬프트는 Langfuse Prompts 에서 이름으로 관리 — **agent 1개 = 프롬프트 1개 = 모델 설정 1개**, 13개(1-1장)
 - 실행 기록은 callback 방식으로 Langfuse Tracing 에 에이전트(칸)별로 남는다(5장)
+
+### 1-1. agent ↔ 프롬프트 ↔ 모델 설정 (11/9, `agents/prompts.py` AGENT_PROMPTS)
+그래프 칸(agent) 하나는 Langfuse 프롬프트 하나만 부른다(`prompts.for_agent(칸)`). 연결이 안 되면 코드 기본값(DEFAULTS)으로 그대로 동작한다.
+
+| 그래프 칸(agent) | Langfuse 프롬프트 | use_llm 기본 | 모델(코드 기본값) | 켰을 때 모델이 하는 일 |
+|---|---|---|---|---|
+| coordinator | `chat-coordinator` | 켬 | LF_CHAT_AGENT_MODEL → LF_CHAT_RAG_MODEL | intent 4개 중 하나 |
+| planner | `chat-planner` | 켬 | 〃 | 일꾼 순서(guidance·item_search) |
+| supervisor | `chat-supervisor` | **끔** | 〃 | **실제 구현**: 계획에 남은 guidance·item_search 와 reporter 중 다음 칸 하나. intake·ops·멈춤·상한은 규칙만 |
+| researcher | `chat-researcher` (옛 `chat-guidance-answer`) | 켬 | LF_CHAT_RAG_MODEL | 안내 답 쓰기(근거 검사는 코드) |
+| item_search | `chat-item-search` | **끔** | LF_CHAT_AGENT_MODEL → LF_CHAT_RAG_MODEL | **실제 구현(11/9)**: 규칙이 못 읽은 품목·색만 목록 안에서 골라 검색 조건으로(색은 말에 색 낱말이 있을 때만). 검색 자체는 도구(DB 읽기 전용) |
+| intake | `chat-intake` (옛 `chat-intake-extract`) | 켬 | LF_CHAT_AGENT_MODEL → LF_CHAT_RAG_MODEL | 규칙이 못 읽은 품목·색 |
+| reporter | `chat-reporter` | **끔** | 〃 | **실제 구현(11/9)**: 안내+검색 두 결과를 보일 순서(guidance_first·search_first)만 고름. 내용은 일꾼 결과 그대로 |
+| ops-coordinator | `ops-coordinator` | **끔** | OPS_ANALYST_MODEL → LF_CHAT_RAG_MODEL | **실제 구현**: 관제 낱말이 없을 때만 ops / not_ops (길이 검사는 규칙) |
+| ops-planner | `ops-planner` | 켬 | 〃 | 초점 5개 중 하나 |
+| ops-supervisor | `ops-supervisor` | **끔** | 〃 | **훅만**: 순서는 규칙(researcher→analyst→reporter), 켜면 `llm_hooks` 에 표시 |
+| ops-researcher | `ops-researcher` | **끔** | 〃 | **훅만**: 읽는 곳(GET)은 고정, 켜면 `llm_hooks` 에 표시 |
+| ops-analyst | `ops-analyst` | **끔** | 〃 | **실제 구현**: 코드가 계산한 findings 중 가장 중요한 것 번호 하나 → 맨 앞으로(숫자는 그대로) |
+| ops-reporter | `ops-reporter` | 켬 | 〃 | 보고서 문장(숫자 검사는 코드) |
+
+(챗봇의 `ops_analyst` 칸은 관제 분석 그래프를 감싸는 껍데기라 프롬프트가 없다)
+
+- **모델 설정 우선순위**: Langfuse 프롬프트 **config**(`model` · `temperature` · `use_llm`) → 환경값 `LF_AGENT_<칸>_<MODEL|TEMPERATURE|USE_LLM>`(예 `LF_AGENT_SUPERVISOR_USE_LLM=1`, `LF_AGENT_OPS_ANALYST_MODEL=…`) → 코드 기본값(위 표). 이상한 값(빈 글·범위 밖 temperature·참거짓 아님)은 건너뜀
+- 코드에 모델이 아예 설정되지 않은 칸(LF_CHAT_RAG_MODEL 비움 등)은 config 에 model 이 있어도 켜지지 않는다(Ollama 를 안 쓰는 PC 보호)
+- **규칙이 거부권**: 규칙 칸을 켜도 모델은 '규칙이 허용한 값 목록 안에서 고르기'(JSON 스키마 고정)만 한다. 목록 밖·실패·꺼짐이면 규칙 결과 그대로. 접수 실행('확인 버튼 뒤에만 접수')과 숫자 계산은 언제나 코드
+- **use_llm 켜는 법**: Langfuse → Prompts → 예 `chat-supervisor` → New version → Config 에 `{"use_llm": true}`(필요하면 `"model": "midm-2.0-mini", "temperature": 0`) → 라벨 `production` → 1분 안에 반영(SDK 기억 60초). 되돌리기는 예전 버전에 `production` 라벨을 옮김. PC 에서만 시험하려면 `.env` 의 `LF_AGENT_SUPERVISOR_USE_LLM=1`
+- 처음 한 번 `python tools/langfuse_setup.py --push-prompts` 로 13개 + config(use_llm 기본값)를 올린다(이미 있는 이름은 건너뜀, `--force` 는 새 버전으로 덮어씀)
+- `/chat/health` 의 `prompts`: `{"total": 13, "from_langfuse": M, "checked": K}` — 관제탑을 켠 뒤 불린 K개 중 Langfuse 버전을 읽은 M개(키 값은 나오지 않음)
+- **옛 이름 정리**: `chat-guidance-answer` → `chat-researcher`, `chat-intake-extract` → `chat-intake`. 코드는 옛 이름을 읽지 않는다(새 이름이 없으면 코드 기본값). 옛 이름에서 화면으로 고친 글이 있으면 새 이름의 New version 으로 옮긴 뒤 옛 이름은 Langfuse 에서 보관(archive)
+- 시험: `tests/test_agent_prompts.py`(1:1 표 · config model 반영 · 기본값 동작 같음 · 목록 밖 값은 규칙으로)
 
 ### 왜 supervisor 판단을 모델이 아니라 규칙이 하나
 접수는 **기록을 남기는 행동**이다. 작은 모델(Mi:dm 2.0 Mini)이 "접수해도 된다"를 잘못 고르면 엉뚱한 접수가 생긴다.
 그래서 모델은 "말을 이해하는 일"(분류·계획·빈칸 채우기·답 쓰기)만 하고, "다음에 무엇을 할지"는 코드가 정해진 기준으로 정하며 **그 이유를 문장으로 남긴다**.
 로봇을 움직일지 코드가 정하는 관제탑 원칙(agent_talk.md 4장)과 같다.
+
+### 1-2. planner 단계별 지시서 → supervisor 가 한 단계씩 이행 (11/9)
+11/9 검토 의견: "planner 가 순서를 정해 넘겼는데 supervisor 가 그 명령을 이행하는 모습이 안 보인다". 예전 계획은 `["item_search", "guidance"]` 같은 **이름 목록**뿐이었고, 일꾼은 지시 없이 원래 질문만 받았다.
+지금은 planner 가 **단계별 지시서**를 쓰고, supervisor 가 단계마다 "몇 번째 단계를, 어느 에이전트에게, 무슨 지시로, 왜" 넘기는지 남긴다.
+
+```
+질문: "갈색 지갑 찾아줘 그리고 받을 때 뭐 필요해?"
+planner  steps = 1. item_search — 분실물 후보 검색(읽기 전용) — 품목 지갑 · 색 갈색      (입력: "갈색 지갑 찾아줘")
+                 2. researcher  — 이용 안내 답(문서 근거만) — 물건 받으러 가기 전            (입력: "받을 때 뭐 필요해")
+supervisor run_step 1/2 → item_search  (why: planner 계획 순서)      plan_status: 1 [실행 중] · 2 [대기]
+item_search  입력 {question: "갈색 지갑 찾아줘", task: "…품목 지갑 · 색 갈색"} → 후보 1개
+supervisor run_step 2/2 → researcher   (why: planner 계획 순서)      plan_status: 1 [완료 → items_found] · 2 [실행 중]
+researcher   입력 {question: "받을 때 뭐 필요해", task: "…물건 받으러 가기 전"} → 신분증 안내
+supervisor run_step report → reporter  (why: 계획 2/2단계 끝)
+reporter → supervisor → __end__
+```
+- 단계 = `{no, agent(그래프 칸 이름), task(지시), status(대기·실행 중·완료·건너뜀), by(planner·supervisor), input(그 일꾼 몫의 말)}`
+- **섞인 질문은 일꾼 몫으로 나눠 넘긴다**(`chatbot.sub_question`) — 예전에는 안내 일꾼이 "갈색 지갑 찾아줘…"까지 받아 "이 챗봇은 검색하지 않습니다"라고 답했다
+- supervisor 가 판단으로 단계를 더하면(add_guidance·replan_item_search) `by: supervisor` 단계로 붙고, 사용자 답이 필요해 멈추면(ask_user) 남은 단계는 `건너뜀`
+- 어디서 보나: Langfuse `planner` 칸 출력 `steps` · `supervisor` 칸 메타데이터 `detail.run_step`·`plan_status` · 일꾼 칸 입력 `task` / 응답의 `plan_steps`
+- 시험: `tests/test_agent_prompts.py` PlanStepsTest
 
 ---
 
@@ -133,7 +212,7 @@ supervisor   → __end__
 
 ---
 
-## 5. Langfuse 에서 보기 (교수님 방식: callback trace)
+## 5. Langfuse 에서 보기 (callback trace 방식)
 ### 5-1. 바로바로 올라오게(11/9)
 - 질문 하나가 끝나면 관제탑이 **뒤에서 바로 보낸다**(flush_soon). 기본 보내기 간격도 1초(`LANGFUSE_FLUSH_INTERVAL`, 기본 5초 → 1초) → 답이 나오고 몇 초 안에 Tracing 에 보인다
 - 기록이 안 보이면 먼저 `http://<관제탑>:8100/chat/health` 의 `langfuse` 를 본다: `{"enabled": true}` 면 켜짐, false 면 `reason` 에 이유(.env 에 없는 이름 · 패키지 없음 · LF_LANGFUSE=0). **키 값은 화면에 나오지 않는다**
@@ -159,7 +238,7 @@ lost-found-chatbot          출력: answer · path · decisions · intake
   └ supervisor              detail: next end — "reporter 가 답을 정리함 → 끝"
 ```
 - 직원 관제 질문이면 `ops_analyst` 칸 안에 **관제 분석 팀** 그래프 `ops-team-graph`(ops-coordinator · ops-planner · ops-supervisor · ops-researcher · ops-analyst · ops-reporter)가 들어간다. 11/9 전에는 안쪽 칸 이름이 바깥(coordinator·planner·supervisor)과 같고 'LangGraph'·'RunnableCallable' 같은 이름이 끼어 나무가 어색했다 → 이름을 나눔
-4. 답이 이상하면: 어느 칸에서 틀렸는지 나무에서 찾고 → 그 칸의 프롬프트를 Prompts 에서 고친다(교수님 지시). supervisor 판단이 이상하면 `agents/chatbot.py` `_judge` 의 기준을 고친다
+4. 답이 이상하면: 어느 칸에서 틀렸는지 나무에서 찾고 → 그 칸의 프롬프트를 Prompts 에서 고친다(11/9 결정: 프롬프트는 Langfuse 에서 버전 관리). supervisor 판단이 이상하면 `agents/chatbot.py` `_judge` 의 기준을 고친다
 - 칸 종류 표시는 콜백이 정해 모두 chain 으로 보인다(Langfuse 콜백은 이름에 agent 가 있어야 agent 로 표시) → 대신 metadata `role` 에 종류를 적었다
 
 ## 6. 시연 순서 (약 3분)
@@ -185,7 +264,7 @@ lost-found-chatbot          출력: answer · path · decisions · intake
 ### 7-1. 11/9 팀 검토에서 발표 뒤로 미룬 것
 | 항목 | 미룬 이유 |
 |---|---|
-| supervisor 다음 행동을 모델이 제안하고 코드가 검사하는 방식 | 지금 규칙 판단이 실제 모델 회귀 시험을 통과 중, 발표 전 바꾸면 위험 |
+| supervisor 다음 행동을 모델이 제안하고 코드가 검사하는 방식 | 지금 규칙 판단이 실제 모델 회귀 시험을 통과 중, 발표 전 바꾸면 위험 → 11/9 스위치만 넣음(`chat-supervisor` use_llm, 기본 끔, 1-1장) |
 | LangGraph checkpointer 로 대화 상태 저장(관제탑을 다시 켜도 이어짐) | 저장소(DB) 설계가 함께 필요 |
 | 한 대화에서 여러 접수 동시 진행 | 화면·상태 설계가 커짐 |
 | 대화 번호(session_id) 위조 방지(서명된 토큰) | 지금은 가상 시연 범위, 실제 운영 전에 필요 |

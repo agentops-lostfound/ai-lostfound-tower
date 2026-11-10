@@ -6,6 +6,7 @@
 <title>분실물 접수 키오스크</title>
 <link rel="stylesheet" href="/ui/theme.css">
 <script src="/ui/theme.js"></script>
+<script src="/ui/vkeyboard.js"></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
    한줄 설명: 색을 직접 쓰지 않고 "역할 이름(토큰)"으로 쓰면, 다크 모드는 토큰 값만 바뀌어 화면 전체가 함께 바뀐다.
@@ -14,6 +15,7 @@
 html,body{height:100%;margin:0}
 body{background:var(--ui-bg);color:var(--ui-text);font:500 26px/1.45 var(--ui-font);letter-spacing:-.01em;-webkit-user-select:none;user-select:none;touch-action:manipulation;word-break:keep-all;overflow-wrap:break-word}   /* 한국어는 단어 중간에서 줄바꿈하지 않음 */
 input,textarea{-webkit-user-select:text;user-select:text}
+.receipt{-webkit-user-select:all;user-select:all;cursor:text}   /* 11/9 접수 번호는 드래그·한 번 클릭으로 통째로 선택·복사(키오스크 나머지는 길게 눌러도 선택 안 됨) */
 #app{height:100%;display:flex;flex-direction:column;gap:16px;padding:24px 40px 32px;max-width:1100px;margin:0 auto}
 /* 머리말: 역 이름 · AI 안내 · 라이트/다크 · 진행 점 */
 header{display:flex;align-items:center;gap:12px;font-size:22px;font-weight:700;color:var(--ui-text)}
@@ -301,8 +303,8 @@ body.demo-mode #stn{flex:1 1 auto}
     <div id="rform">
       <h1>예약한 물건을 찾아가세요</h1>
       <p class="sub">찾기 번호와 신분증 번호를 넣어 주세요</p>
-      <input type="text" id="rclaim" maxlength="20" placeholder="찾기 번호 (예: C-20261106-0001)" autocomplete="off">
-      <input type="text" id="rid" maxlength="32" placeholder="가린 신분증 번호 (예: ******-3******)" autocomplete="off">
+      <input type="text" id="rclaim" data-vk="en" data-vk-upper maxlength="20" placeholder="찾기 번호 (예: C-20261106-0001)" autocomplete="off">
+      <input type="text" id="rid" data-vk="id" maxlength="32" placeholder="가린 신분증 번호 (예: ******-3******)" autocomplete="off">
       <p class="err" id="rerr" role="alert"></p>
       <button id="rsend" disabled>물건 꺼내기</button>
     </div>
@@ -474,25 +476,94 @@ function go(n) {
 // ---- 11/6 자동 촬영: 상자 안 카메라 화면이 "비어 있을 때"와 달라지고(물건 들어옴) 3초 동안 멈춰 있으면 찍는다 ----
 // 작은 흑백 화면(64x48)만 비교하므로 사진·영상은 저장하지 않는다. 기준값은 AUTO 객체에서 조절
 // 11/8: 2초 → 3초(stillMs), 진행을 화면에 보여 줌 — 놓기 → 손 빼기 → 3·2·1 원 → 찰칵(번쩍임). 세는 중에 움직이면 처음부터 다시 셈(againMs 동안 알림)
-const AUTO = {w: 64, h: 48, every: 250, changed: 14, moving: 6, stillMs: 3000, emptyMs: 3000, againMs: 1500, shotMs: 600};
+// 11/10: 밝은 바닥 위의 작고 밝은 물건(핸드크림)은 화면 전체 평균으로는 차이가 거의 없어(2 안팎, 기준 14) 못 잡았다 →
+//        색 차이가 pix 넘는 '뭉친' 픽셀이 화면의 area 이상이면 물건으로 본다(휴대폰처럼 큰 변화는 예전 기준 changed 로도 잡힘)
+// 11/10 오후(은박 바닥): 포토박스 안쪽 은박은 화면마다 반짝임이 달라 픽셀이 많이 흔들린다(교육원에서 잰 값: 화면 한 장끼리 상위 5% 픽셀 차 27,
+//        네 장 평균끼리는 14). 그래서 최근 avgN 장을 평균한 화면으로 견주고, 픽셀 기준(pix)은 지금 잡음(평균 화면끼리 상위 5% 차)의 noiseK 배 아래로 내려가지 않게 한다
+const AUTO = {w: 64, h: 48, every: 250, changed: 14, moving: 6, stillMs: 3000, emptyMs: 3000, againMs: 1500, shotMs: 600,
+              pix: 22, area: 0.012, avgN: 4, noiseK: 1.5};
 let probe = null, empty = null, trueEmpty = null, lastSmall = null, stillSince = 0, emptySince = 0, autoTimer = null;
 let waitSince = 0; const noiseHist = [];   // 11/8 잡음 수준(흔들림 최솟값)과 기준 잡기 시작 시각
 let againUntil = 0, phase = '', shooting = false;
+const rgbHist = [], avgHist = [], pixNoise = [];   // 11/10 최근 색 화면 · 그 평균 화면 · 잡음 수준(평균 화면끼리 상위 5% 픽셀 차)
 const PHASES = ['place', 'hand', 'count', 'shot'];
 function small() {
   const v = $('#cam'); if (!v.videoWidth) return null;
   probe = probe || Object.assign(document.createElement('canvas'), {width: AUTO.w, height: AUTO.h});
   const g = probe.getContext('2d', {willReadFrequently: true});
   g.drawImage(v, 0, 0, AUTO.w, AUTO.h);
-  const d = g.getImageData(0, 0, AUTO.w, AUTO.h).data, out = new Float32Array(AUTO.w * AUTO.h);
-  for (let i = 0; i < out.length; i++) out[i] = (d[i*4] * 299 + d[i*4+1] * 587 + d[i*4+2] * 114) / 1000;
+  const d = g.getImageData(0, 0, AUTO.w, AUTO.h).data, out = new Float32Array(AUTO.w * AUTO.h), rgb = new Float32Array(AUTO.w * AUTO.h * 3);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = (d[i*4] * 299 + d[i*4+1] * 587 + d[i*4+2] * 114) / 1000;
+    rgb[i*3] = d[i*4]; rgb[i*3+1] = d[i*4+1]; rgb[i*3+2] = d[i*4+2];
+  }
+  out.rgb = rgb;                // 11/10 색 비교용(작은·밝은 물건 감지). 흑백 배열에 붙여 둔다
   return out;
 }
+// ---- detect:begin (tests/test_kiosk_detect.py 가 이 구간만 떼어 node 로 실행한다 — 화면 요소를 쓰지 않는 계산만 둔다) ----
 // 11/8: 두 화면의 평균 밝기를 빼고 비교 — 조명 깜박임(화면 전체가 함께 밝아졌다 어두워짐)을 움직임·물건으로 보지 않게
 function diff(a, b) {
   let ma = 0, mb = 0; for (let i = 0; i < a.length; i++) { ma += a[i]; mb += b[i]; } ma /= a.length; mb /= b.length;
   let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs((a[i] - ma) - (b[i] - mb)); return s / a.length;
 }
+// 11/10 조명 맞춤: 색 채널마다 (지금 / 기준) 밝기 비율의 가운데 값. 물건이 화면 절반을 넘지 않으면 바닥 픽셀이 가운데 값을 정한다.
+// 하얗게 날아간(250 이상) 픽셀과 아주 어두운 픽셀은 비율이 믿을 수 없어 뺀다
+function lightGain(a, b) {
+  const g = [1, 1, 1], n = a.length / 3;
+  for (let c = 0; c < 3; c++) {
+    const r = [];
+    for (let i = c; i < a.length; i += 3) if (a[i] < 250 && b[i] < 250 && b[i] > 8) r.push(a[i] / b[i]);
+    if (r.length > n * 0.02) { r.sort((x, y) => x - y); g[c] = r[r.length >> 1]; }
+  }
+  return g;
+}
+// 11/10 바뀐 넓이: 조명을 맞춘 뒤 색 차이(|R|+|G|+|B|)가 pix 넘는 픽셀 가운데, 둘레 3×3 안에 같은 픽셀이 4개 이상인 것(뭉친 것)의 비율.
+// 흩어진 잡음·테두리 한 줄 흔들림은 세지 않는다
+function changedArea(a, b, w, h, pix) {
+  const g = lightGain(a, b), n = w * h, m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    let d = 0;
+    for (let c = 0; c < 3; c++) d += Math.abs(a[i*3+c] - Math.min(255, b[i*3+c] * g[c]));
+    if (d > pix) m[i] = 1;
+  }
+  let cnt = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!m[y*w + x]) continue;
+    let nb = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const yy = y + dy, xx = x + dx;
+      if (yy >= 0 && yy < h && xx >= 0 && xx < w) nb += m[yy*w + xx];
+    }
+    if (nb >= 4) cnt++;
+  }
+  return cnt / n;
+}
+// 11/10 여러 장의 평균 화면(반짝임·센서 잡음을 줄임)
+function meanFrames(list) {
+  const n = list.length, out = new Float32Array(list[0].length);
+  for (const f of list) for (let i = 0; i < out.length; i++) out[i] += f[i] / n;
+  return out;
+}
+// 11/10 잡음 수준: 조명을 맞춘 두 화면의 픽셀 색 차이 가운데 위에서 5% 자리 값
+function pixP95(a, b) {
+  const g = lightGain(a, b), n = a.length / 3, d = new Float32Array(n);
+  for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) d[i] += Math.abs(a[i*3+c] - Math.min(255, b[i*3+c] * g[c]));
+  d.sort();
+  return d[Math.floor(n * 0.95)];
+}
+// 지금 쓸 픽셀 기준: 기본값과 '잡음의 noiseK 배' 중 큰 쪽(잡음 기록이 6개 모이기 전에는 기본값)
+function pixLimit(noises, o) {
+  if (noises.length < 6) return o.pix;
+  const s = noises.slice().sort((x, y) => x - y);
+  return Math.max(o.pix, s[s.length >> 1] * o.noiseK);
+}
+// 기준 화면(빈 상자)과 견주어 물건이 있는가: 큰 변화(예전 기준) 또는 작지만 뭉친 색 변화(11/10). 평균 화면(avg)이 있으면 그것으로 견준다
+function hasItem(cur, base, o) {
+  if (diff(cur, base) >= o.changed) return true;
+  const a = cur.avg || cur.rgb, b = base.avg || base.rgb;
+  return !!(a && b) && changedArea(a, b, o.w, o.h, o.pixNow || o.pix) >= o.area;
+}
+// ---- detect:end ----
 function camSay(text, cls) { $('#camStatus').textContent = text; $('#camStatus').className = 'status ' + cls; }
 function setPhase(p) {          // 무대 테두리 색·3·2·1 원·단계 띠(1 놓기 2 손 빼기 3 3·2·1 4 찰칵)
   phase = p; $('#stage').dataset.phase = p;
@@ -507,6 +578,14 @@ function tick() {
   if (step !== 1 || !stream || shooting) return;
   const now = Date.now(), cur = small(); if (!cur) return;
   const moving = lastSmall ? diff(cur, lastSmall) : 99; lastSmall = cur;
+  // 11/10 최근 avgN 장 평균 화면으로 물건을 판단(은박 바닥 반짝임 대응) + 잡음 수준에 맞춘 픽셀 기준
+  rgbHist.push(cur.rgb); if (rgbHist.length > AUTO.avgN) rgbHist.shift();
+  cur.avg = meanFrames(rgbHist);
+  avgHist.push(cur.avg); if (avgHist.length > AUTO.avgN + 1) avgHist.shift();
+  if (avgHist.length > AUTO.avgN && moving < AUTO.moving * 3) {     // 겹치지 않는 두 평균 화면(avgN 번 전과 지금)의 차이 = 잡음
+    pixNoise.push(pixP95(cur.avg, avgHist[0])); if (pixNoise.length > 12) pixNoise.shift();
+  }
+  AUTO.pixNow = pixLimit(pixNoise, AUTO);
   // 11/8: 조명 깜박임·카메라 잡음으로 화면이 늘 조금 흔들리면 '멈춤'이 안 나와 영영 확인 중이던 것 →
   // 최근 3초(12번)의 흔들림 중앙값을 잡음 수준으로 보고 멈춤 기준을 그 위로 올린다(최대 3배)
   noiseHist.push(moving); if (noiseHist.length > 12) noiseHist.shift();
@@ -519,9 +598,8 @@ function tick() {
     if (!empty && now - waitSince > 6000 && noise >= AUTO.moving * 0.8) { empty = cur; trueEmpty = trueEmpty || cur; stillSince = 0; waitSince = 0; }   // 6초 넘게 못 잡으면 지금 화면을 기준으로
     if (!empty) { setPhase('wait'); camSay('상자를 확인하는 중…', 'wait'); return; }
   }
-  if (trueEmpty && empty !== trueEmpty && diff(cur, trueEmpty) < AUTO.changed) empty = cur;   // 상자를 비웠으면 빈 상자를 기준으로
-  const changed = diff(cur, empty);
-  if (changed < AUTO.changed) {                    // 비어 있음: 조명 변화는 천천히 기준에 반영
+  if (trueEmpty && empty !== trueEmpty && !hasItem(cur, trueEmpty, AUTO)) empty = cur;   // 상자를 비웠으면 빈 상자를 기준으로
+  if (!hasItem(cur, empty, AUTO)) {                // 비어 있음: 조명 변화는 천천히 기준에 반영
     stillSince = 0; againUntil = 0;
     if (moving < MOVE) { if (!emptySince) emptySince = now; if (now - emptySince > AUTO.emptyMs) empty = cur; }
     setPhase('place'); camSay('물건을 가운데에 놓아 주세요', 'wait'); return;
@@ -557,6 +635,9 @@ function capture() {
 // 우선순위: 주소 ?cam=(번호 또는 이름 일부) → 저장된 카메라 → 이름에 USB·Webcam·FHD 가 있고 front/back/전면/후면이 아닌 것 → 첫 카메라
 // ?camsetup=1 이면 화면에 카메라 목록이 나와 직원이 고르고, 고른 카메라를 이 태블릿에 기억한다
 const CAM_KEY = 'kioskCamera', CAM_PARAM = new URLSearchParams(location.search).get('cam');
+// 11/9 서버 카메라(?cam=server): 태블릿 크롬이 USB 웹캠을 못 보는 기기(갤럭시탭 A8)용 — 웹캠은 관제탑 PC 에 꽂고
+// PC 가 보내는 영상(/api/kiosk/camera/{기계}.mjpg)을 캔버스에 그려 가상 카메라처럼 <video> 에 흘린다(감지·3초·찍기 코드는 그대로)
+const SERVER_CAM = CAM_PARAM === 'server';
 const HD = {width: {ideal: 1920}, height: {ideal: 1080}};
 function camSaved() { try { return localStorage.getItem(CAM_KEY) || ''; } catch (e) { return ''; } }
 function camSave(id) { try { localStorage.setItem(CAM_KEY, id); } catch (e) {} }
@@ -597,7 +678,8 @@ function camMenu(list, want) {
 const CAM = {openMs: 8000, frameMs: 4000, retryMs: 15000};
 const CAM_CODE = {insecure: '주소 보안 설정(https·localhost 아님) — web/README.md 카메라 설정', denied: '카메라 권한 거부 — 브라우저 사이트 설정에서 허용',
                   nodevice: '카메라 장치 없음 — USB 연결 확인', busy: '다른 프로그램이 카메라 사용 중', timeout: '8초 안에 카메라가 열리지 않음',
-                  noframe: '카메라 영상이 들어오지 않음', lost: '카메라 연결이 끊김'};
+                  noframe: '카메라 영상이 들어오지 않음', lost: '카메라 연결이 끊김',
+                  server: 'PC 카메라 연결 안 됨 — 관제탑 .env TOWER_KIOSK_CAMERAS·웹캠 USB 확인(/api/kiosk/cameras)'};
 let camGen = 0, retryTimer = null;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const named = n => Object.assign(new Error(n), {name: n});
@@ -605,6 +687,7 @@ function camChip(state, text) { $('#camChip').dataset.state = state; $('#camChip
 function camKind(e) {
   const n = (e && e.name) || '';
   if (n === 'InsecureError') return 'insecure';
+  if (n === 'ServerCamError') return 'server';
   if (/NotAllowed|Security|PermissionDenied/.test(n)) return 'denied';
   if (/NotReadable|TrackStart|Abort/.test(n)) return 'busy';
   if (n === 'TimeoutError') return 'timeout';
@@ -624,9 +707,9 @@ async function startCam() {
   if ($('#camDown').hidden) { camChip('find', '카메라 찾는 중'); setPhase('find'); camSay('카메라를 찾는 중…', 'wait'); }   // 점검 중이면 다시 찾는 동안에도 안내를 그대로 둠
   try {
     // 브라우저는 https 또는 localhost 에서만 카메라를 준다(isSecureContext). 태블릿이 http://10.10.21.21:8080 으로 열면 여기로 온다(web/README.md 설정 안내)
-    if (!DEMO && window.isSecureContext === false) throw named('InsecureError');
-    if (!DEMO && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw named('NotFoundError');
-    const opening = DEMO ? demoOpen() : camOpen();
+    if (!DEMO && !SERVER_CAM && window.isSecureContext === false) throw named('InsecureError');
+    if (!DEMO && !SERVER_CAM && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw named('NotFoundError');
+    const opening = DEMO ? demoOpen() : SERVER_CAM ? serverOpen() : camOpen();
     opening.then(s => { if (gen !== camGen) s.getTracks().forEach(t => t.stop()); }, () => {});   // 늦게 열린 카메라는 바로 끔
     const s = await Promise.race([opening, wait(CAM.openMs).then(() => { throw named('TimeoutError'); })]);
     if (gen !== camGen) return;
@@ -636,7 +719,7 @@ async function startCam() {
       if (Date.now() - t0 > CAM.frameMs) throw named('NoFrameError');
     }
     s.getVideoTracks().forEach(t => t.addEventListener('ended', () => { if (gen === camGen) { stopCam(); camDown('lost'); } }));
-    camUp(); camChip('ok', DEMO ? '가상 카메라 연결됨' : '카메라 연결됨');
+    camUp(); camChip('ok', DEMO ? '가상 카메라 연결됨' : SERVER_CAM ? 'PC 카메라 연결됨' : '카메라 연결됨');
     lastSmall = null; stillSince = 0; emptySince = 0; againUntil = 0;
     setPhase(empty ? 'place' : 'wait'); camSay(empty ? '물건을 가운데에 놓아 주세요' : '상자를 확인하는 중…', 'wait');
     autoTimer = setInterval(tick, AUTO.every);
@@ -649,7 +732,29 @@ function stopCam() {
   camGen++; shooting = false;
   clearInterval(autoTimer); autoTimer = null; clearTimeout(retryTimer); retryTimer = null;
   if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null; $('#cam').srcObject = null; demoStop();
+  stream = null; $('#cam').srcObject = null; demoStop(); serverStop();
+}
+// ---- 11/9 서버 카메라: PC 영상(MJPEG)을 <img> 로 받아 캔버스에 그리고 captureStream 으로 <video> 에 넣음 ----
+let srvImg = null, srvCanvas = null, srvTimer = null;
+function serverOpen() {
+  const machine = encodeURIComponent(Q.get('machine') || 'KIOSK-A');
+  return new Promise((resolve, reject) => {
+    srvImg = new Image();
+    srvImg.onload = () => {                         // MJPEG 는 첫 장이 오면 onload — 그 뒤로는 같은 <img> 가 계속 바뀜
+      srvCanvas = Object.assign(document.createElement('canvas'), {width: srvImg.naturalWidth || 1280, height: srvImg.naturalHeight || 720});
+      if (!srvCanvas.captureStream) { reject(named('NotFoundError')); return; }
+      const g = srvCanvas.getContext('2d');
+      srvTimer = setInterval(() => { try { g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height); } catch (e) {} }, 50);
+      g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height);
+      resolve(srvCanvas.captureStream(15));
+    };
+    srvImg.onerror = () => reject(named('ServerCamError'));   // 404 = 이 기계에 서버 카메라 설정 없음 · 503 = PC 웹캠이 안 열림
+    srvImg.src = `/api/kiosk/camera/${machine}.mjpg?t=${Date.now()}`;
+  });
+}
+function serverStop() {
+  clearInterval(srvTimer); srvTimer = null;
+  if (srvImg) { srvImg.onload = srvImg.onerror = null; srvImg.src = ''; srvImg = null; }   // 연결을 끊어야 PC 가 60초 뒤 웹캠을 닫음
 }
 // ---- 11/8 직원용 시연 모드(?demo=1): 카메라가 있어도 가상 카메라(캔버스 영상)를 쓴다 ----
 // 캔버스 그림을 진짜 카메라처럼 <video> 에 흘려 보내므로, 물건 감지·3초·찍기·서버 접수는 실제와 같은 코드로 지나간다.
@@ -877,9 +982,17 @@ $('#rsend').onclick = async () => {
 };
 $('#rstop').onclick = () => { fetch(API + '/api/robot/stop', {method:'POST'}).catch(() => {}); };   // 항상 열려 있는 정지
 $('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rcheck(); rshow('rform'); tab('found'); };
-startCam();
+// 11/10 주소 ?tab=ret(회수)·lost(분실접수): 처음부터 그 탭으로 연다(통합 시연 화면의 회수 장면). 습득 탭이 아니면 카메라를 켜지 않는다
+// — 본센터 키오스크가 웹캠을 잡아 해운대역 키오스크의 PC 카메라와 다투던 문제(11/10)
+const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')];
+if (START_TAB) tab(START_TAB); else startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
-<script src="/chat-widget/widget.js" data-mode="kiosk" defer></script>
+<script src="/chat-widget/widget.js?v=20261110b" data-mode="kiosk" defer></script>
+<script>
+// 11/10 화면 키보드(쿼티): 입력칸을 누르면 아래에 키오스크 키보드 — 터치로 누르거나, PC 키보드로 치면 같은 키가 눌려 보임(발표용)
+// 한글 두벌식·영문·숫자, 전화번호·가린 신분증 칸은 숫자 패드. 공통 부품 /ui/vkeyboard.js
+if (window.VK) VK.attach(document, { skin: 'kiosk' });
+</script>
 </body>
 </html>
