@@ -92,6 +92,24 @@ out.limit_few = pixLimit([40, 40, 40], O); out.limit_loud = pixLimit([30, 30, 30
     after_restore_item: hasItem(shot(cream(0.90), FOIL), back, o), after_restore_empty: hasItem(shot(same, FOIL), back, o),
   };
 }
+// 11/10 물건이 생겼나 빠졌나
+{
+  const kinds = {};
+  for (const [name, noise] of [['quiet', QUIET], ['foil', FOIL]]) {
+    const noises = []; let prev = shot(same, noise);
+    for (let k = 0; k < 8; k++) { const cur = shot(same, noise); noises.push(pixP95(cur.avg, prev.avg)); prev = cur; }
+    const o = Object.assign({}, O, {pixNow: pixLimit(noises, O)});
+    const E = () => shot(same, noise), C = () => shot(cream(0.90), noise), P = () => shot(phone, noise);
+    const other = () => shot((r) => paint(r, 24, 12, 18, 22, (a, i) => { a[i] = 200; a[i+1] = 60; a[i+2] = 50; }), noise);   // 다른 물건(빨강)
+    kinds[name] = {cream_added: changeKind(C(), E(), o), cream_removed: changeKind(E(), C(), o),
+                   phone_added: changeKind(P(), E(), o), phone_removed: changeKind(E(), P(), o),
+                   nothing: changeKind(E(), E(), o), swapped: changeKind(other(), P(), o),
+                   light_only: changeKind(shot((r) => scale(r, 0.82, 0.82, 0.82), noise), E(), o),
+                   removed_and_dim: changeKind(shot((r) => scale(r, 0.85, 0.85, 0.85), noise), P(), o)};
+  }
+  out.kind = kinds;
+  const g = gray(floor(QUIET)); out.kind_no_rgb = changeKind(g, g, O);
+}
 console.log(JSON.stringify(out));
 """
 
@@ -179,12 +197,29 @@ class DetectTest(unittest.TestCase):
         self.assertFalse(ref["after_restore_empty"])
 
 
+    def test_removed_item_is_not_a_new_item(self):
+        """11/10 물건이 든 모습을 빈 상자로 잘못 기억한 뒤 물건을 빼면 빈 상자를 찍던 것 — 뺀 것인지 놓은 것인지 가른다"""
+        for floor in ("quiet", "foil"):
+            k = self.out["kind"][floor]
+            with self.subTest(floor=floor):
+                self.assertEqual(k["phone_added"], "added")
+                self.assertEqual(k["phone_removed"], "removed")           # 빈 상자를 찍지 않는다
+                self.assertEqual(k["removed_and_dim"], "removed")         # 빼는 순간 조명이 달라져도
+                self.assertNotEqual(k["cream_added"], "removed")          # 놓은 물건을 '뺐다'고 하지 않는다(촬영을 막지 않음)
+                self.assertNotEqual(k["cream_removed"], "added")
+                self.assertEqual(k["nothing"], "unknown")
+                self.assertEqual(k["light_only"], "unknown")
+                self.assertNotEqual(k["swapped"], "removed")              # 다른 물건으로 바꾼 것은 새 물건(찍는다)
+        self.assertEqual(self.out["kind"]["quiet"]["cream_removed"], "removed")
+        self.assertEqual(self.out["kind_no_rgb"], "unknown")
+
+
 class WiringTest(unittest.TestCase):
     def test_capture_help_and_five_seconds(self):
         opt = auto_options()
         self.assertEqual(opt["stillMs"], 5000.0)                        # 11/10 자동 촬영은 5초 멈춘 뒤
-        for needle in ('id="shotNow">지금 찍기</button>', 'id="emptyAgain">빈 상자 다시 확인</button>', "if (how === 'ref') { empty = savedEmpty; trueEmpty = savedEmpty; }",
-                       "if (shotSince) { shotSince = false; saveEmpty(cur); }", "empty = null; adoptAsIs = true;", "if (DEMO) return null;",
+        for needle in ('id="shotNow">지금 찍기</button>', 'id="emptyAgain">빈 상자 다시 확인<small>상자를 비운 뒤</small></button>', "if (how === 'ref') { empty = savedEmpty; trueEmpty = savedEmpty; }",
+                       "if (shotSince) { shotSince = false; saveEmpty(cur); }", "empty = null; adoptAsIs = true;", "if (DEMO) return null;", "changeKind(cur, empty, AUTO) === 'removed'", "empty = cur; trueEmpty = cur; saveEmpty(cur); removedSince = 0;",
                        "처음부터 다시 5초", "손 빼고 5초"):
             self.assertIn(needle, HTML)
         self.assertNotIn("다시 3초 셀게요", HTML)

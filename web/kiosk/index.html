@@ -141,6 +141,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .camhelp{display:flex;gap:10px;flex-wrap:wrap}
 .camhelp button{flex:1 1 0;min-width:0;font-size:18px;padding:12px 10px;min-height:52px}
 .camhelp button:disabled{opacity:.45}
+.camhelp button small{display:block;font-size:13px;font-weight:500;opacity:.7;margin-top:2px}
 .hint b{color:var(--ui-text)}
 .status.again{background:var(--ui-warn-soft);color:var(--ui-warn)}
 .status.shot{background:var(--ui-primary-soft);color:var(--ui-primary)}
@@ -363,7 +364,7 @@ body.demo-mode #stn{flex:1 1 auto}
         </div>
         <div class="camhelp" id="camHelp">
           <button class="ghost" type="button" id="shotNow">지금 찍기</button>
-          <button class="ghost" type="button" id="emptyAgain">빈 상자 다시 확인</button>
+          <button class="ghost" type="button" id="emptyAgain">빈 상자 다시 확인<small>상자를 비운 뒤</small></button>
         </div>
         <select id="camSel" hidden aria-label="카메라 고르기(직원용)"></select>
         <p class="note"><svg class="pic" viewBox="0 0 32 32" role="img"><title>주의</title><path d="M16 4L30 28H2z"/><path d="M16 13v7M16 24v.5"/></svg>현금·위험물은 역무실로</p>
@@ -498,11 +499,12 @@ function go(n) {
 // 11/10 오후(은박 바닥): 포토박스 안쪽 은박은 화면마다 반짝임이 달라 픽셀이 많이 흔들린다(교육원에서 잰 값: 화면 한 장끼리 상위 5% 픽셀 차 27,
 //        네 장 평균끼리는 14). 그래서 최근 avgN 장을 평균한 화면으로 견주고, 픽셀 기준(pix)은 지금 잡음(평균 화면끼리 상위 5% 차)의 noiseK 배 아래로 내려가지 않게 한다
 const AUTO = {w: 64, h: 48, every: 250, changed: 14, moving: 6, stillMs: 5000, emptyMs: 3000, againMs: 1500, shotMs: 600,
-              pix: 22, area: 0.012, avgN: 4, noiseK: 1.5, refMax: 0.45};   // refMax: 기억한 빈 상자와 이만큼(넓이 비율) 넘게 다르면 기억을 버림
+              pix: 22, area: 0.012, avgN: 4, noiseK: 1.5, refMax: 0.45, kindMin: 15, kindRatio: 0.5};   // refMax: 기억한 빈 상자와 이만큼(넓이 비율) 넘게 다르면 기억을 버림 · kindMin/kindRatio: 물건이 생겼나 빠졌나 가르는 기준(둘레와의 색 차이, 그 비율)
 let probe = null, empty = null, trueEmpty = null, lastSmall = null, stillSince = 0, emptySince = 0, autoTimer = null;
 // 11/10 빈 상자 기억(이 브라우저·이 기계·이 카메라 방식): 물건을 둔 채 화면을 새로 열어도 찍히게. 가상 카메라(시연 모드)는 쓰지 않는다
 const EMPTY_KEY = 'kioskEmptyRef:' + (kiosk || '') + ':' + (new URLSearchParams(location.search).get('cam') || 'browser');
 let inControl = true;             // 11/10 이 화면이 조작 화면인가(같은 기계 화면을 여러 PC 에서 열었을 때 — 아래 controlBeat)
+let removedSince = 0;             // 물건이 빠진 것으로 보이기 시작한 때
 let savedEmpty = null, adoptAsIs = false, shotSince = false;      // 기억한 빈 상자 · 접수 직후(지금 모습을 그대로 기준으로) · 기준을 잡은 뒤 찍은 적 있음
 function loadEmpty() { if (DEMO) return null; try { return unpackFrame(localStorage.getItem(EMPTY_KEY), AUTO.w, AUTO.h); } catch (e) { return null; } }
 function saveEmpty(f) { if (DEMO) return; savedEmpty = f; try { localStorage.setItem(EMPTY_KEY, packFrame(f)); } catch (e) {} }
@@ -568,6 +570,46 @@ function changedArea(a, b, w, h, pix) {
     if (nb >= 4) cnt++;
   }
   return cnt / n;
+}
+// 11/10 달라진 곳에 물건이 "생겼나, 없어졌나". 물건이 있는 화면에서는 달라진 곳이 둘레(바닥)와 다르게 생겼고,
+// 빈 상자에서는 달라진 곳이 둘레와 비슷하다. → 지금 화면에서 그 자리가 둘레와 비슷해졌으면 물건을 **뺀** 것이다.
+//   'added' 물건이 놓였다 · 'removed' 물건이 빠졌다(지금이 빈 상자) · 'unknown' 구별 못 함(바닥과 비슷한 물건, 물건을 다른 물건으로 바꿈 등)
+// 왜: 물건이 든 모습을 빈 상자로 잘못 기억한 뒤 물건을 빼면, 예전에는 '달라졌다'만 보고 빈 상자를 찍었다(교육원 11/10)
+function changeKind(cur, base, o) {
+  const a = cur.avg || cur.rgb, b = base.avg || base.rgb;
+  if (!a || !b) return 'unknown';
+  const w = o.w, h = o.h, n = w * h, g = lightGain(a, b), pix = o.pixNow || o.pix, m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    let d = 0;
+    for (let c = 0; c < 3; c++) d += Math.abs(a[i*3+c] - Math.min(255, b[i*3+c] * g[c]));
+    if (d > pix) m[i] = 1;
+  }
+  const R = 3, ring = new Uint8Array(n);                 // 둘레: 달라진 곳에서 3칸 안쪽에 있는, 달라지지 않은 곳
+  let inside = 0, around = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (m[i]) { inside++; continue; }
+    let near = false;
+    for (let dy = -R; dy <= R && !near; dy++) for (let dx = -R; dx <= R; dx++) {
+      const yy = y + dy, xx = x + dx;
+      if (yy >= 0 && yy < h && xx >= 0 && xx < w && m[yy*w + xx]) { near = true; break; }
+    }
+    if (near) { ring[i] = 1; around++; }
+  }
+  if (inside < n * o.area || around < 8) return 'unknown';
+  const contrast = (f) => {                              // 달라진 곳의 평균 색과 둘레의 평균 색이 얼마나 다른가
+    const ins = [0, 0, 0], out = [0, 0, 0];
+    for (let i = 0; i < n; i++) {
+      if (m[i]) for (let c = 0; c < 3; c++) ins[c] += f[i*3+c];
+      else if (ring[i]) for (let c = 0; c < 3; c++) out[c] += f[i*3+c];
+    }
+    let d = 0; for (let c = 0; c < 3; c++) d += Math.abs(ins[c] / inside - out[c] / around);
+    return d;
+  };
+  const now = contrast(a), was = contrast(b);
+  if (was > o.kindMin && now < was * o.kindRatio) return 'removed';
+  if (now > o.kindMin && was < now * o.kindRatio) return 'added';
+  return 'unknown';
 }
 // 11/10 여러 장의 평균 화면(반짝임·센서 잡음을 줄임)
 function meanFrames(list) {
@@ -682,6 +724,16 @@ function tick() {
     else camSay('물건 감지됨 · 손을 빼 주세요', 'move');
     return;
   }
+  // 11/10 물건을 **뺀** 것이면 찍지 않는다: 기준이 물건 든 모습이었던 것 → 지금 화면을 빈 상자로 삼고 기억해 둔다
+  if (!DEMO && changeKind(cur, empty, AUTO) === 'removed') {
+    if (!removedSince) removedSince = now;
+    if (now - removedSince > 1000) {                    // 1초 동안 그대로면 확정
+      empty = cur; trueEmpty = cur; saveEmpty(cur); removedSince = 0; stillSince = 0; shotSince = false;
+      setPhase('place'); camSay('빈 상자를 확인했어요 · 물건을 가운데에 놓아 주세요', 'wait');
+    } else { setPhase('wait'); camSay('상자를 확인하는 중…', 'wait'); }
+    return;
+  }
+  removedSince = 0;
   if (!stillSince) stillSince = now;
   const left = AUTO.stillMs - (now - stillSince);
   if (left > 0) {
