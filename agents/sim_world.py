@@ -70,6 +70,12 @@ LOC_SHELF = "shelf"          # 11/9 직원 보관 선반(보관판 밖, 로봇�
 
 STATIONS = {"서면": "KIOSK-C", "해운대": "KIOSK-A"}   # 말에 나오는 역 이름 → 등록기계
 MACHINE_STATION = {v: k for k, v in STATIONS.items()}
+# 11/10 잃어버린 역으로 말할 수 있는 역: 등록기계가 있는 역 + **부산역(본센터)**. 본센터 키오스크에서도 습득 접수를 받는데(H-번호),
+#   챗봇·채팅 분실 접수는 서면·해운대만 알아들어 본센터에서 주운 물건의 주인이 "부산역"이라고 답할 길이 없었다.
+#   주운 역(습득 신고)은 여전히 등록기계 역(STATIONS)만 — 본센터 습득은 본센터 키오스크에서 한다
+LOST_STATIONS = {**STATIONS, "부산": "CENTER"}
+LOST_MACHINE_STATION = {v: k for k, v in LOST_STATIONS.items()}
+_BUSAN = re.compile(r"부산\s*역")     # '부산 지하철'(도시 이름) · '본센터 운영시간 알려줘'(접수 중 안내 질문)는 역으로 읽지 않는다
 
 
 def mm_to_px(x: float, y: float) -> list[float]:
@@ -171,7 +177,9 @@ def parse_place(text: str) -> tuple[str | None, str | None]:
 
 
 def lost_station(text: str) -> str | None:
-    return next((st for st in STATIONS if st in (text or "")), None)
+    """분실 신고 말에서 잃어버린 역: 서면 · 해운대 · 부산(부산역). 여러 역을 말하면 등록기계 역이 먼저"""
+    t = text or ""
+    return next((st for st in STATIONS if st in t), None) or ("부산" if _BUSAN.search(t) else None)
 
 
 # ---------- 보관함 시연 물건(실제 구매 목록 기준, 11/4) ----------
@@ -876,4 +884,4 @@ class SimRobot:
 
 
 __all__ = ["SLOT_IDS", "slot_rows", "SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
-           "lost_station", "mm_to_px", "STATIONS", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]
+           "lost_station", "mm_to_px", "STATIONS", "LOST_STATIONS", "LOST_MACHINE_STATION", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]

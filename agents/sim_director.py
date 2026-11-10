@@ -31,7 +31,7 @@ from agents.contracts import (DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, U
                               inactive_category_message, is_active_category, public_card, show_ko)
 from agents.live import LiveBoard
 from agents.service import Conflict, NotFound, RequestError, TowerService, Unavailable
-from agents.sim_world import (LOC_BIN, LOC_GRIPPER, LOC_KIOSK, LOC_SHELF, LOC_STAFF, LOC_TRANSIT, MACHINE_STATION, SimRobot, SimTopview,
+from agents.sim_world import (LOC_BIN, LOC_GRIPPER, LOC_KIOSK, LOC_SHELF, LOC_STAFF, LOC_TRANSIT, LOST_MACHINE_STATION, MACHINE_STATION, SimRobot, SimTopview,
                               SimWorld, lost_station, parse_place, query_features, sim_qwen, slot_rows, split_tags)
 
 PUBLIC_COMPARE = ("category", "color", "shape", "material")
@@ -46,7 +46,7 @@ PLACE_UNKNOWN_SAY = re.compile(r"(어디|어느\s*역|장소|역)[^.?!]{0,12}(�
 TO_FOUND = "주운 물건이면 '습득 신고'를 눌러 주세요 — 분실 신고는 잃어버린 물건을 찾을 때 써요"
 CANDIDATE_STATUSES = ("등록기계 보관", "회수 중", "본센터 보관")
 QUIZ_KO = {"place": "장소", "color": "색", "visible_text": "글자", "mark": "표시", "shape": "모양"}
-QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (서면·해운대, 기억나지 않으면 '모름')", "color": "물건 색이 무엇인가요?",
+QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (서면·해운대·부산역, 기억나지 않으면 '모름')", "color": "물건 색이 무엇인가요?",
                   "visible_text": "물건에 적힌 글자(로고)가 있다면 무엇인가요?",
                   "mark": "물건에 붙은 스티커나 표시가 있다면 어떤 모양인가요?"}
 
@@ -571,7 +571,7 @@ class SimDirector:
             # 11/4 무작위 시험: 물건 쪽 칸을 모르면 비교에서 빼서, 색 미상 물건이 색이 정확히 맞는 물건과 같은 점수였다 → 모르는 칸은 0.5
             score = (sum(1.0 if f.get(k) == desc[k] else (0.5 if not _known(f.get(k)) else 0.0) for k in keys) / len(keys)
                      if keys else 0.0)
-            if station and MACHINE_STATION.get(r["machine_id"]) == station:
+            if station and LOST_MACHINE_STATION.get(r["machine_id"]) == station:
                 score += 0.1                                  # 잃어버린 역과 주운 역이 같으면 조금 앞으로
             if score >= 0.5:
                 out.append({"item_id": r["item_id"], "score": round(score, 2), "card": _summary(f),
@@ -770,7 +770,7 @@ class SimDirector:
         if station:
             row = self.world.items[item_id]
             quiz.append({"field": "place", "passed": (
-                MACHINE_STATION.get(row["machine_id"]) == station or station in (row.get("place_text") or ""))})
+                LOST_MACHINE_STATION.get(row["machine_id"]) == station or station in (row.get("place_text") or ""))})   # 11/10 본센터 습득 물건은 '부산'(부산역)
         if not quiz or field == "color":
             quiz.append({"field": "color", "passed": desc.get("color") == f.get("color")})
         return quiz
