@@ -139,4 +139,5 @@
   - 같은 웹캠을 PC 크롬 키오스크(`127.0.0.1`)가 동시에 쓰면 "다른 프로그램이 사용 중" — 서버 카메라를 쓰는 동안 PC 쪽 키오스크 탭은 닫는다
   - 설정에 없는 기계 번호는 열지 않는다(404, 주소만 바꿔 탑뷰 카메라를 보지 못하게). 아무도 안 보면 60초 뒤 웹캠을 닫는다
   - 끌 때: Ctrl+C 한 번이면 3초 안에 꺼진다(11/9 저녁 — 키오스크 영상 연결이 끝나지 않아 `Waiting for connections to close` 에서 멈추던 것을 `--timeout-graceful-shutdown 3` 으로 막음, `tools/start_tower.bat`)
+  - 11/10 그래도 안 꺼져 탭이 먹통이 되던 것: 서버는 멈췄는데("Finished server process") 파이썬이 남는 경우가 있었다 → `tools/run_tower.py` 가 웹캠을 놓고 프로그램을 끝낸다(서버가 멈춘 직후, 또는 Ctrl+C 뒤 8초). `start_tower.bat` 가 평소에는 이 실행기를, `dev` 에서는 예전처럼 uvicorn 을 쓴다. Ctrl+C 뒤 `일괄 작업을 끝내시겠습니까 (Y/N)?` 가 보이면 `Y` + Enter
   - 11/9 저녁 보강: 관제탑 창에 `VideoCapture::open(DSHOW) ... can't be used to capture by index` 경고가 쏟아지면 **.env 번호에 카메라가 없다는 뜻**(교육원 PC 웹캠 하나만 꽂으면 보통 `0`). 이제 DirectShow 로 안 열리면 Media Foundation 으로 한 번 더 열고, 실패하면 5초 쉬었다 다시 열어 경고가 쏟아지지 않는다. 영상이 새까마면 MJPG 를 빼고 다시 열고, `/api/kiosk/cameras` 에 `warning` 이 뜬다

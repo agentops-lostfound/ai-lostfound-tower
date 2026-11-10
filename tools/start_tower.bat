@@ -39,5 +39,13 @@ rem --no-access-log: 요청마다 쓰는 로그를 끈다. 이 창 안을 클릭
 rem 11/9 Ctrl+C hang fix: kiosk camera stream (MJPEG) never ends, so uvicorn waited forever. Force close after 3s if supported.
 set TOWER_GRACE=
 python -m uvicorn --help 2>nul | findstr /c:"timeout-graceful-shutdown" >nul && set TOWER_GRACE=--timeout-graceful-shutdown 3
+rem 11/10 Exit hang fix: after Ctrl+C the server stopped but python stayed alive and the terminal tab froze (twice).
+rem tools\run_tower.py = same as uvicorn, but releases the webcam and force-exits when the server has stopped (or 8s after Ctrl+C).
+rem dev (--reload) keeps plain uvicorn.
+if defined TOWER_RELOAD goto run_dev
+python tools\run_tower.py agents.api:app --host %TOWER_HOST% --port 8100 --no-access-log %TOWER_GRACE%
+goto run_done
+:run_dev
 python -m uvicorn agents.api:app --host %TOWER_HOST% --port 8100 --no-access-log %TOWER_RELOAD% %TOWER_GRACE%
+:run_done
 pause
