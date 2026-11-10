@@ -290,8 +290,12 @@ class ApiTest(unittest.TestCase):
         evs = self.c.get(f"/api/admin/live/state?after={mark}&detail=1").json()["events"]
         trace = [e["trace"] for e in evs if e["channel"] == "trace"]
         names = [t["name"] for t in trace if t["kind"] == "end"]
-        for n in ("coordinator", "planner", "supervisor", "item_search", "lost-found-chatbot"):
+        for n in ("coordinator", "planner", "supervisor", "item_search", "reporter", "lost-found-chatbot"):
             self.assertIn(n, names)
+        # 11/10 reporter 도 기록에 남는다: 일꾼 → supervisor → reporter → supervisor(끝) → 질문 전체 끝 순서
+        self.assertEqual(names[-4:], ["supervisor", "reporter", "supervisor", "lost-found-chatbot"])
+        rep = next(t for t in trace if t["kind"] == "end" and t["name"] == "reporter")
+        self.assertIn("answer", rep["output"])
         self.assertEqual(trace[0]["kind"], "trace_start")
         self.assertEqual(trace[-1]["kind"], "trace_end")
         reads = [e["db"] for e in evs if e["channel"] == "db"]
@@ -305,6 +309,12 @@ class PageContractTest(unittest.TestCase):
                        '$("fLost").src = "/phone"', '$("full").src = "/live"', "/ui/theme.css",
                        "data-theme-slot", "prefers-reduced-motion"):
             self.assertIn(needle, html)
+        # 11/10 에이전트 그림은 일이 생긴 쪽으로 자동 전환(사용자가 한 번 고르면 영영 멈추던 옛 방식 'pinned' 는 없앰),
+        # 재생은 밀린 시간에 맞춰 빨라지고, reporter 는 실제 단계 기록으로 그린다
+        for needle in ("function follow(name)", "CHAT_KEEP_MS", "USER_HOLD_MS", "late > 900", "chatReported", "scrollbar-width:none"):
+            self.assertIn(needle, html)
+        self.assertNotIn("pinned", html)
+        self.assertNotIn("|| stories[0]", html)                 # 다른 종류의 건을 진행 막대에 대신 보여 주지 않는다
         self.assertNotIn("innerHTML = e.", html)                # 사건 글자는 esc() 를 거쳐 넣는다
         self.assertIsNone(re.search(r"\.(body|note|value|text)\}<", html))
 
