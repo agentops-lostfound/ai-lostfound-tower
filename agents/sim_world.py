@@ -418,6 +418,12 @@ class SimWorld:
             rows = [r for r in self.items.values() if is_pending_photo(r)]
         return [pending_row(r) for r in sorted(rows, key=lambda r: (r["received_at"], r["item_id"]))[:limit]]
 
+    def photo_path(self, item_id: str) -> str | None:
+        """11/10 등록 사진의 상대 경로(없으면 None) — 직원 교차 검증·통합 시연 화면이 사진을 보여 줄 때(메모리·DB 저장소와 같은 함수)"""
+        with self._lock:
+            row = self.items.get(item_id)
+            return row.get("photo_path") if row else None
+
     def chat_items(self) -> list[dict]:
         """11/7 챗봇 물건 검색용(읽기 전용 복사본): 공개 특징(색 등)만, 비공개 특징·연락처는 넣지 않는다"""
         with self._lock:

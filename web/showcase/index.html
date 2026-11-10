@@ -14,6 +14,8 @@
       trace 사건 = 챗봇·메인 AI 에이전트 한 칸의 시작/끝(agents/observability.py 리스너 — Langfuse 에 남는 것과 같은 단계)
       agent 사건 = 관제탑 에이전트 대화(agents/agent_talk.py)
   - 사건이 한꺼번에 와도 하나씩 순서대로 재생한다(밀리면 빨라짐). 처음 열 때 이미 있던 사건은 바로 반영한다
+  - 11/10 팀 DB 조회: 가상 시연 기록을 팀 DB 에도 함께 저장할 때(agents/db_mirror.py) /api/admin/db/recent 로 팀 DB 에서 방금 읽은
+    최근 접수(어느 등록기계·역, 발견 장소, 사진, 품목, 상태, 보관 칸)를 보여 준다 — "정말 DB 에 들어갔는지"를 화면에서 확인
   - 주소 옵션: ?scene=found|lost|pickup|robot · ?cam=server|demo|browser(키오스크 카메라, 기본은 서버 카메라가 설정돼 있으면 server 아니면 demo)
   색·글자는 공통 디자인(/ui/theme.css)을 쓴다. 화면 지도: web/README.md
 -->
@@ -149,6 +151,24 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 .seg{display:inline-flex;background:var(--ui-fill);border-radius:999px;padding:3px;margin-left:auto}
 .seg button{border:0;background:none;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:650;color:var(--ui-text-2);cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--ui-surface);color:var(--ui-text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.sub .seg{margin-left:0} .sub .seg button{padding:4px 11px;font-size:12.5px}
+.dbok{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--ui-ok-soft);color:var(--ui-ok);white-space:nowrap}
+.chip.warn{background:var(--ui-warn-soft);color:var(--ui-warn)} .chip.warn b{color:var(--ui-warn)}
+.chip.good{background:var(--ui-ok-soft);color:var(--ui-ok)} .chip.good b{color:var(--ui-ok)}
+.dbview{flex:1;min-height:0;overflow:auto;padding:0 18px 16px}
+.dbview .counts{margin:0 0 8px;font-size:12.5px;color:var(--ui-text-2);display:flex;flex-wrap:wrap;gap:4px 10px}
+.dbview .counts code{font-size:12px;color:var(--ui-text)} .dbview .counts b{font-variant-numeric:tabular-nums}
+.dbview .off{margin:8px 0;padding:12px 14px;border-radius:12px;background:var(--ui-fill);color:var(--ui-text-2);font-size:13.5px;line-height:1.6}
+.dbtable{width:100%;border-collapse:collapse;font-size:12.5px}
+.dbtable th{text-align:left;font-size:11.5px;color:var(--ui-text-3);font-weight:700;padding:5px 6px;border-bottom:1px solid var(--ui-line);white-space:nowrap;position:sticky;top:0;background:var(--ui-surface)}
+.dbtable th code{font-size:11px;color:var(--ui-text-3);font-weight:500;display:block}
+.dbtable td{padding:6px;border-bottom:1px solid var(--ui-line);vertical-align:middle;overflow-wrap:anywhere}
+.dbtable tr.new td{background:var(--ui-ok-soft)} .dbtable tr.cur td{background:var(--ui-primary-soft)}
+.dbtable .id{font-family:var(--ui-mono);font-size:12px;color:var(--ui-primary);font-weight:700;white-space:nowrap}
+.dbtable .where b{display:block} .dbtable .where small{color:var(--ui-text-3)}
+.dbtable .ph{width:46px;height:36px;border-radius:7px;object-fit:cover;display:block;background:var(--ui-fill)}
+.dbtable .noph{font-size:11.5px;color:var(--ui-text-3)}
+.dbtable .tag{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--ui-fill);color:var(--ui-text-3);margin-left:4px}
 .graphwrap{padding:0 12px;flex:none}
 #graph{width:100%;height:auto;display:block}
 .edge{stroke:var(--ui-line);stroke-width:1.6;fill:none}
@@ -234,13 +254,20 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       <article class="rowcard" id="cardItem"></article>
       <article class="rowcard" id="cardClaim"></article>
     </div>
-    <div class="sub"><h3>기록 흐름</h3><span class="hint">새 기록이 위에 쌓여요 · 🔒 값은 서버가 보내지 않음</span></div>
+    <div class="sub">
+      <div class="seg" id="dbSeg" role="group" aria-label="DB 보기">
+        <button data-v="log" aria-pressed="true">기록 흐름</button>
+        <button data-v="table" aria-pressed="false">팀 DB 조회</button>
+      </div>
+      <span class="hint" id="dbHint">새 기록이 위에 쌓여요 · 🔒 값은 서버가 보내지 않음</span>
+    </div>
     <ol class="log" id="dbLog" data-empty="아직 기록이 없어요. 물건을 접수하면 여기에 한 줄씩 생겨요."></ol>
+    <div class="dbview" id="dbView" hidden></div>
   </section>
 
   <section class="panel" aria-label="AI 에이전트 흐름">
     <header><h2>AI 에이전트 흐름</h2>
-      <div class="seg" role="group" aria-label="에이전트 묶음">
+      <div class="seg" id="agSeg" role="group" aria-label="에이전트 묶음">
         <button data-g="tower" aria-pressed="true">관제탑 에이전트</button>
         <button data-g="chat" aria-pressed="false">챗봇 에이전트</button>
       </div>
@@ -347,9 +374,11 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   };
   const rows = {item: {}, claim: {}};
   const cur = {item: null, claim: null};
+  const dbSaved = new Set();              // 팀 DB 에서 읽힌 접수 번호(팀 DB 조회 결과)
   function drawCard(t) {
     const c = CARD[t], key = cur[t], row = (key && rows[t][key]) || {};
-    $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4><dl>` +
+    const saved = t === "item" && key && dbSaved.has(key) ? `<span class="dbok" title="팀 DB 의 item 표에서 이 접수 번호를 읽었어요">팀 DB 저장됨</span>` : "";
+    $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4><dl>` +
       c.cols.map(([n, easy]) => { const v = row[n];
         return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + esc(v.text)}</dd>`; }).join("") + "</dl>";
   }
@@ -419,6 +448,78 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   const two = (n) => String(n).padStart(2, "0");
   const clock = (t) => { const d = new Date(t * 1000); return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`; };
 
+  // ================= 팀 DB 조회(가상 시연 기록을 팀 DB 에도 저장할 때) =================
+  let dbTab = "log", mirror = {on: false}, dbSeen = null;
+  document.querySelectorAll("#dbSeg button").forEach((b) => b.onclick = () => setDbTab(b.dataset.v));
+  function setDbTab(v) {
+    dbTab = v;
+    document.querySelectorAll("#dbSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+    $("dbLog").hidden = v !== "log"; $("dbView").hidden = v !== "table";
+    $("dbHint").textContent = v === "log" ? "새 기록이 위에 쌓여요 · 🔒 값은 서버가 보내지 않음" : "팀 DB(PostgreSQL)에서 방금 읽은 값 · 3초마다 다시 읽어요";
+    if (v === "table") readDb();
+  }
+  const WHERE_KIND = {kiosk: "등록기계", center: "본센터"};
+  function drawDb(d) {
+    const box = $("dbView");
+    if (!d || !d.on) {
+      box.innerHTML = `<p class="off"><b>팀 DB 에 함께 저장이 꺼져 있어요.</b><br>지금은 메모리 저장소만 써요. <code>tools\\start_tower.bat</code> 로 관제탑을 켜면 가상 시연 기록이 팀 DB 에도 저장돼요(끄기: <code>start_tower.bat nodb</code>).</p>`;
+      return;
+    }
+    if (d.error) { box.innerHTML = `<p class="off"><b>팀 DB 에 연결하지 못했어요</b> (${esc(d.error)}).<br>Docker 의 팀 DB 가 켜져 있는지 확인해 주세요. 시연은 메모리 저장소로 계속돼요.</p>`; return; }
+    const c = d.counts || {};
+    const counts = [["item", "습득물"], ["item_status_log", "상태 변경 기록"], ["claim", "찾기 요청"], ["reservation", "방문 예약"], ["storage_assignment", "보관 칸 배정"], ["return_case", "반환 기록"]]
+      .map(([t, easy]) => `<span><code>${t}</code> ${easy} <b>${esc(c[t] ?? "-")}</b>행</span>`).join("");
+    const body = (d.items || []).map((r) => {
+      const fresh = dbSeen && !dbSeen.has(r.item_id);
+      const photo = r.has_photo ? `<img class="ph" src="/api/admin/items/${encodeURIComponent(r.item_id)}/photo" alt="접수 사진" loading="lazy" onerror="this.outerHTML='&lt;span class=&quot;noph&quot;&gt;사진 있음&lt;/span&gt;'">` : `<span class="noph">없음</span>`;
+      const t = r.received_at ? new Date(r.received_at) : null;
+      return `<tr class="${fresh ? "new" : ""}${r.item_id === cur.item ? " cur" : ""}"><td>${photo}</td>` +
+        `<td class="id">${esc(r.item_id)}${r.virtual ? `<span class="tag" title="글로 한 가상 신고·시연용 물건">시연</span>` : ""}</td>` +
+        `<td class="where"><b>${esc(r.station || "")}${r.kind === "center" ? " 본센터" : "역"}</b><small>${esc(WHERE_KIND[r.kind] || "")} ${esc(r.machine_id)}</small></td>` +
+        `<td>${esc(r.place_text)}</td><td>${esc(r.category)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
+        `<td>${t ? `${two(t.getHours())}:${two(t.getMinutes())}:${two(t.getSeconds())}` : ""}</td></tr>`; }).join("");
+    box.innerHTML = `<p class="counts">${counts}</p><table class="dbtable"><thead><tr>` +
+      `<th>사진<code>photo_path</code></th><th>접수 번호<code>item_id</code></th><th>접수한 곳<code>machine_id</code></th><th>발견 장소<code>place_text</code></th>` +
+      `<th>품목<code>category</code></th><th>상태<code>status</code></th><th>칸<code>slot_id</code></th><th>접수 시각<code>received_at</code></th></tr></thead>` +
+      `<tbody>${body || `<tr><td colspan="8" class="noph">아직 접수된 물건이 없어요.</td></tr>`}</tbody></table>`;
+  }
+  let dbBusy = false;
+  async function readDb() {
+    if (!mirror.on) { drawDb(null); return; }
+    if (dbBusy) return;
+    dbBusy = true;
+    try {
+      const r = await fetch("/api/admin/db/recent?limit=12", {cache: "no-store"});
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      const before = dbSaved.size;
+      (d.items || []).forEach((x) => dbSaved.add(x.item_id));
+      if (dbTab === "table") drawDb(d);
+      dbSeen = new Set((d.items || []).map((x) => x.item_id));
+      if (dbSaved.size !== before && cur.item && dbSaved.has(cur.item)) drawCard("item");
+    } catch (_) {} finally { dbBusy = false; }
+  }
+  setInterval(() => { if (mirror.on && !document.hidden) readDb(); }, 3000);
+  function showMirror(d) {
+    const was = mirror.on;
+    mirror = d.db_mirror || {on: false};
+    const chip = $("srcChip");
+    chip.classList.remove("good", "warn");
+    if (mirror.on && mirror.connected) {
+      chip.classList.add("good"); $("src").textContent = `팀 DB 저장 ${mirror.ok}건`;
+      $("srcHint").textContent = `${d.sim ? "가상 시연 · " : ""}팀 DB(PostgreSQL)에도 함께 저장 중` + (mirror.fail ? ` · 실패 ${mirror.fail}건` : "") + (mirror.skipped ? ` · 넘김 ${mirror.skipped}건` : "");
+    } else if (mirror.on && mirror.connected === false) {
+      chip.classList.add("warn"); $("src").textContent = "팀 DB 연결 안 됨";
+      $("srcHint").textContent = "팀 DB 에 연결하지 못해 메모리 저장소로 진행 중(Docker 의 팀 DB 확인)";
+    } else if (mirror.on) {
+      $("src").textContent = "팀 DB 준비 중"; $("srcHint").textContent = "팀 DB(PostgreSQL)에도 함께 저장";
+    } else {
+      $("src").textContent = d.db_source === "postgres" ? "팀 DB" : "메모리";
+      $("srcHint").textContent = d.db_source === "postgres" ? "팀 DB(PostgreSQL)에 실제로 쓰고 읽는 기록" : (d.sim ? "가상 시연 · 메모리 저장소(팀 DB 와 같은 표 모양)" : "메모리 저장소(팀 DB 와 같은 표 모양)");
+    }
+    if (mirror.on && !was) readDb();
+  }
+
   // ================= 에이전트 칸 =================
   // 묶음 둘: tower = 관제탑 에이전트(메인 AI 를 거쳐 주고받음) · chat = 챗봇 에이전트(coordinator → planner → supervisor ⇄ 일꾼 → reporter)
   const G = {
@@ -458,7 +559,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     }
     svg.innerHTML = s + `<g id="pkts"></g>`;
     $("agHint").textContent = g.hint;
-    document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.g === graph)));
+    document.querySelectorAll("#agSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.g === graph)));
   }
   const fmtMs = (ms) => ms >= 1000 ? (ms / 1000).toFixed(1) + "초" : ms + "ms";
   function showGraph(name, byUser) {
@@ -466,7 +567,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     if (graph === name) return;
     graph = name; drawGraph();
   }
-  document.querySelectorAll(".seg button").forEach((b) => b.onclick = () => showGraph(b.dataset.g, true));
+  document.querySelectorAll("#agSeg button").forEach((b) => b.onclick = () => showGraph(b.dataset.g, true));
   function mark(gname, node, patch) {
     if (!G[gname].nodes[node]) return;
     state[gname][node] = Object.assign(state[gname][node] || {}, patch);
@@ -587,8 +688,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       const d = await r.json();
       fails = 0; banner("");
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
-      $("src").textContent = d.db_source === "postgres" ? "팀 DB" : "메모리";
-      $("srcHint").textContent = d.db_source === "postgres" ? "팀 DB(PostgreSQL)에 실제로 쓰고 읽는 기록" : (d.sim ? "가상 시연 · 메모리 저장소(팀 DB 와 같은 표 모양)" : "메모리 저장소(팀 DB 와 같은 표 모양)");
+      showMirror(d);
       $("lf").textContent = d.langfuse ? "기록 중" : "꺼짐";
       $("btnReset").hidden = !d.sim;
       const evs = (d.events || []).filter((e) => e.channel === "db" || e.channel === "agent" || e.channel === "trace");
@@ -613,6 +713,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     try {
       const r = await fetch("/sim/reset", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
       if (!r.ok) { const d = await r.json().catch(() => ({})); banner(esc(typeof d.detail === "string" ? d.detail : "초기화하지 못했어요(반환이 진행 중이면 끝난 뒤 다시)")); return; }
+      dbSaved.clear(); dbSeen = null;
       for (const t of ["item", "claim"]) { rows[t] = {}; cur[t] = null; drawCard(t); }
       $("dbLog").innerHTML = ""; $("agLog").innerHTML = ""; state.tower = {}; state.chat = {}; lastDb = null; drawGraph();
       for (const id of ["fFound", "fPickup", "fLost"]) { const f = $(id); if (f.getAttribute("src")) f.src = f.getAttribute("src"); }

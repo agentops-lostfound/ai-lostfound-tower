@@ -14,7 +14,7 @@
 |---|---|---|
 | 1 | Warp `tower` 탭: `git pull` | 최신 main |
 | 2 | `.env` 에 `TOWER_SIM=1`, `TOWER_KIOSK_CAMERAS=KIOSK-A=0`(웹캠 1대 = 0) | 메모장으로 그 두 줄만 확인 |
-| 3 | `.\tools\start_tower.bat lan` (태블릿을 쓸 때만 `lan`) | `Uvicorn running on http://0.0.0.0:8100` |
+| 3 | `.\tools\start_tower.bat lan` (태블릿을 쓸 때만 `lan`) | `Uvicorn running on http://0.0.0.0:8100` · 그 위에 `가상 시연 기록을 팀 DB 에도 함께 저장합니다`(11/10) |
 | 4 | Warp `work` 탭: `python tools/langfuse_setup.py --push-prompts` (처음 한 번) | 프롬프트 13개가 Langfuse 에 있음 |
 | 5 | Ollama 켜짐(Mi:dm 2.0 Mini) · 새 탭에서 Qwen 작업자 `.\.venv-qwen\Scripts\python.exe tools\intake_qwen_worker.py` | 사진 한 장으로 미리 데우기(첫 장 수십 초, 추정) |
 | 6 | `nvidia-smi` | 그래픽카드 메모리 6GB 안(넘치면 Qwen 은 사진 장면 때만) |
@@ -37,7 +37,8 @@
 | ⑦ Langfuse | 브라우저 별도 창 | 챗봇 에이전트별 판단 기록 |
 
 - 통합 시연 화면에서 장면마다 볼 것(11/10): ① 습득 → `item` 표에 새 행, 사진 분석 뒤 품목·특징 칸이 채워짐, 보관 칸 배정 · 관제탑 에이전트 대화 ② 분실 신고 → 후보 검색(SELECT) 뒤 `claim`·`quiz_attempt`·`reservation` 저장, 💬 AI 안내로 물으면 챗봇 에이전트 흐름 ③ 회수 → `claim` 읽기(SELECT) → 상태 변경 → `return_case` 저장 · 메인 AI ↔ 로봇팔·DB·채점 에이전트
-- 통합 시연 화면의 저장소 표시가 "메모리"면 가상 시연(메모리 저장소, 표 모양은 팀 DB 와 같음)이다. 질문이 나오면 그대로 설명한다
+- 통합 시연 화면 머리말의 저장소 표시(11/10): **"팀 DB 저장 n건"** = 가상 시연 기록이 팀 DB(PostgreSQL)에도 저장되는 중(`start_tower.bat` 기본). "팀 DB 연결 안 됨" = Docker 의 팀 DB 가 꺼짐(시연은 메모리로 계속) · "메모리" = `nodb` 로 켰거나 직접 켬
+- 저장된 것을 보여 줄 때: DB 칸의 [팀 DB 조회] → 방금 접수한 물건이 맨 위에(사진 · 접수한 역 · 발견 장소 · 상태). 가상 시연에서 로봇·보관 칸 상태는 가상 세계 기준이라는 점은 그대로 설명한다
 
 ## 3. 한 바퀴 흐름 (11/9 저녁 실제 확인)
 

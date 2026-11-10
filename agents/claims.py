@@ -117,11 +117,13 @@ class MemoryClaimStore:
     def __init__(self):
         self._rows: dict[str, dict] = {}
         self._lock = threading.Lock()
+        self.seq_floor: dict[str, int] = {}      # 11/10 날짜(YYYYMMDD) → 이미 쓴 가장 큰 순번. 팀 DB 에 함께 저장할 때 번호가 겹치지 않게(agents/db_mirror.py)
 
     def create(self, claim: dict, today: date | None = None) -> dict:
         day = (today or date.today()).strftime("%Y%m%d")
         with self._lock:
-            seq = 1 + sum(1 for k in self._rows if k.startswith(f"C-{day}-"))
+            seq = max(1 + sum(1 for k in self._rows if k.startswith(f"C-{day}-")), self.seq_floor.get(day, 0) + 1)
+            self.seq_floor[day] = seq
             cid = f"C-{day}-{seq:04d}"
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             self._rows[cid] = {**copy.deepcopy(claim), "claim_id": cid, "consented_at": now,
