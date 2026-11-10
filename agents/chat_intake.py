@@ -48,7 +48,7 @@ SLOT_KO = {"category": "물건", "color": "색", "station": "역", "when": "잃�
 QUESTIONS = {
     "category": f"어떤 물건인가요? ({active_category_text()} 중 하나)",
     "color": "물건 색이 무엇인가요? 가장 넓게 보이는 색 하나만 알려 주세요.",
-    "station_lost": "어느 역에서 잃어버리셨나요? (서면·해운대)",
+    "station_lost": "어느 역에서 잃어버리셨나요? (서면·해운대, 기억나지 않으면 '모름')",
     "station_found": "어느 역에서 주우셨나요? 등록기계가 있는 역은 서면·해운대예요.",
     "when": "언제쯤 잃어버리셨나요? 예: 어제 저녁 / 오늘 아침 (모르면 '모름')",
     "detail": "물건에 적힌 글자나 붙은 스티커가 있나요? 예: 별 스티커 (없으면 '없어요')",
@@ -58,7 +58,7 @@ QUESTIONS = {
 }
 CHOICES = {
     "category": ["휴대폰", "보조배터리", "핸드크림", "카드지갑"],     # 11/10: 보관함 열 순서, 지갑은 카드지갑으로 보여 줌
-    "station_lost": ["서면", "해운대"], "station_found": ["서면", "해운대"],
+    "station_lost": ["서면", "해운대", "모름"], "station_found": ["서면", "해운대"],     # 11/10 잃어버린 역은 모를 수 있다(주운 역은 등록기계라 꼭 필요)
     "color": ["검정", "흰색", "갈색", "파랑"],
     "when": ["오늘", "어제", "모름"], "detail": ["없어요"], "place": ["모름"],
 }
@@ -111,6 +111,8 @@ def detect_start(question: str) -> str | None:
     q = re.sub(r"\s+", " ", question or "")
     if WAIT_RE.search(q):
         return "status"                       # 11/9 분실 신고 대기 번호 조회
+    if re.search(r"취소|철회", q):
+        return None                           # 11/10 "찾기 요청 취소하고 싶어요"가 분실 접수 시작으로 읽혔다 → 취소는 안내 길(예약 취소 절차)로
     # "주운 물건은 어디에 맡기나요?"처럼 방법을 묻는 말은 안내로(supervisor 가 '습득 신고하기' 버튼을 제안) — 하고 싶다는 말이 있을 때만 바로 시작
     if HOW_ASK.search(q) and not WANT.search(q):
         return None
@@ -401,7 +403,10 @@ class IntakeAgent:
                                  s, done=True, ids={"item_id": rec["item_id"], "story_id": rec.get("story_id")}))
             text = self._lost_text(sl)
             ident = sl["identity"]
-            res = self.desk.lost(text, {"visit": "kiosk", "name_masked": ident["name_masked"], "id_no_masked": ident["id_no_masked"]})
+            opts = {"visit": "kiosk", "name_masked": ident["name_masked"], "id_no_masked": ident["id_no_masked"]}
+            if sl.get("station") == "모름":
+                opts["place_unknown"] = True      # 창구가 장소를 다시 묻지 않고, 확인 질문에서도 뺀다(색으로 확인)
+            res = self.desk.lost(text, opts)
             return self._lost_result(sid, s, res)
         except Exception as e:                 # 창구가 거절한 이유(한국어 문장)는 그대로 보여 준다
             self.sessions.drop(sid)
@@ -413,7 +418,8 @@ class IntakeAgent:
         bits = []
         if sl.get("when") not in (None, "모름"):
             bits.append(sl["when"])
-        bits.append(f"{sl['station']}역에서")
+        if sl.get("station") not in (None, "모름"):          # 11/10 역을 모르면 문장에서 뺀다('모름역에서'가 되던 것)
+            bits.append(f"{sl['station']}역에서")
         if sl.get("color") not in (None, "모름"):
             bits.append(sl["color"])
         bits.append(category_label(sl["category"]))
@@ -439,7 +445,8 @@ class IntakeAgent:
         passed = res.get("quiz_passed")
         return self._finish(sid, s, self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 "
                          f"찾기 번호와 같은 신분 정보를 넣으면 로봇팔이 물건을 꺼내 드려요."
-                         + ("" if passed else " 확인 질문이 맞지 않아 방문 때 직원이 한 번 더 확인해요."),
+                         + ("" if passed else " 확인 질문이 맞지 않아 키오스크 대신 본센터 직원이 직접 확인한 뒤 꺼내 드려요.")
+                         + " 취소는 방문 전까지 본센터 직원에게 찾기 번호를 말씀해 주시면 돼요.",
                          s, done=True, ids={"claim_id": cid, "story_id": res.get("story_id"), "item_id": res.get("item_id")}))
 
     def _quiz_answer(self, sid: str, s: dict, q: str) -> dict:

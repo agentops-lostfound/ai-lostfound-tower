@@ -186,9 +186,12 @@ def lost_station(text: str) -> str | None:
 #   카드지갑 → R2-1. 빈 칸 = R2-2(카드지갑) · R4-1·R4-2(핸드크림)
 # 11/10 사용자 결정: 처음 보관함에는 **분홍 핸드크림 하나만** 둔다(R3-1). 전에는 5개(휴대폰 2·보조배터리 2·카드지갑 1)라
 #   휴대폰·보조배터리를 새로 접수하면 열이 꽉 차 늘 '칸 대기'가 됐다 — 발표에서 접수 → 보관 칸 배치가 바로 보이게 비워 둔다
+#   11/10(2): 이 핸드크림은 **해운대역 등록기계(KIOSK-A)에서 주워 본센터로 회수된 물건**으로 고정한다(번호 A-…-0001).
+#   전에는 '본센터 직접 접수'라 분실인이 "해운대에서 잃어버렸어요"라고 하면 장소 확인 질문이 늘 틀렸다
 SEED_ITEMS = [
-    ("핸드크림 핑크", "분홍 핸드크림"),          # → R3-1
+    ("핸드크림 핑크", "분홍 핸드크림", "KIOSK-A", "해운대역 승강장"),          # → R3-1
 ]
+SEED_PLACE = ("CENTER", "본센터 접수(시연)")      # 등록기계·장소를 적지 않은 시연 물건(예전 5개 묶음)
 # 예전 묶음(시험·연습용, TOWER_SIM_SEED=full): 휴대폰 2 · 보조배터리 2(같은 제품 → '닮은 물건 → 직원 확인' 장면) · 카드지갑 1.
 #   018 열 배정 뒤 자리: R1-1·R1-2 · R2-1·R2-2 · R4-1 → 휴대폰·보조배터리 열이 꽉 참('칸 대기' 장면), 빈 칸 = R3-1·R3-2 · R4-2
 SEED_FULL = [
@@ -351,8 +354,9 @@ class SimWorld:
         """보관함에 미리 있는 물건(본센터 직접 접수 H-…) — 실제 구매 목록(구매요구서_2조_AgentOps_최종, 11/3) 기준 5개(11/7, 칸 8개).
         디스코드로 신고해 볼 물건(검정 카드지갑·목업폰 블랙·핸드크림)은 일부러 비워 둔다(11/9 품목 4종 고정 — USB·립밤 뺌).
         같은 제품 2개(보조배터리 스피디)를 넣어 '닮은 물건 → 직원 확인' 장면이 실제처럼 나오게 한다. 색·글자는 SEED_ITEMS 주석 참고."""
-        for _, text in SEED_SETS[self.seed_set]:
-            row = self.create({"machine_id": "CENTER", "place_id": None, "place_text": "본센터 접수(시연)",
+        for _, text, *where in SEED_SETS[self.seed_set]:
+            machine, place = where if len(where) == 2 else SEED_PLACE
+            row = self.create({"machine_id": machine, "place_id": None, "place_text": place,
                                "finder": None, "photo_path": None})
             q = sim_qwen(text)
             self.set_features(row["item_id"], to_features(q, 0.9), qwen=q)

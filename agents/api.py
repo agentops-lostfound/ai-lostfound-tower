@@ -764,6 +764,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                "events": (board.since(after, story, detail=bool(detail)) if detail else board.since(after, story)) if board else [],
                "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"], "storage": _storage_brief()}
+        sim = getattr(svc, "sim", None)
+        if sim is not None and callable(getattr(sim, "open_claims", None)):
+            try:
+                out["claims_open"] = sim.open_claims()      # 11/10 방문 전 찾기 요청(직원 진행·취소 단추용, 개인정보 없음)
+            except Exception:
+                out["claims_open"] = []
         if detail:
             from agents import observability
             watch = getattr(svc, "db_watch", None)
@@ -844,7 +850,39 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                     if not isinstance(v, str) or "*" not in v or not 1 <= len(v) <= 32:
                         raise HTTPException(status_code=422, detail=f"{k}: 가린 값만(예: 변*원, ******-3******)")
                     opts[k] = v
+        if isinstance(payload, dict) and payload.get("place_unknown") is True:
+            opts["place_unknown"] = True          # 11/10 잃어버린 역을 모름(웹 '잘 모르겠어요') → 장소는 묻지도 채점하지도 않음
         return _sim_call(_sim().lost, _text(payload), opts)
+
+    def _claim_door(name: str):
+        """찾기 요청 취소·직원 진행: 가상 시연이면 진행판까지 함께 고치는 쪽(sim), 아니면 서비스 그대로"""
+        d = getattr(svc, "sim", None)
+        fn = getattr(d, name, None) if d is not None else None
+        return fn if callable(fn) else getattr(svc, name, None)
+
+    @app.post("/api/admin/claims/{claim_id}/cancel", dependencies=admin)
+    def claim_cancel_staff(claim_id: str) -> dict:
+        """[찾기 요청 취소](직원 화면·로봇 작업대·통합 화면): 방문 전인 찾기 요청과 방문 예약을 취소한다. 물건은 계속 보관.
+        방문 처리된(반환이 시작된) 요청은 409. 가상 세계 + 팀 DB(함께 저장 중이면 reservation.status = cancelled)"""
+        return _sim_call(lambda: _claim_door("cancel_claim")(claim_id, by_staff=True))
+
+    @app.post("/api/lost/claims/{claim_id}/cancel")
+    def claim_cancel_owner(claim_id: str, payload: dict = Body(...)) -> dict:
+        """분실인이 자기 찾기 요청을 취소: 본문 {"id_no_masked": "******-3******"} — 요청할 때 넣은 가린 신분 번호와 같아야 한다.
+        틀리면 422(여러 번 틀리면 409 locked). 남의 찾기 번호를 알아도 신분 번호 없이는 취소하지 못한다"""
+        if not isinstance(payload, dict) or set(payload) != {"id_no_masked"} or not isinstance(payload["id_no_masked"], str) \
+                or not 1 <= len(payload["id_no_masked"]) <= 32:
+            raise HTTPException(status_code=422, detail="본문은 id_no_masked(가린 신분 번호) 하나만 보냅니다")
+        return _sim_call(lambda: _claim_door("cancel_claim")(claim_id, id_no_masked=payload["id_no_masked"]))
+
+    @app.post("/api/admin/claims/{claim_id}/visit", dependencies=admin)
+    def claim_staff_visit(claim_id: str) -> dict:
+        """[직원 확인 후 진행](로봇 작업대·통합 화면): 본센터 방문 대기에서 멈춘 찾기 요청을 직원이 대면 확인하고 반환을 시작한다.
+        확인 질문이 맞지 않아 키오스크가 받지 않는 요청, 키오스크를 쓰지 못하는 분실인용. 가상 시연에서만(진짜는 /staff 의 반환 시작)"""
+        d = _sim()
+        if not callable(getattr(d, "staff_visit", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.staff_visit, claim_id)
 
     @app.post("/sim/lost/{pending_id}/answer")
     def sim_answer(pending_id: str, payload: dict = Body(...)) -> dict:

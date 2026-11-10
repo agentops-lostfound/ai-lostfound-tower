@@ -54,6 +54,7 @@ SQL_QUIZ = "INSERT INTO quiz_attempt (claim_id, item_id, field, passed) VALUES (
 SQL_RESERVATION = ("INSERT INTO reservation (claim_id, item_id, visit_date) VALUES (%s, %s, %s) "
                    "ON CONFLICT (claim_id) DO NOTHING")
 SQL_VISITED = "UPDATE reservation SET status = 'visited' WHERE claim_id = %s"
+SQL_CANCELLED = "UPDATE reservation SET status = 'cancelled' WHERE claim_id = %s AND status = 'booked'"
 SQL_SHELF_SLOT = ("INSERT INTO storage_slot (slot_id, section_code, slot_no, note) SELECT %s, %s, %s, '직원 보관 선반' "
                   "WHERE EXISTS (SELECT 1 FROM storage_section WHERE section_code = %s) ON CONFLICT DO NOTHING")
 SQL_SLOT_MOVE_OUT = "DELETE FROM storage_assignment WHERE item_id = %s AND slot_id <> %s AND assigned_by = 'system'"
@@ -318,6 +319,34 @@ class DbMirror:
     def claim_visited(self, claim_id: str) -> None:
         self._put("reservation", lambda cur: cur.execute(SQL_VISITED, (claim_id,)) and None)
 
+    def real_ids(self, ids: list[str]) -> set[str]:
+        """이 번호들 가운데 팀 DB 에 **가상 표시 없이**(진짜 접수로) 이미 있는 것. 못 읽으면 빈 집합(막지 않음)"""
+        if not ids:
+            return set()
+        try:
+            with self._connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute("SELECT item_id FROM item WHERE item_id = ANY(%s) AND (object_id IS NULL OR object_id NOT LIKE 'SIM%%')",
+                            (list(ids),))
+                return {r[0] for r in cur.fetchall()}
+        except Exception:
+            return set()
+
+    def sim_seed_seq(self, prefix: str, place_text: str) -> int | None:
+        """지난 실행이 팀 DB 에 남긴 **가상 시연용 처음 물건**(가상 표시 + 같은 장소 글)의 가장 작은 순번 — 다시 켤 때 그 번호를 다시 쓴다
+        (켤 때마다 가상 물건이 하나씩 늘지 않게). 없거나 못 읽으면 None"""
+        try:
+            with self._connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute("SELECT MIN(CAST(RIGHT(item_id, 4) AS INTEGER)) FROM item WHERE item_id LIKE %s "
+                            "AND object_id LIKE 'SIM%%' AND place_text = %s", (prefix + "%", place_text))
+                row = cur.fetchone()
+                return int(row[0]) if row and row[0] is not None else None
+        except Exception:
+            return None
+
+    def claim_cancelled(self, claim_id: str) -> None:
+        """11/10 찾기 요청 취소: 방문 전인 예약만 cancelled 로(찾기 요청·확인 질문 기록은 남긴다)"""
+        self._put("reservation", lambda cur: cur.execute(SQL_CANCELLED, (claim_id,)) and None)
+
     def slot_assign(self, slot_id: str, item_id: str) -> None:
         section, _, no = slot_id.partition("-")
 
@@ -441,6 +470,8 @@ def attach(svc, mirror: DbMirror):
     after(claims, "create", lambda row, _pre, *a, **k: mirror.claim_new(row),
           before=lambda claim, today=None: mirror.sync_numbers(world, claims, today))
     after(claims, "mark_visited", lambda _out, _pre, claim_id, *a, **k: mirror.claim_visited(claim_id))
+    if callable(getattr(claims, "cancel", None)):
+        after(claims, "cancel", lambda out, _pre, claim_id, *a, **k: mirror.claim_cancelled(claim_id) if out else None)
 
     def assigned(out, _pre, item_id, slot_id, *a, **k):
         if (out or {}).get("ok"):
@@ -461,6 +492,26 @@ def attach(svc, mirror: DbMirror):
 
     # 지금 가상 세계에 이미 있는 물건(시연용 물건 5개)과 그 칸을 팀 DB 에 맞춘다
     mirror.sync_numbers(world, claims)
+    # 11/10 처음 물건이 해운대역 번호(A-…-0001)를 쓰게 되면서, 그날 진짜 키오스크 접수가 먼저 있었으면 번호가 겹친다.
+    #   겹친 채로 두면 가상 찾기 요청이 팀 DB 의 **다른 진짜 물건**에 걸린다 → 번호를 맞춘 뒤(위) 세계를 한 번 다시 채워 새 번호를 받는다.
+    #   막 켜진 세계(이야기 없음)일 때만 — 진행 중인 시연을 지우지 않는다
+    try:
+        clash = mirror.real_ids(list(world.items))
+        sim, board = getattr(svc, "sim", None), getattr(svc, "board", None)
+        if clash and sim is not None and callable(getattr(sim, "reset", None)) and not getattr(board, "stories", None):
+            seqs = getattr(world, "_seq", None)
+            seeds = list(world.items.values())
+            if len(seeds) == 1 and isinstance(seqs, dict):          # 처음 물건이 하나일 때: 지난 실행의 가상 물건 번호가 있으면 그 번호를 다시 씀
+                prefix = seeds[0]["item_id"][:-4]
+                again, top = mirror.sim_seed_seq(prefix, seeds[0].get("place_text") or ""), seqs.get(prefix, 0)
+                if again is not None:
+                    seqs[prefix] = again - 1
+                sim.reset()
+                seqs[prefix] = max(top, seqs.get(prefix, 0))        # 다음 접수 번호는 팀 DB 의 가장 큰 번호 다음부터
+            else:
+                sim.reset()
+    except Exception:
+        pass
     try:
         rows = [dict(r) for r in list(world.items.values())]
     except Exception:

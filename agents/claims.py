@@ -109,6 +109,7 @@ class ClaimStore(Protocol):
     def create(self, claim: dict, today: date | None = None) -> dict: ...
     def get(self, claim_id: str) -> dict | None: ...
     def mark_visited(self, claim_id: str) -> None: ...
+    def cancel(self, claim_id: str) -> bool: ...
 
 
 class MemoryClaimStore:
@@ -145,6 +146,16 @@ class MemoryClaimStore:
             if claim_id in self._rows:
                 self._rows[claim_id]["status"] = "visited"
 
+    def cancel(self, claim_id: str) -> bool:
+        """11/10 찾기 요청·방문 예약 취소: 아직 방문 전(booked)일 때만 cancelled 로 → 바꿨으면 True.
+        기록은 남기고(누가 언제 찾으려 했는지) 물건은 다시 찾을 수 있게 된다(active_for_item 에서 빠짐)"""
+        with self._lock:
+            row = self._rows.get(claim_id)
+            if row is None or row["status"] != "booked":
+                return False
+            row["status"] = "cancelled"
+            return True
+
     def delete_for_item(self, item_id: str) -> list[str]:
         """11/10 물건 기록 전체 삭제: 그 물건의 찾기 요청을 모두 지운다 → 지운 찾기 번호. 번호는 다시 쓰지 않는다(seq_floor 유지)"""
         with self._lock:
@@ -171,6 +182,7 @@ SQL_GET = (
 SQL_GET_QUIZ = "SELECT field, passed FROM quiz_attempt WHERE claim_id = %s ORDER BY id"
 SQL_ACTIVE_FOR_ITEM = "SELECT claim_id FROM reservation WHERE item_id = %s AND status IN ('booked', 'visited') LIMIT 1"
 SQL_VISITED = "UPDATE reservation SET status = 'visited' WHERE claim_id = %s"
+SQL_CANCEL = "UPDATE reservation SET status = 'cancelled' WHERE claim_id = %s AND status = 'booked' RETURNING claim_id"
 
 
 def _iso(v):
@@ -236,6 +248,12 @@ class PostgresClaimStore:
     def mark_visited(self, claim_id: str) -> None:
         with self._connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(SQL_VISITED, (claim_id,))
+
+    def cancel(self, claim_id: str) -> bool:
+        """방문 전(booked)인 예약만 cancelled 로(11/10). 방문 처리됐거나 이미 취소된 요청은 그대로 → False"""
+        with self._connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(SQL_CANCEL, (claim_id,))
+            return cur.fetchone() is not None
 
 
 __all__ = ["ClaimError", "parse_claim", "web_gates", "public_view", "ClaimStore", "MemoryClaimStore",
