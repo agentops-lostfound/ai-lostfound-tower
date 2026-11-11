@@ -478,6 +478,41 @@ class ExposureTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             ce.parse_values("4600,9000", "wb")
 
+    def test_tool_waits_for_dark_frames_and_reports_unsupported(self):
+        """11/11 교육원: 다시 연 카메라의 처음 영상이 까맘(0) · 카메라가 노출 값을 -1(지원 안 함)로 돌려줌"""
+        import tempfile
+        import numpy as np
+        from tools import camera_exposure as ce
+
+        class SlowCam(_ExpCam):
+            def __init__(self, dark=30, unsupported=False):
+                super().__init__(ignore=unsupported)
+                self.left, self.unsupported = dark, unsupported
+
+            def get(self, prop):
+                return -1.0 if self.unsupported else super().get(prop)
+
+            def read(self):
+                if self.left > 0:
+                    self.left -= 1
+                    return True, np.zeros((720, 960, 3), np.uint8)
+                return super().read()
+        with tempfile.TemporaryDirectory() as d:
+            rows = ce.run(0, [-5, -6], Path(d), opener=lambda src: SlowCam(dark=8), settle=4)
+            self.assertTrue(all("m" in r and r["m"]["floor"] > 0 for r in rows))      # 까만 영상을 측정하지 않음
+            rows = ce.run(0, [-5], Path(d), opener=lambda src: SlowCam(dark=10 ** 6), settle=2)
+            self.assertIn("까맘", rows[0]["error"])
+            rows = ce.run(0, [-5, -6, -7], Path(d), opener=lambda src: SlowCam(dark=0, unsupported=True), settle=2)
+            best, why = ce.recommend(rows)
+            self.assertIsNone(best)
+            self.assertIn("-1", why)
+            rows = ce.run(0, [4600, 5200], Path(d), opener=lambda src: SlowCam(dark=0, unsupported=True), settle=2, kind="wb")
+            self.assertIn("-1", ce.recommend_wb(rows)[1])
+        props = ce.read_props(_ExpCam())
+        self.assertIn("EXPOSURE", props)
+        self.assertIn("BRIGHTNESS", props)
+        self.assertEqual(ce.main(["--cam", "fake", "--dialog"]), 2)       # 가짜 카메라에는 설정 창이 없음
+
     def test_tool_reports_closed_camera(self):
         import tempfile
         from tools import camera_exposure as ce
