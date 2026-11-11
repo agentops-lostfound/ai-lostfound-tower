@@ -131,6 +131,26 @@ class ApiTest(unittest.TestCase):
     def state(self, after=0):
         return self.c.get(f"/api/admin/live/state?after={after}&detail=1").json()
 
+    def test_size_measure_fixes_category_end_to_end(self):
+        # 11/11 A-…-0092: Qwen 은 립밤, 크기는 핸드크림 → 저장·보관 칸·가상 탑뷰 기억 모두 핸드크림, 화면엔 Qwen → 크기 → 저장
+        r = self.c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "중앙역 승강장", "photo": JPG,
+                                                  "photo_geom": {"crop": [100, 100, 400, 300], "frame": [960, 720], "up": 1.8}})
+        iid = r.json()["item_id"]
+        lip = {**QWEN, "category": "lip_balm"}
+        size = {"found": True, "length": 382, "width": 127, "size_group": "핸드크림", "reason": "길이 382·폭 127"}
+        r = self.c.post(f"/api/kiosk/items/{iid}/features", json={"qwen": lip, "confidence": 0.85, "size_measure": size})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.svc.sim.wait_idle(20)
+        self.assertEqual(self.svc.world.items[iid]["category"], "핸드크림")
+        self.assertEqual(self.svc.world.items[iid]["qwen"]["category"], "hand_cream")
+        self.assertTrue((self.svc.world.slot_id_of(iid) or "").startswith("R3"), self.svc.world.slot_id_of(iid))
+        res = [e["vision"] for e in self.state()["events"] if e["channel"] == "vision" and e["vision"]["item_id"] == iid][-1]
+        self.assertEqual((res["size"]["qwen"], res["size"]["used"], res["size"]["changed"]), ("립밤", "핸드크림", True))
+        from pathlib import Path
+        side = (Path(self.tmp.name) / self.svc.intake.photo_path(iid)).with_suffix(".json") if hasattr(self.svc.intake, "photo_path") else None
+        if side is not None:
+            self.assertTrue(side.exists())
+
     def test_photo_to_features_round(self):
         self.assertFalse(self.state()["qwen_worker"]["on"])
         r = self.c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "중앙역 승강장", "photo": JPG})

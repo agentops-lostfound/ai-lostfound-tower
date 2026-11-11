@@ -259,18 +259,31 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
         try:
             out = svc.set_item_features(item_id, payload)
+            qwen = payload.get("qwen")
+            try:                            # 11/11 크기 측정이 품목을 바꿨으면 가상 탑뷰가 기억할 Qwen 원본도 같은 품목으로
+                from agents.intake import parse_features
+                from agents.vision_adapter import CATEGORY
+                used = parse_features(payload).get("category")
+                code = {"립밤": "lip_balm", "핸드크림": "hand_cream", "모형폰": "phone", "보조배터리": "power_bank"}.get(used)
+                if isinstance(qwen, dict) and code and CATEGORY.get(qwen.get("category")) != used:
+                    qwen = {**qwen, "category": code}
+            except Exception:
+                pass
             if vision is not None:          # 11/10 Qwen 이 읽은 값과 저장한 값을 화면에 나란히(비공개 값은 상태만)
                 try:
                     from agents.color_measure import apply_to_features, view
+                    from agents.size_measure import apply_to_features as apply_size, view as size_view
                     from agents.vision_adapter import to_features
                     base = to_features(payload.get("qwen"), payload.get("confidence", 0.9))
                     cm = payload.get("color_measure")      # 11/11 색 측정: Qwen 색 → 측정 색 → 쓴 색을 화면에
-                    vision.result(item_id, payload.get("qwen"), apply_to_features(base, cm), measure=view(cm, base.get("color")))
+                    sm = payload.get("size_measure")       # 11/11 크기 측정: Qwen 품목 → 크기 → 쓴 품목
+                    vision.result(item_id, payload.get("qwen"), apply_size(apply_to_features(base, cm), sm),
+                                  measure=view(cm, base.get("color")), size=size_view(sm, base.get("category")))
                 except Exception:
                     pass
             d = getattr(svc, "sim", None)   # 11/7 가상 시연: Qwen 원본을 기억(가상 탑뷰가 같은 물건을 다시 찍을 때) + 기다리던 이야기 진행
             if d is not None:
-                d.on_features(item_id, payload.get("qwen"))
+                d.on_features(item_id, qwen)
             return out
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
@@ -823,7 +836,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                 out["claims_open"] = []
         if getattr(svc, "taught_robot", False):
             out['robot_control'] = {'mode': 'taught_remote', 'verification_required': True}
-            if out['world']:
+            if out['world'] and getattr(svc, 'robot_mirror', None) is not None:
+                # 11/11 가상 팔이 실물 단계 기록(11단계 시작·도착)을 따라 움직임(agents/taught_mirror.py) — 관절 막대는 가상 계산 값
+                out['world']['robot']['role'] = '실물 원격 티칭 · 가상 팔은 로봇 PC 단계 기록(시작·도착)을 따라 움직임 — 실시간 관절값이 아님'
+                out['world']['robot']['telemetry_available'] = 'stage'
+            elif out['world']:
                 out['world']['arm'] = {**out['world']['arm'], 'joints': None,
                                        'phase': '실물 원격 티칭 · 단계 기록 확인(그림은 배치 참고)'}
                 out['world']['robot']['role'] = '실물 원격 티칭 · 그림은 실시간 관절 상태가 아님'

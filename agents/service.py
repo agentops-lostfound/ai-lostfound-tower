@@ -19,8 +19,8 @@ from dataclasses import fields, replace
 from typing import Callable
 
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
-from agents.intake import (IntakeError, IntakeStore, MemoryIntakeStore, decode_photo, parse_features, parse_intake, receipt,
-                           save_photo, valid_item_id)
+from agents.intake import (IntakeError, IntakeStore, MemoryIntakeStore, decode_photo, parse_features, parse_geom, parse_intake,
+                           receipt, save_geom, save_photo, valid_item_id)
 from agents.contracts import (show_ko, CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
                               DECISIONS, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, HOLD_REASONS, STAFF_STOP_REASON)
 from agents.records import MemoryRecorder, Recorder
@@ -259,22 +259,26 @@ class TowerService:
     def create_item(self, payload: object) -> dict:
         """등록기계: 접수 → 접수 번호. 연락처는 저장만 하고 돌려주지 않는다.
         11/4: "photo"(data URL)를 함께 보내면 관제탑이 사진을 저장하고 photo_path 를 채운다(photo_path 와 같이 보내면 422)."""
-        photo_file = None
+        photo_file = geom_file = None
         try:
             body = dict(payload) if isinstance(payload, dict) else payload
             photo = body.pop("photo", None) if isinstance(body, dict) else None
+            geom = body.pop("photo_geom", None) if isinstance(body, dict) else None      # 11/11 자르기 정보(크기 측정용)
             if photo is not None and isinstance(body, dict) and body.get("photo_path") is not None:
                 raise IntakeError("photo 와 photo_path 는 하나만")
             intake = parse_intake(body)
             if photo is not None:
                 raw, ext = decode_photo(photo)
                 intake["photo_path"], photo_file = save_photo(raw, ext, intake["machine_id"], self.photo_dir)
+                geom_file = save_geom(photo_file, parse_geom(geom))
             row = self.intake.create(intake)
         except IntakeError as e:
             self._drop(photo_file)
+            self._drop(geom_file)
             raise RequestError(str(e)) from e
         except Exception as e:
             self._drop(photo_file)
+            self._drop(geom_file)
             raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
         return receipt(row)
 
