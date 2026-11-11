@@ -19,14 +19,25 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 
-def main():
+def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--suite', choices=['live', '500'], required=True)
     p.add_argument('--out', required=True)
+    p.add_argument('--stop-file', help='이 파일이 생기면 다음 문항을 시작하지 않고 부분 결과를 보존')
     p.add_argument('--only', default='', help='검증할 문항 번호(쉼표 구분). 원본 전체 점수와 구분해 기록')
     p.add_argument('--questions', default='', help='별도 JSON 문항(선택한 suite 형식). 기존 500문항을 변경하지 않음')
     p.add_argument('--prompt-label', choices=['production', 'staging'], default='production', help='프롬프트 조회 라벨. 클라우드 연결이 없으면 기본값 사용을 명시')
-    args = p.parse_args()
+    args = p.parse_args(argv)
+    output = Path(args.out)
+    if output.exists():
+        p.error('기존 검증 기록은 덮어쓰지 않습니다. 새 출력 이름을 지정해주세요')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    stop_file = Path(args.stop_file) if args.stop_file else None
+    if stop_file is not None and stop_file.exists():
+        output.write_text(json.dumps({'meta': {'suite': args.suite, 'state': 'stopped',
+            'data': 'synthetic_only', 'langfuse': False}, 'results': [],
+            'summary': {'passed': 0, 'total': 0}}, ensure_ascii=False), encoding='utf-8')
+        return 130
     only = {int(n) for n in args.only.split(',') if n.strip()}
     from agents import local_model
     from agents import chat_supervisor
@@ -68,12 +79,15 @@ def main():
                TOWER_GPU_LEASE='0', TOWER_SEND='0', TOWER_AGENT_TALK='0')
     report = {'meta': {'suite': args.suite, 'model': 'midm-2.0-mini', 'supervisor_llm': True,
                        'langfuse': False, 'prompt_label': args.prompt_label, 'data': 'synthetic_only',
-                       'selection': sorted(only) if only else 'all',
+                       'selection': sorted(only) if only else 'all', 'state': 'running',
                        'started': dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).isoformat()}, 'results': []}
     report['meta']['source_sha256'] = {
         name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
         for name in ('agents/chatbot.py', 'agents/chat_agents.py', 'agents/chat_supervisor.py', 'agents/prompts.py',
-                     'agents/guidance.py', 'agents/chat_rag.py', 'agents/chat_retrieval.py')}
+                     'agents/guidance.py', 'agents/chat_rag.py', 'agents/chat_retrieval.py',
+                     'agents/chat_api.py', 'agents/chat_intake.py', 'agents/chat_find_auth.py',
+                     'agents/chat_postgres_access.py', 'agents/chat_session_issuer.py',
+                     'agents/chat_identity_evidence.py', 'agents/chat_operations.py')}
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}',
                                                           'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -95,7 +109,16 @@ def main():
             path = Path(args.questions) if args.questions else QUESTIONS
             report['meta']['questions_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
             items = list(enumerate(json.loads(path.read_text(encoding='utf-8')), 1))
-            results = run(build_chatbot_from_env(), [(n, q) for n, q in items if not only or n in only])
+            chosen = [(n, q) for n, q in items if not only or n in only]
+            report['meta']['expected_questions'] = len(chosen)
+            bot, results = build_chatbot_from_env(), []
+            for n, question in chosen:
+                if stop_file is not None and stop_file.exists():
+                    report['meta']['state'] = 'stopped'
+                    break
+                results.extend(run(bot, [(n, question)]))
+                report['results'] = results
+                output.write_text(json.dumps(report, ensure_ascii=False), encoding='utf-8')
             report['results'] = results
             passed = sum(r['ok'] for r in results)
         else:
@@ -103,9 +126,14 @@ def main():
             runner = Runner()
             path = Path(args.questions) if args.questions else QUESTIONS
             report['meta']['questions_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
-            for it in json.loads(path.read_text(encoding='utf-8')):
+            items = json.loads(path.read_text(encoding='utf-8'))
+            report['meta']['expected_questions'] = sum(not only or it['no'] in only for it in items)
+            for it in items:
                 if only and it['no'] not in only:
                     continue
+                if stop_file is not None and stop_file.exists():
+                    report['meta']['state'] = 'stopped'
+                    break
                 n = len(calls)
                 r = runner.run_item(it)
                 r.update(group=it['group'], model_calls=len(calls) - n)
@@ -122,15 +150,17 @@ def main():
             passed = sum(r['score'] for r in report['results'])
         seconds = [r['seconds'] for r in report['results']]
         report['summary'] = {'passed': passed, 'total': len(seconds), 'seconds': round(time.perf_counter() - started, 2),
-                             'median_seconds': statistics.median(seconds),
-                             'p95_seconds': sorted(seconds)[max(0, int(len(seconds) * .95) - 1)]}
+                             'median_seconds': statistics.median(seconds) if seconds else None,
+                             'p95_seconds': sorted(seconds)[max(0, int(len(seconds) * .95) - 1)] if seconds else None}
         report['model_calls'], report['supervisor_checks'] = calls, dict(audits)
         report['supervisor_rejection_examples'] = audit_examples
         report['meta']['prompt_usage'] = prompts.loaded_versions()
         report['meta']['prompt_provenance'] = prompts.usage_summary()
+        if report['meta']['state'] != 'stopped':
+            report['meta']['state'] = 'complete'
         Path(args.out).write_text(json.dumps(report, ensure_ascii=False), encoding='utf-8')
     print(json.dumps(report['summary'], ensure_ascii=False), dict(audits), flush=True)
-    return int(passed != len(report['results']))
+    return 130 if report['meta']['state'] == 'stopped' else int(passed != len(report['results']))
 
 
 if __name__ == '__main__':
