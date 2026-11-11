@@ -73,6 +73,27 @@ class GuidanceQualityTest(unittest.TestCase):
         self.assertIn('접수할게요', r['answer'])
         self.assertNotEqual(r['generation_status'], 'generated')
 
+    def test_intake_confirmation_requires_the_real_button_name(self):
+        answer = '챗봇으로 분실 접수가 가능합니다. 물건, 색, 역을 물어보고 요약을 확인한 후 접수합니다. 접수하려면 접수 버튼을 눌러야 합니다.'
+        result = GroundedRag(Guidance(), 'test', request=model({'mode': 'answer', 'passage_ids': [0], 'answer': answer})).ask('챗봇으로도 분실 접수가 되나요?')
+        self.assertNotEqual(result['generation_status'], 'generated')
+        self.assertIn('접수할게요', result['answer'])
+
+    def test_intake_button_cannot_replace_review_confirmation(self):
+        answer = "이 챗봇에서도 대화로 분실 접수가 가능합니다. 물건·색·역을 말하고 [접수할게요]를 누르면 접수됩니다."
+        result = GroundedRag(Guidance(), 'test', request=model({'mode': 'answer', 'passage_ids': [0], 'answer': answer})).ask('챗봇으로도 분실 접수가 되나요?')
+        self.assertNotEqual(result['generation_status'], 'generated')
+        self.assertIn('확인', result['answer'])
+
+    def test_intake_valid_paraphrase_keeps_button_and_confirmation(self):
+        answer = '챗봇으로 분실 접수가 가능합니다. 물건, 색, 역을 물어보고 요약을 확인한 후 [접수할게요]를 누르면 접수됩니다.'
+        result = GroundedRag(Guidance(), 'test', request=model({'mode': 'answer', 'passage_ids': [0], 'answer': answer})).ask('챗봇으로도 분실 접수가 되나요?')
+        self.assertEqual(result['generation_status'], 'generated')
+        self.assertIn('접수할게요', result['answer'])
+        groups = generation_requirements('챗봇으로도 분실 접수가 되나요?', [{'text': '요약을 확인한 뒤 [접수할게요]를 누릅니다.'}])
+        self.assertIn(['접수할게요'], groups)
+        self.assertIn(['확인'], groups)
+
     def test_number_storage_unknown_is_not_replaced_by_pickup(self):
         def no_model(_):
             self.fail('문서에 없는 보관 방법을 생성하면 안 됨')
