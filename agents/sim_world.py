@@ -419,13 +419,19 @@ class SimWorld:
             self._touch()
             return {k: copy.deepcopy(v) for k, v in row.items() if k not in ("qwen", "private_features")}
 
-    def purge_item(self, item_id: str) -> dict | None:
+    def purge_item(self, item_id: str, stuck: bool = False) -> dict | None:
         """11/10 물건 기록 전체 삭제(직원, 로봇 작업대 화면): 어디에 있든(등록기계·보관 칸·선반·인계 완료) 그 물건을 지운다 → 지운 행.
-        로봇이 들고 있거나 반환 중인 물건은 지우지 않는다(None). 칸은 비게 된다. 번호는 다시 쓰지 않는다"""
+        로봇이 들고 있거나 반환 중인 물건은 지우지 않는다(None). 칸은 비게 된다. 번호는 다시 쓰지 않는다.
+        11/11 stuck=True: 반환이 멈춰 '반환 중'으로 남은 물건(관제탑이 쉬는 중인지는 부르는 쪽이 확인)도 지운다"""
         with self._lock:
             row = self.items.get(item_id)
-            if row is None or row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or self.arm.get("holding") == item_id:
+            if row is None:
                 return None
+            moving = row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or self.arm.get("holding") == item_id
+            if moving and not stuck:
+                return None
+            if self.arm.get("holding") == item_id:
+                self.arm["holding"] = None
             del self.items[item_id]
             self.contacts.pop(item_id, None)
             self.collecting.pop(item_id, None)
@@ -439,6 +445,17 @@ class SimWorld:
             except Exception:
                 pass
         return out
+
+    def unstick_return(self, item_id: str) -> bool:
+        """11/11 [반환 취소]: 반환이 멈췄는데 물건이 아직 보관 칸에 그대로일 때(로봇이 집지 않음) '반환 중' → '본센터 보관'.
+        로봇 집게·제출보관함으로 옮겨진 물건은 False(실물을 직원이 확인해야 함)"""
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None or row.get("status") != "반환 중" or row.get("loc") != LOC_BIN or row.get("slot") is None:
+                return False
+            if self.arm.get("holding") == item_id:
+                self.arm["holding"] = None
+        return self.db_set_status(item_id, "본센터 보관", changed_by="staff").get("ok", False)
 
     def set_features(self, item_id: str, feats: dict, qwen: dict | None = None) -> bool:
         cat, pub, priv = split_features(feats)

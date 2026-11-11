@@ -420,7 +420,45 @@ class SimDirector:
             finally:
                 self._flow_end(item_id)
 
-    def purge_item(self, item_id: str) -> dict:
+    def stuck(self, item_id: str) -> bool:
+        """11/11 반환이 멈춰 '반환 중'으로 남은 물건인가 — 관제탑이 쉬는 중(반환 진행 없음)이고 이 물건의 흐름도 없을 때만 True"""
+        row = self.world.items.get(item_id)
+        if row is None or not (row.get("status") == "반환 중" or row.get("loc") == LOC_GRIPPER):
+            return False
+        try:
+            if self.svc.health().get("busy"):
+                return False
+        except Exception:
+            return False
+        with self._flow_lock:
+            return item_id not in self._flowing
+
+    def cancel_stuck_return(self, item_id: str) -> dict:
+        """11/11 [반환 취소](직원, 두 번 눌러 실행): 로봇이 움직이지 않아 '반환 중'에 멈춘 물건을 같은 칸의 '본센터 보관'으로 되돌린다.
+        찾기 요청·반환 기록은 남는다(무슨 일이 있었는지 기록). 집게·제출보관함으로 옮겨진 물건은 하지 않는다(실물 확인 뒤 삭제)"""
+        if not self.stuck(item_id):
+            return {"ok": False, "code": "state", "reason": "멈춘 반환이 아니에요 — 반환이 진행 중이거나 이미 끝났어요"}
+        slot = self.world.slot_id_of(item_id)
+        if not self.world.unstick_return(item_id):
+            return {"ok": False, "code": "state", "reason": "물건이 보관 칸에 없어요(로봇이 옮겼을 수 있음) — 실물을 확인한 뒤 [삭제]를 쓰세요"}
+        self.rep.progress(item_id, "반환 취소", f"로봇이 움직이지 않아 직원이 반환을 취소 — {slot} 칸에 그대로 보관")
+        return {"ok": True, "reason": "", "slot": slot}
+
+    def purge_all(self) -> dict:
+        """11/11 [전체 삭제](직원, 두 번 눌러 실행): 가상 세계의 물건 기록을 모두 지운다(하나씩 purge_item 과 같음, 멈춘 반환 포함).
+        반환이 진행 중이면 아무것도 지우지 않는다. → {"ok", "deleted": [...], "kept": [{"item_id", "reason"}]}"""
+        try:
+            if self.svc.health().get("busy"):
+                return {"ok": False, "code": "busy", "reason": "반환이 진행 중이에요 — 끝난 뒤 다시 눌러 주세요", "deleted": [], "kept": []}
+        except Exception:
+            pass
+        deleted, kept = [], []
+        for iid in sorted(self.world.items):
+            out = self.purge_item(iid, stuck=self.stuck(iid))
+            (deleted.append(iid) if out.get("ok") else kept.append({"item_id": iid, "reason": out.get("reason")}))
+        return {"ok": True, "deleted": deleted, "kept": kept}
+
+    def purge_item(self, item_id: str, stuck: bool = False) -> dict:
         """[기록 삭제](로봇 작업대 화면): 물건 하나에 딸린 기록을 **전부** 지운다(되돌릴 수 없음) — 물건·상태 기록·연락처·보관 칸·
         찾기 요청(확인 질문·방문 예약 포함)·반환 기록. 가상 세계와 팀 DB(함께 저장 중이면) 모두. 사진 파일만 남는다.
         로봇이 들고 있거나 반환 중인 물건, 이야기가 진행 중인 물건은 지우지 않는다. → {"ok", "reason", "claims", "cases", "slot"}"""
@@ -428,7 +466,8 @@ class SimDirector:
         row = w.items.get(item_id)
         if row is None:
             return {"ok": False, "code": "not_found", "reason": "없는 물건 번호예요"}
-        if row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or w.arm.get("holding") == item_id:
+        stuck = stuck and self.stuck(item_id)             # 11/11 멈춘 반환은 직원이 두 번 눌러 지울 수 있다(진행 중이면 안 됨)
+        if (row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or w.arm.get("holding") == item_id) and not stuck:
             return {"ok": False, "code": "busy", "reason": "반환 중인 물건은 지울 수 없어요 — 반환이 끝난 뒤 다시 눌러 주세요"}
         with self._flow_lock:
             if item_id in self._flowing and item_id not in self.qwen_wait:
@@ -439,7 +478,7 @@ class SimDirector:
             self.svc.storage.release(item_id=item_id)
         except Exception:
             pass
-        if w.purge_item(item_id) is None:
+        if w.purge_item(item_id, stuck=stuck) is None:
             self.cancelled.discard(item_id)
             return {"ok": False, "code": "busy", "reason": "반환 중인 물건은 지울 수 없어요 — 반환이 끝난 뒤 다시 눌러 주세요"}
         claims = cases = []
@@ -1012,13 +1051,14 @@ class SimDirector:
                 self.board.finish(sid, f"반환 보류 — 교차 검증 불일치({result.get('reason') or '확인 필요'})", False)
             return
 
-    def reset(self, startup: bool = False) -> dict:
+    def reset(self, startup: bool = False, force_real: bool = False) -> dict:
         """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
         11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
         # startup=True: 관제탑이 켜질 때 팀 DB 와 번호를 맞추려고 처음 물건을 다시 채우는 것(agents/db_mirror.py) — 아직 아무 일도
         # 시작되지 않았고 실물 로봇을 부르지 않으므로 실물 연결 모드에서도 허용한다. 화면의 [가상 세계 초기화]는 그대로 막는다
-        if getattr(self.svc, "taught_robot", False) and not startup:
-            raise Conflict("real_robot", "실물 연결 모드에서는 가상 초기화를 사용할 수 없습니다")
+        # 11/11 실물 모드에서도 직원이 [전체 초기화]를 두 번 눌러 확인하면(force_real) 화면·기록만 처음으로 — 로봇 PC 상태는 그대로
+        if getattr(self.svc, "taught_robot", False) and not startup and not force_real:
+            raise Conflict("real_robot", "실물 연결 모드에서는 가상 초기화를 사용할 수 없습니다 — 로봇 작업대 [전체 초기화]를 두 번 눌러 확인하세요")
         w = self.world
         if callable(getattr(self.board, "mark_epoch", None)):   # 11/10 새로 연 통합 시연 화면에 초기화 전 연습 기록이 섞이지 않게
             self.board.mark_epoch()
