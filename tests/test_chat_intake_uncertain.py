@@ -42,16 +42,18 @@ class UncertainWriteTest(unittest.TestCase):
         self.assertIsNone(a.confirmation('one'))
 
     def test_malformed_success_response_does_not_allow_second_write(self):
-        desk = FakeDesk()
-        def malformed(text):
-            desk.calls.append(('found', text))
-            return {}
-        desk.found = malformed
-        a = IntakeAgent(desk=desk)
-        proof = ready(a, 'one')
-        for _ in range(2):
-            self.assertEqual(a.step('one', '네', action=proof)['status'], 'intake_uncertain')
-        self.assertEqual(len(desk.calls), 1)
+        for reply in ({}, {'item_id': None}, {'item_id': ' '}, {'item_id': True}):
+            with self.subTest(reply=reply):
+                desk = FakeDesk()
+                def malformed(text):
+                    desk.calls.append(('found', text))
+                    return reply
+                desk.found = malformed
+                a = IntakeAgent(desk=desk)
+                proof = ready(a, 'one')
+                for _ in range(2):
+                    self.assertEqual(a.step('one', '네', action=proof)['status'], 'intake_uncertain')
+                self.assertEqual(len(desk.calls), 1)
 
     def test_lost_and_followup_answer_response_loss_are_held(self):
         for followup in (False, True):

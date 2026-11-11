@@ -470,6 +470,13 @@ class IntakeAgent:
                 "method": "conversational_intake", "scope": "대화 접수", "intake": info}
 
     # ---------- 진짜 접수 ----------
+    @staticmethod
+    def _result_id(result, key):
+        value = result.get(key) if isinstance(result, dict) else None
+        if not isinstance(value, str) or not value.strip() or len(value) > 120:
+            raise ValueError('invalid intake result identifier')
+        return value
+
     def _commit(self, sid: str, s: dict) -> dict:
         if s["kind"] == "cancel":
             return self._commit_cancel(sid, s)
@@ -486,6 +493,7 @@ class IntakeAgent:
                 color = "" if sl.get("color") in (None, "모름") else sl["color"] + " "
                 text = f"{sl['station']}역 {place}에서 {color}{category_label(sl['category'])} 주웠어요".replace("  ", " ")
                 rec = self.desk.found(text)
+                self._result_id(rec, 'item_id')
                 return self._finish(sid, s, self._out("intake_done", f"습득 신고를 접수했어요. 접수 번호 {rec['item_id']} · {rec.get('place_text') or sl['station']}. "
                                  f"물건은 {sl['station']}역 키오스크 상자에 넣어 주세요. 사진 분석 → 본센터 회수까지는 관제탑이 이어서 처리해요.",
                                  s, done=True, ids={"item_id": rec["item_id"], "story_id": rec.get("story_id")}))
@@ -510,6 +518,7 @@ class IntakeAgent:
         sl = s["slots"]
         try:
             out = cancel(sl["claim_id"], id_no_masked=sl["identity"]["id_no_masked"])
+            self._result_id(out, 'item_id')
             return self._finish(sid, s, self._out("intake_done", f"찾기 요청({sl['claim_id']})을 취소했어요. 방문 예약이 없어졌고, 물건은 본센터에 계속 보관돼요. "
                                  "다시 찾으려면 분실 접수를 새로 해 주세요.", s, done=True,
                                  ids={"claim_id": sl["claim_id"], "item_id": out.get("item_id")}))
@@ -532,19 +541,19 @@ class IntakeAgent:
 
     def _lost_result(self, sid: str, s: dict, res: dict) -> dict:
         if res.get("pending_id"):              # 후보를 가르려고 창구가 더 묻는다(확인 질문)
-            s["stage"], s["pending_id"] = "quiz", res["pending_id"]
+            s["stage"], s["pending_id"] = "quiz", self._result_id(res, 'pending_id')
             self.sessions.put(sid, s)
             return self._out("intake_question", f"후보가 {len(res.get('candidates') or [])}개 있어요. {res['question']} (모르면 '모름')",
                              s, choices=["모름", "취소"])
         if res.get("waiting"):                 # 11/9 닮은 습득물이 아직 없음 → 대기로 받아 둠(분실인이 먼저 신고)
-            wid = res["wait_id"]
+            wid = self._result_id(res, 'wait_id')
             return self._finish(sid, s, self._out("intake_done", f"분실 신고를 대기로 받아 두었어요. 대기 번호 {wid}. 아직 닮은 습득물이 들어오지 않았는데, "
                                 "들어오면 자동으로 찾기 번호가 만들어져요. 이 창에 대기 번호를 넣으면 상태를 알려 드려요.",
                                 s, done=True, ids={"wait_id": wid, "story_id": res.get("story_id")}))
         if res.get("staff"):
             return self._finish(sid, s, self._out("intake_done", "닮은 후보가 여러 개라 자동으로 고르지 않았어요. 부산역 본센터 역무실에서 직원이 함께 확인해 드려요.",
                                 s, done=True, ids={"story_id": res.get("story_id")}))
-        cid = res["claim_id"]
+        cid = self._result_id(res, 'claim_id')
         passed = res.get("quiz_passed")
         return self._finish(sid, s, self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 "
                          f"찾기 번호와 신분증 번호 뒤 첫 자리({self._id_digit(s)})를 넣으면 로봇팔이 물건을 꺼내 드려요."
