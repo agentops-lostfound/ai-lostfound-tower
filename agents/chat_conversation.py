@@ -60,12 +60,12 @@ def checked_history(history):
 def checked_turns(history):
     """이전 대화 → 모델에 넘길 [{question, answer}] (답이 있는 항목만). 답은 300자까지, 개인정보 모양이면 답을 비운다.
     서버는 저장하지 않는다(브라우저가 매번 보냄) — 여러 사람 대화가 섞이지 않게"""
-    from agents.support_security import has_private_pattern
+    from agents.support_security import has_private_pattern, normalized_text
     out = []
     for h in history or []:
         if isinstance(h, dict) and isinstance(h.get('a'), str):
             q = checked_text(h.get('q'), '이전 질문', 500)
-            a = h['a'].strip()[:300]
+            a = normalized_text(h['a'].strip()[:300])[:300]
             out.append({'question': q, 'answer': '' if has_private_pattern(a) else a})
     return out
 

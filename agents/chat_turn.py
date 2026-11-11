@@ -40,8 +40,13 @@ def cancel_draft_requested(question):
 
 def help_question(question):
     q = compact(question)
-    return bool(re.search(r'운영시간|몇시|센터.{0,10}(?:문|열|닫)|개인정보|신분정보|인증|동의|수령|대리|택배|배송|보관기간'
-        r'|(?:물건|취급|운영|다루는).{0,10}(?:종류|몇개|몇가지|품목)|받으러.{0,10}(?:뭘|뭐|필요)|준비물', q))
+    return bool(unconfirmed_policy(q) or re.search(r'운영시간|몇시|센터.{0,10}(?:문|열|닫)|개인정보|신분정보|인증|동의|수령|대리|택배|배송|보관기간'
+        r'|(?:물건|취급|운영|다루는).{0,10}(?:종류|몇개|몇가지|품목)|받으러.{0,10}(?:뭘|뭐|필요)|준비물|예전db|카드지갑.*기록', q))
+
+
+def unconfirmed_policy(question):
+    """미확정 운영 질문은 모델이 물건 검색으로 바꾸지 못한다."""
+    return bool(re.search(r'보상|보험|증명서|수리|충전해주|위치추적|주차|재발급|담당자.*(?:실명|직급)|어린이.*혼자.*수령|음성안내.*현장|교통비.*돌려', compact(question)))
 
 
 def explicit_role(question):

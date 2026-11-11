@@ -170,3 +170,29 @@ class CreativeHardeningTest(unittest.TestCase):
         r = self.ask('입력하기 싫다고 하면 화내지 말고 대안을 설명해 줘요.')
         self.assertIn('취소', r['answer'])
         self.assertEqual(before, self.bot.intake.active('hardening-test'))
+
+    def test_unknown_policy_and_old_category_record_force_guidance(self):
+        from test_deerflow_langfuse import brain_with
+        self.bot.brain = brain_with(coord='service', plan=['item_search'])
+        r = self.ask('내가 못 찾은 휴대폰을 센터가 새 걸로 보상해 줘요?')
+        self.assertEqual(r['status'], 'policy_pending')
+        self.assertIn('researcher', r['agent_path'])
+        self.assertNotIn('item_search', r['agent_path'])
+        r = self.ask('실제 지갑이랑 예전 DB의 카드지갑 기록은 왜 다르게 보여요?')
+        self.assertIn('categories', {s['topic'] for s in r['sources']})
+        self.assertNotIn('item_search', r['agent_path'])
+
+    def test_rejected_private_question_never_enters_root_observation(self):
+        from agents import observability
+        from unittest import mock
+        synthetic = '900101-1234567'.translate(str.maketrans('0123456789', '０１２３４５６７８９'))
+        with mock.patch.object(observability, 'step', wraps=observability.step) as trace:
+            with self.assertRaises(ValueError):
+                self.ask('테스트용 가상 번호 ' + synthetic)
+        trace.assert_not_called()
+
+    def test_unicode_private_assistant_history_is_removed_before_model_context(self):
+        from agents.chat_conversation import checked_turns
+        synthetic = '900101-1234567'.translate(str.maketrans('0123456789', '０１２３４５６７８９'))
+        turns = checked_turns([{'q': '수령 안내', 'a': '테스트용 가상 번호 ' + synthetic}])
+        self.assertEqual(turns[0]['answer'], '')

@@ -616,6 +616,8 @@ class Chatbot:
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
         # Process/help questions stay in guidance, even when they mention searching.
         help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|면허증|운전면허|여권|가는법|가는길|받는순서|순서', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
+        from agents.chat_turn import help_question as dialogue_help
+        help_question = help_question or dialogue_help(q)
         search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
         direct_search = search_intent(q)
         from agents.guidance import off_topic
@@ -661,6 +663,9 @@ class Chatbot:
     def ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, channel='web',
             intake_action=None):
         """session_id: 같은 화면 대화를 Langfuse 에서 묶는 번호(화면이 만든 무작위 값, 개인정보 아님). channel: web·kiosk·staff"""
+        # 거절될 개인정보·초과 입력은 root observation에도 넘기지 않는다.
+        # 정규화보다 앞에서 기록하면 전각 숫자·숨은 구분자가 마스킹을 피할 수 있다.
+        question = checked_text(question, '질문', 500)
         from agents.observability import conversation, step
         with conversation(session_id=session_id, tags=[channel]):
             with step('lost-found-chatbot', as_type='chain', input={'question': question}) as root:

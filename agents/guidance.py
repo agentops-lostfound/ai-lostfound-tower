@@ -176,7 +176,8 @@ class Guidance:
             return self._response('policy_pending', '제출보관함에서 직접 꺼내기 어려우면 작동 중인 로봇 안에 손을 넣지 말고 '
                 '역무실이나 현장 직원에게 도움을 요청해 주세요. 현장 접근성 지원 방식은 현재 자료에 확정되어 있지 않아 확인이 필요해요.', docs)
         # 다룬다고 확인되지 않은 운영 정책을 일반 수령·요금 답변으로 대신하지 않는다.
-        if re.search(r'보상|보험|증명서|수리|충전해주|위치추적|주차|재발급|담당자.*(?:실명|직급)|어린이.*혼자.*수령|음성안내.*현장|교통비.*돌려', q):
+        from agents.chat_turn import unconfirmed_policy
+        if unconfirmed_policy(q):
             return self._response('policy_pending', '그 내용의 확정 운영 정책은 현재 안내 자료에 없어요. '
                 '가능하다고 약속하거나 실제 처리했다고 답할 수는 없어요. 프로젝트 담당자에게 확인이 필요해요.', [])
         if found_statement(q):
