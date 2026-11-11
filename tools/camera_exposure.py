@@ -273,33 +273,50 @@ def dialog(cam) -> int:
     return 0
 
 
+def _backend(cap) -> str:
+    try:
+        return cap.getBackendName()
+    except Exception:
+        return "?"
+
+
 def try_props(cam, text: str, opener=None, settle: int = SETTLE_FRAMES) -> dict:
-    """영상 설정을 OpenCV 로 넣어 보고(관제탑과 같은 방식) 읽은 값·날아간 점 % 를 돌려준다 — 끝나면 원래 값으로 되돌림"""
-    import cv2
+    """영상 설정을 OpenCV 로 넣어 보고(관제탑과 같은 방식) 읽은 값·날아간 점 % 를 돌려준다 — 끝나면 원래 값으로 되돌림.
+    11/11 교육원: 처음 연 카메라가 까만 영상만 줌 → 관제탑(CameraFeed)처럼 압축 형식(MJPG)을 빼고 다시 열어 한 번 더"""
     from agents.kiosk_camera import _open, apply_props, fit, is_dark, parse_props
     props = parse_props(text)
     if not props:
         raise SystemExit(f"설정을 읽을 수 없음: {text!r} (예: CONTRAST=200)")
-    cap = (opener or _open)(cam)
-    if cap is None or not cap.isOpened():
-        return {"error": "카메라를 열 수 없음(관제탑을 끄고 다시)"}
-    try:
-        before = read_props(cap)
-        state = apply_props(cap, props)
-        frame, n = None, 0
-        while n < settle * 3:
-            ok, f = cap.read()
-            n += 1
-            if ok and f is not None and not is_dark(f):
-                frame = f
-                if n >= settle:
-                    break
-            time.sleep(0.03)
-        m = measure(fit(frame)[0]) if frame is not None else None
-        apply_props(cap, {k: before[k] for k in props if before.get(k) not in (None, -1.0)})   # 되돌림
-        return {"state": state, "m": m}
-    finally:
-        cap.release()
+    tries = [lambda: (opener or _open)(cam)]
+    if opener is None:
+        tries.append(lambda: _open(cam, mjpg=False))
+    out: dict = {}
+    for n_try, op in enumerate(tries, 1):
+        cap = op()
+        if cap is None or not cap.isOpened():
+            out = {"error": "카메라를 열 수 없음(관제탑을 끄고 다시)"}
+            continue
+        try:
+            before = read_props(cap)
+            state = apply_props(cap, props)
+            frame, n = None, 0
+            while n < settle * 3:
+                ok, f = cap.read()
+                n += 1
+                if ok and f is not None and not is_dark(f):
+                    frame = f
+                    if n >= settle:
+                        break
+                time.sleep(0.03)
+            m = measure(fit(frame)[0]) if frame is not None else None
+            apply_props(cap, {k: before[k] for k in props if before.get(k) not in (None, -1.0)})   # 되돌림
+            out = {"state": state, "m": m, "backend": _backend(cap), "mjpg": n_try == 1}
+        finally:
+            cap.release()
+        if out.get("m") is not None:
+            break
+        time.sleep(0.4)                                   # 방금 놓은 카메라가 풀릴 시간
+    return out
 
 
 def main(argv=None) -> int:
@@ -327,11 +344,12 @@ def main(argv=None) -> int:
         if "error" in r:
             print(r["error"])
             return 2
+        print(f"열린 방식: {r.get('backend')} · 압축 형식 MJPG {'켬' if r.get('mjpg') else '끔(까만 영상이라 다시 열었음)'}")
         for k, st in (r["state"] or {}).items():
             print(f"{k}: 넣은 값 {st.get('requested'):g} → 카메라가 읽은 값 {st.get('now')}")
         m = r["m"]
         if m is None:
-            print("영상이 까맘 — 다시 실행")
+            print("영상이 까맘(MJPG 끄고 다시 열어도) — 키오스크 화면·다른 프로그램이 웹캠을 쓰는지 확인 후 다시")
             return 2
         good = m["clipped"] < CLIP_OK
         print(f"바닥 {m['floor']:.0f} · 날아간 점 {m['clipped'] * 100:.2f}% · 색 치우침 {m['cast'] * 100:.1f}% → "
