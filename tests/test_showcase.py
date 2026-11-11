@@ -385,6 +385,13 @@ class UiFixes1111Test(unittest.TestCase):
         self.assertNotIn("아직 저장은 안 돼요(준비 중)", kiosk)
         self.assertIn("Q.get('camsrc') || Q.get('machine')", kiosk)
 
+    def test_contact_send_disabled_when_empty(self):
+        """11/11 연락처 화면: 이름·전화번호가 모두 비면 [보내기] 꺼짐(건너뛰기는 그대로)"""
+        html = self.read("web/kiosk/index.html")
+        self.assertIn('<button id="send" disabled>보내기</button>', html)
+        self.assertIn("function contactCheck() { $('#send').disabled = sending || !($('#cname').value.trim() || $('#cphone').value.trim()); }", html)
+        self.assertIn("$('#cname').oninput = contactCheck;", html)
+
     def test_found_tab_swaps_station(self):
         html = self.read("web/showcase/index.html")
         self.assertIn('const FOUND_STN = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역"};', html)
