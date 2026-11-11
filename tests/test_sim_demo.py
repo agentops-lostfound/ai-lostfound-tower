@@ -201,12 +201,12 @@ class DirectorTest(unittest.TestCase):
         with self.assertRaises(NotFound):
             self.d.kiosk_return({"machine_id": "CENTER", "claim_id": "C-20261107-0999", "id_no_masked": "******-3******"})
 
-    def test_quiz_question_then_wrong_answer_is_rejected(self):
-        # 11/9 품목 4종: 글자 있는 핸드크림을 습득 신고한 뒤 찾기 → 글자(로고) 확인 질문에 틀린 답
+    def test_wrong_feature_is_rejected(self):
+        # 11/9 품목 4종: 글자 있는 핸드크림을 습득 신고한 뒤 찾기 → 분실인이 적은 글자가 틀림 → 거절
+        # (11/11 특징은 선택: 적었을 때만 특징으로 확인 — 전에는 안 적으면 글자를 따로 물었다)
         self.found("초량역 3번 출구에서 흰색 핸드크림 BOUQUET GARNI 글자 있음 주웠어요")
-        r = self.d.lost("흰색 핸드크림 잃어버렸어요")
-        self.assertIn("pending_id", r)
-        out = self.d.answer(r["pending_id"], "Kingston")
+        out = self.d.lost("흰색 핸드크림 Kingston 글자 잃어버렸어요 초량역")
+        self.assertNotIn("pending_id", out)
         self.assertFalse(out["quiz_passed"])
         self.assertTrue(self.d.wait_idle())
         st = story_of(self.svc, out["story_id"])
@@ -214,6 +214,23 @@ class DirectorTest(unittest.TestCase):
         self.assertIn("rejected", st["result"]["text"])
         self.assertEqual(self.svc.world.arm["holding"], None)
         self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 6)   # 로봇 안 움직임(시연 5 + 핸드크림)
+
+    def test_feature_left_empty_checks_place_and_color(self):
+        """11/11 사용자 결정: 특징 칸을 비우면 특징을 묻지도 채점하지도 않고 장소·색으로 확인(전에는 늘 미통과 → 직원 확인)"""
+        self.found("초량역 3번 출구에서 흰색 핸드크림 BOUQUET GARNI 글자 있음 주웠어요")
+        out = self.d.lost("흰색 핸드크림 잃어버렸어요 초량역")
+        self.assertNotIn("pending_id", out)                                  # 글자를 따로 묻지 않음
+        self.assertTrue(out["quiz_passed"])
+        claim = self.svc.claims.get(out["claim_id"])
+        self.assertEqual({q["field"] for q in claim["quiz"]}, {"place"})       # 특징 칸은 채점하지 않음
+
+    def test_korean_brand_matches_qwen_english_text(self):
+        """11/11 립밤: Qwen 은 'Vaseline'(영어)으로 읽고 분실인은 '바세린'이라고 씀 → 같은 말"""
+        from agents.contracts import logo_tokens
+        from agents.sim_world import query_features
+        self.assertEqual(query_features("빨강 립밤 바세린 잃어버렸어요").get("visible_text"), "바세린")
+        self.assertTrue(logo_tokens("바세린") & logo_tokens("Vaseline Lip Therapy"))
+        self.assertNotIn("visible_text", query_features("빨강 립밤 잃어버렸어요"))
 
     def test_calibration_fail_tag_sends_to_staff(self):
         self.found()
