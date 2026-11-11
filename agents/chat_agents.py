@@ -43,17 +43,18 @@ class AgentBrain:
 
     def _ask(self, name: str, agent: str, schema: dict, user: dict) -> dict | None:
         """agent: 그래프 칸 이름(prompts.AGENT_PROMPTS). 11/9 칸마다 Langfuse config 의 model·temperature·use_llm 을 따른다"""
-        cfg = prompts.settings(agent, model=self.model, temperature=0)
+        system, prompt_obj, cfg = prompts.resolve(agent, model=self.model, temperature=0)
         if not cfg["use_llm"] or not cfg["model"]:
             return None                               # 이 칸은 모델을 쓰지 않음 → 규칙
         from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로, agents/chat_progress.py)
         notify("route")
-        system, prompt_obj = prompts.for_agent(agent)
         payload = {"model": cfg["model"], "stream": False, "format": schema,
                    "messages": [{"role": "system", "content": system},
                                 {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
                    "options": {"temperature": cfg["temperature"], "num_predict": 64, "num_ctx": 4096}, "keep_alive": "5m"}
+        usage = prompts.record_usage(agent, cfg, prompt_obj)
         with step(name, as_type="generation", model=cfg["model"], input=payload["messages"], prompt=prompt_obj,
+                  metadata={'prompt_usage': usage},
                   model_parameters={"temperature": cfg["temperature"], "num_predict": 64}) as gen:
             started = time.perf_counter()
             try:
@@ -63,7 +64,11 @@ class AgentBrain:
             except Exception as e:          # 모델 꺼짐·형식 오류 → 규칙으로
                 gen.update(level="WARNING", status_message=type(e).__name__)
                 return None
-            gen.update(output=parsed, metadata={"seconds": round(time.perf_counter() - started, 3)})
+            traced = parsed
+            if agent == "supervisor":
+                from agents.chat_supervisor import safe_proposal
+                traced = safe_proposal(parsed)
+            gen.update(output=traced, metadata={"seconds": round(time.perf_counter() - started, 3), 'prompt_usage': usage})
             return parsed if isinstance(parsed, dict) else None
 
     def coordinate(self, question: str, history: list | None = None) -> tuple[str, bool] | None:
@@ -142,6 +147,13 @@ class AgentBrain:
             return None
         out = {k: v for k, v in parsed.items() if k in ("category", "color") and isinstance(v, str) and v != "모름"}
         return out or None
+
+    def supervise(self, allowed: list, context: dict) -> dict | None:
+        """감독 제안만 생성. 실제 후보 일치 검사는 chat_supervisor.validate가 한다."""
+        from agents.chat_supervisor import output_schema
+        schema = output_schema(allowed)
+        return self._ask("supervisor-llm", "supervisor", schema,
+                         {**context, "allowed": allowed})
 
 
 __all__ = ["AgentBrain", "GREETING_REPLY", "THANKS_REPLY", "INTENTS", "WORKERS"]

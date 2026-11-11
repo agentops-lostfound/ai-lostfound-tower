@@ -25,7 +25,35 @@ MENU = ["물건을 잃어버렸어요", "물건을 주웠어요", "물건 받는
 KEY_FACTS = ((r'준비물|챙겨|가져가|가져와|필요한게|필요한거|뭐가필요|뭘가져', ('신분증',)),
              (r'몇시|운영시간|영업시간|언제까지(?:해|열)', ('09:00', '18:00', '9시', '6시')),
              (r'보관기간|며칠|몇일|언제까지보관', ('14일',)),
-             (r'수수료|비용|요금|돈', ('무료', '없어요')))
+             (r'수수료|비용|요금|돈', ('무료', '없어요')),
+             (r'처음.*(?:뭐부터|무엇부터|어떻게|시작)|뭐부터(?:하면|해야|하나요)', ('검색', '후보')),
+             (r'(?:챗봇|대화).*(?:접수|신고)|(?:접수|신고).*챗봇', ('접수할게요', '요약', '확인한뒤')))
+
+
+def contact_optional_clear(question, answer):
+    """연락처 남기기 의무 질문에는 선택사항임을 모호하지 않게 남긴다."""
+    q = re.sub(r'\s+', '', question)
+    if not re.search(r'(?:연락처|전화번호).*(?:남겨야|남기나|남겨요|필수|의무|안남|입력해야)', q):
+        return True
+    a = re.sub(r'\s+', '', answer)
+    if re.search(r'선택.{0,5}(?:아니|아닙|아닌)|(?:안남겨도|않아도)안(?:돼|되|됩)', a):
+        return False
+    return bool(re.search(r'선택|필수.{0,4}(?:아니|아닙|아닌)|의무.{0,4}(?:아니|아닙|아닌)'
+                          r'|(?:남기|남겨|적|입력).{0,5}않아도(?:돼|되|됩|괜찮|가능)'
+                          r'|안(?:남겨|남기|적어|입력)(?:도|셔도|어도|해도)(?:돼|되|됩|괜찮|가능)'
+                          r'|남길.{0,4}필요.{0,3}없', a))
+
+
+def generation_requirements(question, passages):
+    """문서에 실제 있는 핵심 개념만 모델에 미리 전달. 새 사실을 요구하지 않는다."""
+    q = re.sub(r'\s+', '', question)
+    evidence = re.sub(r'\s+', '', ' '.join(p['text'] for p in passages))
+    groups = [[word for word in words if word in evidence]
+              for pattern, words in KEY_FACTS if re.search(pattern, q)]
+    if re.search(r'(?:연락처|전화번호).*(?:남겨야|남기나|남겨요|필수|의무|안남|입력해야)', q) \
+            and '남기지않아도' in evidence:
+        groups.append(['남기지 않아도'])
+    return [group for group in groups if group]
 LOST_RE = re.compile(r"잃어버|분실|두고내렸|놓고내렸|놓고왔|두고왔|없어졌|잃었|번호를?잊")   # 11/9 찾기 번호를 잊음
 LOST_CHOICES = ["지갑 잃어버렸어요", "휴대폰 잃어버렸어요", "보조배터리 잃어버렸어요", "찾을 수 있는 물건 종류"]   # 11/9 품목 4종(USB 뺌)
 # 11/7 규칙 문장 그대로 쓰는 주제: 모델이 바꿔 말하면 뜻이 틀어지는 규칙(실측: 4개 모델 38문항 비교, docs/design/chatbot_sllm_rag.md §9)
@@ -314,6 +342,8 @@ class GroundedRag:
                 chosen.add(2)
             if re.search(r'후보|검색|조건지우|설명확인', q):
                 chosen.add(4)
+            if re.search(r'처음.*(?:뭐부터|무엇부터|어떻게|시작)|뭐부터(?:하면|해야|하나요)', q):
+                chosen.update((0, 4))
             if chosen:
                 allowed = chosen
                 result['answer'] = '\n\n'.join(paragraphs[i] for i in sorted(chosen))
@@ -361,6 +391,9 @@ class GroundedRag:
                 need = [n for n in need if n in evidence]          # 근거 문서에 있는 핵심 낱말만 요구
                 if need and re.search(pattern, cq) and not any(n in compact for n in need):
                     raise ValueError('key facts dropped')
+            if any(d['topic'] == 'found_report' and '남기지 않아도' in d['answer'] for d in docs) \
+                    and not contact_optional_clear(question, answer):
+                raise ValueError('contact optional unclear')
             if rule_topics:
                 if 'answer' not in parsed:
                     return {**result, 'generation_status': fixed_status, 'generation_note': 'rule_extractive_only'}
@@ -408,18 +441,21 @@ class GroundedRag:
         from agents import prompts
         from agents.observability import step
         # 11/9 칸별 설정(chat-researcher config): use_llm 끔이면 ValueError → 부른 쪽이 문서 문장으로 답함
-        cfg = prompts.settings('researcher', model=self.model, temperature=0)
+        system, prompt_obj, cfg = prompts.resolve('researcher', model=self.model, temperature=0,
+                                                 clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
         if not cfg['use_llm'] or not cfg['model']:
             raise ValueError('use_llm off')
-        system, prompt_obj = prompts.for_agent('researcher', clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
         payload = {'model': cfg['model'], 'stream': False, 'format': schema,
             'messages': [{'role': 'system', 'content': system},
                          {'role': 'user', 'content': json.dumps({**({'previous_questions': questions} if questions else {}),
                                                                   **({'previous_turns': turns} if turns else {}),
                                                                   'question': question, 'retrieved_passages': passages,
+                                                                  'required_fact_groups': generation_requirements(question, passages),
                                                                   **({'feedback': feedback} if feedback else {})}, ensure_ascii=False)}],
             'options': {'temperature': cfg['temperature'], 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
+        usage = prompts.record_usage('researcher', cfg, prompt_obj)
         with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=cfg['model'], input=payload['messages'], prompt=prompt_obj,
+                  metadata={'prompt_usage': usage},
                   model_parameters={'temperature': cfg['temperature'], 'num_predict': 400}) as gen:
             from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로)
             notify('rewrite' if feedback else 'write')

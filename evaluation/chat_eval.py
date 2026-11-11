@@ -189,12 +189,14 @@ def model_info(rules: bool) -> dict:
     """어떤 모델·프롬프트로 돌렸는지(비밀값은 이름만 보고 값은 안 씀)"""
     if rules:
         return {"model": "규칙만(--rules)"}
-    info = {k: v for k, v in sorted(os.environ.items()) if k.startswith("LF_CHAT") and "MODEL" in k and v}
+    info = {k: os.environ[k] for k in ('LF_CHAT_RAG_MODEL', 'LF_CHAT_AGENT_MODEL', 'LF_CHAT_MODEL', 'OPS_ANALYST_MODEL')
+            if os.environ.get(k)}
     try:
         from agents import prompts
         vers = getattr(prompts, "loaded_versions", None)
         if callable(vers):
             info["prompts"] = vers()
+            info['prompt_provenance'] = prompts.usage_summary()
     except Exception:
         pass
     return info or {"model": "TBD"}
@@ -388,6 +390,7 @@ def pick(items: list[dict], only: str, group: str, lf: bool) -> list[dict]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="챗봇 질문 500개 채점표")
     ap.add_argument("--rules", action="store_true", help="모델 없이 규칙만")
+    ap.add_argument("--prompt-label", choices=["production", "staging"], default=None, help="Langfuse 프롬프트 라벨(기본은 기존 설정)")
     ap.add_argument("--model", default=None, help="Ollama 모델 이름(없으면 .env 의 LF_CHAT_RAG_MODEL)")
     ap.add_argument("--only", default="", help="문항 번호(예: 1-50,201)")
     ap.add_argument("--group", default="", help="분류·수준 이름 일부")
@@ -404,6 +407,10 @@ def main(argv=None) -> int:
     except Exception:
         pass
     items = json.loads(Path(args.questions).read_text(encoding="utf-8"))
+    if args.prompt_label:
+        os.environ['LF_PROMPT_LABEL'] = args.prompt_label
+        if not (os.environ.get('LF_PROMPT_FETCH') or '').strip():
+            os.environ['LF_PROMPT_FETCH'] = '1'    # 읽기만 켜고 trace 전송 여부는 --trace 그대로
     added = pull_overrides_from_excel()
     if added:
         print(f"엑셀 '사람 판정' {added}줄을 반영했어요")

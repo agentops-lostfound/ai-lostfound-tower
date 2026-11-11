@@ -256,8 +256,8 @@ class RuleVetoTest(unittest.TestCase):
     def test_supervisor_choice_inside_list_is_used_and_recorded(self):
         r = self._ask("reporter")
         self.assertIn("item_search", r["agent_path"])
-        self.assertNotIn("researcher", r["agent_path"])                     # 모델이 정리를 먼저 고름(허용 목록 안)
-        self.assertTrue(any(d["decide"] == "model_next:reporter" for d in r["decisions"]))
+        self.assertIn("researcher", r["agent_path"])   # 옛 choice JSON·조기 종료는 거절, 필수 안내를 생략하지 않음
+        self.assertTrue(any(c['validation'] == 'rejected' for c in r['supervisor_checks']))
 
     def test_supervisor_never_opens_intake(self):
         from agents import observability
@@ -268,7 +268,7 @@ class RuleVetoTest(unittest.TestCase):
             r = bot(AgentBrain("m", request=model({"supervisor": {"choice": "reporter"}}, log))).ask("분실 접수하기")
         self.assertEqual(r["agent_path"][:3], ["coordinator", "planner", "supervisor"])
         self.assertIn("intake", r["agent_path"])                             # 접수 길은 규칙 그대로
-        self.assertFalse(any("supervisor" in p["messages"][0]["content"][:80] for p in log))
+        self.assertTrue(any("supervisor" in p["messages"][0]["content"][:80] for p in log))
 
     def test_ops_analyst_and_coordinator_veto(self):
         from agents import observability
