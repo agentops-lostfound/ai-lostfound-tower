@@ -10,10 +10,8 @@ from robot.joint_motion import vector
 ALIASES = {
     'pose_1_phone': 'pose_1', 'pose_2_phone': 'pose_2',
     'pose_3_phone': 'pose_3',
-    'pose_7_return_phone': 'pose_7_return',
+    'pose_7_phone': 'pose_7',
     'outlet_return_1_phone': 'outlet_return_1',
-    'outlet_return_1_78_phone': 'outlet_return_1_78',
-    'close_78_phone': 'close_78',
     'close_phone': 'close', 'open_phone': 'open',
 }
 

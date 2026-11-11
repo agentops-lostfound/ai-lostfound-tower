@@ -35,6 +35,21 @@ class ExperimentFixture(unittest.TestCase):
 
 
 class ExperimentTests(ExperimentFixture):
+    def test_common_lipbalm_route_keeps_grip_only_during_return_and_carry(self):
+        for slot in ('R4-1', 'R4-2'):
+            with self.subTest(slot=slot):
+                self.model.prepare(slot, 5)
+                self.motion.move.reset_mock()
+                self.model.start('all', 0, True)
+                self.wait()
+                calls = self.motion.move.call_args_list
+                self.assertEqual(len(calls), 11)
+                self.assertEqual([i for i, call in enumerate(calls)
+                                  if call.kwargs.get('include_gripper') is False], [5, 6, 7])
+                snapshot = self.model.snapshot()
+                self.assertEqual(snapshot['gripper_modes'], ['pose'] * 5 + ['hold'] * 3 + ['pose'] * 3)
+                self.assertEqual(snapshot['carry_gripper'], self.model.robot.poses[self.model.plan[4]]['gripper.pos'])
+
     def test_startup_prepares_without_connection_or_movement(self):
         with patch('subprocess.Popen') as process:
             model = SequenceExperiment(self.path, motion=self.motion, live=True)

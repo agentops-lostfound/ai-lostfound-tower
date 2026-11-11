@@ -82,7 +82,7 @@ class TowerRobot:
         return self._run_taught_sequence(target, progress=progress, test_only=False)
 
     def _run_taught_sequence(self, target, *, progress=None, test_only):
-        from robot.db_pose_sequence import sequence_for_target, validate_taught_pose_values
+        from robot.db_pose_sequence import sequence_for_target, stage_motion_options, validate_taught_pose_values
         completed = []
         sequence = []
         result = {'test_only': test_only, 'vla_skipped': True, 'control_mode': 'taught', 'grasp_included': True,
@@ -115,7 +115,8 @@ class TowerRobot:
                          'command_pose': command_pose}
                 if progress:
                     progress({**event, 'event': 'stage_started'})
-                self.motion.move(command_pose, self.duration, self.cancelled)
+                self.motion.move(command_pose, self.duration, self.cancelled,
+                                 **stage_motion_options(sequence, index - 1))
                 if self.cancelled.is_set():
                     raise InterruptedError('정지 요청으로 시퀀스 취소')
                 completed.append(pose)

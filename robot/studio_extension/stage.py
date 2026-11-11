@@ -91,6 +91,12 @@ class StopSavedPoseCommand(CommandBase):
              "runtime/saved_pose.py": Path(__file__).with_name("runtime").joinpath("saved_pose.py").read_text(encoding="utf-8"),
              "runtime/saved_poses.json": json.dumps({"follower_id": follower_id, "poses": poses,
                                                     "motion_profiles": motion_profiles}, indent=2)}
+    from robot.command_correction import load_command_corrections
+    corrections = load_command_corrections(poses)
+    if corrections:
+        data = json.loads(files['runtime/saved_poses.json'])
+        data['command_corrections'] = corrections
+        files['runtime/saved_poses.json'] = json.dumps(data, indent=2)
     for name, text in files.items():
         if name.endswith(".py"):
             ast.parse(text, name)

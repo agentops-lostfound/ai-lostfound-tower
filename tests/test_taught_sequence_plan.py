@@ -27,12 +27,13 @@ class TaughtSequencePlanTests(unittest.TestCase):
                 self.assertEqual(self.plan(n), expected_sequence(n))
                 self.assertEqual(len(self.plan(n)), 11)
 
-    def test_only_seven_and_eight_use_dedicated_return_and_outlet(self):
+    def test_all_routes_use_common_return_and_outlet_names(self):
         for n in range(1, 9):
             plan = self.plan(n)
-            self.assertEqual(plan.count('outlet_return_1_78'), 2 if n in (7, 8) else 0)
-            self.assertEqual('close_78' in plan, n in (7, 8))
-            self.assertEqual(f'pose_{n}_return' in plan, n in (7, 8))
+            self.assertEqual(plan.count('outlet_return_1'), 2)
+            self.assertIn('close', plan)
+            self.assertEqual(plan[5], f'pose_{n}')
+            self.assertFalse(any(name.endswith('_78') or name.endswith('_return') for name in plan))
 
     def test_incomplete_or_reteach_pending_step_is_rejected(self):
         step = self.config['sequences']['pose_1_pick']['steps'][1]
@@ -50,7 +51,7 @@ class TaughtSequencePlanTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.plan(7)
         profile.pop('full_sequence')
-        profile['steps'][3]['pose_name'] = 'pose_7'
+        profile['steps'][3]['pose_name'] = 'pose_7_return'
         with self.assertRaises(ValueError):
             self.plan(7)
 
