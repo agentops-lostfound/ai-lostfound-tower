@@ -22,7 +22,7 @@ class WidgetDemoTests(unittest.TestCase):
         self.assertIn('conversationVersion', script.text)
         self.assertIn('retryHistory', script.text)
         self.assertEqual(self.client.get('/chat/health').json()['search_mode'], 'demo_sqlite')
-        result = self.client.post('/chat/questions', json={'question': '검정 지갑 찾아줘'}).json()
+        result = self.client.post('/chat/questions', json={'question': '검정 립밤 찾아줘'}).json()
         self.assertEqual(result['database_mode'], 'demo_sqlite')
         self.assertEqual(result['status'], 'items_found')
         self.assertFalse(result['reservation_created'])

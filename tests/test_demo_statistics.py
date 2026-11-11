@@ -54,7 +54,7 @@ class DemoStatisticsTests(unittest.TestCase):
         self.assertEqual(self.ask('2026-11-05 전체 물건 접수 몇 개?')['count'], 4)
 
     def test_unknown_conditions_never_silently_disappear(self):
-        for question in ['오늘 파란 USB 접수 몇 개?', '오늘 해운대역 USB 접수 몇 개?',
+        for question in ['오늘 파란 USB 접수 몇 개?', '오늘 중앙역 USB 접수 몇 개?',
                          '오늘 삼성 휴대폰 접수 몇 개?', '오늘 전체 물건 빼고 USB 접수 몇 개?',
                          '오늘 USB 또는 지갑 접수 몇 개?', '9999-12-31 전체 물건 접수 몇 개?']:
             with self.subTest(question=question), self.assertRaises(ValueError):

@@ -33,12 +33,14 @@ from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa
 # 11/7: 실제 판(docs/design/storage_slots.md)과 같게 — 보관판 500 × 250 mm, 로봇팔은 아래쪽 긴 변, 제출보관함(H-1, 20×20cm)은
 # 반대쪽 긴 변(위) 가운데. 한 행 = 로봇 쪽(1)·먼 쪽(2) 칸 2개, 행 4개가 긴 변 방향(왼→오).
 # 11/10 사용자 결정(018): 열마다 품목 하나, 왼쪽부터 R1 휴대폰(45도 사선이라 간격이 넓음) · R2 보조배터리 · R3 핸드크림 · R4 카드지갑.
-# 칸 이름·품목은 정답지 LAYOUT 과 같다. 립밤은 운영 품목이 아님(가상 습득·분실 신고에서 안내하고 만들지 않음, sim_director)
+# 11/11 사용자 결정(020): R4 카드지갑 → 립밤(포토박스 탑뷰가 카드지갑을 잘 못 알아봄). 두는 방향: 휴대폰·보조배터리 '/'(위쪽이 오른쪽 위),
+#   핸드크림 '/'(뚜껑 왼쪽 아래), 립밤 세로
+# 칸 이름·품목은 정답지 LAYOUT 과 같다. 카드지갑(11/11~)·USB 는 운영 품목이 아님(가상 습득·분실 신고에서 안내하고 만들지 않음, sim_director)
 BENCH_MM = (560.0, 620.0)
 BIN_MM = (0.0, 240.0, 500.0, 490.0)                   # 보관판 x1, y1, x2, y2
 SLOT_IDS = ["R1-1", "R1-2", "R2-1", "R2-2", "R3-1", "R3-2", "R4-1", "R4-2"]
 _ROW_X = {"R1": 70.0, "R2": 205.0, "R3": 325.0, "R4": 445.0}
-_SLOT_Y = {"1": 420.0, "2": 310.0}                    # 1 = 로봇 쪽(가까움), 2 = 먼 쪽
+_SLOT_Y = {"1": 310.0, "2": 420.0}                    # 11/11 실물 확인: 1 = 먼 쪽(탑뷰 위), 2 = 로봇 쪽(아래)
 SLOTS_MM = [(_ROW_X[sid[:2]], _SLOT_Y[sid[3]]) for sid in SLOT_IDS]   # 보관 칸 8개(순서 = SLOT_IDS)
 # 11/9 실제 규격(사용자 실측): 보관판 500×250, 테두리 마킹테이프 15mm. 로봇 쪽 아래에 15mm 덧댄 띠(받침 앞 돌출부 두 개 폭)로 가운데 맞춤.
 # 제출보관함 H-1(200×200, 테두리 테이프)은 보관판 위쪽 가운데에 딱 붙임
@@ -68,10 +70,10 @@ LOC_KIOSK, LOC_TRANSIT, LOC_BIN, LOC_GRIPPER, LOC_BASKET, LOC_HANDED, LOC_STAFF 
     "kiosk", "transit", "bin", "gripper", "basket", "handed", "staff")
 LOC_SHELF = "shelf"          # 11/9 직원 보관 선반(보관판 밖, 로봇이 집지 않음 — 반환은 직원이 직접 건넴)
 
-STATIONS = {"서면": "KIOSK-C", "해운대": "KIOSK-A"}   # 말에 나오는 역 이름 → 등록기계
+STATIONS = {"초량": "KIOSK-C", "중앙": "KIOSK-A"}   # 말에 나오는 역 이름 → 등록기계
 MACHINE_STATION = {v: k for k, v in STATIONS.items()}
 # 11/10 잃어버린 역으로 말할 수 있는 역: 등록기계가 있는 역 + **부산역(본센터)**. 본센터 키오스크에서도 습득 접수를 받는데(H-번호),
-#   챗봇·채팅 분실 접수는 서면·해운대만 알아들어 본센터에서 주운 물건의 주인이 "부산역"이라고 답할 길이 없었다.
+#   챗봇·채팅 분실 접수는 초량·중앙만 알아들어 본센터에서 주운 물건의 주인이 "부산역"이라고 답할 길이 없었다.
 #   주운 역(습득 신고)은 여전히 등록기계 역(STATIONS)만 — 본센터 습득은 본센터 키오스크에서 한다
 LOST_STATIONS = {**STATIONS, "부산": "CENTER"}
 LOST_MACHINE_STATION = {v: k for k, v in LOST_STATIONS.items()}
@@ -134,6 +136,9 @@ def sim_qwen(text: str, query: bool = False) -> dict:
     color = _first(text, COLOR_WORDS)
     material = _first(text, MATERIAL_WORDS)
     words = [w for w in _LATIN.findall(text) if w.lower() != "usb"] + _QUOTED.findall(text)
+    # 11/11 한국어로 말한 로고·글자: "사과 로고", "애플", "삼성 글자" → 글자 칸(비교는 contracts.logo_tokens 가 같은 뜻으로 맞춤)
+    words += [m for m in re.findall(r"([가-힣A-Za-z0-9]{1,10})\s*(?:로고|글자|마크)", text) if m not in ("스티커", "글자", "로고")]
+    words += [w for w in ("사과", "애플", "삼성", "엘지", "샤오미", "앤커") if w in text]
     sticker_status, stickers = ("unknown" if query else "absent"), []
     if "스티커" in text:
         if re.search(r"스티커\s*(는|가)?\s*(없|안\s*붙)", text):
@@ -163,12 +168,12 @@ def query_features(text: str) -> dict:
 
 
 def parse_place(text: str) -> tuple[str | None, str | None]:
-    """습득 메시지 → (등록기계, 장소 글). 예: "서면역 5번 출구 앞에서 검정 지갑 주웠어요" → ("KIOSK-C", "서면역 5번 출구 앞")"""
+    """습득 메시지 → (등록기계, 장소 글). 예: "초량역 5번 출구 앞에서 검정 지갑 주웠어요" → ("KIOSK-C", "초량역 5번 출구 앞")"""
     text = text or ""
     machine = next((m for st, m in STATIONS.items() if st in text), None)
     m = re.search(r"(.+?)(?:에서|에 떨어져|에 놓여)", text)
     place = m.group(1).strip() if m else None
-    if place and machine:                          # "어제 서면역 …" 처럼 앞말이 붙으면 역 이름부터
+    if place and machine:                          # "어제 초량역 …" 처럼 앞말이 붙으면 역 이름부터
         st = MACHINE_STATION[machine]
         place = place[place.find(st):] if st in place else place
     if not place and machine:
@@ -177,7 +182,7 @@ def parse_place(text: str) -> tuple[str | None, str | None]:
 
 
 def lost_station(text: str) -> str | None:
-    """분실 신고 말에서 잃어버린 역: 서면 · 해운대 · 부산(부산역). 여러 역을 말하면 등록기계 역이 먼저"""
+    """분실 신고 말에서 잃어버린 역: 초량 · 중앙 · 부산(부산역). 여러 역을 말하면 등록기계 역이 먼저"""
     t = text or ""
     return next((st for st in STATIONS if st in t), None) or ("부산" if _BUSAN.search(t) else None)
 
@@ -194,20 +199,20 @@ def lost_station(text: str) -> str | None:
 #   카드지갑 → R2-1. 빈 칸 = R2-2(카드지갑) · R4-1·R4-2(핸드크림)
 # 11/10 사용자 결정: 처음 보관함에는 **분홍 핸드크림 하나만** 둔다(R3-1). 전에는 5개(휴대폰 2·보조배터리 2·카드지갑 1)라
 #   휴대폰·보조배터리를 새로 접수하면 열이 꽉 차 늘 '칸 대기'가 됐다 — 발표에서 접수 → 보관 칸 배치가 바로 보이게 비워 둔다
-#   11/10(2): 이 핸드크림은 **해운대역 등록기계(KIOSK-A)에서 주워 본센터로 회수된 물건**으로 고정한다(번호 A-…-0001).
-#   전에는 '본센터 직접 접수'라 분실인이 "해운대에서 잃어버렸어요"라고 하면 장소 확인 질문이 늘 틀렸다
+#   11/10(2): 이 핸드크림은 **중앙역 등록기계(KIOSK-A)에서 주워 본센터로 회수된 물건**으로 고정한다(번호 A-…-0001).
+#   전에는 '본센터 직접 접수'라 분실인이 "중앙에서 잃어버렸어요"라고 하면 장소 확인 질문이 늘 틀렸다
 SEED_ITEMS = [
-    ("핸드크림 핑크", "분홍 핸드크림", "KIOSK-A", "해운대역 승강장"),          # → R3-1
+    ("핸드크림 핑크", "분홍 핸드크림", "KIOSK-A", "중앙역 승강장"),          # → R3-1
 ]
 SEED_PLACE = ("CENTER", "본센터 접수(시연)")      # 등록기계·장소를 적지 않은 시연 물건(예전 5개 묶음)
-# 예전 묶음(시험·연습용, TOWER_SIM_SEED=full): 휴대폰 2 · 보조배터리 2(같은 제품 → '닮은 물건 → 직원 확인' 장면) · 카드지갑 1.
+# 예전 묶음(시험·연습용, TOWER_SIM_SEED=full): 휴대폰 2 · 보조배터리 2(같은 제품 → '닮은 물건 → 직원 확인' 장면) · 립밤 1(11/11, 전엔 카드지갑).
 #   018 열 배정 뒤 자리: R1-1·R1-2 · R2-1·R2-2 · R4-1 → 휴대폰·보조배터리 열이 꽉 참('칸 대기' 장면), 빈 칸 = R3-1·R3-2 · R4-2
 SEED_FULL = [
     ("목업폰 화이트", "화이트 모형폰"),
     ("목업폰 블루", "블루 모형폰"),
     ("보조배터리 스피디 1", "흰색 보조배터리"),
     ("보조배터리 스피디 2", "흰색 보조배터리"),
-    ("카드지갑 브라운", "브라운 카드지갑"),
+    ("립밤 바세린 레드", "빨간 립밤"),                  # 11/11 카드지갑 → 립밤(실물 바세린 빨강·파랑)
 ]
 SEED_SETS = {"default": SEED_ITEMS, "full": SEED_FULL}
 
@@ -360,7 +365,7 @@ class SimWorld:
 
     def seed(self) -> None:
         """보관함에 미리 있는 물건(본센터 직접 접수 H-…) — 실제 구매 목록(구매요구서_2조_AgentOps_최종, 11/3) 기준 5개(11/7, 칸 8개).
-        디스코드로 신고해 볼 물건(검정 카드지갑·목업폰 블랙·핸드크림)은 일부러 비워 둔다(11/9 품목 4종 고정 — USB·립밤 뺌).
+        디스코드로 신고해 볼 물건(파란 립밤·목업폰 블랙·핸드크림)은 일부러 비워 둔다(11/11 품목 4종 — 목업폰·보조배터리·핸드크림·립밤).
         같은 제품 2개(보조배터리 스피디)를 넣어 '닮은 물건 → 직원 확인' 장면이 실제처럼 나오게 한다. 색·글자는 SEED_ITEMS 주석 참고."""
         for _, text, *where in SEED_SETS[self.seed_set]:
             machine, place = where if len(where) == 2 else SEED_PLACE
@@ -419,13 +424,19 @@ class SimWorld:
             self._touch()
             return {k: copy.deepcopy(v) for k, v in row.items() if k not in ("qwen", "private_features")}
 
-    def purge_item(self, item_id: str) -> dict | None:
+    def purge_item(self, item_id: str, stuck: bool = False) -> dict | None:
         """11/10 물건 기록 전체 삭제(직원, 로봇 작업대 화면): 어디에 있든(등록기계·보관 칸·선반·인계 완료) 그 물건을 지운다 → 지운 행.
-        로봇이 들고 있거나 반환 중인 물건은 지우지 않는다(None). 칸은 비게 된다. 번호는 다시 쓰지 않는다"""
+        로봇이 들고 있거나 반환 중인 물건은 지우지 않는다(None). 칸은 비게 된다. 번호는 다시 쓰지 않는다.
+        11/11 stuck=True: 반환이 멈춰 '반환 중'으로 남은 물건(관제탑이 쉬는 중인지는 부르는 쪽이 확인)도 지운다"""
         with self._lock:
             row = self.items.get(item_id)
-            if row is None or row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or self.arm.get("holding") == item_id:
+            if row is None:
                 return None
+            moving = row.get("loc") == LOC_GRIPPER or row.get("status") == "반환 중" or self.arm.get("holding") == item_id
+            if moving and not stuck:
+                return None
+            if self.arm.get("holding") == item_id:
+                self.arm["holding"] = None
             del self.items[item_id]
             self.contacts.pop(item_id, None)
             self.collecting.pop(item_id, None)
@@ -439,6 +450,17 @@ class SimWorld:
             except Exception:
                 pass
         return out
+
+    def unstick_return(self, item_id: str) -> bool:
+        """11/11 [반환 취소]: 반환이 멈췄는데 물건이 아직 보관 칸에 그대로일 때(로봇이 집지 않음) '반환 중' → '본센터 보관'.
+        로봇 집게·제출보관함으로 옮겨진 물건은 False(실물을 직원이 확인해야 함)"""
+        with self._lock:
+            row = self.items.get(item_id)
+            if row is None or row.get("status") != "반환 중" or row.get("loc") != LOC_BIN or row.get("slot") is None:
+                return False
+            if self.arm.get("holding") == item_id:
+                self.arm["holding"] = None
+        return self.db_set_status(item_id, "본센터 보관", changed_by="staff").get("ok", False)
 
     def set_features(self, item_id: str, feats: dict, qwen: dict | None = None) -> bool:
         cat, pub, priv = split_features(feats)
@@ -541,7 +563,7 @@ class SimWorld:
 
     def free_slot(self, category: str | None = None, item_id: str | None = None, res: dict | None = None) -> int | None:
         """빈 칸 고르기(보관함 정답지 recommend_slot 과 같은 규칙, 11/9): 그 품목을 받는 행(또는 제한 없는 행)의 빈 칸 중
-        로봇에 가까운 칸(1번 줄)부터. 품목이 다른 열(R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑)은 섞지 않는다 → 맞는 칸이 없으면 None(칸 대기·선반).
+        1번 칸(먼 줄)부터. 품목이 다른 열(R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 립밤)은 섞지 않는다 → 맞는 칸이 없으면 None(칸 대기·선반).
         품목을 모르면(시연 부품) 아무 빈 칸. 정답지가 이미 예약한 칸(반환 중·보류 물건의 원래 칸)은 비어 보여도 쓰지 않는다"""
         used = self._taken(item_id, self._reserved() if res is None else res)
         free = sorted((i for i in range(len(SLOTS_MM)) if i not in used),

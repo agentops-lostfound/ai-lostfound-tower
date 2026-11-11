@@ -53,7 +53,7 @@ class SimDemoTextTest(unittest.TestCase):
     def run_lost(self, text):
         r = self.d.lost(text)
         if "pending_id" in r:                                   # 후보가 여러 개면 역을 묻는다
-            r = self.d.answer(r["pending_id"], "해운대")
+            r = self.d.answer(r["pending_id"], "중앙")
         self.assertTrue(self.d.wait_idle())
         return r
 
@@ -75,10 +75,10 @@ class SimDemoTextTest(unittest.TestCase):
         self.assertFalse([t for t in shown if "모형폰" in t], shown)
 
     def test_found_model_word_lost_phone_word(self):
-        self.check_story("해운대역 3번 출구에서 빨간 모형폰 주웠어요", "빨간 휴대폰 잃어버렸어요")   # 파랑은 보관함 시연 물건과 닮아 직원 확인으로 감
+        self.check_story("중앙역 3번 출구에서 빨간 모형폰 주웠어요", "빨간 휴대폰 잃어버렸어요")   # 파랑은 보관함 시연 물건과 닮아 직원 확인으로 감
 
     def test_found_phone_word_lost_model_word(self):
-        self.check_story("해운대역 3번 출구에서 빨간 휴대폰 주웠어요", "빨간 모형폰 잃어버렸어요")
+        self.check_story("중앙역 3번 출구에서 빨간 휴대폰 주웠어요", "빨간 모형폰 잃어버렸어요")
 
     def test_unknown_item_message_says_phone(self):
         from agents.service import RequestError

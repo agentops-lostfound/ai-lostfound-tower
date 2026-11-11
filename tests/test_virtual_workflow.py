@@ -25,8 +25,8 @@ class VirtualWorkflowTests(unittest.TestCase):
         self.path = Path(tmp.name)/'synthetic.db'
         self.worker = MagicMock()
         self.worker.__enter__.return_value = self.worker
-        self.worker.transcribe.return_value = {'status': 'transcribed', 'text': '검정 지갑'}
-        self.photo = MagicMock(return_value={'category': '지갑', 'color': '검정'})
+        self.worker.transcribe.return_value = {'status': 'transcribed', 'text': '검정 립밤'}
+        self.photo = MagicMock(return_value={'category': '립밤', 'color': '검정'})
         self.service = DescriptionService(photo_extractor=self.photo, transcriber=lambda: self.worker)
         self.guide = Guidance()
         self.database = DemoItemDatabase(self.path)
@@ -34,7 +34,7 @@ class VirtualWorkflowTests(unittest.TestCase):
         self.client = TestClient(create_app(self.service, self.guide, self.bot), base_url='http://127.0.0.1:8111')
         self.addCleanup(self.client.close)
         self.metadata = {'lost_date': (datetime.now(KST).date()-timedelta(days=2)).isoformat(),
-                         'lost_line': '2호선', 'lost_station': '해운대역'}
+                         'lost_line': '1호선', 'lost_station': '중앙역'}
 
     def confirm(self, client, path, payload):
         response = client.post('/descriptions/'+path, json={**self.metadata, **payload})
@@ -57,7 +57,7 @@ class VirtualWorkflowTests(unittest.TestCase):
         with wave.open(audio, 'wb') as output:
             output.setnchannels(1); output.setsampwidth(2); output.setframerate(16000)
             output.writeframes(b'\0\0'*1600)
-        cases = [('text', {'text': '검정 지갑'}),
+        cases = [('text', {'text': '검정 립밤'}),
                  ('photo', {'photo': 'data:image/png;base64,'+base64.b64encode(image.getvalue()).decode()}),
                  ('audio', {'audio_base64': base64.b64encode(audio.getvalue()).decode()})]
         for path, payload in cases:
@@ -80,7 +80,7 @@ class VirtualWorkflowTests(unittest.TestCase):
         database = MagicMock(mode='postgres')
         bot = Chatbot(self.guide, search=SearchAgent(database))
         with TestClient(create_app(self.service, self.guide, bot), base_url='http://127.0.0.1') as client:
-            context = self.confirm(client, 'text', {'text': '검정 지갑'})
+            context = self.confirm(client, 'text', {'text': '검정 립밤'})
             response = client.post('/chat/questions', json={'question': '찾아줘', 'search_context': context,
                 'id_verified': True, 'consent': True}, headers={'Authorization': 'Bearer synthetic-unverified'})
         self.assertEqual(response.status_code, 200)
@@ -98,5 +98,5 @@ class VirtualWorkflowTests(unittest.TestCase):
         self.assertIn('시연 기준', response.json()['answer'])
         self.assertTrue(response.json()['sources'])
         self.assertEqual(self.client.post('/descriptions/text', json={**self.metadata,
-            'text': '검정 지갑 010-1234-5678'}).status_code, 422)
+            'text': '검정 립밤 010-1234-5678'}).status_code, 422)
         self.assertEqual(rows(), before)

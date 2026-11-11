@@ -78,9 +78,17 @@ class PurgeApiTest(unittest.TestCase):
     def test_busy_item_is_refused(self):
         iid = self.stored()[0]
         self.w.items[iid]["status"] = "반환 중"                                    # 로봇이 움직이는 중
-        r = self.c.post(f"/api/admin/items/{iid}/purge")
-        self.assertEqual(r.status_code, 409)
-        self.assertIn(iid, self.w.items)
+        orig = self.svc.health
+        self.svc.health = lambda: {**orig(), "busy": True}                         # 11/11 진행 중 = 관제탑이 바쁨
+        try:
+            r = self.c.post(f"/api/admin/items/{iid}/purge")
+            self.assertEqual(r.status_code, 409)
+            self.assertIn(iid, self.w.items)
+        finally:
+            self.svc.health = orig
+        r = self.c.post(f"/api/admin/items/{iid}/purge")                          # 11/11 멈춘 반환(관제탑은 쉼)은 지울 수 있다
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn(iid, self.w.items)
 
     def test_live_page_has_purge_ui(self):
         html = (ROOT / "web" / "live" / "index.html").read_text(encoding="utf-8")

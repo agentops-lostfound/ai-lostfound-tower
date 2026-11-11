@@ -37,7 +37,7 @@ class DetectTest(unittest.TestCase):
 
 class ChatCancelTest(unittest.TestCase):
     def claim(self, d):
-        r = d.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
+        r = d.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
         self.assertTrue(r.get("claim_id"), r)
         return r["claim_id"]
 
@@ -149,7 +149,7 @@ class StaffPageOverrideTest(unittest.TestCase):
 
         def failed_claim():
             svc, d = make()
-            r = d.lost("서면역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))      # 역을 틀리게 말함 → 확인 질문 미통과
+            r = d.lost("초량역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))      # 역을 틀리게 말함 → 확인 질문 미통과
             self.assertFalse(r["quiz_passed"])
             return svc, r["claim_id"]
 

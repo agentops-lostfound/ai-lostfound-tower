@@ -10,7 +10,7 @@ from test_chat_confirmation_binding import ready
 
 
 def lost_ready(agent, sid):
-    for q in ('검정 지갑 서면에서 잃어버려서 접수해 주세요', '어제', '없어요'):
+    for q in ('검정 립밤 초량에서 잃어버려서 접수해 주세요', '어제', '없어요'):
         agent.step(sid, q)
     agent.step(sid, '본인 확인', action=ID)
     return agent.confirmation(sid)
@@ -118,7 +118,7 @@ class UncertainWriteTest(unittest.TestCase):
             client = TestClient(build_app(service=svc))
             def post(q, **extra):
                 return client.post('/chat/questions', json={'question': q, 'session_id': 'unknown-http', **extra}).json()
-            for q in ('습득 신고하기', '흰색 보조배터리', '해운대', '승강장'):
+            for q in ('습득 신고하기', '흰색 보조배터리', '중앙', '승강장'):
                 result = post(q)
             proof = result['confirmation']
             with mock.patch.object(svc.sim, 'found', side_effect=TimeoutError('write response missing')) as write:

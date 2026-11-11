@@ -37,7 +37,7 @@ class ItemActionTest(unittest.TestCase):
         self.addCleanup(observability.set_listener, "live-board", None)
 
     def intake(self, qwen=None, machine="KIOSK-A", client=None):
-        body = {"machine_id": machine, "place_text": "해운대역 승강장", "photo": JPG}
+        body = {"machine_id": machine, "place_text": "중앙역 승강장", "photo": JPG}
         if client:
             body["client"] = client
         r = self.c.post("/api/kiosk/items", json=body)

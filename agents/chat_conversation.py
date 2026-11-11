@@ -173,7 +173,7 @@ def resolve_turn(question, history, context, guidance):
         if not re.search(NOT_SEARCH, q):
             return question + ' 찾아줘', {**context, **inherited}, True
     if inherited.get('category') and features.get('category') in (None, '확인 불가') and not warnings:
-        # 11/7: "파란 휴대폰 잃어버렸어" 다음 "해운대역에서 어제 잃어버렸어요"처럼 장소·날짜만 덧붙이면 앞 물건으로 이어서 찾는다
+        # 11/7: "파란 휴대폰 잃어버렸어" 다음 "중앙역에서 어제 잃어버렸어요"처럼 장소·날짜만 덧붙이면 앞 물건으로 이어서 찾는다
         extra, _ = search_context(question, {})
         if (extra.get('lost_station') or extra.get('lost_date') or extra.get('lost_line')) \
                 and not re.search(NOT_SEARCH, q):
@@ -187,6 +187,15 @@ def resolve_turn(question, history, context, guidance):
             topics = [s['topic'] for s in prior['sources']]
             if len(topics) == 1 and topics[0] in TOPIC_LABELS:
                 resolved = TOPIC_LABELS[topics[0]] + ' ' + question
+                return resolved, context, True
+    # 11/11 "립밤은요?"(물건 놓는 법 뒤): 립밤이 '다루는 물건' 문서에도 있어 그 답이 나왔다 — 물건 이름 하나 + '은요?' 뿐이면
+    # 앞 주제(하나일 때)로 먼저 이어 묻는다. 앞 주제로 답이 없으면 아래 원래 길로
+    bare_item = has_attribute and bool(re.fullmatch(r'[가-힣a-z0-9]{1,10}(?:은|는)요?[?？.!]*', q.replace(' ', '')))
+    if bare_item and previous and not search_intent(question):
+        topics = [s['topic'] for s in guidance.ask(previous)['sources']]
+        if len(topics) == 1 and topics[0] in TOPIC_LABELS:
+            resolved = TOPIC_LABELS[topics[0]] + ' ' + question
+            if guidance.ask(resolved)['status'] != 'not_found':
                 return resolved, context, True
     if elliptical and not search_intent(question) and guidance.ask(question)['status'] == 'not_found':
         # 11/9 채점표: "그럼 다시 시도할 수는 있어요?"(본인인증 뒤), "지갑은요?"(물건 놓는 법 뒤) — 앞 주제가 하나면 그 주제로 이어 묻기

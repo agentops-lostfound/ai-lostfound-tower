@@ -25,8 +25,8 @@ KEY = b'fictional-server-binding-key-32-bytes'
 TOKEN = 'fictional-bearer-token'
 OWNER = Owner('fictional-subject', 'fictional-auth-session')
 OP_ID = 'op_' + 'a' * 32
-CONTEXT = {'category': '지갑', 'color': '검정', 'lost_date': '2026-11-01',
-           'lost_line': '1호선', 'lost_station': '서면역'}
+CONTEXT = {'category': '립밤', 'color': '검정', 'lost_date': '2026-11-01',
+           'lost_line': '1호선', 'lost_station': '초량역'}
 
 
 class PgServer:
@@ -81,7 +81,7 @@ class PgServer:
                     self.rows = [row] if row is not None else []
                 elif sql == SQL_SEARCH:
                     server.item_reads += 1
-                    self.rows = [('A-20261111-0001', '지갑', '검정', '본센터 보관')]
+                    self.rows = [('A-20261111-0001', '립밤', '검정', '본센터 보관')]
                 else:
                     raise AssertionError('unexpected SQL')
             def fetchall(self):
@@ -120,7 +120,7 @@ class FindAccessTest(unittest.TestCase):
 
     def question(self, headers=None, **extra):
         return self.client.post('/chat/questions', headers=self.headers if headers is None else headers,
-            json={'question': '검정 지갑 찾아줘', 'search_context': CONTEXT,
+            json={'question': '검정 립밤 찾아줘', 'search_context': CONTEXT,
                   'session_id': 'browser-conversation', **extra})
 
     def add_receipt(self, state='completed', result=None, owner=OWNER):
@@ -260,7 +260,7 @@ class FindAccessTest(unittest.TestCase):
 
     def test_missing_verifier_keeps_existing_real_search_locked(self):
         agent = SearchAgent(self.search.database)
-        self.assertEqual(agent.ask('검정 지갑 찾아줘', TOKEN, CONTEXT)['status'], 'authentication_required')
+        self.assertEqual(agent.ask('검정 립밤 찾아줘', TOKEN, CONTEXT)['status'], 'authentication_required')
         self.assertEqual(self.pg.item_reads, 0)
         app = FastAPI()
         add_chat_routes(app, Bot(agent))

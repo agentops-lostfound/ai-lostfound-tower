@@ -184,12 +184,79 @@ class RoutesTest(unittest.TestCase):
         self.assertIn(b"Content-Type: image/jpeg", r.content)
 
 
+class FramePollTest(unittest.TestCase):
+    """11/11 검은 화면 개선: 사진 한 장씩 + 번호·나이·어두움 머리말 + 읽기 멈춤 풀기"""
+
+    def setUp(self):
+        try:
+            from fastapi import FastAPI
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        from agents.kiosk_camera import KioskCameras, add_camera_routes
+        app = FastAPI()
+        self.cams = KioskCameras({"KIOSK-A": "fake"})
+        add_camera_routes(app, self.cams)
+        self.c = TestClient(app)
+        self.addCleanup(self.cams.stop, 1.0)
+
+    def test_after_returns_newer_frame_with_headers(self):
+        r1 = self.c.get("/api/kiosk/camera/KIOSK-A.jpg")
+        s1 = int(r1.headers["X-Frame-Seq"])
+        self.assertGreaterEqual(s1, 1)
+        self.assertEqual(r1.headers["X-Frame-Dark"], "0")
+        self.assertIn("X-Frame-Age-Ms", r1.headers)
+        r2 = self.c.get(f"/api/kiosk/camera/KIOSK-A.jpg?after={s1}")
+        self.assertGreater(int(r2.headers["X-Frame-Seq"]), s1)                 # 기다렸다가 더 새 사진
+        self.assertEqual(r2.content[:2], b"\xff\xd8")
+
+    def test_stalled_reader_is_released_and_reopened(self):
+        import threading
+        from agents import kiosk_camera as kc
+        now = [100.0]
+        gate = threading.Event()
+
+        class Hang(kc.FakeSource):
+            released = False
+
+            def read(self):
+                if not self.released:
+                    gate.wait(2.0)                                            # 카메라 읽기가 멈춤
+                return (False, None) if self.released else super().read()
+
+            def release(self):
+                self.released = True
+                gate.set()
+
+        opened = []
+        f = kc.CameraFeed(0, opener=lambda src: opened.append(Hang()) or opened[-1], clock=lambda: now[0])
+        f.touch()
+        for _ in range(50):
+            if f._cap is not None:
+                break
+            threading.Event().wait(0.02)
+        now[0] += kc.STALL_S + 1                                               # 새 사진 없이 시간이 지남
+        f.touch()
+        self.assertEqual(f.stalls, 1)
+        self.assertTrue(opened[0].released)                                    # 멈춘 카메라를 놓아 읽기를 풀었다
+        f.stop(1.0)
+
+
 class KioskPageTest(unittest.TestCase):
     def test_page_has_server_mode(self):
         html = (Path(__file__).resolve().parent.parent / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
         self.assertIn("SERVER_CAM = CAM_PARAM === 'server'", html)
-        self.assertIn("/api/kiosk/camera/${machine}.mjpg", html)
-        self.assertIn("!DEMO && !SERVER_CAM && window.isSecureContext === false", html)   # 서버 카메라는 https 없이도
+        self.assertIn("/api/kiosk/camera/${machine}.jpg?after=${srvSeq}", html)   # 11/11 MJPEG 대신 한 장씩(연결 6개 제한·끊김 감지)
+        self.assertNotIn("new Image()", html.split("function serverOpen")[1].split("function serverStop")[0])
+        for s in ("X-Frame-Seq", "X-Frame-Dark", "PC 카메라 다시 연결 중", "serverWarn('down')"):
+            self.assertIn(s, html)
+        self.assertIn("!DEMO && !SERVER_CAM && window.isSecureContext === false", html)
+        # 11/11 2차: 서버 카메라는 보이는 캔버스에 바로 그림 — captureStream → <video> 단계가 멈추면 사진이 와도 까맸다
+        srv = html.split("function serverOpen")[1].split("function serverStop")[0]
+        self.assertNotIn("captureStream", srv)
+        self.assertIn('<canvas id="camCanvas" hidden>', html)
+        self.assertIn("function camEl() { return SERVER_CAM ? $('#camCanvas') : $('#cam'); }", html)
+        self.assertIn("const v = camEl(); if (!camReady()) return null;", html)            # 자동 감지도 캔버스를 읽음   # 서버 카메라는 https 없이도
 
 
 

@@ -9,7 +9,7 @@ from test_chat_intake import FakeDesk
 
 
 def ready(agent, sid):
-    for q in ('습득 신고하기', '흰색 보조배터리', '해운대', '승강장'):
+    for q in ('습득 신고하기', '흰색 보조배터리', '중앙', '승강장'):
         result = agent.step(sid, q)
     assert result['status'] == 'intake_confirm'
     return agent.confirmation(sid)
@@ -29,14 +29,14 @@ class ConfirmationBindingTest(unittest.TestCase):
     def test_old_draft_and_other_session_cannot_write(self):
         old = ready(self.agent, 'one')
         ready(self.agent, 'two')
-        self.agent.step('one', '아 서면이었어요')
+        self.agent.step('one', '아 초량이었어요')
         current = self.agent.confirmation('one')
         self.assertNotEqual(old, current)
         self.assertEqual(self.agent.step('one', '접수할게요', action=old)['status'], 'intake_confirm')
         self.assertEqual(self.agent.step('two', '접수할게요', action=current)['status'], 'intake_confirm')
         self.assertEqual(self.desk.calls, [])
         self.assertEqual(self.agent.step('one', '접수할게요', action=current)['status'], 'intake_done')
-        self.assertIn('서면', self.desk.calls[0][1])
+        self.assertIn('초량', self.desk.calls[0][1])
 
     def test_replay_and_concurrent_requests_write_once(self):
         proof = ready(self.agent, 'one')
@@ -108,7 +108,7 @@ class ConfirmationHttpTest(unittest.TestCase):
             client = TestClient(build_app(service=svc))
             def post(q, sid='http-proof', **extra):
                 return client.post('/chat/questions', json={'question': q, 'session_id': sid, **extra})
-            for q in ('습득 신고하기', '흰색 보조배터리', '해운대', '승강장'):
+            for q in ('습득 신고하기', '흰색 보조배터리', '중앙', '승강장'):
                 result = post(q).json()
             proof = result['confirmation']
             self.assertEqual(post('접수할게요').json()['status'], 'intake_confirm')
@@ -117,7 +117,7 @@ class ConfirmationHttpTest(unittest.TestCase):
             self.assertEqual(done['status'], 'intake_done')
             self.assertNotIn(proof['confirmation_token'], json.dumps(done))
             self.assertEqual(post('접수할게요', intake_action=proof).json()['intake']['item_id'], done['intake']['item_id'])
-            for q in ('습득 신고하기', '흰색 보조배터리', '해운대'):
+            for q in ('습득 신고하기', '흰색 보조배터리', '중앙'):
                 post(q, 'stream-proof')
             stream = post('승강장', 'stream-proof', stream=True)
             frames = [json.loads(line) for line in stream.text.splitlines() if line.strip()]
@@ -127,7 +127,7 @@ class ConfirmationHttpTest(unittest.TestCase):
         from test_deerflow_langfuse import bot
         b = bot()
         b.intake = IntakeAgent(desk=FakeDesk())
-        for q in ('습득 신고하기', '흰색 보조배터리', '해운대', '승강장'):
+        for q in ('습득 신고하기', '흰색 보조배터리', '중앙', '승강장'):
             result = b.ask(q, session_id='graph-proof')
         proof = result['confirmation']
         original = b.graph.invoke

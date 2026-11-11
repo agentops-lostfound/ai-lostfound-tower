@@ -58,7 +58,7 @@ def generation_requirements(question, passages):
         groups.append(['남기지 않아도'])
     return [group for group in groups if group]
 LOST_RE = re.compile(r"잃어버|분실|두고내렸|놓고내렸|놓고왔|두고왔|없어졌|잃었|번호를?잊")   # 11/9 찾기 번호를 잊음
-LOST_CHOICES = ["지갑 잃어버렸어요", "휴대폰 잃어버렸어요", "보조배터리 잃어버렸어요", "찾을 수 있는 물건 종류"]   # 11/9 품목 4종(USB 뺌)
+LOST_CHOICES = ["립밤 잃어버렸어요", "휴대폰 잃어버렸어요", "보조배터리 잃어버렸어요", "찾을 수 있는 물건 종류"]   # 11/9 품목 4종(USB 뺌)
 # 11/7 규칙 문장 그대로 쓰는 주제: 모델이 바꿔 말하면 뜻이 틀어지는 규칙(실측: 4개 모델 38문항 비교, docs/design/chatbot_sllm_rag.md §9)
 # 예) 습득자 연락처 "인계 완료 뒤 30일"을 "반환 보류 30일"로, "동의 시각"을 "분실 시각"으로, "전화번호 적지 마세요"를 "안 적어도 돼요"로
 FIXED_TEXT_TOPICS = {"finder_contact", "masked_identity", "consent", "arrival", "privacy_input", "candidate_scope"}
@@ -103,7 +103,7 @@ SENTENCE_OVERLAP = 0.12
 NOVEL_RUN_LIMIT = 10
 NEGATION = re.compile(r"않|없|못\s|못하|금지|불가|말아|말고|말고|마세요|아니|아닙")
 # 11/8 집 PC 무작위 시험: '본센터 키오스크 한 곳'처럼 하나만이라고 말하는 근거는 다른 곳은 안 된다는 뜻 → 부정 문장 허용
-# ("서면역에서 받을 수 있어요?" → "서면역에서는 받을 수 없어요"가 '근거에 없는 부정'으로 빠지던 것)
+# ("초량역에서 받을 수 있어요?" → "초량역에서는 받을 수 없어요"가 '근거에 없는 부정'으로 빠지던 것)
 EXCLUSIVE = re.compile(r"한\s*곳|에서만|만\s*(?:한다|해요|받|가능)|뿐")
 # 누가 하는 일인지(11/8 실측: 근거는 "분실인 … 본센터로 오시면" 인데 "습득자는 … 본센터로 와야" 로 바꿈)
 ROLES = {"lost": re.compile(r"분실인|잃어버린\s*(?:사람|분)|찾는\s*(?:사람|분)"),
@@ -586,7 +586,7 @@ class GroundedRag:
             if retired:                               # 11/9 운영하지 않는 품목(립밤)은 분실 신고로 안내하지 않음
                 return {**base, 'status': 'answered', 'generation_status': 'fixed_policy_text',
                         'answer': f"{inactive_category_message(retired[0])}. 다른 물건이면 종류와 색을 알려 주세요. "
-                                  '예: "검정 카드지갑 잃어버렸어요"',
+                                  '예: "빨간 립밤 잃어버렸어요"',
                         'choices': LOST_CHOICES}
             if named:
                 return {**base, 'status': 'answered', 'generation_status': 'guided_question',

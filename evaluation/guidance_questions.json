@@ -113,7 +113,7 @@
   },
   {
     "group": "기간",
-    "question": "지갑 보관기간은?",
+    "question": "립밤 보관기간은?",
     "expected_status": "answered",
     "expected_topics": [
       "retention"
@@ -309,7 +309,7 @@
   },
   {
     "group": "검색분리",
-    "question": "내 검정 지갑 찾아줘",
+    "question": "내 빨간 립밤 찾아줘",
     "expected_status": "item_search_not_supported",
     "expected_topics": []
   },
@@ -504,7 +504,7 @@
   },
   {
     "group": "서비스안내",
-    "question": "지갑 주웠는데 어디에 맡겨요?",
+    "question": "립밤 주웠는데 어디에 맡겨요?",
     "expected_status": "answered",
     "expected_topics": [
       "found_report"
@@ -640,7 +640,7 @@
   },
   {
     "group": "서비스안내",
-    "question": "지갑은 어느 쪽이 위로 가게 놓나요?",
+    "question": "립밤은 어느 쪽이 위로 가게 놓나요?",
     "expected_status": "answered",
     "expected_topics": [
       "placement_guide"

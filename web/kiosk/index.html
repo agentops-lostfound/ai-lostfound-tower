@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>분실물 접수 키오스크</title>
-<link rel="stylesheet" href="/ui/theme.css">
+<link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
-<script src="/ui/vkeyboard.js"></script>
+<script src="/ui/vkeyboard.js?v=20261111b"></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
    한줄 설명: 색을 직접 쓰지 않고 "역할 이름(토큰)"으로 쓰면, 다크 모드는 토큰 값만 바뀌어 화면 전체가 함께 바뀐다.
@@ -80,9 +80,12 @@ input[type=text]:focus,input[type=tel]:focus,textarea:focus{border-color:var(--u
 #s4{align-items:stretch}
 #s4 #count{color:var(--ui-primary);font-weight:700}
 #lost,#ret{overflow:auto;justify-content:flex-start;gap:18px}
+#lost{padding:0;overflow:hidden}
+#lostFrame{display:block;width:100%;height:100%;min-height:0;flex:1;border:0;border-radius:inherit;background:var(--ui-surface)}
 #lost h1,#ret h1{font-size:38px}
 #raway,#rform,#rwork,#rdone{display:flex;flex-direction:column;gap:18px}
 #raway[hidden],#rform[hidden],#rwork[hidden],#rdone[hidden]{display:none}
+.rflow-h{margin:10px 0 -6px;font-size:22px;color:var(--ui-text-2)}
 button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary)}
 /* 11/6 자동 촬영 + 보관 가이드 */
 #s1{justify-content:flex-start;gap:20px;overflow:auto}
@@ -105,7 +108,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .card b{display:block;font-size:21px;margin-bottom:2px;color:var(--ui-text)}
 /* 11/8 자동 촬영을 눈에 보이게: 촬영 무대(카메라 화면 + 가운데 틀 + 상태 칩 + 3·2·1 원 + 찰칵 번쩍임) */
 .stage{position:relative;width:100%;aspect-ratio:4/3;max-height:40vh;border-radius:20px;overflow:hidden;background:var(--ui-fill)}
-.stage video,#cam{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0}
+.stage video,#cam,#camCanvas{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0}
 .stage .frame{position:absolute;inset:16% 20%;border:3px dashed color-mix(in srgb,var(--ui-surface) 80%,transparent);border-radius:16px;transition:border-color .2s}
 .stage[data-phase="hand"] .frame{border-color:var(--ui-warn)}
 .stage[data-phase="count"] .frame,.stage[data-phase="shot"] .frame{border-style:solid;border-color:var(--ui-ok)}
@@ -134,7 +137,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .hint{font-size:19px;color:var(--ui-text-2);margin:-4px 0 0}
 /* 11/10 자동 촬영이 안 될 때의 손잡이: 지금 찍기 · 빈 상자 다시 확인(작게, 눈에 덜 띄게) */
 /* 11/10 보기 전용: 같은 기계 화면을 다른 PC 에서 조작 중일 때 */
-.watch{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:var(--ui-radius);background:var(--ui-warn-soft, #fff4e0);color:var(--ui-text)}
+.watch{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:var(--ui-radius);background:var(--ui-warn-soft, #fdf4de);color:var(--ui-text)}
 .watch[hidden]{display:none}
 .watch p{margin:0;flex:1 1 220px;font-size:18px;line-height:1.45}
 .watch button{flex:0 0 auto;font-size:18px;padding:12px 18px;min-height:52px}
@@ -287,17 +290,10 @@ body.demo-mode #stn{flex:1 1 auto}
     <button type="button" id="tabLost" role="tab" aria-selected="false">물건 잃어버렸어요<br>(분실접수)</button>
     <button type="button" id="tabRet" role="tab" aria-selected="false">물건 찾으러 왔어요<br>(회수)</button>
   </nav>
-  <section id="lost" class="lostsec" data-scroll-hint>
-    <h1>잃어버린 물건을 알려 주세요</h1>
-    <div class="chips" id="lcat"></div>
-    <input type="text" id="lcolor" maxlength="40" placeholder="색상 (예: 검정)" autocomplete="off">
-    <textarea id="lfeat" maxlength="200" placeholder="특징 (예: 별 스티커, 키링)"></textarea>
-    <input type="text" id="lplace" maxlength="40" placeholder="장소 (예: 서면역 5번 출구)" autocomplete="off">
-    <input type="text" id="ldate" maxlength="10" placeholder="때 (예: 어제 저녁)" autocomplete="off">
-    <p class="legal ico"><svg class="pic" viewBox="0 0 32 32" role="img"><title>개인정보 쓰지 않기</title><rect x="4" y="7" width="24" height="18" rx="3"/><path d="M9 20c1-3 3-4 4-4s3 1 4 4M18 13h6M18 18h4"/><circle cx="13" cy="12.5" r="2.5"/><path class="p" d="M3 29L29 3"/></svg><span>이름·전화번호·주민번호는 <b>적지 마세요</b></span></p>
-    <p class="err" id="lerr" role="alert"></p>
-    <p class="legal" id="lnote" hidden>확인했어요. 아직 저장은 안 돼요(준비 중). 역무실에서 도와 드릴게요.</p>
-    <button id="lsend" disabled>확인하기</button>
+  <section id="lost" class="lostsec">
+    <!-- 11/11 분실 접수: 휴대폰 분실인 웹(/lost)과 같은 화면·같은 접수(찾기 번호 또는 대기 번호)를 키오스크 안에 띄운다.
+         예전에는 저장하지 않고 역무실 안내만 하는 입력칸이었다. 주소 ?embed=kiosk&station=이 키오스크 역 -->
+    <iframe id="lostFrame" title="분실 접수(분실인 웹과 같은 화면)"></iframe>
   </section>
   <section id="ret" class="lostsec" data-scroll-hint>
     <div id="raway" hidden>
@@ -318,6 +314,14 @@ body.demo-mode #stn{flex:1 1 auto}
       <input type="text" id="rid" data-vk="id" maxlength="32" inputmode="numeric" placeholder="신분증 번호 뒤 첫 자리 (예: 3)" autocomplete="off">
       <p class="err" id="rerr" role="alert"></p>
       <button id="rsend" disabled>물건 꺼내기</button>
+      <!-- 11/11 다음에 무슨 일이 생기는지(무인 인계): 입력칸 아래 빈 공간에 순서를 보여 줌 -->
+      <h2 class="rflow-h">이렇게 받아요</h2>
+      <ol class="prep rflow" aria-label="물건 받는 순서">
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>번호 확인</title><rect x="12" y="8" width="56" height="40" rx="6"/><path class="p" d="M26 28l9 9 18-18"/></svg>번호 확인<small>찾기 번호 · 뒤 첫 자리</small></li>
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>로봇이 꺼냄</title><path d="M14 50h22M25 50V30l14-14 12 8"/><path class="p" d="M51 24l8-6M51 24l6 8"/><rect class="p" x="54" y="36" width="14" height="12" rx="2"/></svg>로봇이 꺼냄<small>아래 물건 나오는 곳으로</small></li>
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>직접 꺼내기</title><rect x="12" y="26" width="56" height="24" rx="4"/><rect class="p" x="32" y="14" width="16" height="14" rx="2"/><path class="p" d="M40 10V4M34 8l6-6 6 6"/></svg>직접 꺼내기<small>꺼낸 뒤 [물건 받았어요]</small></li>
+      </ol>
+      <p class="legal">번호가 없으면? <b>분실인 웹</b>에서 신고하거나 <b>AI 안내</b>에 물어보세요. 확인이 안 되면 본센터 직원이 도와드려요.</p>
     </div>
     <div id="rwork" hidden>
       <svg class="pic big" viewBox="0 0 56 56" role="img"><title>손 넣지 않기</title><path d="M20 40V22a3 3 0 0 1 6 0v-6a3 3 0 0 1 6 0v3a3 3 0 0 1 6 0v13c0 7-4 11-10 11h-1c-4 0-6-2-9-6l-5-7a3 3 0 0 1 5-3l2 3"/><circle class="p" cx="28" cy="28" r="25"/><path class="p" d="M10 46L46 10"/></svg>
@@ -338,6 +342,7 @@ body.demo-mode #stn{flex:1 1 auto}
       <div class="camwrap">
         <div class="stage" id="stage" data-phase="find">
           <video id="cam" playsinline muted hidden></video>
+          <canvas id="camCanvas" hidden></canvas>   <!-- 11/11 서버 카메라는 받은 사진을 이 캔버스에 바로 그림(영상 요소를 거치지 않음) -->
           <span class="frame" aria-hidden="true"></span>
           <span class="camchip" id="camChip" data-state="find"><i aria-hidden="true"></i><span id="camChipText">카메라 찾는 중</span></span>
           <div class="ring" id="ring" aria-hidden="true">
@@ -383,7 +388,7 @@ body.demo-mode #stn{flex:1 1 auto}
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>휴대폰: 뒷면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="3"/><path class="p" stroke-width="4" d="M19 40h42"/><rect class="p" x="21" y="35" width="10" height="5" rx="1.5"/><path class="p" d="M44 32V10M37 17l7-7 7 7"/></svg><b>휴대폰</b>뒷면(카메라)</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>보조배터리: 케이블 빼고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="37" width="52" height="13" rx="3"/><path d="M21 44h.5M26 44h.5M31 44h.5"/><path class="p" stroke-width="4" d="M18 37h44"/><path class="p" d="M40 30V8M33 15l7-7 7 7"/></svg><b>보조배터리</b>케이블 빼고 글자</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>핸드크림: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="10" y="42" width="11" height="8" rx="2"/><path d="M21 44l7-5h34v11H28l-7-3"/><path d="M62 39h5v11h-5"/><path class="p" stroke-width="4" d="M31 39h28"/><path class="p" d="M45 32V10M38 17l7-7 7 7"/></svg><b>핸드크림</b>눕혀서 글자</div>
-          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>카드지갑: 접은 채 앞면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="38" width="52" height="12" rx="4"/><path d="M14 44h52" opacity=".45"/><path class="p" stroke-width="4" d="M18 38h44"/><path class="p" d="M40 32V10M33 17l7-7 7 7"/></svg><b>카드지갑</b>접은 채 앞면</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>립밤: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="18" y="41" width="30" height="9" rx="3"/><rect x="48" y="41" width="14" height="9" rx="2"/><path class="p" stroke-width="4" d="M21 41h24"/><path class="p" d="M34 32V10M27 17l7-7 7 7"/></svg><b>립밤</b>눕혀서 글자 면</div>
         </div>
       </div>
     </div>
@@ -436,7 +441,7 @@ body.demo-mode #stn{flex:1 1 auto}
 <canvas id="cv" hidden></canvas>
 <script>
 const API = '';
-const KIOSKS = {'KIOSK-A':'해운대','KIOSK-C':'서면','CENTER':'부산'};   // 11/6 본센터 = 부산역, 역 키오스크는 해운대·서면
+const KIOSKS = {'KIOSK-A':'중앙','KIOSK-C':'초량','CENTER':'부산'};   // 11/6 본센터 = 부산역, 역 키오스크는 중앙·초량
 const RESET_SEC = 10;
 const BUSY_MSG = '잠시 후 다시 시도하거나 역무실로 가 주세요.';
 const $ = s => document.querySelector(s);
@@ -456,12 +461,12 @@ $('#raway').hidden = isCenter; $('#rform').hidden = !isCenter;
 let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬영·자동 초기화가 습득 화면을 다시 켜지 않게
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
 let step = 1;
-const CATS = ['모형폰','보조배터리','핸드크림','지갑'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/9 운영 품목 4종(목업폰·보조배터리·핸드크림·카드지갑)(LF-13)
-const CAT_LABEL = {'모형폰': '휴대폰', '지갑': '카드지갑'};                                 // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
+const CATS = ['모형폰','보조배터리','핸드크림','립밤'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/11 지갑 대신 립밤.
+const CAT_LABEL = {'모형폰': '휴대폰'};                                                   // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
 const catLabel = c => CAT_LABEL[c] || c;
 const Q = new URLSearchParams(location.search);
 const DEMO = Q.get('demo') === '1';      // 11/8 직원용 시연 모드: 실제 카메라 대신 가상 카메라(캔버스)가 물건을 넣은 것처럼 보여 줌
-let lcat = '';
+const PII = /\d{2,4}-?\d{3,4}-?\d{4}|\d{6}-?\d{7}|\S+@\S+/;   // 장소 칸에 개인정보가 섞였는지
 function tab(which) {
   curTab = which;
   const lost = which === 'lost', ret = which === 'ret';
@@ -469,6 +474,7 @@ function tab(which) {
     $(id).classList.toggle('on', n === which); $(id).setAttribute('aria-selected', String(n === which));
   });
   $('#lost').classList.toggle('on', lost); $('#ret').classList.toggle('on', ret);
+  if (lost) openLost(); else if (lostKb) lostKb.hide();
   $('#prog').style.visibility = which === 'found' ? 'visible' : 'hidden';
   if (lost || ret) { stopCam(); sections.forEach(s => s.classList.remove('on')); }
   else { go(step); if (step === 1) startCam(); }
@@ -476,20 +482,18 @@ function tab(which) {
 $('#tabFound').onclick = () => tab('found');
 $('#tabLost').onclick = () => tab('lost');
 $('#tabRet').onclick = () => tab('ret');
-CATS.forEach(c => {
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = catLabel(c);
-  b.onclick = () => { lcat = c; document.querySelectorAll('#lcat button').forEach(x => x.classList.toggle('on', x === b)); lcheck(); };
-  $('#lcat').appendChild(b);
-});
-const PII = /\d{2,4}-?\d{3,4}-?\d{4}|\d{6}-?\d{7}|\S+@\S+/;
-function lcheck() { $('#lsend').disabled = !(lcat && ($('#lcolor').value.trim() || $('#lfeat').value.trim()) && $('#lplace').value.trim()); }
-['#lcolor', '#lfeat', '#lplace', '#ldate'].forEach(s => $(s).oninput = lcheck);
-$('#lsend').onclick = () => {
-  const all = ['#lcolor', '#lfeat', '#lplace', '#ldate'].map(s => $(s).value).join(' ');
-  $('#lerr').textContent = '이름·전화번호·주민번호처럼 보이는 내용이 있어요. 지우고 다시 눌러 주세요.';
-  $('#lerr').classList.toggle('on', PII.test(all));
-  $('#lnote').hidden = PII.test(all);
-};
+// 11/11 분실 접수 탭 = 분실인 웹(/lost)을 틀로. 화면 키보드는 바깥(키오스크) 아래에 뜨고 글자는 틀 안 칸에 들어간다
+let lostKb = null;
+function openLost() {
+  const f = $('#lostFrame'); if (f.dataset.ready) return;
+  f.dataset.ready = '1';
+  f.addEventListener('load', () => {
+    if (lostKb) { lostKb.hide(); lostKb.el.remove(); lostKb = null; }
+    try { lostKb = VK.attach(f.contentDocument, { skin: 'kiosk', mount: document.body }); } catch (_) { lostKb = null; }
+  });
+  const st = kiosk === 'CENTER' ? '' : station + '역';
+  f.src = '/lost?embed=kiosk' + (st ? '&station=' + encodeURIComponent(st) : '');
+}
 function go(n) {
   step = n; lastTouch = Date.now();
   sections.forEach((s, i) => s.classList.toggle('on', curTab === 'found' && i === n - 1));
@@ -524,8 +528,12 @@ let waitSince = 0; const noiseHist = [];   // 11/8 잡음 수준(흔들림 최�
 let againUntil = 0, phase = '', shooting = false;
 const rgbHist = [], avgHist = [], pixNoise = [];   // 11/10 최근 색 화면 · 그 평균 화면 · 잡음 수준(평균 화면끼리 상위 5% 픽셀 차)
 const PHASES = ['place', 'hand', 'count', 'shot'];
+// 11/11 화면에 보이는 카메라 요소: 서버 카메라 = #camCanvas(받은 사진을 바로 그림), 그 밖 = #cam(<video>)
+function camEl() { return SERVER_CAM ? $('#camCanvas') : $('#cam'); }
+function camReady() { return SERVER_CAM ? !!(stream && srvLast) : !!$('#cam').videoWidth; }
+function camSize(el) { return SERVER_CAM ? [el.width, el.height] : [el.videoWidth, el.videoHeight]; }
 function small() {
-  const v = $('#cam'); if (!v.videoWidth) return null;
+  const v = camEl(); if (!camReady()) return null;
   probe = probe || Object.assign(document.createElement('canvas'), {width: AUTO.w, height: AUTO.h});
   const g = probe.getContext('2d', {willReadFrequently: true});
   g.drawImage(v, 0, 0, AUTO.w, AUTO.h);
@@ -574,6 +582,63 @@ function changedArea(a, b, w, h, pix) {
     if (nb >= 4) cnt++;
   }
   return cnt / n;
+}
+// 11/11 물건이 있는 곳(작은 화면 좌표 x0·y0·x1·y1): changedArea 와 같은 기준의 뭉친 픽셀을 이어진 덩어리로 묶고
+// 가장 큰 덩어리 + 그 30% 이상인 덩어리(한 물건이 글자·띠로 갈라져 보일 때)만 쓴다. 은박·뽁뽁이 바닥의 반짝임 몇 점은 빠진다.
+// 뭉친 픽셀이 너무 적으면 null
+function changedBox(a, b, w, h, pix) {
+  const g = lightGain(a, b), n = w * h, m = new Uint8Array(n), k = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    let d = 0;
+    for (let c = 0; c < 3; c++) d += Math.abs(a[i*3+c] - Math.min(255, b[i*3+c] * g[c]));
+    if (d > pix) m[i] = 1;
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!m[y*w + x]) continue;
+    let nb = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const yy = y + dy, xx = x + dx;
+      if (yy >= 0 && yy < h && xx >= 0 && xx < w) nb += m[yy*w + xx];
+    }
+    if (nb >= 4) k[y*w + x] = 1;
+  }
+  const seen = new Uint8Array(n), comps = [];
+  for (let i = 0; i < n; i++) {
+    if (!k[i] || seen[i]) continue;
+    const st = [i], c = {x0: w, y0: h, x1: 0, y1: 0, n: 0}; seen[i] = 1;
+    while (st.length) {
+      const j = st.pop(), x = j % w, y = (j - x) / w;
+      c.n++; c.x0 = Math.min(c.x0, x); c.y0 = Math.min(c.y0, y); c.x1 = Math.max(c.x1, x + 1); c.y1 = Math.max(c.y1, y + 1);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const yy = y + dy, xx = x + dx, q = yy * w + xx;
+        if (yy >= 0 && yy < h && xx >= 0 && xx < w && k[q] && !seen[q]) { seen[q] = 1; st.push(q); }
+      }
+    }
+    comps.push(c);
+  }
+  if (!comps.length) return null;
+  const big = Math.max(...comps.map((c) => c.n));
+  if (big < 6) return null;
+  const use = comps.filter((c) => c.n >= big * 0.3);
+  return {x0: Math.min(...use.map((c) => c.x0)), y0: Math.min(...use.map((c) => c.y0)),
+          x1: Math.max(...use.map((c) => c.x1)), y1: Math.max(...use.map((c) => c.y1)), n: use.reduce((s, c) => s + c.n, 0)};
+}
+// 11/11 사진에서 잘라낼 칸(원본 픽셀 x·y·w·h). 물건이 작으면 Qwen 이 줄인 사진에서 글자·색을 못 읽어(립밤 실패) 물건 둘레만 보낸다.
+// 범위 + 여유(크기의 40%, 적어도 짧은 변의 8%), 짧은 변의 30%보다 작으면 그만큼 넓힘(물건 모양·둘레를 조금 남김).
+// 잘라도 화면의 60% 넘게 남으면 자르지 않음(null) — 큰 물건(휴대폰)은 그대로
+function cropRect(box, sw, sh, W, H) {
+  if (!box) return null;
+  const kx = W / sw, ky = H / sh, short = Math.min(W, H);
+  let x0 = box.x0 * kx, y0 = box.y0 * ky, x1 = box.x1 * kx, y1 = box.y1 * ky;
+  const mx = Math.max((x1 - x0) * 0.4, short * 0.08), my = Math.max((y1 - y0) * 0.4, short * 0.08);
+  x0 -= mx; x1 += mx; y0 -= my; y1 += my;
+  const minS = short * 0.3;
+  if (x1 - x0 < minS) { const c = (x0 + x1) / 2; x0 = c - minS / 2; x1 = c + minS / 2; }
+  if (y1 - y0 < minS) { const c = (y0 + y1) / 2; y0 = c - minS / 2; y1 = c + minS / 2; }
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(W, x1); y1 = Math.min(H, y1);
+  const w = Math.round(x1 - x0), h = Math.round(y1 - y0);
+  if (w <= 0 || h <= 0 || w * h > W * H * 0.6) return null;
+  return {x: Math.round(x0), y: Math.round(y0), w, h};
 }
 // 11/10 달라진 곳에 물건이 "생겼나, 없어졌나". 물건이 있는 화면에서는 달라진 곳이 둘레(바닥)와 다르게 생겼고,
 // 빈 상자에서는 달라진 곳이 둘레와 비슷하다. → 지금 화면에서 그 자리가 둘레와 비슷해졌으면 물건을 **뺀** 것이다.
@@ -748,11 +813,25 @@ function tick() {
   stillSince = 0; capture();
 }
 function capture() {
-  const v = $('#cam');
-  if (!(stream && v.videoWidth)) return;
+  const v = camEl();
+  if (!(stream && camReady())) return;
   shooting = true; shotSince = true; setPhase('shot'); camSay('찰칵! 찍었어요', 'shot');
-  const c = $('#cv'); c.width = v.videoWidth; c.height = v.videoHeight;
-  c.getContext('2d').drawImage(v, 0, 0);
+  const c = $('#cv'), [W, H] = camSize(v);
+  // 11/11 물건 둘레만 잘라 보냄(작은 물건도 Qwen 이 크게 봄). 빈 상자 기준이 없거나 물건이 크면 전체 사진 그대로
+  let r = null;
+  try {
+    const base = trueEmpty || empty, cur = lastSmall;
+    if (base && cur) r = cropRect(changedBox(cur.avg || cur.rgb, base.avg || base.rgb, AUTO.w, AUTO.h, AUTO.pixNow || AUTO.pix), AUTO.w, AUTO.h, W, H);
+  } catch (e) { r = null; }
+  if (r) {
+    const up = Math.max(1, Math.min(3, 720 / Math.max(r.w, r.h)));       // 잘린 사진이 작으면 긴 변 720 까지 키움(최대 3배)
+    c.width = Math.round(r.w * up); c.height = Math.round(r.h * up);
+    const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+    g.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
+  } else {
+    [c.width, c.height] = [W, H];
+    c.getContext('2d').drawImage(v, 0, 0);
+  }
   const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
   const gen = camGen;           // 찰칵을 잠깐 보여 준 뒤 다음 단계로(그 사이 탭을 옮기면 버림)
   c.toBlob(b => setTimeout(() => { if (gen === camGen && b && step === 1) gotPhoto(b); else shooting = false; }, AUTO.shotMs), 'image/jpeg', .9);
@@ -762,7 +841,7 @@ function capture() {
 // ?camsetup=1 이면 화면에 카메라 목록이 나와 직원이 고르고, 고른 카메라를 이 태블릿에 기억한다
 const CAM_KEY = 'kioskCamera', CAM_PARAM = new URLSearchParams(location.search).get('cam');
 // 11/9 서버 카메라(?cam=server): 태블릿 크롬이 USB 웹캠을 못 보는 기기(갤럭시탭 A8)용 — 웹캠은 관제탑 PC 에 꽂고
-// PC 가 보내는 영상(/api/kiosk/camera/{기계}.mjpg)을 캔버스에 그려 가상 카메라처럼 <video> 에 흘린다(감지·3초·찍기 코드는 그대로)
+// PC 가 보내는 영상(/api/kiosk/camera/{기계}.jpg 를 한 장씩, 11/11)을 캔버스에 그려 가상 카메라처럼 <video> 에 흘린다(감지·3초·찍기 코드는 그대로)
 const SERVER_CAM = CAM_PARAM === 'server';
 const HD = {width: {ideal: 1920}, height: {ideal: 1080}};
 function camSaved() { try { return localStorage.getItem(CAM_KEY) || ''; } catch (e) { return ''; } }
@@ -821,7 +900,7 @@ function camKind(e) {
   return 'nodevice';                              // NotFoundError·OverconstrainedError·mediaDevices 없음
 }
 function camDown(kind) {
-  $('.camwrap').classList.add('down'); $('#camDown').hidden = false; $('#cam').hidden = true;
+  $('.camwrap').classList.add('down'); $('#camDown').hidden = false; $('#cam').hidden = true; $('#camCanvas').hidden = true;
   $('#camCode').textContent = '점검 코드: ' + (CAM_CODE[kind] || kind);
   camChip('down', '카메라 점검 중'); setPhase('down');
   if (kind !== 'insecure' && kind !== 'denied') retryTimer = setTimeout(startCam, CAM.retryMs);
@@ -839,10 +918,14 @@ async function startCam() {
     opening.then(s => { if (gen !== camGen) s.getTracks().forEach(t => t.stop()); }, () => {});   // 늦게 열린 카메라는 바로 끔
     const s = await Promise.race([opening, wait(CAM.openMs).then(() => { throw named('TimeoutError'); })]);
     if (gen !== camGen) return;
-    stream = s; const v = $('#cam'); v.srcObject = s; v.hidden = false; v.play().catch(() => {});
-    for (const t0 = Date.now(); !v.videoWidth; await wait(100)) {
-      if (gen !== camGen) return;
-      if (Date.now() - t0 > CAM.frameMs) throw named('NoFrameError');
+    stream = s; const v = $('#cam');
+    if (SERVER_CAM) { v.hidden = true; $('#camCanvas').hidden = false; }       // 11/11 사진이 오면 바로 보임(영상 요소·자동 재생에 기대지 않음)
+    else {
+      v.srcObject = s; v.hidden = false; v.play().catch(() => {});
+      for (const t0 = Date.now(); !v.videoWidth; await wait(100)) {
+        if (gen !== camGen) return;
+        if (Date.now() - t0 > CAM.frameMs) throw named('NoFrameError');
+      }
     }
     s.getVideoTracks().forEach(t => t.addEventListener('ended', () => { if (gen === camGen) { stopCam(); camDown('lost'); } }));
     camUp(); camChip('ok', DEMO ? '가상 카메라 연결됨' : SERVER_CAM ? 'PC 카메라 연결됨' : '카메라 연결됨');
@@ -860,28 +943,61 @@ function stopCam() {
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = null; $('#cam').srcObject = null; demoStop(); serverStop();
 }
-// ---- 11/9 서버 카메라: PC 영상(MJPEG)을 <img> 로 받아 캔버스에 그리고 captureStream 으로 <video> 에 넣음 ----
-let srvImg = null, srvCanvas = null, srvTimer = null;
+// ---- 11/9 서버 카메라: PC 영상을 받아 화면의 캔버스(#camCanvas)에 바로 그림 ----
+// 11/11 2차: 예전엔 캔버스를 captureStream 으로 <video> 에 넣었는데, 그 단계가 멈추면(틀이 가려졌다 보임·자동 재생 거절 등)
+//  사진은 계속 오는데 화면은 까맣게 남았다 → 이제 받은 사진을 보이는 캔버스에 그리고, 감지·찍기도 그 캔버스를 읽는다
+// 11/11 검은 화면 완전 개선: 끝나지 않는 MJPEG(<img>) 대신 사진 한 장씩(.jpg?after=번호)을 이어 받는다.
+//  · 브라우저는 한 주소에 연결을 6개까지만 연다 — 발표 화면(틀 3개)·다른 탭이 MJPEG 를 붙잡으면 새 영상 연결이 줄을 서다 까맣게 남았다
+//  · 끊기면 MJPEG 은 아무 신호 없이 멈췄다 → 이제 요청마다 성공·실패를 알아, 멈추면 '다시 연결 중'을 띄우고 스스로 다시 받는다
+//  · 사진마다 번호·나이·어두움이 붙어 와서, 같은 사진은 다시 그리지 않고 '멈춤'(관제탑 카메라 읽기)·'까맘'(렌즈·조명)을 구별한다
+const SRV = {gapMs: 80, staleMs: 3000, downMs: 12000};
+const SRV_STREAM = {getTracks: () => [], getVideoTracks: () => []};
+let srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '';
 function serverOpen() {
-  const machine = encodeURIComponent(Q.get('machine') || 'KIOSK-A');
+  const machine = encodeURIComponent(Q.get('camsrc') || Q.get('machine') || 'KIOSK-A');   // 11/11 camsrc: 다른 기계의 서버 카메라를 빌려 씀(발표 화면 초량역)
+  const run = ++srvRun; srvSeq = -1; srvLast = 0; srvNote = '';
   return new Promise((resolve, reject) => {
-    srvImg = new Image();
-    srvImg.onload = () => {                         // MJPEG 는 첫 장이 오면 onload — 그 뒤로는 같은 <img> 가 계속 바뀜
-      srvCanvas = Object.assign(document.createElement('canvas'), {width: srvImg.naturalWidth || 1280, height: srvImg.naturalHeight || 720});
-      if (!srvCanvas.captureStream) { reject(named('NotFoundError')); return; }
-      const g = srvCanvas.getContext('2d');
-      srvTimer = setInterval(() => { try { g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height); } catch (e) {} }, 50);
-      g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height);
-      resolve(srvCanvas.captureStream(15));
+    let opened = false;
+    const draw = async (blob) => {
+      const bmp = await createImageBitmap(blob);
+      const cv = $('#camCanvas');
+      if (cv.width !== bmp.width || cv.height !== bmp.height) { cv.width = bmp.width; cv.height = bmp.height; }
+      cv.getContext('2d').drawImage(bmp, 0, 0); bmp.close && bmp.close();
     };
-    srvImg.onerror = () => reject(named('ServerCamError'));   // 404 = 이 기계에 서버 카메라 설정 없음 · 503 = PC 웹캠이 안 열림
-    srvImg.src = `/api/kiosk/camera/${machine}.mjpg?t=${Date.now()}`;
+    const loop = async () => {
+      const t0 = Date.now();
+      while (run === srvRun) {
+        try {
+          const r = await fetch(`/api/kiosk/camera/${machine}.jpg?after=${srvSeq}&t=${Date.now()}`, {cache: 'no-store'});
+          if (run !== srvRun) return;
+          if (r.status === 404) { if (!opened) reject(named('ServerCamError')); else serverWarn('down'); return; }
+          if (!r.ok) throw new Error(r.status);
+          const seq = Number(r.headers.get('X-Frame-Seq') || 0), age = Number(r.headers.get('X-Frame-Age-Ms') || 0);
+          if (seq !== srvSeq) { await draw(await r.blob()); srvSeq = seq; srvLast = Date.now(); }
+          serverWarn(r.headers.get('X-Frame-Dark') === '1' ? 'dark' : age > SRV.staleMs ? 'stale' : '');
+          if (!opened && srvLast) { opened = true; resolve(SRV_STREAM); }       // 진짜 영상 줄기는 없음 — stopCam 이 부르는 모양만 맞춤
+        } catch (e) {
+          if (run !== srvRun) return;
+          if (!opened && Date.now() - t0 > CAM.openMs) { reject(named('ServerCamError')); return; }
+          if (opened) serverWarn(Date.now() - srvLast > SRV.downMs ? 'down' : 'stale');
+          await wait(500);                                  // 관제탑이 다시 켜지는 중일 수 있음 — 조금 쉬고 다시
+        }
+        await wait(SRV.gapMs);
+      }
+    };
+    loop();
   });
 }
-function serverStop() {
-  clearInterval(srvTimer); srvTimer = null;
-  if (srvImg) { srvImg.onload = srvImg.onerror = null; srvImg.src = ''; srvImg = null; }   // 연결을 끊어야 PC 가 60초 뒤 웹캠을 닫음
+// 연결은 됐지만 영상이 이상할 때 머리말 칩만 바꾼다(감지·찍기는 영상이 다시 흐르면 그대로 이어짐). down 이 계속되면 점검 화면으로
+function serverWarn(kind) {
+  if (kind === srvNote) return;
+  srvNote = kind;
+  if (kind === 'down') { stopCam(); camDown('server'); return; }
+  if (kind === 'dark') camChip('find', 'PC 카메라 영상이 까매요 — 렌즈·조명 확인');
+  else if (kind === 'stale') camChip('find', 'PC 카메라 다시 연결 중');
+  else if ($('#camDown').hidden) camChip('ok', 'PC 카메라 연결됨');
 }
+function serverStop() { srvRun++; srvNote = ''; }      // 이어 받기를 멈춤(관제탑은 60초 동안 아무도 안 보면 웹캠을 닫음)
 // ---- 11/8 직원용 시연 모드(?demo=1): 카메라가 있어도 가상 카메라(캔버스 영상)를 쓴다 ----
 // 캔버스 그림을 진짜 카메라처럼 <video> 에 흘려 보내므로, 물건 감지·3초·찍기·서버 접수는 실제와 같은 코드로 지나간다.
 // 빈 상자 → (1.2초 뒤) 손이 물건을 넣고 빠짐 → 멈춤 → 3초 → 자동 촬영. 물건은 운영 품목 5종 중 무작위, 또는 머리말 "시연 모드" 단추에서 고름
@@ -930,6 +1046,7 @@ function demoItem(g, c, x, y, tok) {                        // 운영 품목 5�
   if (c === '지갑') { rr(g, -170, -110, 340, 220, 24, T); g.fillStyle = T2; g.fillRect(-170, -20, 340, 8); rr(g, 110, -40, 40, 50, 8, T3); }
   else if (c === 'USB') { rr(g, -220, -72, 330, 144, 18, tok('--ui-primary')); rr(g, 110, -56, 110, 112, 14, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('USB', -55, 2); }
   else if (c === '모형폰') { rr(g, -115, -190, 230, 380, 34, T2); rr(g, -90, -165, 90, 100, 20, T); g.fillStyle = T3; g.beginPath(); g.arc(-45, -140, 16, 0, 7); g.arc(-45, -92, 16, 0, 7); g.fill(); }
+  else if (c === '립밤') { rr(g, -60, -200, 120, 300, 30, tok('--ui-err')); rr(g, -60, 100, 120, 110, 22, T3); g.fillStyle = S; g.fillText('LIP', 0, -50); }   // 11/11 세로로 둠
   else if (c === '핸드크림') { rr(g, -220, -80, 360, 160, 22, tok('--ui-ok')); rr(g, 140, -50, 80, 100, 12, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('CREAM', -40, 2); }
   else { rr(g, -185, -115, 370, 230, 26, tok('--ui-warn')); g.fillStyle = S; [-60, -20, 20, 60].forEach(dx => { g.beginPath(); g.arc(dx, 70, 9, 0, 7); g.fill(); }); }
   g.restore();
@@ -971,7 +1088,7 @@ function gotPhoto(blob) {     // 찍힌 사진(실제 카메라·시연 모드 �
 }
 $('#retake').onclick = () => { go(1); startCam(); };
 // 11/10 자동 촬영이 안 될 때: [지금 찍기] = 감지와 상관없이 지금 화면을 찍는다 · [빈 상자 다시 확인] = 기억을 지우고 지금 상자를 빈 상자로 다시 잡는다
-$('#shotNow').onclick = () => { if (inControl && step === 1 && stream && !shooting && $('#cam').videoWidth) capture(); };
+$('#shotNow').onclick = () => { if (inControl && step === 1 && stream && !shooting && camReady()) capture(); };
 $('#emptyAgain').onclick = () => {
   dropEmpty(); empty = null; trueEmpty = null; adoptAsIs = true; shotSince = false; stillSince = 0; waitSince = 0;
   camSay('상자를 비워 주세요 · 빈 상자를 다시 확인해요', 'wait');
@@ -1187,14 +1304,14 @@ $('#rgot').onclick = async () => {
 $('#rstop').onclick = () => { fetch(API + '/api/robot/stop', {method:'POST'}).catch(() => {}); };   // 항상 열려 있는 정지
 $('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rcheck(); rshow('rform'); tab(isCenter ? 'ret' : 'found'); };   // 11/10 본센터는 회수 탭이 처음 화면
 // 11/10 주소 ?tab=ret(회수)·lost(분실접수): 처음부터 그 탭으로 연다(통합 시연 화면의 회수 장면). 습득 탭이 아니면 카메라를 켜지 않는다
-// — 본센터 키오스크가 웹캠을 잡아 해운대역 키오스크의 PC 카메라와 다투던 문제(11/10)
+// — 본센터 키오스크가 웹캠을 잡아 중앙역 키오스크의 PC 카메라와 다투던 문제(11/10)
 // 11/10 사람 조작 시뮬레이션: 본센터 키오스크(/kiosk?machine=CENTER)를 열면 습득 탭 + '카메라 점검 중'(본센터엔 카메라 없음)이 먼저 떠서
 // 회수하러 온 사람이 탭을 찾아야 했다 → 본센터는 기본이 회수 탭(습득은 ?tab=found 로)
 const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')] || (isCenter && Q.get('tab') !== 'found' ? 'ret' : undefined);
 if (START_TAB) tab(START_TAB); else startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
-<script src="/chat-widget/widget.js?v=20261110d" data-mode="kiosk" defer></script>
+<script src="/chat-widget/widget.js?v=20261111a" data-mode="kiosk" defer></script>
 <script>
 // 11/10 화면 키보드(쿼티): 입력칸을 누르면 아래에 키오스크 키보드 — 터치로 누르거나, PC 키보드로 치면 같은 키가 눌려 보임(발표용)
 // 한글 두벌식·영문·숫자, 전화번호·가린 신분증 칸은 숫자 패드. 공통 부품 /ui/vkeyboard.js
