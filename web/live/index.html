@@ -190,6 +190,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .robot-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .joints{display:grid;gap:10px}
 .joint{display:grid;grid-template-columns:24px minmax(0,1fr) 66px;gap:10px;align-items:center;font-size:13px}
+.realpose{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink)} .realpose span{color:var(--sub);font-size:11.5px}
 .joint .id{width:24px;height:24px;border-radius:50%;background:var(--soft);color:var(--sub);display:grid;place-items:center;font-weight:700;font-size:11.5px}
 .joint .nm{min-width:0}
 .joint .nm b{font-weight:700} .joint .nm code{color:var(--sub2);font-size:11px;font-family:var(--ui-mono)}
@@ -682,6 +683,12 @@ details.more .robot-note{margin-top:0}
       return `<div class="joint"><span class="id">${j.id}</span><div class="nm"><b>${esc(j.label)}</b> <code>${esc(j.name)}</code>${bar}</div>`+
              `<span class="val">${v.toFixed(1)}${esc(j.unit)}</span></div>`;
     }).join("");
+    const real = r.telemetry_available === "stage" ? a.real : null;     // 11/11 실물 단계 기록(로봇 PC 저장 자세 값, normalized)
+    if (r.telemetry_available === "stage") {
+      $("joints").insertAdjacentHTML("beforeend", `<p class="realpose">🤖 실물 ${real ? `${esc(real.index ?? "-")}/${esc(real.total ?? "-")} <b>${esc(real.pose)}</b> ${esc(real.state)}` : "대기 — 반환이 시작되면 단계마다 따라 움직여요"}` +
+        (real && real.values && Object.keys(real.values).length ? `<br><span>저장 자세 값(normalized) ${Object.entries(real.values).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(" · ")}</span>` : "") +
+        `<br><span>막대·각도 = 가상 팔 계산 값 · 실제 관절값 아님</span></p>`);
+    }
     $("robotNote").innerHTML = `${esc(r.role)}<br>${esc(r.leader)}<br>카메라: ${r.cameras.map(esc).join(" · ")}<br>` +
       `모터 6개 = 움직이는 축 5개 + 집게 1개 · 막대 = 공식 모델의 관절 한계 안 위치 · 각도는 가상 계산(추정), 진짜 값은 로봇 부품이 보정값으로 읽음` +
       (r.shape ? `<br>모양: ${esc(r.shape)}` : "");
@@ -818,7 +825,7 @@ details.more .robot-note{margin-top:0}
       const d = await r.json();
       failCount = 0;
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
-      $("mode").textContent = d.robot_control ? "실물 원격 티칭 · 배치 참고도" : d.sim ? "가상 시연" : "진짜 부품";
+      $("mode").textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 원격 티칭 · 가상 팔이 단계 따라 움직임" : "실물 원격 티칭 · 배치 참고도") : d.sim ? "가상 시연" : "진짜 부품";
       $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim; liveBusy = !!d.busy; realRobot = !!d.robot_control;   // 11/11 실물 모드에서도 [전체 초기화](두 번 눌러)
       if (d.world) {
         if (!world) { drawBench(d.world.bench); drawSide(); }
@@ -828,7 +835,7 @@ details.more .robot-note{margin-top:0}
         renderRobot(world);
         renderItems();
         const ph = $("phase");
-        ph.textContent = d.robot_control ? "실물 원격 티칭 · 그림은 배치 참고 · 아래 단계 기록 확인" :
+        ph.textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 단계 기록(시작·도착)을 따라 움직이는 그림 · 실제 위치는 현장 확인" : "실물 원격 티칭 · 그림은 배치 참고 · 아래 단계 기록 확인") :
           (world.arm.stopped ? "🛑 정지 — 확인 후 원점 복귀" : world.arm.phase);
         ph.className = "phase" + (world.arm.stopped ? " stopped" : "");
         $("armChip").textContent = world.arm.stopped ? "정지" : world.arm.phase;

@@ -1139,6 +1139,10 @@ def build_sim_service(env: dict | None = None):
     from agents import taught_return
     taught = taught_return.enabled(env)
     robot = taught_return.remote_part(env) if taught else SimRobot(world)
+    mirror = None
+    if taught:                                          # 11/11 실물 단계 기록을 따라 가상 팔·물건이 움직이게(그림만, agents/taught_mirror.py)
+        from agents.taught_mirror import attach
+        mirror = attach(robot, world, env)
 
     def factory():
         return CompositeBackend(vision=topview, matcher=matcher, db=world, robot=robot, fallback=MockBackend())
@@ -1149,6 +1153,7 @@ def build_sim_service(env: dict | None = None):
     svc = TowerService(factory, LiveReporter(Reporter(dry_run=not flag("TOWER_SEND")), board), reviewer=reviewer,
                        claims=SimClaimStore(world), intake=world, gpu_lease=lease_from_env(env))
     svc.board, svc.world = board, world
+    svc.robot_mirror = mirror
     taught_return.configure(svc, env)
     if taught:
         original_flow = svc.flow
