@@ -11,8 +11,10 @@
   색·글자는 공통 디자인(/ui/theme.css·theme.js, 11/8 디자인 개편)을 쓴다. 글꼴은 인터넷이 끊기면 시스템 글꼴로 대신 열린다. 로봇팔 모양은 관제탑이 주는 /live/so101_shape.js
   (SO-ARM100 공식 모델에서 tools/so101_shape.py 로 뽑은 부품 점)를 관절 각도로 돌려 그린다.
 -->
-<link rel="stylesheet" href="/ui/theme.css">
+<link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
+<script>/* 11/11 발표 화면(/showcase ④) 안에 들어갈 때(?embed=1): 머리말을 줄이고 작업대가 한 화면에 들어오게 */
+try { if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("embed"); } catch (_) {}</script>
 <style>
 /* 11/8 디자인 개편: 색은 공통 토큰(/ui/theme.css 의 --ui-*)으로. 아래 짧은 이름은 이 화면 안에서만 쓰는 별명이다.
    라이트·다크는 공통 토큰이 바뀌면 함께 바뀐다(OS 설정 + 전환 버튼 data-theme). 공통 토큰에 없는 색(팀 대화 보라·작업대 그림)만 여기서 두 벌 정한다 */
@@ -88,6 +90,12 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr) 350px;gap:16px;
 .empty{color:var(--sub2);font-size:13px}
 /* 탑뷰 */
 .view{position:relative}
+/* 11/11 embed: 바깥(발표 화면)에 이미 머리말이 있으니 제목을 빼고, 작업대 그림 높이를 화면 높이에 맞춤(아래 줄·로봇팔이 잘리지 않게) */
+html.embed header{padding-top:8px;padding-bottom:8px}
+html.embed header h1,html.embed header .chip.conn{display:none}   /* 제목·연결 칩은 발표 화면 머리말에 이미 있음 */
+html.embed main{padding-top:12px;gap:12px}
+html.embed .card{padding:16px}
+html.embed #bench{max-height:calc(100vh - 150px);width:100%}
 svg{display:block;width:100%;height:auto;max-width:100%}
 .phase{position:absolute;right:20px;top:16px;background:var(--soft);border-radius:999px;padding:4px 12px;font-weight:700;font-size:13px}
 .phase.stopped{background:var(--bad);color:#fff}
@@ -113,6 +121,11 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .purge-row button{flex:none;font:inherit;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:7px;border:1px solid currentColor;background:transparent;color:var(--ui-err, #d33);cursor:pointer}
 .purge-row button.armed{background:var(--ui-err, #d33);color:#fff;border-color:var(--ui-err, #d33)}
 .purge-row button:disabled{opacity:.4;cursor:default}
+.purge-row.stuck{outline:1px dashed var(--ui-err, #d33)}
+.purge-all{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;font-size:12px;opacity:.95}
+.purge-all button{font:inherit;font-size:12px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid var(--ui-err, #d33);background:transparent;color:var(--ui-err, #d33);cursor:pointer}
+.purge-all button.armed{background:var(--ui-err, #d33);color:#fff}
+.purge-all button:disabled{opacity:.4;cursor:default}
 .tok i{width:9px;height:9px;border-radius:3px;display:inline-block;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
 /* 기록 */
 .log{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:72vh;overflow:auto}
@@ -211,13 +224,13 @@ details.more .robot-note{margin-top:0}
 <body>
 <header>
   <h1>관제탑 실시간</h1>
-  <span class="chip"><span class="dot" id="conn"></span><span id="connText">연결 중</span></span>
+  <span class="chip conn"><span class="dot" id="conn"></span><span id="connText">연결 중</span></span>
   <span class="chip" id="modeChip">모드 <b id="mode">-</b></span>
   <span class="chip">로봇 <b id="armChip">-</b></span>
   <span class="spacer"></span>
   <button class="stop" id="btnStop" title="반환 진행 중에도 누를 수 있음">🛑 정지</button>
   <button id="btnHome" title="로봇 주변을 확인한 뒤에만">원점 복귀</button>
-  <button id="btnReset" hidden>가상 세계 초기화</button>
+  <button id="btnReset" hidden title="두 번 눌러 실행 — 가상 세계와 기록을 처음 상태로(실물 로봇 PC 상태는 그대로)">전체 초기화</button>
   <span data-theme-slot></span>
 </header>
 <div class="banner" id="banner" hidden></div>
@@ -235,7 +248,7 @@ details.more .robot-note{margin-top:0}
     </div>
     <div class="card try" id="tryCard" hidden>
       <h2>시험 입력</h2>
-      <textarea id="tryText" placeholder="예) 서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"></textarea>
+      <textarea id="tryText" placeholder="예) 초량역 5번 출구 앞에서 빨간 립밤 주웠어요"></textarea>
       <div class="btns">
         <button class="primary" data-kind="found">습득 신고</button>
         <button data-kind="lost">분실 신고</button>
@@ -258,16 +271,17 @@ details.more .robot-note{margin-top:0}
         <span><svg viewBox="0 0 18 18" role="img" aria-label="파란 점선 네모: 로봇이 제출보관함에 놓는 자리" class="c-acc"><rect x="2" y="4" width="14" height="10" rx="3" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/></svg>놓는 자리</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="베이지 띠: 테두리 종이 테이프"><rect x="1.5" y="3.5" width="15" height="11" fill="var(--tape)" stroke="var(--tape-line)"/><rect x="4.5" y="6.5" width="9" height="5" fill="var(--bin)"/></svg>테이프</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="흰 부품과 검정 모터: 로봇팔"><rect x="2" y="6" width="11" height="6" rx="1.5" fill="var(--part)" stroke="var(--part-line)"/><rect x="11" y="4.5" width="5" height="9" rx="1" fill="var(--motor)" stroke="var(--motor-line)"/></svg>로봇팔</span>
-        <span><svg viewBox="0 0 18 18" role="img" aria-label="45도 사선 휴대폰: 상단(점) 오른쪽 위, 단자 왼쪽 아래"><g transform="translate(9 9) rotate(45)"><rect x="-3.6" y="-8" width="7.2" height="16" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="0" cy="-5.3" r="1.2" fill="currentColor"/><rect x="-1.4" y="6.1" width="2.8" height="1" fill="currentColor"/></g></svg>휴대폰 사선</span>
+        <span><svg viewBox="0 0 18 18" role="img" aria-label="두는 방향: 휴대폰·보조배터리·핸드크림은 / 사선(위쪽이 오른쪽 위), 립밤은 세로"><g transform="translate(9 9) rotate(45)"><rect x="-3.6" y="-8" width="7.2" height="16" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="0" cy="-5.3" r="1.2" fill="currentColor"/><rect x="-1.4" y="6.1" width="2.8" height="1" fill="currentColor"/></g></svg>두는 방향(/ · 세로)</span>
         <span><svg viewBox="0 0 22 18" role="img" aria-label="역 배지: 습득 역" class="c-acc"><rect x="1" y="4" width="20" height="10" rx="5" fill="var(--accent-soft)" stroke="currentColor"/></svg>습득 역</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="옅은 원: 집게 높이, 클수록 높음"><circle cx="6" cy="10" r="3" fill="var(--arm)" opacity=".25"/><circle cx="12.5" cy="9" r="5" fill="var(--arm)" opacity=".18"/></svg>집게 높이</span>
       </div>
-      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 보조배터리 · R3 = 핸드크림 · R4 = 카드지갑(11/10 열 순서 확정) · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
+      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 보조배터리 · R3 = 핸드크림 · R4 = 카드지갑(11/10 열 순서 확정) · 칸 카드 아래 배지 = 습득 역(중앙·초량·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
       <div class="cap" id="cap" aria-live="polite"></div>
       <div class="places" id="places"></div>
       <details class="purge" id="purgeBox">
         <summary>🗑 기록 삭제(직원) <span id="purgeCount"></span></summary>
-        <p class="purge-note">물건 하나에 딸린 기록을 <b>전부</b> 지워요 — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록(팀 DB 포함). <b>되돌릴 수 없어요.</b> 사진 파일만 남아요. 반환 중인 물건은 지울 수 없어요.</p>
+        <p class="purge-note">물건 하나에 딸린 기록을 <b>전부</b> 지워요 — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록(팀 DB 포함). <b>되돌릴 수 없어요.</b> 사진 파일만 남아요. 반환이 진행 중인 물건은 지울 수 없어요. 로봇이 움직이지 않아 <b>반환 중에 멈춘</b> 물건은 [반환 취소](같은 칸에 그대로 보관) 또는 [삭제]를 쓸 수 있어요.</p>
+        <div class="purge-all"><button type="button" id="purgeAll">전체 삭제</button><span>물건 기록을 모두 지워요(멈춘 반환 포함) — 두 번 눌러 실행</span></div>
         <div class="purge-list" id="purgeList"></div>
         <div class="msg" id="purgeMsg" role="status" aria-live="polite"></div>
       </details>
@@ -312,12 +326,15 @@ details.more .robot-note{margin-top:0}
                   "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
   // 칸 카드의 품목 글자. 립밤은 11/9 운영 품목에서 뺐지만 옛 기록(이미 보관 중인 물건)이 보이도록 남겨 둠
   const CAT = {"지갑":"카드지갑","USB":"USB","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리","립밤":"립밤"};
+  // 11/11 보관 칸에 두는 모양: rot = 화면에서 돌린 각도(45 = '/' 위쪽이 오른쪽 위), w·h = 크기, cap = 아래쪽(왼쪽 아래 끝) 뚜껑 길이
+  const PUT_SHAPE = {"모형폰": {rot: 45, w: 32, h: 68}, "보조배터리": {rot: 45, w: 34, h: 66},
+                 "핸드크림": {rot: 45, w: 26, h: 72, cap: 16}, "립밤": {rot: 0, w: 22, h: 58, cap: 18}};
   const CAT_LABEL = {"모형폰":"휴대폰"};   // 품목 값('모형폰')은 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   const catName = (c) => CAT_LABEL[c] || c || "";
-  // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터, agents/contracts.py station_name 과 같게)
-  const MACHINE_ST = {"KIOSK-A":"해운대역","KIOSK-C":"서면역","CENTER":"부산역 본센터"};
-  const LETTER_ST = {A:"해운대역", S:"서면역", H:"부산역 본센터"};
-  const ST_SHORT = {"해운대역":"해운대","서면역":"서면","부산역 본센터":"본센터"};
+  // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 중앙 · S 초량 · H 본센터, agents/contracts.py station_name 과 같게)
+  const MACHINE_ST = {"KIOSK-A":"중앙역","KIOSK-C":"초량역","CENTER":"부산역 본센터"};
+  const LETTER_ST = {A:"중앙역", S:"초량역", H:"부산역 본센터"};
+  const ST_SHORT = {"중앙역":"중앙","초량역":"초량","부산역 본센터":"본센터"};
   const stationOf = (it) => (it && (it.station || MACHINE_ST[it.machine_id] ||
     (/^[A-Z]-/.test(it.item_id || "") ? LETTER_ST[it.item_id[0]] : ""))) || "";
   const stShort = (it) => { const n = stationOf(it); return ST_SHORT[n] || n; };
@@ -334,14 +351,14 @@ details.more .robot-note{margin-top:0}
   function drawBench(b) {
     // 11/9 실제 규격(사용자 실측): 보관판 500×250(테두리 종이 테이프 15mm) · 로봇 쪽 덧댄 띠(약 66×15, 가운데) ·
     // 제출보관함 H-1(200×200, 테두리 테이프)은 보관판 위쪽 가운데에 붙음 · 로봇은 H-1 의 로봇 쪽 절반에 놓음 ·
-    // 11/9 열 배정(015·016): R1 휴대폰 전용(45도 '/', 간격 넓음) · R2 보조배터리 · R3 핸드크림 · R4 카드지갑(11/10 018, 왼쪽부터).
+    // 11/9 열 배정(015·016): R1 휴대폰 전용(45도 '/', 간격 넓음) · R2 보조배터리 · R3 핸드크림 · R4 립밤(11/11 020, 왼쪽부터 — 카드지갑에서 바뀜).
     // 열 이름표·품목은 /live/state 의 rows(보관함 정답지 LAYOUT)를 그대로 따른다. 칸 이름 R1-1~R4-2 = 보관함 정답지
     const svg = $("bench");
     const [W, H] = b.size_mm, [x1, y1, x2, y2] = b.bin_mm;
     const ids = b.slot_ids || b.slots_mm.map((_, i) => String(i + 1));
     const hb = b.hbox_mm || [b.basket_mm[0] - 55, b.basket_mm[1] - 45, b.basket_mm[0] + 55, b.basket_mm[1] + 45];
     const T = b.tape_mm || 15, sh = b.shim_mm;
-    const CATS = {"모형폰": "휴대폰 전용", "지갑": "카드지갑", "보조배터리": "보조배터리", "핸드크림": "핸드크림"};   // 11/9 품목 4종
+    const CATS = {"모형폰": "휴대폰 전용", "지갑": "카드지갑", "보조배터리": "보조배터리", "핸드크림": "핸드크림", "립밤": "립밤"};   // 11/11 품목 4종(카드지갑 → 립밤, 옛 이름도 남김)
     const tapeBox = (ax, ay, bx, by, cls) =>                 // 테두리 테이프(바깥 띠) + 안쪽 판
       `<rect x="${ax}" y="${ay}" width="${bx-ax}" height="${by-ay}" class="s-tape"/>` +
       `<rect x="${ax+T}" y="${ay+T}" width="${bx-ax-2*T}" height="${by-ay-2*T}" class="${cls}"/>`;
@@ -354,13 +371,17 @@ details.more .robot-note{margin-top:0}
     s += `<rect x="${hb[0]+T+6}" y="${(hb[1]+hb[3])/2+4}" width="${hb[2]-hb[0]-2*T-12}" height="${hb[3]-T-((hb[1]+hb[3])/2)-8}" rx="8" class="s-drop"/>`;
     s += `<text x="${bx}" y="${by+5}" text-anchor="middle" font-size="12" font-weight="700" class="s-acc">로봇이 놓는 자리</text>`;
     s += `<text x="${(hb[0]+hb[2])/2}" y="${hb[1]+T+20}" text-anchor="middle" font-size="13" font-weight="700" class="s-acc">H-1 제출보관함 200×200</text>`;
-    s += `<text x="${(hb[0]+hb[2])/2}" y="${hb[1]+T+38}" text-anchor="middle" font-size="11" class="s-sub">직원이 교차 검증 후 건넴</text>`;
+    s += `<text x="${(hb[0]+hb[2])/2}" y="${hb[1]+T+38}" text-anchor="middle" font-size="11" class="s-sub">분실인이 꺼내고 키오스크 [물건 받았어요]</text>`;
     const rowX = {}, half = 40;
     b.slots_mm.forEach(([sx, sy], i) => {
-      const id = ids[i], phone = ((b.rows || {})[id.slice(0, 2)] || []).join() === "모형폰";
+      const id = ids[i], cat = ((b.rows || {})[id.slice(0, 2)] || []).join(), phone = cat === "모형폰";
       s += `<rect x="${sx-half}" y="${sy-half}" width="${2*half}" height="${2*half}" rx="8" class="s-slot"/>`;
-      // 휴대폰을 45도 사선으로 두는 자리(11/9 사용자 결정: '/' 방향 — 상단(점) 오른쪽 위 · 단자 왼쪽 아래, 가로로 두면 비전 인식률이 떨어짐)
-      if (phone) s += `<g transform="translate(${sx},${sy}) rotate(45)"><rect x="-14" y="-33" width="28" height="66" rx="5" class="s-ghost"/><circle cy="-26" r="2.6" class="s-ghost-dot"/></g>`;
+      // 품목마다 두는 방향(흐린 자리 표시). 11/9 휴대폰 '/' 45도(상단 점 오른쪽 위) · 11/11 보조배터리도 같은 '/' ·
+      // 핸드크림도 '/' 인데 뚜껑이 왼쪽 아래 · 립밤은 세로. 가로로 두면 비전 인식률이 떨어짐
+      const sp = PUT_SHAPE[cat];
+      if (sp) s += `<g transform="translate(${sx},${sy}) rotate(${sp.rot})"><rect x="${-sp.w/2+2}" y="${-sp.h/2+1}" width="${sp.w-4}" height="${sp.h-2}" rx="5" class="s-ghost"/>` +
+        (sp.cap ? `<rect x="${-sp.w/2+2}" y="${sp.h/2-sp.cap}" width="${sp.w-4}" height="${sp.cap-1}" rx="3" class="s-ghost"/>` : "") +
+        (phone ? `<circle cy="-26" r="2.6" class="s-ghost-dot"/>` : "") + `</g>`;
       // 칸 이름: 휴대폰 칸은 사선 휴대폰('/')이 오른쪽 위를 덮으므로 왼쪽 위에(다른 칸과 같은 자리)
       s += phone ? `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`
                  : `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`;
@@ -408,11 +429,21 @@ details.more .robot-note{margin-top:0}
         `<g transform="rotate(-90)" text-anchor="middle" font-weight="700" fill="${light?"#222":"#fff"}">` +              // 긴 축을 따라 두 줄: 역 · 번호 끝자리('/' 방향이라 왼쪽 아래→오른쪽 위로 읽힘)
         (st ? `<text y="1" font-size="9">${esc(st)}</text><text y="11" font-size="9">${esc(short)}</text>` : `<text y="4" font-size="10">${esc(short)}</text>`) + `</g></g>`;
     }
+    const sp = PUT_SHAPE[it.category];
+    if (sp && it.loc === "bin") {
+      // 11/11 보조배터리('/')·핸드크림('/', 뚜껑 왼쪽 아래)·립밤(세로) — 긴 축을 따라 두 줄: 역 · 번호 끝자리
+      const fg = light ? "#222" : "#fff";
+      return `<g transform="translate(${x},${y}) rotate(${sp.rot})" ${attrs}><title>${esc(full)}</title>`+
+        `<rect x="${-sp.w/2}" y="${-sp.h/2}" width="${sp.w}" height="${sp.h}" rx="6" fill="${c}" stroke="rgba(0,0,0,.3)"/>`+
+        (sp.cap ? `<rect x="${-sp.w/2}" y="${sp.h/2-sp.cap}" width="${sp.w}" height="${sp.cap}" rx="4" fill="rgba(0,0,0,.28)"/>` : "")+
+        `<g transform="translate(0 ${sp.cap ? -sp.cap/2 : 0}) rotate(-90)" text-anchor="middle" font-weight="700" fill="${fg}">` +
+        (st ? `<text y="1" font-size="8.5">${esc(st)}</text><text y="10" font-size="8.5">${esc(short)}</text>` : `<text y="4" font-size="9">${esc(short)}</text>`) + `</g></g>`;
+    }
     const label = CAT[it.category] || "?";
     const badge = st ? `${st} ${short}` : `${it.item_id.slice(0,1)}…${short}`;
     return `<g transform="translate(${x},${y})" ${attrs}><title>${esc(full)}</title><rect x="-38" y="-24" width="76" height="48" rx="8" fill="${c}" stroke="rgba(0,0,0,.25)"/>`+
       `<text y="-6" text-anchor="middle" font-size="13" font-weight="700" fill="${light?"#222":"#fff"}">${esc(label)}</text>`+
-      `<rect x="-34" y="2" width="68" height="17" rx="8.5" class="s-badge"/>`+                                  // 습득 역 배지(예: "서면 0003")
+      `<rect x="-34" y="2" width="68" height="17" rx="8.5" class="s-badge"/>`+                                  // 습득 역 배지(예: "초량 0003")
       `<text y="14.5" text-anchor="middle" font-size="10.5" font-weight="700" class="s-badge-t">${esc(badge)}</text></g>`;
   }
 
@@ -440,8 +471,8 @@ details.more .robot-note{margin-top:0}
     const held = world.items.find(i => i.loc === "gripper");
     $("held").innerHTML = held ? itemShape(held, 0, 0) : "";
     // 등록기계·이동 중·인계 완료
-    const groups = {"KIOSK-C 서면역 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-C",
-                    "KIOSK-A 해운대 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-A",
+    const groups = {"KIOSK-C 초량역 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-C",
+                    "KIOSK-A 중앙 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-A",
                     "🚚 본센터로 이동 중": i => i.loc === "transit",
                     "🗄 직원 보관 선반(로봇 안 씀)": i => i.loc === "shelf",
                     "🤝 인계 완료 · 직원 손": i => i.loc === "handed" || i.loc === "staff"};
@@ -451,28 +482,59 @@ details.more .robot-note{margin-top:0}
         `<span class="tok" title="${esc(itemTip(i))}" aria-label="${esc(itemTip(i))}"><i style="background:${COLORS[i.color]||"#b9b4ff"}"></i>${stShort(i) ? `<span class="st">${esc(stShort(i))}</span>` : ""}${esc(catName(i.category))} ${esc(i.item_id)}${i.loc==="staff"?" (직원)":""}${i.waiting?" · 칸 대기":""}</span>`).join("") :
         '<span class="empty">없음</span>'}</div></div>`;
     }).join("");
-    renderPurge();
+    renderPurge(); renderPurgeAll();
   }
 
   // ---------- 11/10 기록 삭제(직원): 저장소에 있는 물건의 기록을 통째로 지운다 ----------
   // 물건마다 [삭제] → 한 번 더 눌러야 실행(4초 안). POST /api/admin/items/{번호}/purge — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록을 모두 지운다
   const LOC_NAME = {kiosk: "등록기계", transit: "이동 중", bin: "보관 칸", shelf: "직원 보관 선반", gripper: "로봇 집게", basket: "제출보관함", handed: "인계 완료", staff: "직원 손"};
-  let purgeArmed = null, purgeBusy = false;
+  let purgeArmed = null, purgeBusy = false, liveBusy = false, realRobot = false;
   function renderPurge() {
     const box = $("purgeList"); if (!box || !world) return;
     const rows = world.items.slice().sort((a, b) => a.item_id < b.item_id ? -1 : 1);
-    const sig = JSON.stringify([rows.map(i => [i.item_id, i.loc, i.status, i.slot_id, i.category]), purgeArmed, purgeBusy]);
+    const sig = JSON.stringify([rows.map(i => [i.item_id, i.loc, i.status, i.slot_id, i.category]), purgeArmed, purgeBusy, liveBusy]);
     if (box.dataset.last === sig) return;
     box.dataset.last = sig;
     $("purgeCount").textContent = `물건 ${rows.length}개`;
     box.innerHTML = rows.length ? rows.map(i => {
-      const moving = i.loc === "gripper" || i.status === "반환 중";
+      const inReturn = i.loc === "gripper" || i.status === "반환 중";
+      const stuck = inReturn && !liveBusy;              // 11/11 관제탑은 쉬는데 '반환 중'으로 남음 = 로봇이 멈춘 반환
+      const moving = inReturn && !stuck;
       const where = (i.slot_id ? i.slot_id + " " : "") + (LOC_NAME[i.loc] || i.loc);
-      return `<div class="purge-row"><span class="id">${esc(i.item_id)}</span><span class="what" title="${esc(itemTip(i))}">${esc(catName(i.category))} · ${esc(where)} · ${esc(i.status)}</span>` +
+      const back = stuck && i.loc === "bin" ? `<button type="button" data-unstick="${esc(i.item_id)}" class="${purgeArmed === "u:" + i.item_id ? "armed" : ""}"${purgeBusy ? " disabled" : ""} title="로봇이 집지 않았을 때 — 같은 칸에 그대로 보관">${purgeArmed === "u:" + i.item_id ? "한 번 더 → 반환 취소" : "반환 취소"}</button>` : "";
+      return `<div class="purge-row${stuck ? " stuck" : ""}"><span class="id">${esc(i.item_id)}</span><span class="what" title="${esc(itemTip(i))}">${esc(catName(i.category))} · ${esc(where)} · ${esc(i.status)}${stuck ? " (멈춤)" : ""}</span>` + back +
         `<button type="button" data-purge="${esc(i.item_id)}" class="${purgeArmed === i.item_id ? "armed" : ""}"${moving || purgeBusy ? " disabled" : ""}>${purgeArmed === i.item_id ? "한 번 더 → 삭제" : "삭제"}</button></div>`;
     }).join("") : '<span class="empty">물건이 없어요</span>';
   }
+  // 11/11 [반환 취소]·[전체 삭제]도 한 번 더 눌러야 실행(4초 안)
+  function arm(key, msg) {
+    purgeArmed = key; $("purgeMsg").textContent = msg; renderPurge();
+    setTimeout(() => { if (purgeArmed === key) { purgeArmed = null; $("purgeMsg").textContent = ""; renderPurge(); renderPurgeAll(); } }, 4000);
+  }
+  function renderPurgeAll() {
+    const b = $("purgeAll"); if (!b) return;
+    b.classList.toggle("armed", purgeArmed === "all"); b.textContent = purgeArmed === "all" ? "한 번 더 → 전체 삭제" : "전체 삭제";
+    b.disabled = purgeBusy || liveBusy;
+  }
+  $("purgeAll").addEventListener("click", async () => {
+    if (purgeArmed !== "all") { arm("all", "물건 기록을 모두 지우려면 한 번 더 누르세요(되돌릴 수 없음, 사진 파일은 남음)"); renderPurgeAll(); return; }
+    purgeArmed = null; purgeBusy = true; renderPurge(); renderPurgeAll();
+    try {
+      const d = await post("/api/admin/items/purge-all");
+      $("purgeMsg").textContent = `물건 ${d.deleted.length}개 기록을 지웠어요` + (d.kept.length ? ` · 남긴 ${d.kept.length}개: ` + d.kept.map(k => `${k.item_id}(${k.reason})`).join(", ") : "");
+    } catch (err) { $("purgeMsg").textContent = err.message; }
+    purgeBusy = false; renderPurge(); renderPurgeAll();
+  });
   $("purgeList").addEventListener("click", async (e) => {
+    const u = e.target.closest("button[data-unstick]");
+    if (u && !u.disabled) {
+      const id = u.dataset.unstick, key = "u:" + id;
+      if (purgeArmed !== key) { arm(key, `${id} 반환을 취소하고 같은 칸에 그대로 두려면 한 번 더 누르세요 — 로봇이 물건을 집지 않았는지 먼저 보세요`); return; }
+      purgeArmed = null; purgeBusy = true; renderPurge();
+      try { const d = await post(`/api/admin/items/${encodeURIComponent(id)}/return-cancel`); $("purgeMsg").textContent = `${id} 반환을 취소했어요 · ${d.slot} 칸에 그대로 보관`; }
+      catch (err) { $("purgeMsg").textContent = `${id} — ${err.message}`; }
+      purgeBusy = false; renderPurge(); return;
+    }
     const b = e.target.closest("button[data-purge]"); if (!b || b.disabled) return;
     const id = b.dataset.purge;
     if (purgeArmed !== id) {
@@ -619,7 +681,7 @@ details.more .robot-note{margin-top:0}
     $("reach").innerHTML = reach && r.scale !== 1 ? `<circle cx="${bx}" cy="${by}" r="${reach}" class="s-reach"/>` : "";
   }
 
-  function renderCap(st) {        // 11/9 칸 사용 현황(열 묶음별 x/2 — 휴대폰·카드지갑·보조배터리·핸드크림 · 대기 n · 선반)
+  function renderCap(st) {        // 11/9 칸 사용 현황(열 묶음별 x/2 — 휴대폰·보조배터리·핸드크림·립밤 · 대기 n · 선반)
     const box = $("cap");
     if (!st) { box.innerHTML = ""; return; }
     let h = st.groups.map(g => `<span class="chip${g.used >= g.total ? " full" : ""}">${esc(g.label)} <b>${g.used}/${g.total}</b></span>`).join("");
@@ -746,7 +808,7 @@ details.more .robot-note{margin-top:0}
       failCount = 0;
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
       $("mode").textContent = d.robot_control ? "실물 원격 티칭 · 배치 참고도" : d.sim ? "가상 시연" : "진짜 부품";
-      $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim || !!d.robot_control;
+      $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim; liveBusy = !!d.busy; realRobot = !!d.robot_control;   // 11/11 실물 모드에서도 [전체 초기화](두 번 눌러)
       if (d.world) {
         if (!world) { drawBench(d.world.bench); drawSide(); }
         world = d.world;
@@ -804,7 +866,19 @@ details.more .robot-note{margin-top:0}
     clearTimeout(homeArmed); homeArmed = null; b.classList.remove("confirm"); b.textContent = "원점 복귀";
     post("/api/admin/robot/home",{staff_confirmed: true}).catch(e => $("tryMsg").textContent = e.message);
   };
-  $("btnReset").onclick = () => post("/sim/reset").then(() => $("tryMsg").textContent = "초기화했습니다").catch(e => $("tryMsg").textContent = e.message);
+  // 11/11 [전체 초기화]: 한 번 더 눌러야 실행(4초 안) — 실물 모드면 force_real 로 화면·기록만 처음으로(로봇 PC 는 그대로)
+  let resetArmed = false;
+  $("btnReset").onclick = () => {
+    const b = $("btnReset");
+    if (!resetArmed) {
+      resetArmed = true; b.classList.add("confirm"); b.textContent = "한 번 더 → 전체 초기화";
+      $("tryMsg").textContent = "가상 세계와 기록을 처음 상태로 돌려요(되돌릴 수 없음)" + (realRobot ? " · 실물 로봇 PC 상태는 바뀌지 않아요" : "") + " — 한 번 더 누르세요";
+      setTimeout(() => { if (resetArmed) { resetArmed = false; b.classList.remove("confirm"); b.textContent = "전체 초기화"; } }, 4000);
+      return;
+    }
+    resetArmed = false; b.classList.remove("confirm"); b.textContent = "전체 초기화";
+    post("/sim/reset", realRobot ? {force_real: true} : {}).then(() => $("tryMsg").textContent = "초기화했습니다").catch(e => $("tryMsg").textContent = e.message);
+  };
 
   document.querySelectorAll(".try [data-kind]").forEach(btn => btn.onclick = async () => {
     const text = $("tryText").value.trim(); if (!text) return;

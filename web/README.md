@@ -19,12 +19,15 @@
 | 회수·통계 시연(LF-9) | 독립 실행 `python -m tools.run_collection_demo` → `:8110/collection-desk` | `collection-desk/` | 정연우 작업 완료(11/5 변재원 이어받음) | 시연 전용 `/collections*` (가상 SQLite) | 관제탑·팀 DB 와 미연결. 관리자 화면으로 쓸지 변재원 결정 — `docs/reports/2026-11-05-jaewon-takeover-yeonwoo.md` |
 | 직원 화면 | `/staff` | `staff-desk/` | 변재원 | `/returns/*`, `/robot/*` | 11/5 결정: 직원은 정상 흐름에서 제외. 11/11 **예외 전용** — 확인 질문 미통과(직원 대면 확인)·직원 보관 선반 물건의 교차 검증, 정지·원점 복귀. 정상 인계는 본센터 키오스크 [물건 받았어요] |
 
-- 등록기계 번호: `KIOSK-A` 해운대(앞글자 A) · `KIOSK-C` 서면(앞글자 S) · `CENTER` **부산역 본센터** 키오스크(앞글자 H). 11/6 중앙역(KIOSK-B)은 삭제
+- 등록기계 번호: `KIOSK-A` 중앙(앞글자 A) · `KIOSK-C` 초량(앞글자 S) · `CENTER` **부산역 본센터** 키오스크(앞글자 H). 11/6 중앙역(KIOSK-B)은 삭제
 - 화면은 관제탑과 같은 주소에서 열리므로 `fetch("/items")` 처럼 앞부분 없이 부른다
 
 ## 1-00. 통합 시연 화면(11/10, `web/showcase/`)
 - 한줄 설명: 발표 화면 하나에 **① 실제 사용자 화면(세로 키오스크·휴대폰) ② 저장소(DB)에 행이 생기고 칸이 바뀌는 모습 ③ AI 에이전트가 주고받는 흐름**을 같은 순서로 보여 준다.
-- 장면 4개(머리말 탭): ① 습득 · 해운대역 키오스크(`/kiosk?machine=KIOSK-A`) ② 분실 신고 · 분실인 휴대폰(`/phone`) ③ 회수 · 본센터 키오스크(`/kiosk?machine=CENTER`, 회수 탭이 바로 열림) ④ 로봇 작업대(`/live` 를 통째로)
+- 장면 4개(머리말 탭): ① 습득 · 중앙역 키오스크(`/kiosk?machine=KIOSK-A`) ② 분실 신고 · 분실인 휴대폰(`/phone`) ③ 회수 · 본센터 키오스크(`/kiosk?machine=CENTER`, 회수 탭이 바로 열림) ④ 로봇 작업대(`/live?embed=1` — 11/11 제목·연결 칩을 빼고 작업대 그림 높이를 화면에 맞춰 1920×1080 에서 보관판·로봇팔이 한 화면에 들어옴)
+- 11/11 ① 탭: 켜진 채로 한 번 더 누르면 중앙역(KIOSK-A) ⇄ 초량역(KIOSK-C)(`?kiosk=C`). 초량역에 웹캠 설정이 없으면 중앙역 웹캠을 같이 씀(키오스크 `?camsrc=KIOSK-A`). 작은 사진(팀 DB 조회·사진 분석)을 누르면 이 창 안에서 크게 보기(바깥·✕·Esc 로 닫기)
+- 11/11 키오스크 [물건 잃어버렸어요] 탭 = 분실인 웹(`/lost?embed=kiosk&station=이 역`)과 같은 화면·같은 접수. 분실인 웹 색 고르기는 품목의 실제 색을 먼저, 나머지는 [다른 색 ▾]. 화면 키보드 칸에 Ctrl+V 붙여넣기 됨
+- 11/11 빈 화면 안내: 기록이 생기기 전에는 DB 칸에 그 장면에서 바뀌는 표(INSERT·UPDATE·SELECT)를, 에이전트 칸에 말이 오가는 순서를 보여 주고 첫 기록이 생기면 사라진다. 본센터 키오스크 회수 탭 아래에는 '이렇게 받아요'(번호 확인 → 로봇이 꺼냄 → 직접 꺼내기) 순서
 - 가운데 **DB 실시간 기록**: 표 이름·칸 이름은 팀 DB 와 같은 영문 이름 + 쉬운 한글 이름을 함께 적는다(`item` 습득물 · `place_text` 발견 장소). 위쪽 두 장은 "지금 보는 행"(`item` · `claim`)이고 값이 채워질 때 반짝인다. 아래는 기록 흐름(INSERT·UPDATE·DELETE·SELECT)
   - 사건은 `agents/db_watch.py` 가 저장소 함수를 감싸 만든다. **이름·전화번호·가린 신분 번호·비공개 특징 값은 서버가 보내지 않는다**(🔒 "저장됨"만 표시)
   - **팀 DB 에도 함께 저장(11/10, `agents/db_mirror.py`)**: `tools\start_tower.bat` 로 켜면 가상 시연의 접수·특징·상태·찾기 요청·보관 칸·반환 기록을 팀 DB(PostgreSQL)에도 쓴다 → 머리말 "저장소 팀 DB 저장 n건", `item` 카드에 "팀 DB 저장됨" 표시. 끄기 `start_tower.bat nodb`(머리말 "저장소 메모리")
@@ -59,7 +62,7 @@
 
 ## 1-1. 공통 디자인(11/8 디자인 개편)
 - 모든 화면은 `web/ui/theme.css`(색·글자·간격 토큰 `--ui-*`, 부품 `.ui-btn`·`.ui-card`·`.ui-input`·`.ui-chip`·`.ui-badge`)와 `web/ui/theme.js`(라이트/다크 전환)를 쓴다. 관제탑이 `/ui/theme.css`·`/ui/theme.js` 로 제공
-- 새 화면: `<head>` 에 `<link rel="stylesheet" href="/ui/theme.css">` + `<script src="/ui/theme.js"></script>`, 머리말에 `<span data-theme-slot></span>`(전환 버튼 자리). 색은 토큰만 쓴다(직접 색 값 금지 → 다크에서 깨짐)
+- 새 화면: `<head>` 에 `<link rel="stylesheet" href="/ui/theme.css?v=20261111a">` + `<script src="/ui/theme.js"></script>`, 머리말에 `<span data-theme-slot></span>`(전환 버튼 자리). 색은 토큰만 쓴다(직접 색 값 금지 → 다크에서 깨짐)
 - 전환: 처음엔 휴대폰·PC 밝기 설정을 따르고, 버튼을 누르면 그 브라우저에 기억. 관리자 화면 안쪽(iframe) 화면도 함께 바뀜
 - 글꼴 Pretendard 는 인터넷으로 받는다. 끊기면 맑은 고딕 등 시스템 글꼴로 열린다(화면은 정상)
 
@@ -77,7 +80,7 @@
 ## 3. 지켜야 할 약속
 - 요청·응답 형식: `agents/contracts.py`, `docs/contracts/mcp_tools.md`, 등록기계 API 는 `intake/README.md`
 - 찾기 요청(`POST /claims`)은 동의·신분 인증 결과·가린 이름·특징 설명·확인 질문이 필요하다(전화번호 원문을 받지 않는다)
-- 물건 종류는 운영 품목 4종: 카드지갑 · 휴대폰(목업폰) · 핸드크림 · 보조배터리 (`agents/contracts.py` ACTIVE_CATEGORIES = MVP_CATEGORIES). 11/9 립밤(YOLO 인식이 어려움)·USB 는 운영에서 뺐다 — 계약 CATEGORIES 에는 옛 기록 때문에 남아 있다
+- 물건 종류는 운영 품목 4종: 휴대폰(목업폰) · 보조배터리 · 핸드크림 · 립밤 (`agents/contracts.py` ACTIVE_CATEGORIES = MVP_CATEGORIES). 11/11 카드지갑(포토박스 탑뷰 인식이 어려움)·11/9 USB 는 운영에서 뺐다 — 계약 CATEGORIES 에는 옛 기록 때문에 남아 있다
   - 11/8: 화면에는 **휴대폰**으로 보인다. 품목 값(계약·DB·비전·매칭·API JSON)은 `모형폰` 그대로라, 서버 값을 화면에 보일 때는 표시 사전 `{모형폰: "휴대폰"}`(파이썬은 `agents/contracts.py` `category_label()`)을 거친다. 사용자 입력은 `모형폰`·`휴대폰` 둘 다 알아듣는다
 - 개인정보(전화번호·주민번호·이메일)는 장소·설명 칸에 쓰면 관제탑이 거절한다
 - 로봇 관련 화면 요소(정지·원점·관절 값)는 `docs/contracts/robot_api.md` 기준
@@ -138,7 +141,7 @@
 ## 키오스크 카메라 설정 (11/6 결정: 키오스크는 PC 화면에서 운영)
 - **11/6 17시 실측: 갤럭시 탭 A8(SM-X200, Android 14) 크롬은 USB 웹캠을 보여 주지 않는다.** `&camsetup=1` 목록에 내장 카메라 2개(`camera 0, facing back`·`camera 1, facing front`)만 나오고 ROYCHE 웹캠은 없었다(OTG 케이블 연결 상태). 안드로이드 크롬은 기기 카메라 체계(Camera2)에 등록된 카메라만 쓰는데, 이 기종은 외부 USB 카메라 등록을 지원하지 않는 것으로 보인다(추정) → **태블릿 키오스크는 포기, 키오스크는 PC 화면에서 운영**
 - 포토박스 탑뷰 캠(ROYCHE RPC-20F, UVC 1080p)은 **키오스크 화면을 띄우는 PC**에, 보관함 탑뷰 캠과 로봇팔 캠은 **관제탑 PC**에 꽂는다(같은 PC 라면 카메라 3대가 한 PC 에 — USB 포트 고정·라벨)
-- 키오스크 PC 에서 `http://127.0.0.1:8080/kiosk?machine=KIOSK-A` (해운대) · `KIOSK-C` (서면) · `CENTER` (부산역 본센터). 처음 한 번 주소 끝에 `&camsetup=1` 을 붙여 목록에서 포토박스 캠(이름에 USB·Webcam·FHD)을 고르면 그 PC 브라우저에 기억된다. 번호 고정 `&cam=2`, 이름 일부 `&cam=webcam`
+- 키오스크 PC 에서 `http://127.0.0.1:8080/kiosk?machine=KIOSK-A` (중앙) · `KIOSK-C` (초량) · `CENTER` (부산역 본센터). 처음 한 번 주소 끝에 `&camsetup=1` 을 붙여 목록에서 포토박스 캠(이름에 USB·Webcam·FHD)을 고르면 그 PC 브라우저에 기억된다. 번호 고정 `&cam=2`, 이름 일부 `&cam=webcam`
 - **브라우저는 https 또는 localhost(127.0.0.1)에서만 카메라를 준다.** 관제탑 PC 자신이 키오스크면 `127.0.0.1` 로 열면 된다. 다른 PC 에서 `http://10.10.21.21:8080/kiosk` 로 열면 카메라가 막힌다 → 그 PC 크롬 `chrome://flags/#unsafely-treat-insecure-origin-as-secure` 에 `http://10.10.21.21:8080` 입력 → Enabled → Relaunch (교육원 내부 시연에서만)
 - 11/6 교육원 PC(10.10.21.21)에서 USB 캠 "USB CAMERA (1124:2925)" 인식·자동 촬영·접수(H-20261106-0009)까지 확인함
 - **11/10 조작 화면은 하나(`agents/kiosk_control.py`)**: 같은 기계의 습득 화면을 여러 PC 에서 열어도 **한 화면만 찍고 접수**한다. 화면이 2초마다 `POST /api/kiosk/control/{기계}` 로 묻는다 — 조작 화면이 없으면 먼저 물은 화면이 되고, 있으면 **보기 전용**(영상만, "다른 화면에서 사용 중")이 된다. 보기 전용 화면의 **[여기서 조작하기]** 로 넘겨받는다. 조작 화면이 8초 동안 소식이 없으면(창을 닫음·다른 탭·통합 시연의 다른 장면) 자리를 내준다. 사진 접수(`POST /api/kiosk/items`)도 조작 화면에서 온 것만 받는다(409). 가상 카메라(시연 모드)·분실 신고·챗봇은 그대로
@@ -149,6 +152,7 @@
   2. `.env` 에 `TOWER_KIOSK_CAMERAS=KIOSK-A=0`(기계=번호, 1번 단계에서 "영상이 보이는 번호" — 교육원 PC 웹캠 1대면 0, 여러 대면 쉼표 `KIOSK-A=0,KIOSK-C=1`) → 관제탑 다시 켜기
   3. 태블릿 크롬: `http://10.10.21.21:8100/kiosk?machine=KIOSK-A&cam=server` — 머리말에 "PC 카메라 연결됨"
   4. 상태 확인: `http://10.10.21.21:8100/api/kiosk/cameras` · 한 장 보기 `/api/kiosk/camera/KIOSK-A.jpg`
+  5. **11/11 노출 고정(선택, `TOWER_KIOSK_EXPOSURE`)**: 회색 펠트를 깔면 카메라 자동 노출이 화면을 밝게 올려 분홍·하늘색 핸드크림·흰 물건이 하얗게 날아간다(색이 흰색으로 찍힘). 관제탑을 끄고 흰 폰을 상자 가운데 둔 채 `python tools/camera_exposure.py` → 값마다 사진(`data/exposure_check/sheet.jpg`)과 "물건 날아감 %"가 나오고 추천 값이 나온다 → `.env` 에 `TOWER_KIOSK_EXPOSURE=-6`(추천 값) → 관제탑 다시 켜기 → `/api/kiosk/cameras` 의 `exposure` 에 요청 값·카메라가 읽은 값이 보임. 비우면 예전처럼 카메라가 정함. "노출 값을 바꿔도 밝기가 거의 같음"이 나오면 이 웹캠이 노출 고정을 받지 않는 것 — 비워 둔다. **화이트밸런스 고정(`TOWER_KIOSK_WB`, 켈빈 2800~6500)**: 자동 화이트밸런스는 큰 색 물건이 들어오면 그 색을 빼 버려 물건마다 색 기준이 달라진다 → 조명을 한 모드(11/11 흰색 권장)로 정하고 상자를 비운 채 `python tools/camera_exposure.py --exposure 고른노출 --wb auto,4000,4600,5200,6000` → 회색 펠트가 가장 회색인 값 추천 → `.env` `TOWER_KIOSK_WB=추천값`(상태 `/api/kiosk/cameras` 의 `white_balance`). 조명 모드를 바꾸면 다시 고른다
   - 같은 웹캠을 PC 크롬 키오스크(`127.0.0.1`)가 동시에 쓰면 "다른 프로그램이 사용 중" — 서버 카메라를 쓰는 동안 PC 쪽 키오스크 탭은 닫는다
   - 설정에 없는 기계 번호는 열지 않는다(404, 주소만 바꿔 탑뷰 카메라를 보지 못하게). 아무도 안 보면 60초 뒤 웹캠을 닫는다
   - 끌 때: Ctrl+C 한 번이면 3초 안에 꺼진다(11/9 저녁 — 키오스크 영상 연결이 끝나지 않아 `Waiting for connections to close` 에서 멈추던 것을 `--timeout-graceful-shutdown 3` 으로 막음, `tools/start_tower.bat`)

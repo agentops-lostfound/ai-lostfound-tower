@@ -18,14 +18,14 @@ QWEN = {"category": "card_wallet", "colors": ["dark brown"], "shape": "rectangul
 
 
 def p(**over):
-    d = {"machine_id": "KIOSK-A", "place_text": "해운대역 승강장"}
+    d = {"machine_id": "KIOSK-A", "place_text": "중앙역 승강장"}
     d.update(over)
     return d
 
 
 class ParseTest(unittest.TestCase):
     def test_minimal_and_full(self):
-        self.assertEqual(parse_intake(p()), {"machine_id": "KIOSK-A", "place_id": None, "place_text": "해운대역 승강장",
+        self.assertEqual(parse_intake(p()), {"machine_id": "KIOSK-A", "place_id": None, "place_text": "중앙역 승강장",
                                              "finder": None, "photo_path": None})
         full = parse_intake(p(place_id=2, finder={"name": " 김습득 ", "phone": "010-1234-5678"},
                               photo_path="photos/A/20261103_0001.jpg"))
@@ -62,14 +62,14 @@ class MemoryStoreTest(unittest.TestCase):
     def test_ids_per_machine_and_day(self):
         a1 = self.s.create(parse_intake(p()), DAY)["item_id"]
         a2 = self.s.create(parse_intake(p()), DAY)["item_id"]
-        b1 = self.s.create(parse_intake(p(machine_id="KIOSK-C", place_text="서면역")), DAY)["item_id"]
+        b1 = self.s.create(parse_intake(p(machine_id="KIOSK-C", place_text="초량역")), DAY)["item_id"]
         nxt = self.s.create(parse_intake(p()), date(2026, 11, 4))["item_id"]
         self.assertEqual((a1, a2, b1, nxt), ("A-20261103-0001", "A-20261103-0002", "S-20261103-0001", "A-20261104-0001"))
         self.assertEqual(self.s.items[a1]["status"], "등록기계 보관")
 
     def test_places_recommendation_order(self):
         first = self.s.places("KIOSK-A")
-        self.assertEqual(first[0]["label"], "해운대역 승강장")
+        self.assertEqual(first[0]["label"], "중앙역 승강장")
         toilet = next(x for x in first if x["label"] == "화장실")
         for _ in range(2):
             self.s.create(parse_intake(p(place_id=toilet["place_id"], place_text="화장실")), DAY)
@@ -138,7 +138,7 @@ class FakePg:
     """item·place·finder_contact·item_status_log 만 흉내 내는 가짜 DB(SQL 순서와 거래 확인)."""
 
     def __init__(self):
-        self.places = {1: ("2호선", "해운대", "해운대역 승강장", 0)}
+        self.places = {1: ("1호선", "중앙", "중앙역 승강장", 0)}
         self.items, self.contacts, self.log, self.sql = {}, {}, [], []
 
     def connect(self, dsn):
@@ -153,7 +153,7 @@ class FakePg:
             def execute(self, sql, params=()):
                 db.sql.append(sql)
                 if sql == ik.SQL_MACHINE:
-                    self.rows = [{"KIOSK-A": ("2호선", "해운대"), "CENTER": (None, None)}[params[0]]] \
+                    self.rows = [{"KIOSK-A": ("1호선", "중앙"), "CENTER": (None, None)}[params[0]]] \
                         if params[0] in ("KIOSK-A", "CENTER") else []
                 elif sql == ik.SQL_PLACES:
                     self.rows = [(k, v[2]) for k, v in db.places.items() if v[:2] == params[:2]]
@@ -204,7 +204,7 @@ class PostgresStoreTest(unittest.TestCase):
         self.assertEqual(self.db.places[1][3], 1)
         self.assertEqual(self.db.log, [("A-20261103-0001", "등록기계 보관"), ("A-20261103-0002", "등록기계 보관")])
         self.assertLess(self.db.sql.index(ik.SQL_LOCK_ITEM), self.db.sql.index(ik.SQL_NEXT_ITEM_SEQ))
-        self.assertEqual(self.s.places("KIOSK-A"), [{"place_id": 1, "label": "해운대역 승강장"}])
+        self.assertEqual(self.s.places("KIOSK-A"), [{"place_id": 1, "label": "중앙역 승강장"}])
         self.assertEqual(self.s.places("CENTER"), [])
 
     def test_unknown_machine_or_place(self):

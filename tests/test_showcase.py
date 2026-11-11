@@ -66,7 +66,7 @@ class ListenerTest(unittest.TestCase):
     def test_steps_reach_listener(self):
         with observability.conversation(session_id="s1", trace_name="lost-found-chatbot"):
             with observability.step("lost-found-chatbot", as_type="chain", input={"question": f"내 번호는 {PHONE}"}) as root:
-                with observability.node_step("planner", as_type="agent", input={"question": "지갑"}) as obs:
+                with observability.node_step("planner", as_type="agent", input={"question": "립밤"}) as obs:
                     with observability.step("planner-llm", as_type="generation", model="midm", input=[{"role": "system", "content": "비밀 프롬프트"}]) as gen:
                         gen.update(output={"plan": ["item_search"]})
                     obs.update(output={"plan": ["item_search"], "routing": "llm"})
@@ -127,7 +127,7 @@ class DbWatchTest(unittest.TestCase):
         self.watch = db_watch.attach(self.svc)
         self.board = self.svc.board
 
-    def lost(self, text="검정 카드지갑 잃어버렸어요, 해운대역"):
+    def lost(self, text="검정 립밤 잃어버렸어요, 중앙역"):
         r = self.svc.sim.lost(text, {"visit": "kiosk", "name_masked": "변*원", "id_no_masked": ID_MASKED})
         for _ in range(5):
             if not r.get("pending_id"):
@@ -141,7 +141,7 @@ class DbWatchTest(unittest.TestCase):
 
     def test_full_round_events(self):
         start = self.board.last_seq
-        rec = self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "해운대역 승강장",
+        rec = self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "중앙역 승강장",
                                     "finder": {"name": "김습득", "phone": PHONE}})
         iid = rec["item_id"]
         evs = db_events(self.board, start)
@@ -150,16 +150,16 @@ class DbWatchTest(unittest.TestCase):
         self.assertEqual(evs[0]["db"]["key"], iid)
         self.assertEqual(evs[0]["db"]["label"], "습득물")
         cols = {c["name"]: c for c in evs[0]["db"]["cols"]}
-        self.assertEqual(cols["place_text"]["value"], "해운대역 승강장")
+        self.assertEqual(cols["place_text"]["value"], "중앙역 승강장")
         self.assertEqual(cols["place_text"]["label"], "발견 장소")
         self.assertTrue(all(c["hidden"] for c in evs[1]["db"]["cols"] if c["name"] in ("name", "phone")))
 
         mark = self.board.last_seq
-        self.svc.intake.set_features(iid, {"category": "지갑", "color": "검정", "mark": "별스티커비밀", "visible_text": "비밀글자"})
+        self.svc.intake.set_features(iid, {"category": "립밤", "color": "검정", "mark": "별스티커비밀", "visible_text": "비밀글자"})
         ev = db_events(self.board, mark)[0]["db"]
         self.assertEqual((ev["table"], ev["op"]), ("item", "UPDATE"))
         cols = {c["name"]: c for c in ev["cols"]}
-        self.assertEqual(cols["category"]["value"], "지갑")
+        self.assertEqual(cols["category"]["value"], "립밤")
         self.assertTrue(cols["private_features"]["hidden"])
         self.assertIn("2개", cols["private_features"]["value"])          # 몇 개 저장됐는지만
 
@@ -168,7 +168,7 @@ class DbWatchTest(unittest.TestCase):
             self.assertNotIn(secret, blob)
 
     def test_lost_claim_and_kiosk_return(self):
-        d = self.svc.sim.found("해운대역 승강장에서 검정 카드지갑 주웠어요")
+        d = self.svc.sim.found("중앙역 승강장에서 검정 립밤 주웠어요")
         self.assertTrue(self.svc.sim.wait_idle(20))
         mark = self.board.last_seq
         r = self.lost()
@@ -206,9 +206,20 @@ class DbWatchTest(unittest.TestCase):
             self.assertIn(want, ops)
         self.assertNotIn(ID_MASKED, json.dumps(evs, ensure_ascii=False))
         self.assertEqual(d["item_id"], out["matched_object"])
+        self.assertNotIn(("storage_assignment", "DELETE"), ops)                   # 인계 대기 동안은 칸을 잡아 둠
+
+        # 11/11 무인 인계: [물건 받았어요] → 인계 완료 → 보관 칸이 저절로 빔(트리거) 사건이 남는다(화면 item 카드 slot_id '비움')
+        mark = self.board.last_seq
+        self.svc.sim.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": ID_MASKED})
+        evs = db_events(self.board, mark)
+        ops = [(e["db"]["table"], e["db"]["op"]) for e in evs]
+        self.assertIn(("storage_assignment", "DELETE"), ops)
+        self.assertGreater(ops.index(("storage_assignment", "DELETE")), ops.index(("item", "UPDATE")))
+        rel = next(e["db"] for e in evs if e["db"]["table"] == "storage_assignment")
+        self.assertEqual((rel["key"], rel["by"]), (d["item_id"], "DB 트리거"))
 
     def test_same_status_rewrite_is_skipped_and_select_is_quiet(self):
-        d = self.svc.sim.found("해운대역 승강장에서 검정 카드지갑 주웠어요")
+        d = self.svc.sim.found("중앙역 승강장에서 검정 립밤 주웠어요")
         self.svc.sim.wait_idle(20)
         logs = [e["db"] for e in db_events(self.board) if e["db"]["table"] == "item_status_log" and e["db"]["key"] == d["item_id"]]
         moves = [(next(c["value"] for c in x["cols"] if c["name"] == "from_status"),
@@ -216,7 +227,7 @@ class DbWatchTest(unittest.TestCase):
         self.assertTrue(all(a != b for a, b in moves), moves)                     # 같은 상태 → 같은 상태 기록은 없다
         mark = self.board.last_seq
         for _ in range(4):
-            self.svc.sim.candidates({"category": "지갑"}, None)
+            self.svc.sim.candidates({"category": "립밤"}, None)
         self.assertEqual(len(db_events(self.board, mark)), 1)                     # 같은 읽기는 잠깐 동안 한 번만
 
     def test_reset_is_one_line(self):
@@ -259,7 +270,7 @@ class ApiTest(unittest.TestCase):
         observability.set_listener("live-board", None)
 
     def test_state_detail_and_pages(self):
-        r = self.c.post("/sim/found", json={"text": "해운대역 승강장에서 검정 카드지갑 주웠어요"})
+        r = self.c.post("/sim/found", json={"text": "중앙역 승강장에서 검정 립밤 주웠어요"})
         self.assertEqual(r.status_code, 200)
         self.svc.sim.wait_idle(20)
         plain = self.c.get("/api/admin/live/state?after=0").json()
@@ -285,7 +296,7 @@ class ApiTest(unittest.TestCase):
 
     def test_chat_question_draws_agent_trace(self):
         mark = self.svc.board.last_seq
-        r = self.c.post("/chat/questions", json={"question": "검정 지갑 잃어버렸어요", "session_id": "s-showcase"})
+        r = self.c.post("/chat/questions", json={"question": "검정 립밤 잃어버렸어요", "session_id": "s-showcase"})
         self.assertEqual(r.status_code, 200)
         evs = self.c.get(f"/api/admin/live/state?after={mark}&detail=1").json()["events"]
         trace = [e["trace"] for e in evs if e["channel"] == "trace"]
@@ -306,7 +317,7 @@ class PageContractTest(unittest.TestCase):
     def test_showcase_page(self):
         html = (ROOT / "web" / "showcase" / "index.html").read_text(encoding="utf-8")
         for needle in ("/api/admin/live/state?after=${seq}&detail=1", "/kiosk?machine=${machine}", '"/kiosk?machine=CENTER&tab=ret&demo=1"',
-                       '$("fLost").src = "/phone"', '$("full").src = "/live"', "/ui/theme.css",
+                       '$("fLost").src = "/phone"', '$("full").src = "/live?embed=1"', "/ui/theme.css",
                        "data-theme-slot", "prefers-reduced-motion"):
             self.assertIn(needle, html)
         # 11/10 에이전트 그림은 일이 생긴 쪽으로 자동 전환(사용자가 한 번 고르면 영영 멈추던 옛 방식 'pinned' 는 없앰),
@@ -337,6 +348,54 @@ class PageContractTest(unittest.TestCase):
         admin = (ROOT / "web" / "admin" / "index.html").read_text(encoding="utf-8")
         self.assertIn("storage: '/storage'}", admin)
 
+
+
+class LiveEmbedTest(unittest.TestCase):
+    def test_live_embed_mode_fits_one_screen(self):
+        """11/11 발표 화면 ④: /live?embed=1 은 제목·연결 칩을 빼고 작업대 그림 높이를 화면에 맞춘다"""
+        html = (ROOT / "web" / "live" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('get("embed") === "1") document.documentElement.classList.add("embed")', html)
+        self.assertIn("html.embed #bench{max-height:calc(100vh - 150px)", html)
+        self.assertIn("html.embed header h1,html.embed header .chip.conn{display:none}", html)
+
+
+class UiFixes1111Test(unittest.TestCase):
+    """11/11 사용자 요청: 붙여넣기 · 사진 크게 보기 · 색 고르기 정리 · 키오스크 분실 접수 · ① 탭 역 바꾸기"""
+    def read(self, rel):
+        return (ROOT / rel).read_text(encoding="utf-8")
+
+    def test_paste_into_vk_fields(self):
+        js = self.read("web/ui/vkeyboard.js")
+        self.assertIn('doc.addEventListener("paste"', js)                 # readonly 칸이라 브라우저가 막던 Ctrl+V
+        self.assertIn('if (st.kind === "num") text = text.replace(/[^0-9-]/g, "")', js)
+
+    def test_photo_lightbox(self):
+        html = self.read("web/showcase/index.html")
+        self.assertIn('<div class="lightbox" id="lightbox" hidden role="dialog"', html)
+        self.assertIn('closest(".dbtable img.ph, .vhead img")', html)
+
+    def test_lost_colors_grouped_and_kiosk_embed(self):
+        html = self.read("web/lost/index.html")
+        self.assertIn("'립밤': ['빨강', '파랑']", html)
+        self.assertIn("다른 색 ${rest.length}개 ▾", html)
+        self.assertIn('get("embed") === "kiosk") document.documentElement.classList.add("embed-kiosk")', html)
+        kiosk = self.read("web/kiosk/index.html")
+        self.assertIn('<iframe id="lostFrame"', kiosk)
+        self.assertIn("f.src = '/lost?embed=kiosk'", kiosk)
+        self.assertNotIn("아직 저장은 안 돼요(준비 중)", kiosk)
+        self.assertIn("Q.get('camsrc') || Q.get('machine')", kiosk)
+
+    def test_contact_send_disabled_when_empty(self):
+        """11/11 연락처 화면: 이름·전화번호가 모두 비면 [보내기] 꺼짐(건너뛰기는 그대로)"""
+        html = self.read("web/kiosk/index.html")
+        self.assertIn('<button id="send" disabled>보내기</button>', html)
+        self.assertIn("function contactCheck() { $('#send').disabled = sending || !($('#cname').value.trim() || $('#cphone').value.trim()); }", html)
+        self.assertIn("$('#cname').oninput = contactCheck;", html)
+
+    def test_found_tab_swaps_station(self):
+        html = self.read("web/showcase/index.html")
+        self.assertIn('const FOUND_STN = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역"};', html)
+        self.assertIn('if (b.dataset.scene === "found" && scene === "found") swapFound(); else setScene(b.dataset.scene);', html)
 
 if __name__ == "__main__":
     unittest.main()

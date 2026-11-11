@@ -53,22 +53,22 @@ class PhoneWordsTest(unittest.TestCase):
 
 class StationTest(unittest.TestCase):
     def test_station_name_rule(self):
-        self.assertEqual(station_name("KIOSK-A"), "해운대역")
-        self.assertEqual(station_name("KIOSK-C"), "서면역")
+        self.assertEqual(station_name("KIOSK-A"), "중앙역")
+        self.assertEqual(station_name("KIOSK-C"), "초량역")
         self.assertEqual(station_name("CENTER"), "부산역 본센터")
-        self.assertEqual(station_name(None, "S-20261109-0003"), "서면역")      # 실제 DB 모드: 물건 번호 앞글자
-        self.assertEqual(station_name(None, "A-W01"), "해운대역")
+        self.assertEqual(station_name(None, "S-20261109-0003"), "초량역")      # 실제 DB 모드: 물건 번호 앞글자
+        self.assertEqual(station_name(None, "A-W01"), "중앙역")
         self.assertEqual(station_name(None, "H-20261109-0001"), "부산역 본센터")
         self.assertEqual(station_name(None, "C-20261109-0001"), "")            # 찾기 번호(C-)는 역이 아님
         self.assertEqual(station_name(None, None), "")
 
     def test_snapshot_has_station(self):
         w = SimWorld(speed=0, seed=False)
-        a = w.create({"machine_id": "KIOSK-A", "place_text": "해운대역", "finder": None})
-        s = w.create({"machine_id": "KIOSK-C", "place_text": "서면역", "finder": None})
+        a = w.create({"machine_id": "KIOSK-A", "place_text": "중앙역", "finder": None})
+        s = w.create({"machine_id": "KIOSK-C", "place_text": "초량역", "finder": None})
         items = {i["item_id"]: i for i in w.snapshot()["items"]}
-        self.assertEqual(items[a["item_id"]]["station"], "해운대역")
-        self.assertEqual(items[s["item_id"]]["station"], "서면역")
+        self.assertEqual(items[a["item_id"]]["station"], "중앙역")
+        self.assertEqual(items[s["item_id"]]["station"], "초량역")
         self.assertTrue(all("station" in i for i in w.snapshot()["items"]))
 
 
@@ -78,23 +78,23 @@ class WrongButtonTest(unittest.TestCase):
         self.d = self.svc.sim
 
     def test_lost_words_on_found_button(self):
-        for t in ("파란색 폰 잃어버렸어요", "파란색 폰 잃어버렸어요. 서면역", "서면역에서 지갑 분실했어요"):
+        for t in ("파란색 폰 잃어버렸어요", "파란색 폰 잃어버렸어요. 초량역", "초량역에서 지갑 분실했어요"):
             with self.subTest(t=t), self.assertRaises(RequestError) as e:
                 self.d.found(t)
             self.assertEqual(str(e.exception), TO_LOST)
 
     def test_found_words_on_lost_button(self):
-        for t in ("서면역에서 파란색 폰 주웠어요", "해운대역 화장실에 지갑이 떨어져 있었어요"):
+        for t in ("초량역에서 파란색 폰 주웠어요", "중앙역 화장실에 지갑이 떨어져 있었어요"):
             with self.subTest(t=t), self.assertRaises(RequestError) as e:
                 self.d.lost(t)
             self.assertEqual(str(e.exception), TO_FOUND)
 
     def test_right_buttons_still_work(self):
-        r = self.d.found("서면역 5번 출구 앞에서 파란색 폰 주웠어요")
+        r = self.d.found("초량역 5번 출구 앞에서 파란색 폰 주웠어요")
         self.assertTrue(self.d.wait_idle())
         self.assertTrue(r["item_id"].startswith("S-"))
         self.assertEqual(self.d.world.items[r["item_id"]]["category"], "모형폰")
-        out = self.d.lost("파란색 폰 잃어버렸어요. 서면역")                      # 사용자 실측 문장 → 분실 신고가 됨
+        out = self.d.lost("파란색 폰 잃어버렸어요. 초량역")                      # 사용자 실측 문장 → 분실 신고가 됨
         self.assertTrue(self.d.wait_idle())
         self.assertTrue(out.get("claim_id") or out.get("pending_id") or out.get("staff"))
 
@@ -109,6 +109,7 @@ class PhoneDirectionTest(unittest.TestCase):
         from pathlib import Path
         html = (Path(__file__).resolve().parent.parent / "web/live/index.html").read_text(encoding="utf-8")
         self.assertNotIn("rotate(-45)", html)                    # '\' 방향(예전)이 남아 있지 않음
-        self.assertGreaterEqual(html.count("rotate(45)"), 3)     # 칸 자리 · 보관된 휴대폰 · 범례
+        self.assertGreaterEqual(html.count("rotate(45)"), 2)     # 보관된 휴대폰 · 범례
+        self.assertIn('"모형폰": {rot: 45', html)               # 11/11 칸 자리는 품목별 모양 표(PUT_SHAPE)로 — 휴대폰 '/'
         from agents.storage import LAYOUT
         self.assertEqual(next(r for r in LAYOUT if r[0] == "R1")[5], "45도 사선·상단 오른쪽 위")

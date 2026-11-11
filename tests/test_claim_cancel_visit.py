@@ -1,6 +1,6 @@
-"""11/10 사용자 결정 — 찾기 요청 취소 · 잃어버린 장소 '모름' · 직원 확인으로 진행 · 처음 물건은 해운대역 습득.
+"""11/10 사용자 결정 — 찾기 요청 취소 · 잃어버린 장소 '모름' · 직원 확인으로 진행 · 처음 물건은 중앙역 습득.
 
-1) 처음 보관된 분홍 핸드크림은 해운대역 등록기계에서 주운 물건(A-…-0001, R3-1)
+1) 처음 보관된 분홍 핸드크림은 중앙역 등록기계에서 주운 물건(A-…-0001, R3-1)
 2) 잃어버린 역을 모르면 장소는 묻지도 채점하지도 않고 색으로 확인한다. 역을 틀리게 말하면 그대로 미통과
 3) 확인 질문이 맞지 않아 키오스크가 받지 않는 요청은 직원이 [직원 확인 후 진행]으로 넘긴다
 4) 방문 전인 찾기 요청·방문 예약은 취소할 수 있다(직원 / 분실인 본인). 물건은 계속 보관되고 다시 신고할 수 있다
@@ -34,13 +34,13 @@ class SeedPlaceTest(unittest.TestCase):
     def test_pink_hand_cream_was_found_at_haeundae(self):
         svc, _ = make()
         (row,) = svc.world.items.values()
-        self.assertEqual((row["machine_id"], row["place_text"], row["status"]), ("KIOSK-A", "해운대역 승강장", "본센터 보관"))
+        self.assertEqual((row["machine_id"], row["place_text"], row["status"]), ("KIOSK-A", "중앙역 승강장", "본센터 보관"))
         self.assertTrue(row["item_id"].startswith("A-") and row["item_id"].endswith("-0001"))
         self.assertEqual(svc.world.slot_id_of(row["item_id"]), "R3-1")
 
     def test_next_haeundae_item_number_continues(self):
         svc, d = make()
-        r = d.found("해운대역에서 흰색 보조배터리 주웠어요")
+        r = d.found("중앙역에서 흰색 보조배터리 주웠어요")
         self.assertTrue(r["item_id"].endswith("-0002"), r["item_id"])       # 처음 물건이 0001
 
     def test_full_seed_still_center(self):
@@ -55,11 +55,11 @@ class UnknownPlaceTest(unittest.TestCase):
 
     def test_right_station_passes_wrong_station_fails(self):
         svc, d = make()
-        r = d.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
+        r = d.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
         self.assertTrue(r["quiz_passed"])
         self.assertEqual(self.claim(svc, r)["quiz"], [{"field": "place", "passed": True}])
         svc, d = make()
-        r = d.lost("서면역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
+        r = d.lost("초량역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
         self.assertFalse(r["quiz_passed"])                                  # 틀리게 말한 것은 모름과 다르다
         self.assertEqual(self.claim(svc, r)["quiz"], [{"field": "place", "passed": False}])
 
@@ -131,7 +131,7 @@ class StartupReseedTest(unittest.TestCase):
 
 
 class LostStationTest(unittest.TestCase):
-    """11/10 본센터(부산역) 키오스크에서 주운 물건: 챗봇 분실 접수의 역 선택지가 서면·해운대뿐이라 "부산역"이라고 답할 길이 없었다"""
+    """11/10 본센터(부산역) 키오스크에서 주운 물건: 챗봇 분실 접수의 역 선택지가 초량·중앙뿐이라 "부산역"이라고 답할 길이 없었다"""
 
     def center_item(self):
         from agents.sim_world import LOC_BIN, sim_qwen, to_features
@@ -160,7 +160,7 @@ class LostStationTest(unittest.TestCase):
 
     def test_choices_include_busan_and_unknown(self):
         first, _ = self.intake("부산역")
-        self.assertEqual(first["choices"], ["서면", "해운대", "부산역", "모름", "취소"])
+        self.assertEqual(first["choices"], ["초량", "중앙", "부산역", "모름", "취소"])
         self.assertIn("부산역", first["answer"])
 
     def test_busan_station_matches_center_item(self):
@@ -168,7 +168,7 @@ class LostStationTest(unittest.TestCase):
         self.assertEqual((c["quiz"], c["lost_station"]), ([{"field": "place", "passed": True}, {"field": "color", "passed": True}], "부산"))
 
     def test_other_named_station_is_wrong_but_unknown_is_not(self):
-        _, c = self.intake("해운대")
+        _, c = self.intake("중앙")
         self.assertEqual(c["quiz"][0], {"field": "place", "passed": False})          # 주운 곳과 다른 역 → 키오스크 대신 직원 확인
         for say in ("모름", "센텀시티역이요", "열차 안에서요", "기억이 잘 안 나요", "다른 역이요"):
             _, c = self.intake(say)
@@ -180,7 +180,7 @@ class LostStationTest(unittest.TestCase):
         self.assertEqual(lost_station("부산역에서 잃어버렸어요"), "부산")
         self.assertIsNone(lost_station("부산 지하철에서 잃어버렸어요"))               # 도시 이름
         self.assertIsNone(lost_station("본센터 운영시간 알려줘"))                     # 접수 중에 끼어든 안내 질문
-        self.assertEqual(lost_station("부산역 가다가 해운대에서 잃어버림"), "해운대")
+        self.assertEqual(lost_station("부산역 가다가 중앙에서 잃어버림"), "중앙")
         self.assertEqual(extract("어제", "lost", "station"), {"when": "어제"})        # 다른 칸 답은 그 칸으로
         self.assertEqual(extract("네", "lost", "station"), {})
         self.assertEqual(extract("부산역이요", "found", "station"), {})               # 주운 역은 등록기계 역만(본센터 습득은 본센터 키오스크)
@@ -195,7 +195,7 @@ class LostStationTest(unittest.TestCase):
 class StaffVisitTest(unittest.TestCase):
     def test_failed_quiz_blocked_at_kiosk_then_staff_goes_on(self):
         svc, d = make()
-        r = d.lost("서면역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
+        r = d.lost("초량역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
         cid = r["claim_id"]
         self.assertTrue(d.wait_idle())
         (oc,) = d.open_claims()
@@ -216,7 +216,7 @@ class StaffVisitTest(unittest.TestCase):
 
     def test_passed_claim_can_also_go_by_staff(self):
         svc, d = make()
-        cid = d.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
+        cid = d.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
         self.assertTrue(d.wait_idle())
         self.assertEqual(d.staff_visit(cid)["decision"], "returned")        # 키오스크를 못 쓰는 분실인
 
@@ -229,7 +229,7 @@ class StaffVisitTest(unittest.TestCase):
 
     def test_override_needs_all_staff_checks_and_does_not_cover_identity(self):
         svc, d = make()
-        cid = d.lost("서면역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
+        cid = d.lost("초량역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
         self.assertTrue(d.wait_idle())
         base = {"claim_id": cid, "visitor_id_match": True, "inner_feature_ok": True, "staff_confirmed": True}
         with self.assertRaises(RequestError):
@@ -243,7 +243,7 @@ class StaffVisitTest(unittest.TestCase):
 class CancelTest(unittest.TestCase):
     def test_owner_cancel_needs_same_masked_id(self):
         svc, d = make()
-        r = d.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
+        r = d.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))
         cid, iid = r["claim_id"], r["item_id"]
         self.assertTrue(d.wait_idle())
         with self.assertRaises(RequestError):
@@ -263,13 +263,13 @@ class CancelTest(unittest.TestCase):
                    lambda: d.cancel_claim(cid, by_staff=True)):
             with self.assertRaises(Conflict):
                 fn()
-        again = d.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))  # 취소한 뒤 다시 신고할 수 있다
+        again = d.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))  # 취소한 뒤 다시 신고할 수 있다
         self.assertNotEqual(again["claim_id"], cid)
         self.assertEqual(again["item_id"], iid)
 
     def test_owner_cancel_locks_after_many_wrong_ids(self):
         svc, d = make()
-        cid = d.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
+        cid = d.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
         d.wait_idle()
         seen = []
         for _ in range(8):
@@ -285,7 +285,7 @@ class CancelTest(unittest.TestCase):
 
     def test_cannot_cancel_after_return_started(self):
         svc, d = make()
-        cid = d.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
+        cid = d.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", dict(OPT))["claim_id"]
         d.wait_idle()
         d.kiosk_return({**KIOSK, "claim_id": cid})
         with self.assertRaises(Conflict):
@@ -322,14 +322,14 @@ class ApiTest(unittest.TestCase):
         self.svc, self.d = make()
         self.c = TestClient(build_app(self.svc))
 
-    def lost(self, text="해운대역에서 분홍 핸드크림 잃어버렸어요", **more):
+    def lost(self, text="중앙역에서 분홍 핸드크림 잃어버렸어요", **more):
         r = self.c.post("/sim/lost", json={"text": text, "visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-1******", **more})
         self.assertEqual(r.status_code, 200, r.text)
         self.d.wait_idle()
         return r.json()
 
     def test_state_lists_open_claims_and_buttons_work(self):
-        cid = self.lost("서면역에서 분홍 핸드크림 잃어버렸어요")["claim_id"]
+        cid = self.lost("초량역에서 분홍 핸드크림 잃어버렸어요")["claim_id"]
         st = self.c.get("/api/admin/live/state").json()
         self.assertEqual([(o["claim_id"], o["visit_wait"], o["quiz_passed"]) for o in st["claims_open"]], [(cid, True, False)])
         r = self.c.post(f"/api/admin/claims/{cid}/visit")

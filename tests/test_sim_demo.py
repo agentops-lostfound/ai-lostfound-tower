@@ -18,7 +18,7 @@ from discord_ops.reporter import Reporter  # noqa: E402
 from tools import lostfound_bot as bot  # noqa: E402
 
 ENV = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
-FOUND = "서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"
+FOUND = "초량역 5번 출구 앞에서 검정 립밤 주웠어요"
 
 
 def story_of(svc, sid):
@@ -35,19 +35,19 @@ class SimPartsTest(unittest.TestCase):
     def test_seomyeon_letter_does_not_look_like_claim_id(self):
         self.assertEqual(MACHINE_LETTERS["KIOSK-C"], "S")
         w = SimWorld(speed=0, seed=False)
-        row = w.create({"machine_id": "KIOSK-C", "place_text": "서면역", "finder": None})
+        row = w.create({"machine_id": "KIOSK-C", "place_text": "초량역", "finder": None})
         self.assertTrue(ITEM_ID_RE.match(row["item_id"]))
         self.assertFalse(CLAIM_ID_RE.match(row["item_id"]))
 
     def test_parse_message(self):
-        self.assertEqual(parse_place(FOUND), ("KIOSK-C", "서면역 5번 출구 앞"))
-        self.assertEqual(parse_place("어제 해운대역 화장실에서 립밤 주웠어요"), ("KIOSK-A", "해운대역 화장실"))
-        self.assertEqual(parse_place("지갑 주웠어요")[0], None)
+        self.assertEqual(parse_place(FOUND), ("KIOSK-C", "초량역 5번 출구 앞"))
+        self.assertEqual(parse_place("어제 중앙역 화장실에서 카드지갑 주웠어요"), ("KIOSK-A", "중앙역 화장실"))
+        self.assertEqual(parse_place("립밤 주웠어요")[0], None)
         q = sim_qwen("검정 보조배터리 VOVA 글자")
         self.assertEqual((q["category"], q["colors"], q["logos_or_text"]), ("power_bank", ["black"], ["VOVA"]))
-        f = query_features("검정 카드지갑 잃어버렸어요")
-        self.assertEqual(f, {"category": "지갑", "color": "검정"})      # 말하지 않은 칸은 비교하지 않음
-        self.assertEqual(split_tags("지갑 #집기실패 #보정실패"), ("지갑", {"grasp_fail", "calib_fail"}))
+        f = query_features("검정 립밤 잃어버렸어요")
+        self.assertEqual(f, {"category": "립밤", "color": "검정"})      # 말하지 않은 칸은 비교하지 않음
+        self.assertEqual(split_tags("립밤 #집기실패 #보정실패"), ("립밤", {"grasp_fail", "calib_fail"}))
 
     def test_topview_goes_through_real_adapter_with_calibration_gate(self):
         w = SimWorld(speed=0, seed="full")
@@ -137,7 +137,7 @@ class DirectorTest(unittest.TestCase):
         f = self.found()
         self.assertTrue(f["item_id"].startswith("S-"))
         self.assertEqual(story_of(self.svc, f["story_id"])["result"]["ok"], True)
-        r = self.lost("검정 카드지갑 잃어버렸어요 서면역에서요")
+        r = self.lost("검정 립밤 잃어버렸어요 초량역에서요")
         self.assertEqual(r["item_id"], f["item_id"])
         st = story_of(self.svc, r["story_id"])
         self.assertTrue(st["result"]["ok"], st["result"])
@@ -151,7 +151,7 @@ class DirectorTest(unittest.TestCase):
         """11/7 분실인 웹: 방문을 자동으로 하지 않고 본센터 키오스크 회수 → 로봇 → 제출보관함 → 11/11 분실인이 꺼내고 키오스크 [물건 받았어요] → 인계"""
         f = self.found()
         opts = {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-3******"}
-        r = self.d.lost("검정 카드지갑 잃어버렸어요 서면역에서", opts)
+        r = self.d.lost("검정 립밤 잃어버렸어요 초량역에서", opts)
         self.assertTrue(self.d.wait_idle())
         self.assertEqual((r["item_id"], r["visit"], r["quiz_passed"]), (f["item_id"], "kiosk", True))
         st = story_of(self.svc, r["story_id"])
@@ -186,7 +186,7 @@ class DirectorTest(unittest.TestCase):
 
     def test_web_report_verify_mismatch_marks_hold(self):
         f = self.found()
-        r = self.d.lost("검정 카드지갑 잃어버렸어요 서면역에서", {"visit": "kiosk", "id_no_masked": "******-4******"})
+        r = self.d.lost("검정 립밤 잃어버렸어요 초량역에서", {"visit": "kiosk", "id_no_masked": "******-4******"})
         self.assertTrue(self.d.wait_idle())
         out = self.d.kiosk_return({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-4******"})
         res = self.svc.verify_handover(out["case_id"], {"item_match": True, "id_match": False, "feature_match": True})
@@ -203,7 +203,7 @@ class DirectorTest(unittest.TestCase):
 
     def test_quiz_question_then_wrong_answer_is_rejected(self):
         # 11/9 품목 4종: 글자 있는 핸드크림을 습득 신고한 뒤 찾기 → 글자(로고) 확인 질문에 틀린 답
-        self.found("서면역 3번 출구에서 흰색 핸드크림 BOUQUET GARNI 글자 있음 주웠어요")
+        self.found("초량역 3번 출구에서 흰색 핸드크림 BOUQUET GARNI 글자 있음 주웠어요")
         r = self.d.lost("흰색 핸드크림 잃어버렸어요")
         self.assertIn("pending_id", r)
         out = self.d.answer(r["pending_id"], "Kingston")
@@ -217,7 +217,7 @@ class DirectorTest(unittest.TestCase):
 
     def test_calibration_fail_tag_sends_to_staff(self):
         self.found()
-        r = self.lost("검정 카드지갑 잃어버렸어요 서면역 #보정실패")
+        r = self.lost("검정 립밤 잃어버렸어요 초량역 #보정실패")
         st = story_of(self.svc, r["story_id"])
         self.assertIn("staff_check", st["result"]["text"])
         self.assertIn("작업대 좌표 없음", st["result"]["text"])
@@ -225,21 +225,21 @@ class DirectorTest(unittest.TestCase):
 
     def test_grasp_fail_tag_retries_and_returns(self):
         self.found()
-        r = self.lost("검정 카드지갑 잃어버렸어요 서면역 #집기실패")
+        r = self.lost("검정 립밤 잃어버렸어요 초량역 #집기실패")
         st = story_of(self.svc, r["story_id"])
         self.assertTrue(st["result"]["ok"])
         self.assertTrue(any("집기 실패" in m["title"] for m in self.svc.reporter.messages))
 
     def test_id_mismatch_tag_rejects(self):
         self.found()
-        r = self.lost("검정 카드지갑 잃어버렸어요 서면역 #신분증불일치")
+        r = self.lost("검정 립밤 잃어버렸어요 초량역 #신분증불일치")
         st = story_of(self.svc, r["story_id"])
         self.assertFalse(st["result"]["ok"])
         self.assertEqual(self.svc.world.items[r["item_id"]]["status"], "반환 보류")
 
     def test_manual_handover_waits_for_staff(self):
         self.found()
-        r = self.lost("검정 카드지갑 잃어버렸어요 서면역 #수동인계")
+        r = self.lost("검정 립밤 잃어버렸어요 초량역 #수동인계")
         self.assertEqual(self.svc.world.items[r["item_id"]]["status"], "인계 대기")
         self.assertEqual(self.svc.world.items[r["item_id"]]["loc"], "basket")
         case = story_of(self.svc, r["story_id"])["ids"]["case_id"]
@@ -247,12 +247,12 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(self.svc.world.items[r["item_id"]]["loc"], "handed")
 
     def test_purchased_items_scenes(self):
-        """실제 구매 목록 기준(11/4, 11/7 5개, 11/9 품목 4종): 갈색 지갑은 색으로 바로 찾고, 같은 제품 보조배터리 2개는 직원 확인"""
+        """실제 구매 목록 기준(11/4, 11/7 5개, 11/9 품목 4종): 빨간 립밤은 색으로 바로 찾고, 같은 제품 보조배터리 2개는 직원 확인"""
         from agents.sim_world import SEED_FULL, SEED_ITEMS
         self.assertEqual((len(SEED_FULL), len(SEED_ITEMS)), (5, 1))   # 11/10: 평소에는 분홍 핸드크림 하나, 이 시험은 예전 5개 묶음(TOWER_SIM_SEED=full)
-        r = self.lost("갈색 카드지갑 잃어버렸어요")
+        r = self.lost("빨간 립밤 잃어버렸어요")
         self.assertTrue(story_of(self.svc, r["story_id"])["result"]["ok"])
-        self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "갈색")
+        self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "빨강")
         out = self.lost("흰색 보조배터리 잃어버렸어요")                  # 똑같은 보조배터리 2개 → 고르지 않고 직원 확인
         res = story_of(self.svc, out["story_id"])["result"]
         self.assertFalse(res["ok"])
@@ -265,7 +265,7 @@ class DirectorTest(unittest.TestCase):
     def test_lookalike_ignores_other_categories(self):
         """11/4 무작위 시험 발견: 흰색 목업폰을 찾을 때 흰색 보조배터리·핸드크림을 '닮은 물건'으로 세면 안 됨
         (11/7 시연 물건에서 빠져 습득 신고로 넣고 확인)"""
-        self.found("서면역 5번 출구 앞에서 흰색 보조배터리 주웠어요")
+        self.found("초량역 5번 출구 앞에서 흰색 보조배터리 주웠어요")
         r = self.lost("흰색 모형폰 잃어버렸어요")
         st = story_of(self.svc, r["story_id"])
         self.assertTrue(st["result"]["ok"], st["result"])
@@ -274,18 +274,18 @@ class DirectorTest(unittest.TestCase):
     def test_place_and_color_questions_are_asked(self):
         """11/4: 글자 없는 물건이면 역(등록기계 물건)·색을 먼저 묻는다(예전에는 묻지 않고 오답 처리)"""
         self.found()
-        p = self.d.lost("카드지갑 잃어버렸어요")
-        self.assertIn("색", p["question"])                     # 지갑 후보가 여럿 → 색부터
+        p = self.d.lost("립밤 잃어버렸어요")
+        self.assertIn("색", p["question"])                     # 립밤 후보가 여럿 → 색부터
         p2 = self.d.answer(p["pending_id"], "검정이요")
-        self.assertIn("어느 역", p2["question"])               # 검정 지갑은 서면역 등록기계 물건 → 역 확인
-        out = self.d.answer(p2["pending_id"], "서면역이요")
+        self.assertIn("어느 역", p2["question"])               # 검정 립밤은 초량역 등록기계 물건 → 역 확인
+        out = self.d.answer(p2["pending_id"], "초량역이요")
         self.assertTrue(out["quiz_passed"])
         self.assertTrue(self.d.wait_idle())
         self.assertTrue(story_of(self.svc, out["story_id"])["result"]["ok"])
 
     def test_pii_rejected_in_place_and_description(self):
         with self.assertRaises(RequestError):
-            self.d.found("서면역 010-1234-5678 에 떨어져 있었어요 검정 지갑")
+            self.d.found("초량역 010-1234-5678 에 떨어져 있었어요 검정 립밤")
         p = self.d.lost("보조배터리 잃어버렸어요")                     # 후보 2개 → 색 질문
         with self.assertRaises(RequestError):
             self.d.answer(p["pending_id"], "010-9999-8888")
@@ -298,17 +298,17 @@ class DirectorTest(unittest.TestCase):
 
     def test_bad_messages(self):
         with self.assertRaises(RequestError):
-            self.d.found("지갑 주웠어요")                       # 역 없음
+            self.d.found("립밤 주웠어요")                       # 역 없음
         with self.assertRaises(RequestError):
-            self.d.found("서면역에서 뭔가 주웠어요")              # 품목 없음
+            self.d.found("초량역에서 뭔가 주웠어요")              # 품목 없음
         with self.assertRaises(RequestError):
             self.d.lost("핸드크림 잃어버렸어요")                # 후보 없음
         with self.assertRaises(RequestError) as cm:
-            self.d.lost("립밤 잃어버렸어요")                    # 11/9 운영하지 않는 품목
+            self.d.lost("카드지갑 잃어버렸어요")                    # 11/9 운영하지 않는 품목
         self.assertIn("운영하지 않는 품목", str(cm.exception))
         with self.assertRaises(RequestError) as cm:
-            self.d.found("서면역 화장실 앞 립밤 주웠어요")        # 가상 세계에 립밤을 새로 만들지 않음
-        self.assertIn("휴대폰·보조배터리·핸드크림·카드지갑", str(cm.exception))
+            self.d.found("초량역 화장실 앞 카드지갑 주웠어요")        # 가상 세계에 카드지갑을 새로 만들지 않음
+        self.assertIn("휴대폰·보조배터리·핸드크림·립밤", str(cm.exception))
         self.assertEqual(self.svc.board.stories, {})            # 실패한 신고는 이야기를 만들지 않음
 
     def test_found_item_lands_in_same_slot_on_answer_sheet(self):
@@ -319,17 +319,17 @@ class DirectorTest(unittest.TestCase):
         lay = self.svc.storage.layout()
         held = {sl["slot_id"]: (sl.get("item") or {}).get("item_id") for sec in lay["sections"] for sl in sec["slots"]}
         self.assertEqual(held[sid], f["item_id"])
-        self.assertEqual(sid, "R4-2")                                      # 11/10 018 카드지갑 열(R4): R4-1 은 시연 카드지갑이 있어 2번 칸
+        self.assertEqual(sid, "R4-2")                                      # 11/10 018 립밤 열(R4): R4-1 은 시연 립밤이 있어 2번 칸
 
     def test_reset_restores_seed_and_keeps_claim_numbers(self):
         self.found()
-        r1 = self.lost("검정 카드지갑 잃어버렸어요 서면역")
+        r1 = self.lost("검정 립밤 잃어버렸어요 초량역")
         self.d.reset()
         self.assertEqual(len(self.svc.world.items), 5)
         lay = self.svc.storage.layout()                                    # 정답지 칸도 시연 물건 5개로 다시
         self.assertEqual(sum(1 for sec in lay["sections"] for sl in sec["slots"] if sl.get("item")), 5)
         self.found()
-        r2 = self.lost("검정 카드지갑 잃어버렸어요 서면역")
+        r2 = self.lost("검정 립밤 잃어버렸어요 초량역")
         self.assertNotEqual(r1["claim_id"], r2["claim_id"])
         self.assertTrue(story_of(self.svc, r2["story_id"])["result"]["ok"])
 
@@ -378,7 +378,7 @@ class FakeClient:
         if path.endswith("/answer"):
             return {"claim_id": "C-20261104-0001", "item_id": "H-1", "quiz_passed": True, "story_id": "T002"}
         if path == "/sim/found":
-            return {"item_id": "S-1", "place_text": "서면역", "machine_id": "KIOSK-C", "features": "f", "story_id": "T001"}
+            return {"item_id": "S-1", "place_text": "초량역", "machine_id": "KIOSK-C", "features": "f", "story_id": "T001"}
         return {"ok": True}
 
     def get(self, path):
@@ -388,14 +388,14 @@ class FakeClient:
 class BotCoreTest(unittest.TestCase):
     def test_classify(self):
         self.assertEqual(bot.classify(FOUND), "found")
-        self.assertEqual(bot.classify("검정 지갑 잃어버렸어요"), "lost")
+        self.assertEqual(bot.classify("검정 립밤 잃어버렸어요"), "lost")
         self.assertEqual(bot.classify("정지"), "stop")
         self.assertEqual(bot.classify("!도움말"), "help")
         self.assertEqual(bot.classify("안녕"), "unknown")
 
     def test_quiz_answer_goes_to_pending(self):
         c = bot.BotCore(FakeClient())
-        reply, story = c.handle("u", "지갑 잃어버렸어요")
+        reply, story = c.handle("u", "립밤 잃어버렸어요")
         self.assertIn("확인 질문", reply)
         self.assertIsNone(story)
         reply, story = c.handle("u", "VOVA")
@@ -406,9 +406,9 @@ class BotCoreTest(unittest.TestCase):
     def test_new_report_drops_old_question(self):
         """11/4 무작위 시험 발견: 답하지 않은 옛 질문이 남아 다음 말이 옛 질문의 답으로 들어가면 안 됨"""
         c = bot.BotCore(FakeClient())
-        c.handle("u", "지갑 잃어버렸어요")
+        c.handle("u", "립밤 잃어버렸어요")
         self.assertIn("u", c.pending)
-        c.handle("u", "서면역 앞에서 검정 지갑 주웠어요")          # 새 신고
+        c.handle("u", "초량역 앞에서 검정 립밤 주웠어요")          # 새 신고
         self.assertNotIn("u", c.pending)
         reply, _ = c.handle("u", "VOVA")
         self.assertIn("모르겠어요", reply)
@@ -471,6 +471,6 @@ class LostWebApiTest(unittest.TestCase):
     def test_lost_page_contract(self):
         html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
         for needle in ("visit: 'kiosk'", "maskName(", "******-${$('#gender').value}******", "/sim/stories/",
-                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261110d" defer></script>', "부산역 본센터"):
+                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261111a" defer></script>', "부산역 본센터"):
             self.assertIn(needle, html)
         self.assertNotIn("저장되거나 역무실로 전송되지 않습니다", html)        # 예전 데모 양식 문구 제거

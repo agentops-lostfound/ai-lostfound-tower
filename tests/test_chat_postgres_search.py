@@ -20,12 +20,12 @@ class ChatPostgresSearchTests(unittest.TestCase):
         cls.agent = SearchAgent(cls.db, authorize=lambda token: token == 'synthetic-verified-session')
         now = datetime.now(timezone.utc)
         loss = now.astimezone(KST).date() - timedelta(days=2)
-        cls.context = {'lost_date': loss.isoformat(), 'lost_line': '2호선', 'lost_station': '해운대역'}
+        cls.context = {'lost_date': loss.isoformat(), 'lost_line': '1호선', 'lost_station': '중앙역'}
         with psycopg.connect(DSN) as db:
             db.execute('CREATE TABLE machine (machine_id text PRIMARY KEY, line text, station text)')
             db.execute('CREATE TABLE item (item_id text PRIMARY KEY, category text, features jsonb, status text, '
                        'machine_id text REFERENCES machine, received_at timestamptz, private_features jsonb)')
-            db.execute("INSERT INTO machine VALUES ('test-A','2호선','해운대'), ('test-B','2호선','서면'), ('test-C','1호선','부산')")
+            db.execute("INSERT INTO machine VALUES ('test-A','1호선','중앙'), ('test-B','1호선','초량'), ('test-C','1호선','부산')")
             rows = [('A-W01','본센터 보관','test-A',now-timedelta(hours=1)),
                     ('A-W02','인계 완료','test-A',now-timedelta(hours=1)),
                     ('A-W03','본센터 보관','test-A',now-timedelta(days=5)),
@@ -69,7 +69,7 @@ class ChatPostgresSearchTests(unittest.TestCase):
             db.rollback()
 
     def test_color_omission_and_parameterized_station_input_remain_read_only(self):
-        context={**self.context,'lost_station':'해운대'}
+        context={**self.context,'lost_station':'중앙'}
         self.assertEqual(len(self.db.search('지갑',None,context)),1)
         result=self.db.search('지갑','검정',{**context,'lost_station':"missing' OR 1=1 --"})
         self.assertEqual({row['item_id'] for row in result},{'A-W01','A-W04'})

@@ -170,7 +170,7 @@ def visit_gate(c: Ctx) -> bool:
         return c.finish(DECISION_REJECTED, "안쪽 특징 불일치 — 반환하지 않음", alert=True)
     if not req.staff_confirmed:
         return c.finish(DECISION_STAFF, "직원 최종 확인 대기")
-    c.step("직원 확인 완료")
+    c.step("본인 확인 완료")    # 11/11 무인 인계: 키오스크 본인 확인도 같은 단계(예전 이름 "직원 확인 완료"는 live.STEP_STAGE 에 남김)
     return False
 
 

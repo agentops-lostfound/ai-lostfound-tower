@@ -25,7 +25,7 @@ GOOD = [("신분증 꼭 가져가야 해?", "분실물을 찾기 위해 신분�
         ("설명 칸에 전화번호 적어도 돼요?", "설명 칸에는 개인정보를 적지 마세요."),
         ("오늘 맡긴 거 바로 받을 수 있나요?", "맡긴 물건은 1시간마다 본센터로 옮겨집니다. 본센터 도착 전에는 바로 받을 수 없습니다."),
         ("습득자 연락처 언제 지워요?", "습득자 연락처는 물건 인계 완료 후 30일이 지나면 삭제됩니다."),
-        ("키오스크 어디 있어요?", "해운대역과 서면역에 키오스크가 있어요. 부산역에 본센터가 있어요."),
+        ("키오스크 어디 있어요?", "중앙역과 초량역에 키오스크가 있어요. 부산역에 본센터가 있어요."),
         ("지갑 주웠는데 어디에 맡겨요?", "가까운 역의 키오스크에서 습득물을 신고할 수 있어요."),
         ("물건을 잃어버렸는데 어떻게 해야 돼요?", "분실물 확인은 모든 역 키오스크, 분실인 웹, 이 챗봇에서 할 수 있어요."),
         ("휴대폰은 상자에 어떻게 넣어요?", "휴대폰은 케이스 뒷면이 위로 가게 놓아야 해요."),
@@ -61,18 +61,18 @@ class AnswerGapTest(unittest.TestCase):
         self.assertEqual(answer_gap("어디서 받아요?", "신분 확인 후 받으실 수 있어요."), "where")
 
     def test_retry_fixes_answer(self):
-        """11/7 실측: 지갑을 물었는데 휴대폰 이야기 → 고칠 점을 받고 지갑 근거로 다시 씀"""
+        """11/7 실측: 지갑을 물었는데 휴대폰 이야기 → 고칠 점을 받고 지갑 근거로 다시 씀(11/11 운영 품목이 립밤으로 바뀌어 립밤으로)"""
         log = []
-        q = "지갑은 어느 쪽이 위로 가게 놓나요?"
+        q = "립밤은 어느 쪽이 위로 가게 놓나요?"
         req = model(say("휴대폰은 케이스(뒷면)가 위로", "휴대폰은 케이스 뒷면이 위로 가게 놓아야 해요."),
-                    say("지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요", "지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요.", answerable=True), log=log)
+                    say("립밤은 글자가 보이게 눕혀 두면 돼요", "립밤은 글자가 보이게 눕혀 두면 돼요.", answerable=True), log=log)
         r = GroundedRag(Guidance(), "m", request=req).ask(q)
         self.assertEqual(r["generation_status"], "generated")
-        self.assertIn("지갑은", r["answer"])
+        self.assertIn("립밤은", r["answer"])
         self.assertNotIn(GAP_LEAD, r["answer"])
         self.assertTrue(r["generation_note"].startswith("retry:subject"), r)
         self.assertNotIn("feedback", log[0])
-        self.assertIn("지갑", log[1]["feedback"]["problem"])             # 모델에게 무엇이 빠졌는지 알려 줌
+        self.assertIn("립밤", log[1]["feedback"]["problem"])             # 모델에게 무엇이 빠졌는지 알려 줌
         self.assertIn("휴대폰", log[1]["feedback"]["previous_answer"])
 
     def test_retry_cannot_invent_policy(self):

@@ -73,7 +73,7 @@ class DemoCollections:
             legacy = db.execute("SELECT 1 FROM demo_item WHERE item_id='C-W01' AND machine_id='KIOSK-C'").fetchone()
             if legacy and canonical != 'C-W01':
                 if db.execute('SELECT 1 FROM demo_item WHERE item_id=?', (canonical,)).fetchone():
-                    raise CollectionError('서면 시연 물건 번호가 중복되었습니다. 기록 확인이 필요합니다')
+                    raise CollectionError('초량 시연 물건 번호가 중복되었습니다. 기록 확인이 필요합니다')
                 for table in ('demo_item', 'demo_member', 'demo_alert', 'demo_event'):
                     db.execute('UPDATE '+table+' SET item_id=? WHERE item_id=?', (canonical, 'C-W01'))
                 db.execute('UPDATE demo_metadata SET revision=? WHERE version=1', (secrets.token_hex(16),))
@@ -97,7 +97,7 @@ class DemoCollections:
     def _seed_places(db):
         db.executemany('INSERT INTO demo_place(line,station,label) VALUES(?,?,?)',
                        [(line, station, f'가상 장소 {i:02d}') for line, station in
-                        [('2호선', '해운대'), ('1호선', '서면')] for i in range(1, 7)])
+                        [('1호선', '중앙'), ('1호선', '초량')] for i in range(1, 7)])
 
     @staticmethod
     def _seed(db):

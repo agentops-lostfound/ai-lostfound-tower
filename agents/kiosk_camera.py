@@ -19,6 +19,19 @@
   · 읽은 사진의 오른쪽·아래 까만 띠(값이 정확히 0)를 잘라 실제 영상만 쓴다(valid_size)
   · 내보내는 크기를 늘 960×720(4:3)으로 맞춘다(fit) — 중간에 크기가 바뀌면 브라우저 영상이 깨지고, 물건 감지 기준 화면도 흔들림
   · 압축 형식(MJPG)을 크기보다 먼저 정한다. DirectShow 가 방금 닫은 카메라를 못 열면 0.4초 뒤 한 번 더 연다
+- 11/11 키오스크 검은 화면(계속 반복되던 문제) 완전 개선:
+  · 화면은 끝나지 않는 MJPEG 대신 사진 한 장씩(GET .jpg?after=번호)을 받아 그린다 — 브라우저는 한 주소에 연결을 6개까지만 열어,
+    발표 화면(틀 3개)·다른 탭이 MJPEG 를 붙잡고 있으면 새 영상 연결이 줄을 서다 까맣게 남았다. 이제 화면 하나 = 짧은 요청 하나씩
+  · 사진마다 번호(X-Frame-Seq)·나이(X-Frame-Age-Ms)·어두움(X-Frame-Dark)을 붙여, 화면이 '멈춤'과 '까맘'을 구별해 다시 연결한다
+  · 카메라 읽기가 멈추면(STALL_S 동안 새 사진 없음) 다른 쪽에서 카메라를 놓아 읽기를 풀고 다시 연다(Windows DirectShow 가 read 에서 멈춤)
+- 11/11 노출 고정(TOWER_KIOSK_EXPOSURE): 회색 펠트를 깔자 카메라 자동 노출이 화면을 밝게 올려 연한 색(분홍·하늘색 핸드크림)과
+  흰 물건이 하얗게 날아감(물건 픽셀의 40~87% 가 최댓값). 노출을 고정하면 바닥·조명이 바뀌어도 물건 밝기가 그대로다.
+    TOWER_KIOSK_EXPOSURE=-6                       # 모든 키오스크 카메라(DirectShow 값: 2의 거듭제곱 초, -6 ≈ 1/64초, 작을수록 어두움)
+    TOWER_KIOSK_EXPOSURE=KIOSK-A=-6,KIOSK-C=auto  # 기계별. 비우면 지금처럼 카메라가 정함(아무것도 건드리지 않음)
+  값 고르기: 관제탑을 끄고 python tools/camera_exposure.py (값마다 사진·날아간 비율을 비교해 추천)
+- 11/11 화이트밸런스 고정(TOWER_KIOSK_WB): 자동 화이트밸런스는 화면에 큰 색 물건이 들어오면 그 색을 빼 버려(분홍 크림 → 덜 분홍)
+  물건마다 색 기준이 달라진다. 켈빈(빛의 색온도, 2800~6500) 값으로 고정한다. 형식은 노출과 같음(전체·기계별·auto, 비우면 건드리지 않음).
+  값 고르기: python tools/camera_exposure.py --exposure -6 --wb auto,4000,4600,5200,6000 (회색 펠트가 가장 회색으로 찍히는 값을 추천)
 """
 from __future__ import annotations
 
@@ -32,6 +45,7 @@ RETRY_S = 5.0          # 열기 실패 뒤 다시 열기까지 기다리는 시�
 DARK_LEVEL = 16        # 이 밝기(0~255) 아래면 새까만 영상으로 봄
 DARK_FRAMES = 30       # 이만큼 계속 새까마면 카메라를 다시 연다(MJPG 를 빼고/넣고 번갈아)
 DARK_RETRY_MAX_S = 10.0   # 다시 열기 사이 간격의 최댓값(2초부터 늘어남)
+STALL_S = 4.0             # 11/11 보는 사람이 있는데 이만큼 새 사진이 없으면 카메라 읽기가 멈춘 것으로 보고 놓았다가 다시 연다
 FPS = 10
 WIDTH, HEIGHT = 1280, 720          # 웹캠에 요청하는 크기
 OUT_W, OUT_H = 960, 720            # 화면으로 내보내는 크기(늘 같음, 4:3 — 16:9 영상은 가운데를 자른다)
@@ -53,11 +67,96 @@ def parse_config(text: str | None) -> dict:
     return out
 
 
+EXPOSURE_MIN, EXPOSURE_MAX = -13, 0     # DirectShow 노출 값 범위(대부분의 USB 웹캠, 추정 — 카메라마다 받아들이는 범위가 다를 수 있음)
+AUTO_ON, AUTO_OFF = 0.75, 0.25          # OpenCV DirectShow 에서 CAP_PROP_AUTO_EXPOSURE 의 자동/수동 값
+WB_MIN, WB_MAX = 2800, 6500             # 화이트밸런스 켈빈 범위(대부분의 USB 웹캠, 추정)
+
+
+def parse_exposure(text: str | None, lo: float = EXPOSURE_MIN, hi: float = EXPOSURE_MAX) -> dict:
+    """노출(또는 화이트밸런스) 설정 읽기. '-6' → {'*': -6.0}, 'KIOSK-A=-6,KIOSK-C=auto' → {'KIOSK-A': -6.0, 'KIOSK-C': 'auto'}.
+    범위(lo~hi) 밖·숫자 아닌 값은 버린다(잘못 쓴 값이 카메라를 새까맣게 만들지 않게)"""
+    def value(s: str):
+        s = s.strip().lower()
+        if s == "auto":
+            return "auto"
+        try:
+            v = float(s)
+        except ValueError:
+            return None
+        return v if lo <= v <= hi else None
+    out: dict = {}
+    for part in (text or "").split(","):
+        if not part.strip():
+            continue
+        if "=" in part:
+            name, s = (x.strip() for x in part.split("=", 1))
+            if not name or len(name) > 20 or not all(c.isalnum() or c in "-_" for c in name):
+                continue
+        else:
+            name, s = "*", part
+        v = value(s)
+        if v is not None:
+            out[name] = v
+    return out
+
+
+def exposure_for(config: dict, machine: str):
+    """기계 하나의 노출 값(None = 건드리지 않음)"""
+    return config.get(machine, config.get("*"))
+
+
+def apply_exposure(cap, value) -> dict | None:
+    """열린 카메라에 노출을 정한다. None = 아무것도 안 함, 'auto' = 자동으로 되돌림, 숫자 = 자동을 끄고 그 값으로 고정.
+    → {'requested': 값, 'auto': 읽은 자동 값, 'now': 읽은 노출 값} (카메라가 값을 안 받아들이면 now 가 다르게 나옴)"""
+    if value is None:
+        return None
+    import cv2
+    try:
+        if value == "auto":
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, AUTO_ON)
+        else:
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, AUTO_OFF)
+            cap.set(cv2.CAP_PROP_EXPOSURE, float(value))
+        get = getattr(cap, "get", None)
+        auto = get(cv2.CAP_PROP_AUTO_EXPOSURE) if get else None
+        now = get(cv2.CAP_PROP_EXPOSURE) if get else None
+        return {"requested": value, "auto": auto, "now": now}
+    except Exception as e:                                # 노출을 못 바꿔도 영상은 계속 보낸다
+        return {"requested": value, "error": type(e).__name__}
+
+
+def parse_wb(text: str | None) -> dict:
+    """화이트밸런스 설정 읽기('5000', 'KIOSK-A=4600,KIOSK-C=auto')"""
+    return parse_exposure(text, WB_MIN, WB_MAX)
+
+
+def apply_wb(cap, value) -> dict | None:
+    """화이트밸런스를 정한다. None = 안 함, 'auto' = 자동으로 되돌림, 숫자(켈빈) = 자동을 끄고 고정.
+    OpenCV 가 카메라 종류에 따라 온도(WB_TEMPERATURE) 또는 파랑 축(WHITE_BALANCE_BLUE_U)으로 받으므로 둘 다 넣는다"""
+    if value is None:
+        return None
+    import cv2
+    try:
+        if value == "auto":
+            cap.set(cv2.CAP_PROP_AUTO_WB, 1)
+        else:
+            cap.set(cv2.CAP_PROP_AUTO_WB, 0)
+            cap.set(cv2.CAP_PROP_WB_TEMPERATURE, float(value))
+            cap.set(cv2.CAP_PROP_WHITE_BALANCE_BLUE_U, float(value))
+        get = getattr(cap, "get", None)
+        auto = get(cv2.CAP_PROP_AUTO_WB) if get else None
+        now = get(cv2.CAP_PROP_WB_TEMPERATURE) if get else None
+        return {"requested": value, "auto": auto, "now": now}
+    except Exception as e:
+        return {"requested": value, "error": type(e).__name__}
+
+
 class FakeSource:
     """웹캠 없이 시험용 무늬(회색 바닥 + 격자 + 시각에 따라 바뀌는 작은 숫자 칸)"""
 
     def __init__(self, *_):
         self.n = 0
+        self.props: dict = {}
 
     def isOpened(self) -> bool:
         return True
@@ -71,8 +170,12 @@ class FakeSource:
         img[10:20, 10:10 + (self.n % 50)] = 90        # 살짝 바뀌는 칸(영상이 흐르는지 확인용, 물건 감지 기준보다 작음)
         return True, img
 
-    def set(self, *_):
+    def set(self, prop=None, value=None, *_):
+        self.props[prop] = value
         return True
+
+    def get(self, prop):
+        return self.props.get(prop, 0.0)
 
     def release(self):
         pass
@@ -170,8 +273,12 @@ def stop_all(timeout: float = 1.5) -> bool:
 class CameraFeed:
     """카메라 하나를 뒤에서 읽어 최신 JPEG 하나를 들고 있는다. 보는 사람이 없으면 닫는다"""
 
-    def __init__(self, src, opener=_open, clock=time.monotonic):
+    def __init__(self, src, opener=_open, clock=time.monotonic, exposure=None, wb=None):
         self.src, self._opener, self._clock = src, opener, clock
+        self.exposure = exposure      # 11/11 노출 고정 값(None = 카메라가 정함)
+        self.wb = wb                  # 11/11 화이트밸런스 고정 값(켈빈, None = 카메라가 정함)
+        self.exposure_state: dict | None = None   # 마지막으로 정한 결과(상태 화면용)
+        self.wb_state: dict | None = None
         self._lock = threading.Lock()
         self._jpeg: bytes | None = None
         self._seen = 0.0
@@ -182,6 +289,15 @@ class CameraFeed:
         self.dark = False
         self.cropped = False          # 11/10 읽은 사진에 까만 띠가 있어 실제 영상만 잘라 보내는 중(카메라가 낮은 화질로 열림)
         self.source_size = None       # 웹캠이 준 사진 크기(너비, 높이)
+        self.seq = 0                  # 11/11 새 사진 번호(화면이 같은 사진을 다시 받지 않게·멈춤 감지)
+        self._at = None               # 마지막 새 사진 시각
+        self._cap = None              # 지금 읽는 카메라(멈춤을 풀려고 다른 쪽에서 놓을 수 있게)
+        self.stalls = 0               # 멈춤을 풀어 다시 연 횟수(상태 화면용)
+
+    def _settings(self, cap) -> None:
+        """카메라를 열거나 다시 열 때마다 노출·화이트밸런스를 다시 정한다(다시 열면 풀릴 수 있음)"""
+        self.exposure_state = apply_exposure(cap, self.exposure)
+        self.wb_state = apply_wb(cap, self.wb)
 
     def touch(self) -> None:
         """누군가 보고 있음 → 없으면 읽기 시작"""
@@ -189,6 +305,16 @@ class CameraFeed:
             self._seen = self._clock()
             if self._stop:
                 return                                    # 끄는 중 — 다시 열지 않는다
+            alive = self._thread is not None and self._thread.is_alive()
+            if alive and self._at is not None and self._clock() - self._at > STALL_S and self._cap is not None:
+                # 11/11 읽기가 멈춤 — 카메라를 놓으면 read() 가 풀려 읽기가 끝나고, 다음 touch 에서 새로 연다
+                cap, self._cap, self._at = self._cap, None, None
+                self.stalls += 1
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+                return
             if self._thread is None or not self._thread.is_alive():
                 if self.error and self._failed_at is not None and self._clock() - self._failed_at < RETRY_S:
                     return                                # 방금 실패 — 잠깐 쉬었다가 다시 연다
@@ -210,6 +336,12 @@ class CameraFeed:
         with self._lock:
             return self._jpeg
 
+    def frame(self) -> tuple[bytes | None, int, float | None]:
+        """(최신 JPEG, 번호, 나이 초) — 나이는 마지막 새 사진 뒤 지난 시간(없으면 None)"""
+        with self._lock:
+            age = None if self._at is None else max(0.0, self._clock() - self._at)
+            return self._jpeg, self.seq, age
+
     def _fail(self, msg: str) -> None:
         self.error = msg
         self._failed_at = self._clock()
@@ -219,12 +351,17 @@ class CameraFeed:
         cap = None
         try:
             cap = self._opener(self.src)
+            with self._lock:
+                self._cap, self._at = cap, self._clock()
             if not cap.isOpened():
                 self._fail("카메라를 열 수 없음(번호·USB 연결·다른 프로그램 사용 중 확인 — python tools/list_cameras.py)")
                 return
+            self._settings(cap)
             fails, dark_run, reopens, next_reopen = 0, 0, 0, 0.0
             while not self._stop and self._clock() - self._seen < IDLE_CLOSE_S:
                 ok, frame = cap.read()
+                if self._cap is not cap:                  # 11/11 멈춤으로 다른 쪽이 카메라를 놓음 → 이 읽기를 끝내고 새로 연다
+                    return
                 if not ok or frame is None:
                     fails += 1
                     if fails > 20:
@@ -242,9 +379,12 @@ class CameraFeed:
                         cap.release()
                         time.sleep(min(1.0, 0.3 * reopens))        # 방금 놓은 카메라가 풀릴 시간
                         cap = _open(self.src, mjpg=(reopens % 2 == 0)) if self._opener is _open else self._opener(self.src)
+                        with self._lock:
+                            self._cap = cap
                         if not cap.isOpened():
                             self._fail("카메라를 다시 열 수 없음(다른 프로그램이 쓰는 중인지 확인)")
                             return
+                        self._settings(cap)                   # 다시 열면 카메라 설정이 풀릴 수 있음
                         dark_run = 0
                         next_reopen = self._clock() + min(DARK_RETRY_MAX_S, 2.0 * reopens)
                         continue
@@ -257,6 +397,8 @@ class CameraFeed:
                 if ok:
                     with self._lock:
                         self._jpeg = buf.tobytes()
+                        self.seq += 1
+                        self._at = self._clock()
                 time.sleep(1.0 / FPS)
         except Exception as e:                        # 오류 문구만 남김(경로·내부 정보는 화면에 안 나감)
             self._fail(f"카메라 오류({type(e).__name__})")
@@ -268,12 +410,17 @@ class CameraFeed:
                     pass
             with self._lock:
                 self._jpeg = None
+                if self._cap is cap:
+                    self._cap = None
 
 
 class KioskCameras:
-    def __init__(self, config: dict | None = None, opener=_open):
+    def __init__(self, config: dict | None = None, opener=_open, exposure: dict | None = None, wb: dict | None = None):
         self.config = parse_config(os.environ.get("TOWER_KIOSK_CAMERAS")) if config is None else config
-        self._feeds = {name: CameraFeed(src, opener) for name, src in self.config.items()}
+        self.exposure = parse_exposure(os.environ.get("TOWER_KIOSK_EXPOSURE")) if exposure is None else exposure
+        self.wb = parse_wb(os.environ.get("TOWER_KIOSK_WB")) if wb is None else wb
+        self._feeds = {name: CameraFeed(src, opener, exposure=exposure_for(self.exposure, name), wb=exposure_for(self.wb, name))
+                       for name, src in self.config.items()}
         _ALL.add(self)
 
     def stop(self, timeout: float = 1.5) -> bool:
@@ -287,7 +434,10 @@ class KioskCameras:
                        **({"error": f.error} if f.error else {}),
                        **({"warning": "영상이 새까맘(렌즈 가림·조명·다른 카메라 번호 확인)"} if f.dark else
                           {"warning": "웹캠이 낮은 화질로 열림 — 실제 영상만 잘라 보내는 중(다른 프로그램이 웹캠을 쓰는지 확인)"} if f.cropped else {}),
-                       **({"size": [OUT_W, OUT_H]} if f.latest() is not None else {})} for name, f in self._feeds.items()}
+                       **({"size": [OUT_W, OUT_H]} if f.latest() is not None else {}),
+                       **({"stalls": f.stalls} if f.stalls else {}),
+                       **({"exposure": f.exposure_state} if f.exposure_state else {}),
+                       **({"white_balance": f.wb_state} if f.wb_state else {})} for name, f in self._feeds.items()}
 
 
 def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
@@ -324,9 +474,23 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
         return {"machines": cams.status()}
 
     @app.get("/api/kiosk/camera/{machine}.jpg")
-    async def camera_jpg(machine: str):
-        jpg = await first_frame(get(machine))
-        return Response(jpg, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+    async def camera_jpg(machine: str, after: int = -1):
+        """사진 한 장. 11/11 화면은 이것을 이어 부른다: after=받은 번호 → 그보다 새 사진이 올 때까지 최대 1.5초 기다림.
+        머리말 X-Frame-Seq(번호)·X-Frame-Age-Ms(마지막 새 사진 뒤 시간)·X-Frame-Dark(1 = 새까만 영상)"""
+        f = get(machine)
+        await first_frame(f)
+        t0 = time.monotonic()
+        jpg, seq, age = f.frame()
+        while after >= 0 and seq <= after and time.monotonic() - t0 < 1.5:
+            f.touch()
+            await asyncio.sleep(0.03)
+            jpg, seq, age = f.frame()
+        f.touch()
+        if jpg is None:
+            raise HTTPException(status_code=503, detail=f.error or "카메라 영상이 끊김 — 다시 여는 중")
+        return Response(jpg, media_type="image/jpeg", headers={
+            "Cache-Control": "no-store", "X-Frame-Seq": str(seq), "X-Frame-Age-Ms": str(int((age or 0) * 1000)),
+            "X-Frame-Dark": "1" if f.dark else "0"})
 
     @app.get("/api/kiosk/camera/{machine}.mjpg")
     async def camera_mjpg(machine: str, frames: int = 0):
@@ -352,4 +516,6 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
     return cams
 
 
-__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "add_camera_routes", "is_dark", "valid_size", "fit"]
+__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "parse_exposure", "exposure_for", "apply_exposure",
+           "parse_wb", "apply_wb",
+           "add_camera_routes", "is_dark", "valid_size", "fit"]

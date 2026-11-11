@@ -9,7 +9,7 @@
  * - 화면 키보드가 붙은 칸은 readonly 로 둔다 → 태블릿 자체 키보드·윈도우 한글 입력기가 끼어들지 않음
  *
  * 쓰는 법
- *   <script src="/ui/vkeyboard.js"></script>
+ *   <script src="/ui/vkeyboard.js?v=20261111b"></script>
  *   VK.attach(document, {skin: "kiosk"})                    // 키오스크: 이 화면의 입력칸 전부
  *   VK.attach(iframe.contentDocument, {skin: "phone", mount: 틀안의_자리})   // 발표용 폰 화면(/phone)
  */
@@ -92,18 +92,18 @@
 .vk .vk-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;padding:0 4px;font-size:15px;color:var(--vk-sub)}
 .vk .vk-bar b{color:var(--vk-fg)}
 .vk-kiosk{--vk-h:62px;--vk-r:12px;--vk-gap:8px;--vk-fs:24px;--vk-key:var(--ui-surface,#fff);--vk-fn:var(--ui-fill-hover,#e8ebed);
-  --vk-fg:var(--ui-text,#191f28);--vk-sub:var(--ui-text-3,#6b7684);--vk-accent:var(--ui-primary,#3182f6);--vk-down:var(--ui-primary-soft,#e8f3ff);
+  --vk-fg:var(--ui-text,#191f28);--vk-sub:var(--ui-text-3,#6b7684);--vk-accent:var(--ui-primary,#f06a00);--vk-down:var(--ui-primary-soft,#fff1e5);
   --vk-shadow:rgba(0,0,0,.18);--vk-touch:rgba(49,130,246,.35);background:var(--ui-fill,#f2f4f6);border-top:1px solid var(--ui-line,#e5e8eb);
   padding:12px max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));
   box-shadow:0 -6px 24px rgba(0,0,0,.18)}
 .vk-kiosk .vk-rows{max-width:1100px;margin:0 auto}
 .vk-kiosk.vk-pad .vk-rows{max-width:520px}
 .vk-phone{position:absolute;--vk-h:42px;--vk-r:6px;--vk-gap:6px;--vk-fs:19px;--vk-key:#fff;--vk-fn:#abb0ba;--vk-fg:#000;--vk-sub:#5b6270;
-  --vk-accent:#3182f6;--vk-down:#d0d4db;--vk-shadow:rgba(0,0,0,.35);--vk-touch:rgba(0,0,0,.18);background:#d1d4db;padding:8px 4px 26px}
+  --vk-accent:#f06a00;--vk-down:#d0d4db;--vk-shadow:rgba(0,0,0,.35);--vk-touch:rgba(0,0,0,.18);background:#d1d4db;padding:8px 4px 26px}
 .vk-phone .vk-row.vk-r2{padding:0 5%}
 .vk-phone.vk-pad{--vk-h:48px}
 @media (prefers-color-scheme:dark){.vk-phone{--vk-key:#6b6b6f;--vk-fn:#464649;--vk-fg:#fff;--vk-sub:#c7c7cc;--vk-down:#8a8a8f;background:#2b2b2e}}
-.vk-target-on{outline:3px solid var(--ui-primary,#3182f6)!important;outline-offset:1px}
+.vk-target-on{outline:3px solid var(--ui-primary,#f06a00)!important;outline-offset:1px}
 `;
 
   // ── 키보드 하나(문서 하나에 붙음) ─────────────────────────
@@ -114,7 +114,7 @@
       const st = host.createElement("style"); st.id = "vk-style"; st.textContent = CSS; host.head.appendChild(st);
     }
     if (doc !== host && !doc.getElementById("vk-style")) {            // 폰 화면: iframe 안 입력칸 테두리용
-      const st = doc.createElement("style"); st.id = "vk-style"; st.textContent = ".vk-target-on{outline:3px solid #3182f6!important;outline-offset:1px}"; doc.head.appendChild(st);
+      const st = doc.createElement("style"); st.id = "vk-style"; st.textContent = ".vk-target-on{outline:3px solid #f06a00!important;outline-offset:1px}"; doc.head.appendChild(st);
     }
     const kb = host.createElement("div");
     kb.className = "vk vk-" + opt.skin;
@@ -251,7 +251,19 @@
         setTimeout(() => keepVisible(el), 50);
       } else {                                                      // 폰 화면: iframe 안 페이지 아래를 키보드만큼 띄움
         doc.body.style.paddingBottom = kb.offsetHeight + "px";
-        setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+        // 11/11 키오스크 분실 접수 탭(틀이 키보드 밑까지 이어짐): 틀 가운데로 올리면 칸이 키보드 밑에 남았다 →
+        // 틀에서 키보드에 가리지 않는 부분의 가운데로 칸을 올린다(폰 화면도 같은 계산)
+        setTimeout(() => {
+          const win = doc.defaultView, fe = win && win.frameElement;
+          if (!fe) { el.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+          // 키보드는 올라오는 중(움직임)일 수 있어 지금 위치 대신 다 올라온 위치(자리 아래 끝 - 키보드 높이)로 계산
+          const fr = fe.getBoundingClientRect();
+          const bottom = opt.mount && opt.mount !== host.body ? opt.mount.getBoundingClientRect().bottom : host.defaultView.innerHeight;
+          const kbTop = bottom - kb.offsetHeight;
+          const visible = Math.max(80, (kbTop > fr.top ? Math.min(fr.bottom, kbTop) : fr.bottom) - fr.top);
+          const r = el.getBoundingClientRect();
+          win.scrollBy({ top: r.top + r.height / 2 - visible / 2, behavior: "smooth" });
+        }, 50);
       }
     }
     // 11/10 사람 조작 시뮬레이션: 본센터 키오스크에서 번호를 넣고 [물건 꺼내기]를 누르면 키보드가 단추를 덮고 있어
@@ -289,6 +301,22 @@
     doc.addEventListener("focusin", (e) => { const el = target(e); if (usable(el)) show(el); }, true);
     doc.addEventListener("pointerdown", (e) => {                    // 다른 곳을 누르면 닫기
       const el = target(e); if (st.el && !usable(el) && !kb.contains(el)) hide();
+    }, true);
+
+    // 11/11 Ctrl+V 붙여넣기: 화면 키보드 칸은 readonly 라 브라우저가 붙여넣기를 막는다(Ctrl+C 는 됨) →
+    // paste 사건에서 글자를 꺼내 칸 종류에 맞게 걸러 직접 넣는다. 찾기 번호처럼 복사해 온 값을 키오스크·폰 칸에 넣을 때
+    doc.addEventListener("paste", (e) => {
+      const el = target(e);
+      if (!st.el || (el !== st.el && !st.el.contains(el))) return;
+      let text = ((e.clipboardData || window.clipboardData) && (e.clipboardData || window.clipboardData).getData("text")) || "";
+      text = text.replace(/[\r\n\t]+/g, " ").trim();
+      if (st.kind === "num") text = text.replace(/[^0-9-]/g, "");
+      else if (st.kind === "id") text = text.replace(/[^0-9*-]/g, "");
+      e.preventDefault();
+      if (!text) return;
+      const el2 = st.el, max = el2.maxLength > 0 ? el2.maxLength : 0;
+      const room = max ? Math.max(0, max - el2.value.length) : text.length;
+      st.comp = false; setValue(el2.value + text.slice(0, room));
     }, true);
 
     // PC 키보드 → 같은 화면 키를 눌러 보이며 입력

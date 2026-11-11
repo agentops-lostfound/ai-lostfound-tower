@@ -261,8 +261,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             out = svc.set_item_features(item_id, payload)
             if vision is not None:          # 11/10 Qwen 이 읽은 값과 저장한 값을 화면에 나란히(비공개 값은 상태만)
                 try:
+                    from agents.color_measure import apply_to_features, view
                     from agents.vision_adapter import to_features
-                    vision.result(item_id, payload.get("qwen"), to_features(payload.get("qwen"), payload.get("confidence", 0.9)))
+                    base = to_features(payload.get("qwen"), payload.get("confidence", 0.9))
+                    cm = payload.get("color_measure")      # 11/11 색 측정: Qwen 색 → 측정 색 → 쓴 색을 화면에
+                    vision.result(item_id, payload.get("qwen"), apply_to_features(base, cm), measure=view(cm, base.get("color")))
                 except Exception:
                     pass
             d = getattr(svc, "sim", None)   # 11/7 가상 시연: Qwen 원본을 기억(가상 탑뷰가 같은 물건을 다시 찍을 때) + 기다리던 이야기 진행
@@ -500,6 +503,33 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         가상 세계와 팀 DB(함께 저장 중이면) 모두에서 지운다. 사진 파일은 남는다"""
         return _item_action(item_id, "cancel_item")
 
+    @app.post("/api/admin/items/purge-all", dependencies=admin)
+    def items_purge_all() -> dict:
+        """11/11 [전체 삭제](로봇 작업대, 두 번 눌러 실행): 가상 세계 물건 기록을 모두 지운다(멈춘 반환 포함). 반환 진행 중이면 409"""
+        d = getattr(svc, "sim", None)
+        if d is None or not callable(getattr(d, "purge_all", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        out = d.purge_all()
+        if not out.get("ok"):
+            raise HTTPException(status_code=409, detail=out.get("reason") or "할 수 없어요")
+        return out
+
+    @app.post("/api/admin/items/{item_id}/return-cancel", dependencies=admin)
+    def item_return_cancel(item_id: str) -> dict:
+        """11/11 [반환 취소](두 번 눌러 실행): 로봇이 움직이지 않아 '반환 중'에 멈춘 물건을 같은 칸 '본센터 보관'으로. 반환 진행 중이면 409"""
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        d = getattr(svc, "sim", None)
+        if d is None or not callable(getattr(d, "cancel_stuck_return", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        if item_id not in d.world.items:
+            raise HTTPException(status_code=404, detail="없는 물건 번호예요")
+        out = d.cancel_stuck_return(item_id)
+        if not out.get("ok"):
+            raise HTTPException(status_code=409, detail=out.get("reason") or "할 수 없어요")
+        return out
+
     @app.post("/api/admin/items/{item_id}/purge", dependencies=admin)
     def item_purge(item_id: str) -> dict:
         """[기록 삭제](로봇 작업대 화면): 물건 하나에 딸린 기록을 전부 지운다(되돌릴 수 없음) — 물건·상태 기록·연락처·보관 칸·
@@ -512,7 +542,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
         if svc.health().get("busy"):
             raise HTTPException(status_code=409, detail="반환이 진행 중이에요 — 끝난 뒤 다시 눌러 주세요")
-        out = d.purge_item(item_id)
+        out = d.purge_item(item_id, stuck=True)          # 11/11 멈춘 반환('반환 중'인데 관제탑은 쉬는 중)도 지울 수 있게 — 진행 중이면 그대로 409
         if not out.get("ok"):
             raise HTTPException(status_code=404 if out.get("code") == "not_found" else 409, detail=out.get("reason") or "할 수 없어요")
         return {"ok": True, "item_id": item_id, "claims": out.get("claims") or [], "cases": out.get("cases") or [], "slot": out.get("slot")}
@@ -675,15 +705,15 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         from fastapi.responses import HTMLResponse
         # 11/10 화면 정리: 발표에 쓰는 화면만 위에, 시험·개발용 주소는 아래 접힌 칸에(주소는 그대로 열린다)
         links = [("★ 통합 시연 — 키오스크 + DB 실시간 기록 + AI 에이전트 흐름", "/showcase"),
-                 ("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
+                 ("① 중앙역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
                  ("②' 분실인 웹 — 폰 화면 시연(폰 키보드)", "/phone"),
                  ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"),
                  ("④ 관리자 관제 — 로봇·작업대 / 직원 / 보관함 탭", "/admin"), ("⑤ 본센터 직원 화면 — 교차 검증", "/staff")]
         more = [("보관함 칸 관리(관리자 화면의 보관함 탭과 같음)", "/storage"), ("실시간 작업대(관리자 화면의 관제 탭과 같음)", "/live"),
-                ("서면역 키오스크", "/kiosk?machine=KIOSK-C"),
+                ("초량역 키오스크", "/kiosk?machine=KIOSK-C"),
                 # 11/9 연우님 검토: 카메라 없는 PC 에서는 키오스크가 '카메라 점검 중'만 보임 → 가상 카메라 시연(자동 촬영) 주소도 목록에
-                ("시연 · 해운대역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-A&demo=1"),
-                ("시연 · 서면역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-C&demo=1"),
+                ("시연 · 중앙역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-A&demo=1"),
+                ("시연 · 초량역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-C&demo=1"),
                 ("시연 · 부산역 본센터 키오스크(가상 카메라)", "/kiosk?machine=CENTER&demo=1"),
                 ("AI 챗봇 시험 화면", "/chat-widget/demo")]
         from html import escape
@@ -861,12 +891,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     @app.post("/sim/found")
     def sim_found(payload: dict = Body(...)) -> dict:
-        """가상 습득 신고: {"text": "서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"} → 접수 번호·이야기 번호(나머지는 뒤에서 진행)"""
+        """가상 습득 신고: {"text": "초량역 5번 출구 앞에서 빨간 립밤 주웠어요"} → 접수 번호·이야기 번호(나머지는 뒤에서 진행)"""
         return _sim_call(_sim().found, _text(payload))
 
     @app.post("/sim/lost")
     def sim_lost(payload: dict = Body(...)) -> dict:
-        """가상 분실 신고: {"text": "검정 카드지갑 잃어버렸어요, 서면역"} → 찾기 번호 또는 확인 질문(pending_id)
+        """가상 분실 신고: {"text": "빨간 립밤 잃어버렸어요, 초량역"} → 찾기 번호 또는 확인 질문(pending_id)
         11/7 분실인 웹: + {"visit": "kiosk", "name_masked": "변*원", "id_no_masked": "******-3******"} 이면
         방문을 자동으로 하지 않고 본센터 키오스크 회수 탭(찾기 번호 + 같은 신분 번호)을 기다린다"""
         opts = {}
@@ -928,12 +958,14 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         return {**st, "events": [e for e in board.since(after, story_id) if e.get("channel") != "agent"], "seq": board.last_seq}
 
     @app.post("/sim/reset", dependencies=admin)     # 11/8 무작위 시험: 로그인 없이 시연 전체를 지울 수 있었다
-    def sim_reset() -> dict:
-        """가상 세계 초기화(보관함 시연 물건 5개·로봇 원점). 반환 진행 중이면 409. 관리자 잠금이 켜져 있으면 로그인 필요"""
+    def sim_reset(payload: dict | None = Body(None)) -> dict:
+        """가상 세계 초기화(보관함 시연 물건 5개·로봇 원점). 반환 진행 중이면 409. 관리자 잠금이 켜져 있으면 로그인 필요.
+        11/11 실물 연결 모드는 본문 {"force_real": true}(로봇 작업대 [전체 초기화]를 두 번 누름)일 때만 — 로봇 PC 상태는 바뀌지 않음"""
         d = _sim()
         if svc.health()["busy"]:
             raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
-        return _sim_call(d.reset)
+        force = bool(isinstance(payload, dict) and payload.get("force_real") is True)
+        return _sim_call(lambda: d.reset(force_real=force))
 
     @app.get("/returns", dependencies=admin)
     @app.get("/api/admin/returns", dependencies=admin)

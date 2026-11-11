@@ -23,7 +23,8 @@ CATEGORIES = ["지갑", "USB", "립밤", "모형폰", "핸드크림", "보조배
 #   립밤 제외 이유: YOLO 탑뷰 모델이 립밤을 잘 찾지 못함(vision/DETECTION_STATUS.md)
 #   화면 쪽 같은 목록: web/kiosk/index.html CATS · web/lost/index.html 품목 칩 · web/lost-input/index.html 품목 선택
 # 11/9 10:06 사용자 결정: 품목 4종 고정 — 목업폰 · 보조배터리 · 핸드크림 · 카드지갑(USB 도 뺌)
-ACTIVE_CATEGORIES = ["모형폰", "보조배터리", "핸드크림", "지갑"]   # 11/10 순서 = 보관함 열 순서(R1~R4) — 화면·챗봇이 같은 차례로 보여 줌
+# 11/11 사용자 결정: 카드지갑은 포토박스 탑뷰가 잘 못 알아봐서 빼고 립밤을 다시 넣음 → 목업폰 · 보조배터리 · 핸드크림 · 립밤
+ACTIVE_CATEGORIES = ["모형폰", "보조배터리", "핸드크림", "립밤"]   # 11/10 순서 = 보관함 열 순서(R1~R4) — 화면·챗봇이 같은 차례로 보여 줌
 MVP_CATEGORIES = ACTIVE_CATEGORIES                  # 예전 이름(11/5 셀프서비스 MVP). 운영 품목과 같다
 RETIRED_CATEGORIES = [c for c in CATEGORIES if c not in ACTIVE_CATEGORIES and c != "없음"]   # 계약에는 있지만 운영하지 않는 품목
 FEATURE_FIELDS = ["color", "shape", "mark", "visible_text", "material"]
@@ -43,9 +44,9 @@ ITEM_ID_PATTERN = r"^[A-Z]-([0-9]{8}-[0-9]{4}|W[0-9]{2})$"
 CLAIM_ID_PATTERN = r"^C-[0-9]{8}-[0-9]{4}$"
 ITEM_ID_RE = re.compile(ITEM_ID_PATTERN)
 CLAIM_ID_RE = re.compile(CLAIM_ID_PATTERN)
-# 11/4: 가상 시연용 서면역 등록기계 KIOSK-C 추가(디스코드 "서면역 ○번 출구에서 주웠어요" 시연, docs/design/virtual_demo.md)
+# 11/4: 가상 시연용 초량역 등록기계 KIOSK-C 추가(디스코드 "초량역 ○번 출구에서 주웠어요" 시연, docs/design/virtual_demo.md)
 #   앞글자는 C 가 아니라 S(Seomyeon): C 로 하면 접수 번호 C-20261104-0001 이 찾기 번호(C-날짜-순번)와 똑같아진다
-MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-C": "S", "CENTER": "H"}   # 해운대 A · 서면 S · 본센터(부산역) 직접 접수 H (11/6 중앙역 삭제)
+MACHINE_LETTERS = {"KIOSK-A": "A", "KIOSK-C": "S", "CENTER": "H"}   # 11/11 중앙역 A · 초량역 S(앞글자는 11/4 서면역 때 정한 그대로 — 번호 체계 유지) · 본센터(부산역) 직접 접수 H (11/6 옛 KIOSK-B 중앙역은 삭제, 11/11 KIOSK-A 를 중앙역으로)
 
 # 습득자 연락처(finder_contact) 보관: 인계 완료 뒤 30일이 지나면 지운다(tools/purge_contacts.py)
 CONTACT_RETENTION_DAYS = 30
@@ -189,7 +190,7 @@ def inactive_category_message(cat) -> str:
     return f"{name}{josa} 지금 운영하지 않는 품목이에요 — {active_category_text()} {len(ACTIVE_CATEGORIES)}가지만 다뤄요"
 
 
-# 11/9 휴대폰 낱말(사용자 실측: "파란색 폰 잃어버렸어요. 서면역" → "무슨 물건인지 알 수 없어요").
+# 11/9 휴대폰 낱말(사용자 실측: "파란색 폰 잃어버렸어요. 초량역" → "무슨 물건인지 알 수 없어요").
 # 한줄 설명: 사람들이 휴대폰을 부르는 여러 말을 한곳에 모아, 모든 입구(가상 시연·분실인 웹·챗봇·통계)가 똑같이 알아듣게 한다.
 # - 앞말이 붙은 '폰'(이어폰·헤드폰)은 휴대폰이 아니다 → 휴대폰이 아닌 말을 먼저 지운 뒤, 앞에 한글이 붙지 않은 '폰'만 센다
 # - '갤럭시 버즈'·'갤럭시 워치'도 휴대폰이 아님. 품목 값은 '모형폰' 그대로(화면 이름만 '휴대폰')
@@ -211,12 +212,12 @@ def mentions_phone(text) -> bool:
 
 # 11/9 습득 역(사용자 요청: "각 물건이 어떤 역에서 습득한 건지 관제탑에서 보이게 해야 바로 검색이 가능할 듯").
 # 물건 번호 앞글자 = 등록기계(MACHINE_LETTERS) → 사람이 읽는 역 이름. 화면(관제·보관함·직원)과 /live/state 가 함께 쓴다
-MACHINE_STATION_NAME = {"KIOSK-A": "해운대역", "KIOSK-C": "서면역", "CENTER": "부산역 본센터"}
+MACHINE_STATION_NAME = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역", "CENTER": "부산역 본센터"}
 LETTER_STATION_NAME = {MACHINE_LETTERS[m]: name for m, name in MACHINE_STATION_NAME.items()}
 
 
 def station_name(machine_id=None, item_id=None) -> str:
-    """등록기계(없으면 물건 번호 앞글자) → 습득 역 이름. 모르면 빈 글자. 예: ('KIOSK-C') → '서면역', (None, 'A-…') → '해운대역'"""
+    """등록기계(없으면 물건 번호 앞글자) → 습득 역 이름. 모르면 빈 글자. 예: ('KIOSK-C') → '초량역', (None, 'A-…') → '중앙역'"""
     if machine_id in MACHINE_STATION_NAME:
         return MACHINE_STATION_NAME[machine_id]
     head = str(item_id or "")[:2]
@@ -226,3 +227,30 @@ def station_name(machine_id=None, item_id=None) -> str:
 def public_card(features: dict) -> dict:
     """후보 카드에 보여도 되는 값만 남긴다(비공개 특징 제거)."""
     return {k: v for k, v in features.items() if k not in PRIVATE_FIELDS}
+
+
+# 11/11 실물 시험: 아이폰 목업 뒤 사과 로고 — 분실인은 "사과"라고 답하고 Qwen 은 영어("apple logo")로 적어 확인 질문이 '글자 틀림'이 됐다.
+# 로고·글자를 비교할 때 같은 뜻의 말을 한 묶음으로 본다(한국어·영어·흔한 별칭). 묶음 이름은 영어 소문자 — 저장 값은 바꾸지 않는다
+LOGO_ALIASES = {
+    "apple": ["apple", "애플", "사과"],          # '아이폰'·'갤럭시'는 넣지 않음 — 품목 이름이라 누구나 말할 수 있어 확인 질문이 쉬워짐
+    "samsung": ["samsung", "삼성"],
+    "lg": ["lg", "엘지"],
+    "xiaomi": ["xiaomi", "샤오미", "mi"],
+    "anker": ["anker", "앤커"],
+    "star": ["star", "별"],
+    "heart": ["heart", "하트"],
+}
+_ALIAS_OF = {w: k for k, ws in LOGO_ALIASES.items() for w in ws}
+
+
+def logo_tokens(text) -> set[str]:
+    """로고·글자 비교용 낱말 묶음: 소문자 낱말 → 같은 뜻 묶음 이름(LOGO_ALIASES). 'logo'·'로고'·'sticker'·'스티커'·'글자'는 뺀다"""
+    import re as _re
+    words = set(_re.findall(r"[0-9a-z가-힣]+", str(text or "").lower()))
+    words -= {"logo", "로고", "sticker", "스티커", "글자", "마크", "mark", "printed", "text"}
+    out = set()
+    for w in words:
+        hit = _ALIAS_OF.get(w) or next((k for a, k in _ALIAS_OF.items() if len(a) >= 2 and not a.isascii() and w.startswith(a)), None)
+        out.add(hit or w)                          # "사과로고"·"애플이요"처럼 조사가 붙어도 앞부분으로 찾는다
+    return out
+

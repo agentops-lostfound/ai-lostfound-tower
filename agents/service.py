@@ -932,7 +932,7 @@ class TowerService:
         from agents.storage import OUTLET_SEQUENCE, robot_targets
         return {"mode": robot_target_mode(), "slots": robot_targets(self.storage.layout()),
                 "outlet_sequence": list(OUTLET_SEQUENCE),
-                "numbering": "로봇 가까운 줄 1·3·5·7, 먼 줄 2·4·6·8 (탑뷰 왼쪽 R1 → 오른쪽 R4), 번호 N = 저장 자세 pose_N"}
+                "numbering": "먼 줄(탑뷰 위) 1·3·5·7, 로봇 가까운 줄 2·4·6·8 (탑뷰 왼쪽 R1 → 오른쪽 R4), 번호 N = 저장 자세 pose_N"}
 
     def slot_of(self, item_id: str) -> dict | None:
         """물건이 기록된 보관 칸 {"slot_id", "pose_name", "staff_shelf"} 또는 None(기록 없음·DB 오류).

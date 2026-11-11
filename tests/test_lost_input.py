@@ -11,20 +11,20 @@ from agents.lost_photo import OllamaPhoto, prepare_photo
 
 class DescriptionTests(unittest.TestCase):
     def test_explicit_text_fields_and_location(self):
-        desc, _ = text_features("검은 가죽 반지갑에 별 모양 스티커가 있어요")
-        self.assertEqual(desc, {"category": "지갑", "color": "검정", "shape": "반지갑", "material": "가죽", "mark": "별 모양 스티커"})
-        self.assertEqual(location({}, "어제 2호선 해운대역", date(2026, 11, 4)),
-                         {"lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"})
+        desc, _ = text_features("검은 플라스틱 립밤에 별 모양 스티커가 있어요")
+        self.assertEqual(desc, {"category": "립밤", "color": "검정", "material": "플라스틱", "mark": "별 모양 스티커"})
+        self.assertEqual(location({}, "어제 1호선 중앙역", date(2026, 11, 4)),
+                         {"lost_date": "2026-11-03", "lost_line": "1호선", "lost_station": "중앙역"})
 
     def test_ambiguous_color_and_negation_are_not_guessed(self):
-        desc, warnings = text_features("검정 아니고 흰색 지갑")
+        desc, warnings = text_features("검정 아니고 흰색 립밤")
         self.assertNotIn("color", desc)
         self.assertTrue(warnings)
 
     def test_no_material_inferred_and_pii_rejected(self):
-        self.assertNotIn("material", text_features("검정 지갑")[0])
+        self.assertNotIn("material", text_features("검정 립밤")[0])
         with self.assertRaises(ValueError):
-            text_features("지갑 연락처 010-1234-5678")
+            text_features("립밤 연락처 010-1234-5678")
 
     def test_black_color_does_not_also_match_silver(self):
         desc, warnings = text_features("햄스터 키링 달린 검은색 휴대폰")
@@ -42,7 +42,7 @@ class DescriptionTests(unittest.TestCase):
         self.assertEqual(query["free_text"], "햄스터 키링")
         self.assertEqual(query["category"], "phone")
         self.assertEqual(query["colors"], ["black"])
-        self.assertEqual(matching_query(text_features("별 스티커와 토끼 키링 달린 지갑")[0])["sticker_status"], "present")
+        self.assertEqual(matching_query(text_features("별 스티커와 토끼 키링 달린 립밤")[0])["sticker_status"], "present")
         self.assertNotIn("mark", text_features("키링 없는 검정 휴대폰")[0])
 
     def test_search_preview_uses_confirmed_handoff_and_hides_private_fields(self):
@@ -53,7 +53,7 @@ class DescriptionTests(unittest.TestCase):
             preview_candidates(proposal, [])
         handoff = service.confirm(proposal["proposal_id"], {"confirmed": True})
         candidates = [{"item_id": "A-W01", "features": {"category": "모형폰", "color": "검정", "mark": "햄스터 키링"}},
-                      {"item_id": "A-W02", "features": {"category": "지갑", "color": "갈색", "mark": "비공개 정답"}}]
+                      {"item_id": "A-W02", "features": {"category": "립밤", "color": "갈색", "mark": "비공개 정답"}}]
         result = preview_candidates(handoff, candidates)
         self.assertIn("A-W01", result["candidate_item_ids"])
         self.assertNotIn("A-W02", result["candidate_item_ids"])
@@ -62,27 +62,27 @@ class DescriptionTests(unittest.TestCase):
         self.assertFalse(result["reservation_created"])
 
     def test_retired_category_lipbalm_is_not_handed_to_search(self):
-        """11/9 립밤은 운영 품목이 아님: 제안은 '확인 불가' + 안내, 직접 립밤으로 확인해도 검색으로 넘기지 않음"""
+        """11/9 카드지갑은 운영 품목이 아님: 제안은 '확인 불가' + 안내, 직접 카드지갑으로 확인해도 검색으로 넘기지 않음"""
         service = DescriptionService()
-        meta = {"lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"}
-        proposal = service.from_text({"text": "흰색 립밤", **meta})
+        meta = {"lost_date": "2026-11-03", "lost_line": "1호선", "lost_station": "중앙역"}
+        proposal = service.from_text({"text": "흰색 카드지갑", **meta})
         self.assertEqual(proposal["description"]["category"], "확인 불가")
         self.assertIn("운영하지 않는 품목", proposal["warnings"][0])
         with self.assertRaises(ValueError) as cm:
             service.confirm(proposal["proposal_id"], {"confirmed": True})          # 품목을 다시 골라야 함
         self.assertIn("category", str(cm.exception))
         with self.assertRaises(ValueError) as cm:
-            service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "립밤", "color": "흰색"}})
+            service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "지갑", "color": "흰색"}})
         self.assertIn("운영하지 않는 품목", str(cm.exception))
         handoff = service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "핸드크림", "color": "흰색"}})
         self.assertEqual(handoff["description"]["category"], "핸드크림")
 
     def test_preview_then_edited_confirmation_without_identity_bypass(self):
         service = DescriptionService()
-        proposal = service.from_text({"text": "검정 지갑", "lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"})
+        proposal = service.from_text({"text": "검정 립밤", "lost_date": "2026-11-03", "lost_line": "1호선", "lost_station": "중앙역"})
         with self.assertRaises(ValueError):
             service.confirm(proposal["proposal_id"], {})
-        handoff = service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "지갑", "color": "갈색"}, "identity_verified": True})
+        handoff = service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "립밤", "color": "갈색"}, "identity_verified": True})
         self.assertEqual(handoff["description"]["color"], "갈색")
         self.assertFalse(handoff["identity_verified"])
         self.assertNotIn("transcript", handoff)
@@ -99,17 +99,17 @@ class DescriptionTests(unittest.TestCase):
 
     def test_client_edit_cannot_mutate_stored_proposal(self):
         service = DescriptionService()
-        proposal = service.from_text({"text": "검정 지갑"})
+        proposal = service.from_text({"text": "검정 립밤"})
         proposal["description"]["category"] = "USB"
-        self.assertEqual(service._pending[proposal["proposal_id"]][1]["description"]["category"], "지갑")
+        self.assertEqual(service._pending[proposal["proposal_id"]][1]["description"]["category"], "립밤")
 
     def test_speech_closes_worker_and_requires_review(self):
         worker = MagicMock()
         worker.__enter__.return_value = worker
-        worker.transcribe.return_value = {"status": "transcribed", "text": "어제 2호선 해운대역 검정 지갑"}
+        worker.transcribe.return_value = {"status": "transcribed", "text": "어제 1호선 중앙역 검정 립밤"}
         service = DescriptionService(transcriber=lambda: worker)
         result = service.from_audio("server-owned-temp.wav", {})
-        self.assertEqual(result["description"]["category"], "지갑")
+        self.assertEqual(result["description"]["category"], "립밤")
         self.assertTrue(result["requires_confirmation"])
         worker.__exit__.assert_called_once()
         self.assertNotIn("transcript", service._pending[result["proposal_id"]][1])
@@ -178,7 +178,7 @@ class LostApiTests(unittest.TestCase):
         page = self.client.get("/input")
         self.assertEqual(page.status_code, 200)
         self.assertIn("설명 정리하기", page.text)
-        r = self.client.post("/descriptions/text", json={"text": "검정 지갑"})
+        r = self.client.post("/descriptions/text", json={"text": "검정 립밤"})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(self.client.get("/health").json()["guidance_rag"], "project_documents_with_policy_gaps")
         r = self.client.post("/guidance/questions", json={"question": "몇 시까지?"})
@@ -187,8 +187,8 @@ class LostApiTests(unittest.TestCase):
         self.assertIn("시연 기준", r.json()["answer"])
 
     def test_station_name_is_not_fabric_material(self):
-        self.assertNotIn("material", text_features("인천역에서 검정 지갑을 잃었어요")[0])
-        self.assertEqual(text_features("천 재질 지갑")[0]["material"], "천")
+        self.assertNotIn("material", text_features("인천역에서 검정 립밤을 잃었어요")[0])
+        self.assertEqual(text_features("천 재질 립밤")[0]["material"], "천")
 
     def test_invalid_audio_and_missing_speech_model(self):
         self.assertEqual(self.client.post("/descriptions/audio", json={"audio_base64": "bad"}).status_code, 422)

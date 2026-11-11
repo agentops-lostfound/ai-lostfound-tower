@@ -15,11 +15,11 @@ import re
 import threading
 import time
 
-from agents.contracts import active_category_text, category_label, is_active_category, inactive_category_message
+from agents.contracts import ACTIVE_CATEGORIES, active_category_text, category_label, is_active_category, inactive_category_message
 
 SESSION_TTL_S = 600
-STATION_NAMES = ("서면", "해운대")                 # 등록기계가 있는 역(sim_world.STATIONS) — 주운 역은 이 둘만
-LOST_STATION_NAMES = ("서면", "해운대", "부산")     # 11/10 잃어버린 역은 부산역(본센터)도(sim_world.LOST_STATIONS)
+STATION_NAMES = ("초량", "중앙")                 # 등록기계가 있는 역(sim_world.STATIONS) — 주운 역은 이 둘만
+LOST_STATION_NAMES = ("초량", "중앙", "부산")     # 11/10 잃어버린 역은 부산역(본센터)도(sim_world.LOST_STATIONS)
 OTHER_STATION = re.compile(r"^(?:[가-힣A-Za-z0-9 ]{2,12}역|(?:열차|지하철|전철|전동차|객차|차)\s*(?:안|내|에서)?|(?:다른|딴)\s*역|역은?\s*아니)"
                            r"(?:\s*(?:이요|요|이에요|예요|입니다|에서요?|인\s*것\s*같아요|같아요))?[.!~]*$")   # "센텀시티역이요" · "열차 안에서요"
 MASK_RE = re.compile(r"^[^\s*]{1,8}\*{0,8}[^\s*]?$")
@@ -49,7 +49,7 @@ FOUND_ORDER = ("category", "color", "station", "place")
 # 11/10 사람 조작 시뮬레이션: 핸드크림을 고른 뒤 색 선택지가 '검정·흰색·갈색·파랑'뿐이라 분홍·초록 핸드크림을 고를 수 없었다
 # → 품목을 알면 그 품목의 실제 물건 색(구매 목록·시연 물건 기준)을 먼저 보여 준다. 다른 색은 글로 말하면 된다
 COLOR_BY_CATEGORY = {"모형폰": ["검정", "흰색", "파랑"], "보조배터리": ["흰색", "검정"], "핸드크림": ["분홍", "초록", "흰색"],
-                     "지갑": ["검정", "갈색"]}
+                     "지갑": ["검정", "갈색"], "립밤": ["빨강", "파랑"]}   # 11/11 립밤(실물: 빨강·파랑 2개)
 CANCEL_ORDER = ("claim_id", "identity")      # 11/10 대화로 찾기 요청 취소: 찾기 번호 → 본인 확인(가린 값) → 확인 → 창구
 CLAIM_RE = re.compile(r"\bC-\d{8}-\d{4}\b", re.I)
 CANCEL_TARGET = re.compile(r"찾기\s*(?:요청|신청|번호)|방문\s*예약|수령\s*예약|예약|분실\s*(?:접수|신고)|C-\d{8}-\d{4}", re.I)
@@ -59,8 +59,8 @@ SLOT_KO = {"category": "물건", "color": "색", "station": "역", "when": "잃�
 QUESTIONS = {
     "category": f"어떤 물건인가요? ({active_category_text()} 중 하나)",
     "color": "물건 색이 무엇인가요? 가장 넓게 보이는 색 하나만 알려 주세요.",
-    "station_lost": "어느 역에서 잃어버리셨나요? (서면·해운대·부산역 — 다른 역이거나 기억나지 않으면 '모름')",
-    "station_found": "어느 역에서 주우셨나요? 등록기계가 있는 역은 서면·해운대예요.",
+    "station_lost": "어느 역에서 잃어버리셨나요? (초량·중앙·부산역 — 다른 역이거나 기억나지 않으면 '모름')",
+    "station_found": "어느 역에서 주우셨나요? 등록기계가 있는 역은 초량·중앙예요.",
     "when": "언제쯤 잃어버리셨나요? 예: 어제 저녁 / 오늘 아침 (모르면 '모름')",
     "detail": "물건에 적힌 글자나 붙은 스티커가 있나요? 예: 별 스티커 (없으면 '없어요')",
     "identity": "마지막으로 본인 확인 정보가 필요해요. 아래 칸에 이름과 주민등록번호 뒷자리 첫 숫자를 넣어 주세요. "
@@ -71,8 +71,8 @@ QUESTIONS = {
                        "화면에서 가려서 보내고, 원래 값은 저장하지 않아요.",
 }
 CHOICES = {
-    "category": ["휴대폰", "보조배터리", "핸드크림", "카드지갑"],     # 11/10: 보관함 열 순서, 지갑은 카드지갑으로 보여 줌
-    "station_lost": ["서면", "해운대", "부산역", "모름"], "station_found": ["서면", "해운대"],     # 11/10 잃어버린 역은 모를 수 있다(주운 역은 등록기계라 꼭 필요)
+    "category": [category_label(c) for c in ACTIVE_CATEGORIES],     # 보관함 열 순서(11/11: 휴대폰·보조배터리·핸드크림·립밤)
+    "station_lost": ["초량", "중앙", "부산역", "모름"], "station_found": ["초량", "중앙"],     # 11/10 잃어버린 역은 모를 수 있다(주운 역은 등록기계라 꼭 필요)
     "color": ["검정", "흰색", "갈색", "파랑"],                  # 품목을 모를 때. 품목을 알면 아래 COLOR_BY_CATEGORY
     "when": ["오늘", "어제", "모름"], "detail": ["없어요"], "place": ["모름"],
 }
@@ -147,7 +147,7 @@ def detect_start(question: str) -> str | None:
 
 
 def extract(text: str, kind: str, want: str | None = None) -> dict:
-    """말에서 빈칸 값 뽑기(규칙). want = 지금 묻고 있는 칸(짧은 답 "서면이요"·"어제"를 그 칸으로 읽는다)"""
+    """말에서 빈칸 값 뽑기(규칙). want = 지금 묻고 있는 칸(짧은 답 "초량이요"·"어제"를 그 칸으로 읽는다)"""
     from agents.sim_world import query_features
     t = text or ""
     out: dict = {}
@@ -158,7 +158,7 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
         out["color"] = f["color"]
     if kind == "lost":
         from agents.sim_world import lost_station
-        st = lost_station(t)                      # 서면 · 해운대 · 부산(부산역·본센터)
+        st = lost_station(t)                      # 초량 · 중앙 · 부산(부산역·본센터)
     else:
         st = next((s for s in STATION_NAMES if s in t), None)
     if st:
@@ -238,8 +238,8 @@ class IntakeAgent:
             m = OTHER_ITEM.search(question or "")
             if m and kind in ("lost", "found") and not extract(question, kind).get("category"):
                 where = "역무실에 맡겨 주세요" if kind == "found" else "역무실에 문의해 주세요"
-                return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — 지갑·휴대폰·핸드크림·보조배터리 "
-                                                  f"4가지만 접수해요. {where}.", None, done=True)
+                return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — {active_category_text()} "
+                                                  f"{len(ACTIVE_CATEGORIES)}가지만 접수해요. {where}.", None, done=True)
             s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True,
                  "version": 0}
             for said in [p for p in (prior or []) if isinstance(p, str) and kind in ("lost", "found")][-3:]:
@@ -306,14 +306,14 @@ class IntakeAgent:
                 s["log"].append({"slot": "claim_id", "by": "rule"})
             return
         rule = extract(q, s["kind"], s.get("asked"))
-        # 사용자가 직접 말한 값(규칙으로 읽은 것)은 이미 채운 칸도 고친다("해운대였던 것 같아요" → 역 바로잡기)
+        # 사용자가 직접 말한 값(규칙으로 읽은 것)은 이미 채운 칸도 고친다("중앙였던 것 같아요" → 역 바로잡기)
         for k, v in rule.items():
             if k in self._order(s) and k != "identity" and s["slots"].get(k) != v:
                 if k in s["slots"] and k != s.get("asked") and v == "모름":
                     continue                      # 다른 칸을 묻는 중의 '모름'으로 이미 채운 값을 지우지 않음
                 s["slots"][k] = v
                 s["log"].append({"slot": k, "by": "rule"})
-        # 11/9 실제 Mi:dm 시험: "분실 접수하기"(내용 없는 말)에 모델이 역을 '서면'으로 지어냄 → 모델은 내용 있는 말에서
+        # 11/9 실제 Mi:dm 시험: "분실 접수하기"(내용 없는 말)에 모델이 역을 '초량'으로 지어냄 → 모델은 내용 있는 말에서
         # 품목·색만, 그 칸을 묻는 중(또는 첫 말)일 때만, 빈 칸에만 채운다(역은 이름이 둘뿐이라 규칙으로만)
         missing = [k for k in ("category", "color") if k not in s["slots"]]
         if (self.brain is not None and missing and s.get("asked") in (None, "category", "color") and len(q) >= 6 and not detect_start(q)

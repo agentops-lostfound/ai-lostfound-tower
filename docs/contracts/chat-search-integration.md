@@ -11,7 +11,7 @@
   "question": "확인한 설명으로 찾아줘",
   "search_context": {
     "category": "지갑", "color": "검정", "lost_date": "2026-11-04",
-    "lost_line": "2호선", "lost_station": "해운대역"
+    "lost_line": "2호선", "lost_station": "중앙역"
   }
 }
 ```

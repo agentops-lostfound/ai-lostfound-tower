@@ -160,14 +160,19 @@ def split_features(feats: dict) -> tuple[str, dict, dict]:
 
 
 def parse_features(payload: object) -> dict:
-    """Qwen 결과 → 계약 특징. 본문: {"qwen": general_items_v1 특징, "confidence": 0~1(선택)}"""
+    """Qwen 결과 → 계약 특징. 본문: {"qwen": general_items_v1 특징, "confidence": 0~1(선택), "color_measure": 색 측정 요약(선택)}
+    11/11 color_measure(agents/color_measure.py, Qwen 작업자가 같은 사진을 숫자로 잼)가 '확실'이면 색만 그 값으로 바꾼다"""
+    from agents.color_measure import apply_to_features
     from agents.vision_adapter import to_features
-    if not isinstance(payload, dict) or set(payload) - {"qwen", "confidence"} or not isinstance(payload.get("qwen"), dict):
-        raise IntakeError('본문: {"qwen": {...Qwen 특징...}, "confidence": 0~1}')
+    if not isinstance(payload, dict) or set(payload) - {"qwen", "confidence", "color_measure"} or not isinstance(payload.get("qwen"), dict):
+        raise IntakeError('본문: {"qwen": {...Qwen 특징...}, "confidence": 0~1, "color_measure": {...}(선택)}')
     conf = payload.get("confidence", 0.9)
     if isinstance(conf, bool) or not isinstance(conf, (int, float)):
         raise IntakeError("confidence: 0~1 숫자")
-    return to_features(payload["qwen"], conf)
+    cm = payload.get("color_measure")
+    if cm is not None and not isinstance(cm, dict):
+        raise IntakeError("color_measure: 객체여야 합니다")
+    return apply_to_features(to_features(payload["qwen"], conf), cm)
 
 
 class IntakeStore(Protocol):
@@ -248,8 +253,8 @@ class MemoryIntakeStore:
 # 시연용 추천 장소(PostgreSQL 은 center/migrations/003·005·010·012 에 같은 목록). 키오스크는 6개씩 보여 주고 '다른 장소 보기'
 _MORE_PLACES = ["계단", "의자·벤치 주변", "역무실·안내센터 주변", "물품보관함 주변", "편의점·매점 주변", "환승 통로"]   # 11/6 012 마이그레이션
 DEMO_PLACES = {
-    "KIOSK-A": ["해운대역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"] + _MORE_PLACES,
-    "KIOSK-C": ["서면역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"] + _MORE_PLACES,   # 11/4 가상 시연
+    "KIOSK-A": ["중앙역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"] + _MORE_PLACES,
+    "KIOSK-C": ["초량역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"] + _MORE_PLACES,   # 11/4 가상 시연
     "CENTER": ["부산역 승강장", "대합실·개찰구 주변", "화장실", "엘리베이터·에스컬레이터", "열차 안", "출구 주변"] + _MORE_PLACES,   # 11/6 본센터 = 부산역
 }
 

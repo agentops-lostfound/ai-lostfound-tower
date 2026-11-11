@@ -110,6 +110,9 @@ def wallet_nudge(question, history, out):
     한 대화에 한 번만(앞 질문에 이미 '지갑'이 있었으면 다시 말하지 않음). 직원 관제 답·거절 답에는 붙이지 않는다.
     답의 나머지(검색·접수·안내)는 그대로 — 저장 값은 여전히 '지갑'(agents/contracts.py CATEGORY_LABEL)."""
     try:
+        from agents.contracts import ACTIVE_CATEGORIES
+        if "지갑" not in ACTIVE_CATEGORIES:                   # 11/11 카드지갑을 운영 품목에서 뺌 → 이끌 이름이 없음(운영하지 않는 품목 안내가 대신)
+            return out
         from agents.guidance import fix_typos
         text = fix_typos(str(question or ""))               # '지깝' 같은 오타도 지갑으로 읽은 뒤 판단
         if "지갑" not in text or re.search(r"카드\s*지갑", text):
@@ -186,7 +189,7 @@ class Chatbot:
         with node_step('coordinator', as_type='agent', input={'question': state['question']}) as obs:
             intent, routing = 'service', 'rule'
             if state.get('intake_active') or state.get('intake_start') or state.get('intake_action'):
-                # 11/9 접수 대화 중이거나 접수를 시작하는 말 → 모델에 맡기지 않고 접수 길("서면이요" 같은 짧은 답을 주제 밖으로 보지 않게)
+                # 11/9 접수 대화 중이거나 접수를 시작하는 말 → 모델에 맡기지 않고 접수 길("초량이요" 같은 짧은 답을 주제 밖으로 보지 않게)
                 obs.update(output={'intent': 'intake', 'routing': 'rule',
                                    'why': '진행 중인 접수 대화' if state.get('intake_active') else '접수·신고를 시작하는 말'})
                 return {'intent': 'intake', 'routing': 'rule', 'path': ['coordinator']}
@@ -613,7 +616,7 @@ class Chatbot:
         if ops_turn:            # 관제 질문은 앞 대화와 합치지 않고 그대로 분석한다
             resolved = False
         elif intake_active or intake_start or intake_action:
-            resolved = False    # 11/9 접수 대화의 짧은 답("서면이요")을 앞 질문과 합치지 않는다(접수 일꾼이 지금 묻는 칸으로 읽음)
+            resolved = False    # 11/9 접수 대화의 짧은 답("초량이요")을 앞 질문과 합치지 않는다(접수 일꾼이 지금 묻는 칸으로 읽음)
         else:
             question, context, resolved = resolve_turn(question, history, context, self.guidance)
         if resolved is None and self.brain is not None:

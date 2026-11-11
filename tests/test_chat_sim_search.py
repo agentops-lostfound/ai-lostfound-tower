@@ -1,7 +1,7 @@
 """11/7 챗봇 ↔ 가상 시연 관제탑 연결(LF-5 변재원).
 
 한줄 설명: 화면 작업대에 파란 모형폰이 있는데 챗봇이 "후보 없음"이라고 답하던 허점(연습용 별도 목록을 찾았음)과,
-"해운대역에서 어제 잃어버렸어요"처럼 장소·날짜만 덧붙이면 앞에서 말한 물건을 잊던 허점을 고쳤는지 확인한다.
+"중앙역에서 어제 잃어버렸어요"처럼 장소·날짜만 덧붙이면 앞에서 말한 물건을 잊던 허점을 고쳤는지 확인한다.
 - langgraph·langsmith 가 없으면 test_chat_color_multiturn.py 와 같은 작은 대역을 끼운다
 """
 import os
@@ -33,7 +33,7 @@ class SimTowerSearchTest(unittest.TestCase):
         self.assertNotIn("H-2026", out["answer"])                            # 물건 번호는 답에 드러내지 않음
 
     def test_station_falls_back_and_says_so(self):
-        out = self.agent.ask("해운대역에서 파란 휴대폰 잃어버렸어요")         # 시연 물건은 본센터 접수 → 역 조건 없이 다시
+        out = self.agent.ask("중앙역에서 파란 휴대폰 잃어버렸어요")         # 시연 물건은 본센터 접수 → 역 조건 없이 다시
         self.assertEqual(out["status"], "items_found")
         self.assertIn("입력한 역 우선, 없으면 모든 역", out["answer"])
 
@@ -59,15 +59,15 @@ class FollowUpPlaceTest(unittest.TestCase):
         return resolve_turn(q, history, {}, self.guide)
 
     def test_place_and_date_continue_previous_item(self):
-        q, ctx, resolved = self.resolve("해운대역에서 어제 잃어버렸어요", ["파란색 휴대폰을 잃어버렸어"])
+        q, ctx, resolved = self.resolve("중앙역에서 어제 잃어버렸어요", ["파란색 휴대폰을 잃어버렸어"])
         self.assertTrue(resolved)
         self.assertEqual((ctx["category"], ctx["color"]), ("모형폰", "파랑"))
         self.assertTrue(q.endswith("찾아줘"))
 
     def test_how_to_and_new_item_stay_independent(self):
         self.assertFalse(self.resolve("어제 운영시간 어떻게 돼요?", ["파란색 휴대폰을 잃어버렸어"])[2])
-        self.assertFalse(self.resolve("해운대역에서 지갑을 주웠는데 어디에 맡겨요?", ["파란색 휴대폰을 잃어버렸어"])[2])
-        self.assertFalse(self.resolve("해운대역에서 어제 잃어버렸어요", [])[2])          # 앞 물건이 없으면 이어받지 않음
+        self.assertFalse(self.resolve("중앙역에서 지갑을 주웠는데 어디에 맡겨요?", ["파란색 휴대폰을 잃어버렸어"])[2])
+        self.assertFalse(self.resolve("중앙역에서 어제 잃어버렸어요", [])[2])          # 앞 물건이 없으면 이어받지 않음
 
 
 class SimAppChatTest(unittest.TestCase):
@@ -81,7 +81,7 @@ class SimAppChatTest(unittest.TestCase):
         c = TestClient(build_app(build_sim_service(ENV)))
         first = c.post("/chat/questions", json={"question": "파란색 휴대폰을 잃어버렸어"}).json()
         self.assertEqual(first["status"], "items_found", first)
-        follow = c.post("/chat/questions", json={"question": "해운대역에서 어제 잃어버렸어요",
+        follow = c.post("/chat/questions", json={"question": "중앙역에서 어제 잃어버렸어요",
                                                   "history": ["파란색 휴대폰을 잃어버렸어"]}).json()
         self.assertEqual(follow["status"], "items_found", follow)
         self.assertTrue(follow["context_used"])

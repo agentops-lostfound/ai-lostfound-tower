@@ -323,6 +323,11 @@ class DbWatch:
                         self.emit("item_status_log", "INSERT", item_id, [
                             col("item_id", item_id, True), col("from_status", before), col("to_status", status, True),
                             col("changed_by", changed_by, True)], by=str(changed_by), note="상태가 바뀔 때마다 한 줄")
+                        if status == "인계 완료":
+                            # 11/11 팀 DB 는 트리거(storage_release_on_handover)가, 메모리 저장소는 읽을 때 걸러서 칸이 빈다 —
+                            # 코드가 직접 지우지 않아 사건이 없었고, 발표 화면 item 카드에 칸이 그대로 남아 보였다
+                            self.emit("storage_assignment", "DELETE", item_id, [col("item_id", item_id)],
+                                      by="DB 트리거", note="인계 완료 → 보관 칸이 저절로 빔(storage_release_on_handover)")
                 except Exception:
                     pass
                 return out

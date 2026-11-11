@@ -10,6 +10,7 @@
 - 11/9 사용자 결정(014): R1 = 휴대폰 전용(폰을 사선으로 둬서 간격이 넓음) · R2~R4 = 휴대폰 밖 5종(행마다 품목 제한 없음)
 - 11/9 사용자 결정(015): 립밤을 운영 품목에서 빼고 열마다 품목 하나
 - 11/9 사용자 결정(016): 품목 4종 고정(목업폰·보조배터리·핸드크림·카드지갑) — R1 휴대폰('/' 45도) · R2 카드지갑 · R3 보조배터리 · R4 핸드크림
+- 11/11 사용자 결정(020): R4 카드지갑 → 립밤(포토박스 탑뷰가 카드지갑을 잘 못 알아봄). 립밤은 세로로 둠
 - 11/10 사용자 결정(018): 열 순서를 다시 정함 — 왼쪽부터 R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑(칸 위치·로봇 자세는 그대로, 품목만)
 - 인계 구역 H-1(제출보관함)은 보관판 위쪽(로봇 반대쪽) 긴 변 가운데에 붙음
 - 직원 보관 선반 S: 맞는 빈 칸이 없을 때 넘치는 물건 자리. 로봇이 집지 않고 비전 내보내기에도 넣지 않는다. 칸은 필요할 때 S-1, S-2 … 로 늘린다
@@ -43,12 +44,13 @@ SLOT_RE = re.compile(r"^[A-Z][0-9]?-[0-9]{1,2}$")
 # 종류: shelf = 로봇이 집는 보관 칸 · handover = 제출보관함 · staff = 직원 보관 선반(로봇 안 씀, 칸 수는 필요할 때 늘림 → 시작 0)
 PHONE_ONLY = ["모형폰"]                                            # 품목 값은 '모형폰', 화면 이름은 '휴대폰'(contracts.category_label)
 NOT_PHONE = [c for c in MVP_CATEGORIES if c not in PHONE_ONLY]    # 휴대폰 밖 운영 품목(11/9: 지갑·핸드크림·보조배터리)
-# 11/9 사용자 결정(015): 열(탑뷰 왼쪽부터 R1~R4) 하나 = 품목 하나. 각 열 2칸(-1 로봇 가까운 칸, -2 먼 칸)
+# 11/9 사용자 결정(015): 열(탑뷰 왼쪽부터 R1~R4) 하나 = 품목 하나. 각 열 2칸(-1 먼 칸=탑뷰 위, -2 로봇 가까운 칸 — 11/11 실물 확인)
 #   R1 휴대폰(45도 사선) · R2 보조배터리 · R3 핸드크림 · R4 지갑(보이는 이름 카드지갑) — 11/10 018 에서 순서를 다시 정함(016: 품목 4종 고정)
 #   운영 품목(contracts.ACTIVE_CATEGORIES)에서 빠진 품목은 열에서도 자동으로 빠진다. 단 DB 는 마이그레이션으로만 바뀌므로
 #   품목을 빼면 새 마이그레이션도 함께 만든다(LAYOUT 과 DB 가 다르면 tests/test_storage.py 가 실패해서 알려 줌)
 #   11/10 사용자 결정(018): 왼쪽부터 휴대폰 · 보조배터리 · 핸드크림 · 카드지갑 (R2·R3·R4 를 실물 배치대로 다시 정함)
-ROW_CATEGORIES = {"R1": ["모형폰"], "R2": ["보조배터리"], "R3": ["핸드크림"], "R4": ["지갑"]}
+# 11/11 사용자 결정(020): R4 카드지갑 → R4 립밤(세로로 둠). 칸 위치·로봇 자세(pose_7·8 은 김건태님이 다시 티칭)
+ROW_CATEGORIES = {"R1": ["모형폰"], "R2": ["보조배터리"], "R3": ["핸드크림"], "R4": ["립밤"]}
 # 칸 이름표에 쓰는 실물 이름(품목 값·화면 이름과 다를 때만). 016: 지갑 열은 실물대로 '카드지갑'
 ROW_NAME = {"지갑": "카드지갑"}
 # R1 메모: 비전(YOLO·Qwen)이 가로로 놓인 휴대폰을 잘 못 알아봐서 45도 사선으로 둔다.
@@ -83,12 +85,12 @@ SHELF_MAX = 99                     # 칸 번호 형식(S-1 ~ S-99) 한계. 실�
 SHELF_FROM = ("본센터 보관",) + ("등록기계 보관", "회수 중")   # 선반으로 옮길 수 있는 상태(대기 물건은 직원이 가져와 바로 선반에)
 
 # 11/6 김건태 확정(디스코드 일반 채널): 칸 ↔ 로봇 저장 자세(poses.json, Studio normalized 관절값) — 013 마이그레이션과 같음
-# 각 행 1(로봇팔 가까운 칸) = pose_1·3·5·7, 2(먼 칸) = pose_2·4·6·8. H-1 은 배출구에 내려놓는 자세 close
+# 각 행 1(먼 칸, 탑뷰 위) = pose_1·3·5·7, 2(로봇팔 가까운 칸) = pose_2·4·6·8 (11/11 실물 확인). H-1 은 배출구에 내려놓는 자세 close
 SLOT_POSES = {"R1-1": "pose_1", "R1-2": "pose_2", "R2-1": "pose_3", "R2-2": "pose_4",
               "R3-1": "pose_5", "R3-2": "pose_6", "R4-1": "pose_7", "R4-2": "pose_8", "H-1": "close"}
 # 집은 뒤 배출구(제출보관함)까지: 원복 1단계 → close(배출구 위, 집게 닫힘) → open(집게 열어 놓기) → 원복 1단계 → home
 OUTLET_SEQUENCE = ("outlet_return_1", "close", "open", "outlet_return_1", "home")
-# 11/9 사용자 번호(로봇팔 - DB 연결 문서 docs/contracts/robot_db_target.md): 로봇 가까운 줄 1·3·5·7, 먼 줄 2·4·6·8
+# 11/9 사용자 번호(로봇팔 - DB 연결 문서 docs/contracts/robot_db_target.md): 먼 줄(탑뷰 위) 1·3·5·7, 로봇 가까운 줄 2·4·6·8 (11/11 실물 확인: 왼쪽 위가 1)
 #   탑뷰에서 왼쪽 열(R1)부터 오른쪽 열(R4). 번호 N = 저장 자세 pose_N 의 N(013 마이그레이션·SLOT_POSES 와 같음)
 SLOT_NUMBERS = {"R1-1": 1, "R1-2": 2, "R2-1": 3, "R2-2": 4, "R3-1": 5, "R3-2": 6, "R4-1": 7, "R4-2": 8}
 
@@ -201,13 +203,13 @@ def _fits(section: dict, category: str) -> bool:
 
 
 def _near_first(pairs: list) -> list:
-    """로봇에 가까운 칸(번호 1)부터, 같은 번호면 행 순서(R1 → R4). [(구역, 칸)] 그대로 정렬"""
+    """1번 칸(먼 줄)부터, 같은 번호면 행 순서(R1 → R4). [(구역, 칸)] 그대로 정렬"""
     return sorted(pairs, key=lambda p: (p[1]["slot_no"], p[0].get("sort", 0), p[0]["code"]))
 
 
 def recommend_slot(layout: dict, category: str | None) -> dict | None:
-    """품목에 맞는 빈 칸 추천(11/9 규칙): 그 품목을 받는 행(또는 품목 제한 없는 행)의 빈 칸 중 로봇에 가까운 칸(1번)부터.
-    11/9: 품목이 다른 열(018: R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑)은 섞지 않는다 → 맞는 빈 칸이 없으면 None(직원 보관 선반 추천은 shelf_or_slot).
+    """품목에 맞는 빈 칸 추천(11/9 규칙): 그 품목을 받는 행(또는 품목 제한 없는 행)의 빈 칸 중 1번 칸(먼 줄)부터.
+    11/9: 품목이 다른 열(020: R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 립밤)은 섞지 않는다 → 맞는 빈 칸이 없으면 None(직원 보관 선반 추천은 shelf_or_slot).
     품목을 모르면(None·확인 불가) 추천하지 않는다(직원이 사진을 보고 고름)"""
     if not category or category == "확인 불가":
         return None
@@ -230,13 +232,13 @@ def shelf_suggestion() -> dict:
 
 def _number_row(slot_id: str) -> dict:
     n = SLOT_NUMBERS.get(slot_id)
-    return {"number": n, "row": None if n is None else ("near" if n % 2 else "far")}
+    return {"number": n, "row": None if n is None else ("far" if n % 2 else "near")}
 
 
 def robot_target(layout: dict, item_id: str) -> dict:
     """물건 번호 → 로봇팔이 갈 곳(11/9, 탑뷰 없이 DB 만으로). 로봇을 움직이지 않고 읽기만 한다.
 
-    ok=True  : {"slot_id", "number"(1~8), "row"(near/far), "column"(R1~R4), "pose_name", "bounds_mm", "outlet_sequence"}
+    ok=True  : {"slot_id", "number"(1~8), "row"(far=홀수·탑뷰 위 / near=짝수·로봇 쪽), "column"(R1~R4), "pose_name", "bounds_mm", "outlet_sequence"}
     ok=False : code = no_slot(칸 기록 없음) · staff_shelf(직원 보관 선반, 로봇 안 씀) · not_robot_slot(인계 구역 등)
                · no_pose(칸에 저장 자세 이름 없음 — 티칭·보관함 화면에서 연결 필요)
     pose_expected: 번호대로라면 있어야 할 이름(pose_N). 실제 pose_name 과 다르면 warnings 에 남긴다(화면에서 바꾼 값일 수 있음)"""
@@ -529,7 +531,7 @@ def _layout_view(sections: list[dict], rows: dict[str, dict]) -> dict:
             elif s["kind"] == STAFF_KIND:
                 staff += r is not None
     view = {"sections": sections}
-    # 11/9 groups = 묶음별 사용(016: 열마다 x/2 — 휴대폰·카드지갑·보조배터리·핸드크림), staff_shelf = 직원 보관 선반 물건 수
+    # 11/9 groups = 묶음별 사용(016: 열마다 x/2 — 휴대폰·보조배터리·핸드크림·립밤), staff_shelf = 직원 보관 선반 물건 수
     return {**view, "summary": {"shelf_slots": total, "used": used, "free": total - used,
                                 "slots_without_pose": missing_pose, "staff_shelf": staff, "groups": slot_groups(view)}}
 

@@ -97,7 +97,7 @@ class ApiTest(unittest.TestCase):
         self.addCleanup(observability.set_listener, "live-board", None)
         import base64
         jpg = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(64) + b"\xff\xd9").decode()
-        item = {"machine_id": "KIOSK-A", "place_text": "해운대역 승강장", "photo": jpg}
+        item = {"machine_id": "KIOSK-A", "place_text": "중앙역 승강장", "photo": jpg}
         self.assertEqual(c.post("/api/kiosk/items", json=item).status_code, 200)          # 조작 화면이 없으면 예전처럼 받는다
         self.assertTrue(c.post("/api/kiosk/control/KIOSK-A", json={"client": A}).json()["control"])
         self.assertEqual(c.post("/api/kiosk/items", json=item).status_code, 409)          # 옛 화면(화면 ID 없음)의 접수는 막는다

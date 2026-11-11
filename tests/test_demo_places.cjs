@@ -5,7 +5,7 @@ async function setup(){
  const requests=[],context=vm.createContext({$:get,snapshot:{revision:'a'.repeat(32)},busy:false,fresh:true,encodeURIComponent,
   el:(tag,text)=>({tag,textContent:text,children:[],append(...v){this.children.push(...v);}}),failed(){},load:async()=>{},
   render:()=>context.CollectionPlaces?.sync(context.snapshot,context.busy,context.fresh),
-  api:async(url,body)=>{requests.push({url,body});if(body){if(writeGate)await writeGate;readFails=true;return {created:true,page_offset:5};}if(readFails)throw Error('목록 연결 실패');const offset=Number(new URL(url,'http://localhost').searchParams.get('offset'));return {mode:'demo_sqlite',revision:'a'.repeat(32),line:'2호선',station:'해운대',total:6,next_offset:offset===0?5:null,places:Array.from({length:offset===0?5:1},(_,i)=>({label:'가상 장소 '+(offset+i+1),line:'2호선',station:'해운대'}))};}});
+  api:async(url,body)=>{requests.push({url,body});if(body){if(writeGate)await writeGate;readFails=true;return {created:true,page_offset:5};}if(readFails)throw Error('목록 연결 실패');const offset=Number(new URL(url,'http://localhost').searchParams.get('offset'));return {mode:'demo_sqlite',revision:'a'.repeat(32),line:'1호선',station:'중앙',total:6,next_offset:offset===0?5:null,places:Array.from({length:offset===0?5:1},(_,i)=>({label:'가상 장소 '+(offset+i+1),line:'1호선',station:'중앙'}))};}});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../web/collection-desk/assets/places.js'),'utf8'),context);await tick();return {get,context,requests,defer:()=>{let release;writeGate=new Promise(resolve=>{release=resolve;});return release;}};
 }
 test('initial catalog loads five and next page shows the final entry',async()=>{
@@ -15,7 +15,7 @@ test('initial catalog loads five and next page shows the final entry',async()=>{
 test('place save acknowledgement is preserved when list refresh fails',async()=>{
  const s=await setup();s.get('placeLabel').value='가상 새 장소';await s.get('placeForm').onsubmit({preventDefault(){}});
  assert.match(s.get('placeStatus').textContent,/저장은 완료/);assert.equal(s.get('placeSave').disabled,true);assert.equal(s.get('placeReload').disabled,false);
- assert.equal(s.requests.find(r=>r.body).body.station,'해운대');
+ assert.equal(s.requests.find(r=>r.body).body.station,'중앙');
 });
 test('new text entered during an in-flight save is not erased by the previous acknowledgement',async()=>{
  const s=await setup();s.get('placeLabel').value='첫 장소';const release=s.defer(),pending=s.get('placeForm').onsubmit({preventDefault(){}});
