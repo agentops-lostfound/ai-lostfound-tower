@@ -91,10 +91,28 @@ class WatchTest(unittest.TestCase):
         self.assertEqual(vision_events(self.board), [])
 
     def test_worker_alive_by_recent_poll(self):
-        self.assertEqual(self.w.worker(), {"on": False, "seen_ago": None})
+        self.assertEqual(self.w.worker(), {"on": False, "seen_ago": None, "busy": False})
         self.w.polled([])
         self.now[0] += 5
-        self.assertEqual(self.w.worker(), {"on": True, "seen_ago": 5.0})
+        self.assertEqual(self.w.worker(), {"on": True, "seen_ago": 5.0, "busy": False})
+        self.now[0] += 30
+        self.assertFalse(self.w.worker()["on"])
+
+    def test_worker_stays_on_while_analyzing(self):
+        # 11/11 교육원: 사진 한 장 분석이 26초 → 그동안 대기 목록을 안 물어 '작업자 꺼짐'으로 보였다
+        self.w.polled([{"item_id": "A-1"}])
+        self.w.stage("A-1", "analyze")
+        self.now[0] += 30
+        self.assertEqual((self.w.worker()["on"], self.w.worker()["busy"]), (True, True))
+        self.w.result("A-1", QWEN, None)                          # 결과가 오면 분석 끝 + 살아 있다는 표시
+        self.assertEqual((self.w.worker()["on"], self.w.worker()["busy"]), (True, False))
+        self.now[0] += 30
+        self.assertFalse(self.w.worker()["on"])                   # 그 뒤로 아무 신호가 없으면 꺼짐
+        self.w.stage("A-2", "analyze")
+        self.now[0] += 500                                        # 분석 중에 작업자가 꺼짐 → 오래되면 꺼짐으로
+        self.assertFalse(self.w.worker()["on"])
+        self.w.stage("A-3", "wait_gpu")
+        self.w.stage("A-3", "fail", "오류")
         self.now[0] += 30
         self.assertFalse(self.w.worker()["on"])
 
