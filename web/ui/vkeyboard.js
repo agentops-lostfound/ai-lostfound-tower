@@ -9,7 +9,7 @@
  * - 화면 키보드가 붙은 칸은 readonly 로 둔다 → 태블릿 자체 키보드·윈도우 한글 입력기가 끼어들지 않음
  *
  * 쓰는 법
- *   <script src="/ui/vkeyboard.js?v=20261111a"></script>
+ *   <script src="/ui/vkeyboard.js?v=20261111b"></script>
  *   VK.attach(document, {skin: "kiosk"})                    // 키오스크: 이 화면의 입력칸 전부
  *   VK.attach(iframe.contentDocument, {skin: "phone", mount: 틀안의_자리})   // 발표용 폰 화면(/phone)
  */
@@ -251,7 +251,19 @@
         setTimeout(() => keepVisible(el), 50);
       } else {                                                      // 폰 화면: iframe 안 페이지 아래를 키보드만큼 띄움
         doc.body.style.paddingBottom = kb.offsetHeight + "px";
-        setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+        // 11/11 키오스크 분실 접수 탭(틀이 키보드 밑까지 이어짐): 틀 가운데로 올리면 칸이 키보드 밑에 남았다 →
+        // 틀에서 키보드에 가리지 않는 부분의 가운데로 칸을 올린다(폰 화면도 같은 계산)
+        setTimeout(() => {
+          const win = doc.defaultView, fe = win && win.frameElement;
+          if (!fe) { el.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+          // 키보드는 올라오는 중(움직임)일 수 있어 지금 위치 대신 다 올라온 위치(자리 아래 끝 - 키보드 높이)로 계산
+          const fr = fe.getBoundingClientRect();
+          const bottom = opt.mount && opt.mount !== host.body ? opt.mount.getBoundingClientRect().bottom : host.defaultView.innerHeight;
+          const kbTop = bottom - kb.offsetHeight;
+          const visible = Math.max(80, (kbTop > fr.top ? Math.min(fr.bottom, kbTop) : fr.bottom) - fr.top);
+          const r = el.getBoundingClientRect();
+          win.scrollBy({ top: r.top + r.height / 2 - visible / 2, behavior: "smooth" });
+        }, 50);
       }
     }
     // 11/10 사람 조작 시뮬레이션: 본센터 키오스크에서 번호를 넣고 [물건 꺼내기]를 누르면 키보드가 단추를 덮고 있어
@@ -289,6 +301,22 @@
     doc.addEventListener("focusin", (e) => { const el = target(e); if (usable(el)) show(el); }, true);
     doc.addEventListener("pointerdown", (e) => {                    // 다른 곳을 누르면 닫기
       const el = target(e); if (st.el && !usable(el) && !kb.contains(el)) hide();
+    }, true);
+
+    // 11/11 Ctrl+V 붙여넣기: 화면 키보드 칸은 readonly 라 브라우저가 붙여넣기를 막는다(Ctrl+C 는 됨) →
+    // paste 사건에서 글자를 꺼내 칸 종류에 맞게 걸러 직접 넣는다. 찾기 번호처럼 복사해 온 값을 키오스크·폰 칸에 넣을 때
+    doc.addEventListener("paste", (e) => {
+      const el = target(e);
+      if (!st.el || (el !== st.el && !st.el.contains(el))) return;
+      let text = ((e.clipboardData || window.clipboardData) && (e.clipboardData || window.clipboardData).getData("text")) || "";
+      text = text.replace(/[\r\n\t]+/g, " ").trim();
+      if (st.kind === "num") text = text.replace(/[^0-9-]/g, "");
+      else if (st.kind === "id") text = text.replace(/[^0-9*-]/g, "");
+      e.preventDefault();
+      if (!text) return;
+      const el2 = st.el, max = el2.maxLength > 0 ? el2.maxLength : 0;
+      const room = max ? Math.max(0, max - el2.value.length) : text.length;
+      st.comp = false; setValue(el2.value + text.slice(0, room));
     }, true);
 
     // PC 키보드 → 같은 화면 키를 눌러 보이며 입력

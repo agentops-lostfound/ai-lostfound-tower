@@ -358,6 +358,38 @@ class LiveEmbedTest(unittest.TestCase):
         self.assertIn("html.embed #bench{max-height:calc(100vh - 150px)", html)
         self.assertIn("html.embed header h1,html.embed header .chip.conn{display:none}", html)
 
+
+class UiFixes1111Test(unittest.TestCase):
+    """11/11 사용자 요청: 붙여넣기 · 사진 크게 보기 · 색 고르기 정리 · 키오스크 분실 접수 · ① 탭 역 바꾸기"""
+    def read(self, rel):
+        return (ROOT / rel).read_text(encoding="utf-8")
+
+    def test_paste_into_vk_fields(self):
+        js = self.read("web/ui/vkeyboard.js")
+        self.assertIn('doc.addEventListener("paste"', js)                 # readonly 칸이라 브라우저가 막던 Ctrl+V
+        self.assertIn('if (st.kind === "num") text = text.replace(/[^0-9-]/g, "")', js)
+
+    def test_photo_lightbox(self):
+        html = self.read("web/showcase/index.html")
+        self.assertIn('<div class="lightbox" id="lightbox" hidden role="dialog"', html)
+        self.assertIn('closest(".dbtable img.ph, .vhead img")', html)
+
+    def test_lost_colors_grouped_and_kiosk_embed(self):
+        html = self.read("web/lost/index.html")
+        self.assertIn("'립밤': ['빨강', '파랑']", html)
+        self.assertIn("다른 색 ${rest.length}개 ▾", html)
+        self.assertIn('get("embed") === "kiosk") document.documentElement.classList.add("embed-kiosk")', html)
+        kiosk = self.read("web/kiosk/index.html")
+        self.assertIn('<iframe id="lostFrame"', kiosk)
+        self.assertIn("f.src = '/lost?embed=kiosk'", kiosk)
+        self.assertNotIn("아직 저장은 안 돼요(준비 중)", kiosk)
+        self.assertIn("Q.get('camsrc') || Q.get('machine')", kiosk)
+
+    def test_found_tab_swaps_station(self):
+        html = self.read("web/showcase/index.html")
+        self.assertIn('const FOUND_STN = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역"};', html)
+        self.assertIn('if (b.dataset.scene === "found" && scene === "found") swapFound(); else setScene(b.dataset.scene);', html)
+
 if __name__ == "__main__":
     unittest.main()
 
