@@ -7,6 +7,7 @@
 import os
 import sys
 import unittest
+from chat_confirmation_helpers import ui_step, ui_ask
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -43,7 +44,7 @@ class ChatCancelTest(unittest.TestCase):
     def run_chat(self, a, sid, steps):
         out = None
         for q in steps:
-            out = a.step(sid, "" if isinstance(q, dict) else q, action=q if isinstance(q, dict) else None)
+            out = ui_step(a, sid, "" if isinstance(q, dict) else q, action=q if isinstance(q, dict) else None)
         return out
 
     def test_cancel_by_chat_with_number_in_first_message(self):
@@ -51,19 +52,19 @@ class ChatCancelTest(unittest.TestCase):
         svc, d = make()
         cid = self.claim(d)
         a = IntakeAgent(desk=d)
-        first = a.step("c1", f"{cid} 취소해 주세요", start="cancel")
+        first = ui_step(a, "c1", f"{cid} 취소해 주세요", start="cancel")
         self.assertEqual(first["intake"]["asked"], "identity")             # 번호는 이미 읽음 → 본인 확인
         self.assertEqual(first.get("form"), {"kind": "identity"})
-        conf = a.step("c1", "", action=IDENT)
+        conf = ui_step(a, "c1", "", action=IDENT)
         self.assertEqual(conf["status"], "intake_confirm")
         self.assertIn(cid, conf["answer"])
         self.assertEqual(svc.claims.get(cid)["status"], "booked")          # 확인 전에는 아무것도 바뀌지 않는다
-        done = a.step("c1", "네")
+        done = ui_step(a, "c1", "네")
         self.assertEqual(done["status"], "intake_done", done["answer"])
         self.assertEqual(svc.claims.get(cid)["status"], "cancelled")
         item = done["intake"]["item_id"]
         self.assertEqual(svc.world.items[item]["status"], "본센터 보관")   # 물건은 그대로 보관
-        again = a.step("c1", "네")                                          # 확인을 또 눌러도 다시 취소하지 않음
+        again = ui_step(a, "c1", "네")                                          # 확인을 또 눌러도 다시 취소하지 않음
         self.assertIn("이미", again["answer"])
 
     def test_number_asked_when_missing(self):
@@ -71,7 +72,7 @@ class ChatCancelTest(unittest.TestCase):
         svc, d = make()
         cid = self.claim(d)
         a = IntakeAgent(desk=d)
-        first = a.step("c2", "찾기 요청 취소하고 싶어요", start="cancel")
+        first = ui_step(a, "c2", "찾기 요청 취소하고 싶어요", start="cancel")
         self.assertEqual(first["intake"]["asked"], "claim_id")
         self.assertIn("찾기 번호", first["answer"])
         out = self.run_chat(a, "c2", [f"번호는 {cid.lower()} 이에요", IDENT, "네"])
@@ -117,16 +118,16 @@ class ChatCancelTest(unittest.TestCase):
         cid = self.claim(d)
         bot = Chatbot(Guidance(), search=SearchAgent(DemoItemDatabase(os.path.join(tempfile.mkdtemp(), "demo.sqlite3"))),
                       intake=IntakeAgent(desk=d))
-        r = bot.ask(f"{cid} 취소해 주세요", session_id="web-c7")
+        r = ui_ask(bot, f"{cid} 취소해 주세요", session_id="web-c7")
         self.assertEqual(r["status"], "intake_question", r)
         self.assertEqual(r["intake"]["kind"], "cancel")
         self.assertIn("intake", r.get("agent_path", []) or [r.get("agent")])
-        r = bot.ask("본인 확인", session_id="web-c7", intake_action=IDENT)
+        r = ui_ask(bot, "본인 확인", session_id="web-c7", intake_action=IDENT)
         self.assertEqual(r["status"], "intake_confirm", r)
-        r = bot.ask("네", session_id="web-c7")
+        r = ui_ask(bot, "네", session_id="web-c7")
         self.assertEqual(r["status"], "intake_done", r)
         self.assertEqual(svc.claims.get(cid)["status"], "cancelled")
-        g = bot.ask("예약 취소는 어떻게 해요?", session_id="web-c8")      # 방법만 묻는 말은 안내 그대로
+        g = ui_ask(bot, "예약 취소는 어떻게 해요?", session_id="web-c8")      # 방법만 묻는 말은 안내 그대로
         self.assertNotEqual(g["status"], "intake_question")
 
 

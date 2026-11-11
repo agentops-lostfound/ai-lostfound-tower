@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 import threading
 import time
 
@@ -200,6 +201,23 @@ class IntakeAgent:
         s = self.sessions.get(sid)
         return s if s and s.get("stage") != "done" else None
 
+    def confirmation(self, sid, version=None):
+        """화면에만 전달할 확인 값. 그래프·모델·trace에는 넣지 않는다."""
+        s = self.sessions.get(sid)
+        if not s or s.get('stage') not in ('confirm', 'done') or not s.get('confirmation_token'):
+            return None
+        if version is not None and version != s.get('version', 0):
+            return None
+        return {'type': 'confirm', 'draft_version': s.get('version', 0),
+                'confirmation_token': s['confirmation_token']}
+
+    @staticmethod
+    def _confirmed(s, action):
+        return bool(action and action.get('type') == 'confirm'
+                    and action.get('draft_version') == s.get('version', 0)
+                    and s.get('confirmation_token')
+                    and secrets.compare_digest(action['confirmation_token'], s['confirmation_token']))
+
     def wants(self, sid: str | None, question: str) -> bool:
         """이번 말을 접수 일꾼이 받아야 하나: 진행 중이거나, 방금 끝난 접수에 확인을 또 누름(같은 결과를 돌려주려고)"""
         s = self.sessions.get(sid)
@@ -216,17 +234,21 @@ class IntakeAgent:
         if not lk.acquire(timeout=60):
             return self._out("intake_failed", "앞 요청을 처리하는 중이에요. 잠시 뒤 다시 눌러 주세요.", None, done=True)
         try:
-            return self._step(sid, question, start, action, prior)
+            return self._step(sid, question, start, check_action(action), prior)
         finally:
             lk.release()
 
     def _step(self, sid, question, start=None, action=None, prior=None) -> dict:
         s = self.sessions.get(sid)
+        if action and action['type'] == 'confirm' and (not s or s.get('stage') not in ('confirm', 'done')):
+            return self._out('intake_failed', '확인 요청이 만료되었거나 내용이 바뀌었어요. 현재 내용을 다시 확인해 주세요.', None)
         if s is not None and s.get("stage") == "done":
-            if YES.match((question or "").strip()):        # 끝난 접수에 확인을 또 누름 → 같은 결과(새로 접수하지 않음)
+            if self._confirmed(s, action):
                 last = dict(s["last"])
                 last["answer"] = "이미 접수했어요. " + last["answer"]
                 return last
+            if YES.match((question or '').strip()) or action:
+                return self._out('intake_failed', '유효한 확인 요청이 아니에요. 접수 결과를 확인해 주세요.', None)
             self.sessions.drop(sid)
             s = None
         if s is None and (start == "status" or (start is None and detect_start(question) == "status")):
@@ -261,8 +283,8 @@ class IntakeAgent:
             return self._quiz_answer(sid, s, q)
         if s["stage"] == "confirm":
             if YES.match(q):
-                if s.get("confirm_version") != s.get("version", 0):     # 보여 준 요약과 지금 초안이 다름 → 다시 확인
-                    return self._confirm(sid, s, note="내용이 바뀌어 다시 확인할게요.")
+                if not self._confirmed(s, action):
+                    return self._confirm(sid, s, note="확인 요청이 없거나 이전 내용의 요청이에요. 현재 요약의 확인 버튼을 눌러 주세요.")
                 return self._commit(sid, s)
             if FIX.match(q):
                 s["stage"], s["slots"], s["asked"] = "collect", {k: v for k, v in s["slots"].items() if k == "category"}, None
@@ -376,6 +398,8 @@ class IntakeAgent:
         return out
 
     def _confirm(self, sid: str, s: dict, note: str = "", progress: bool = True) -> dict:
+        if s.get('confirm_version') != s.get('version', 0) or not s.get('confirmation_token'):
+            s['confirmation_token'] = secrets.token_urlsafe(32)
         s["confirm_version"] = s.get("version", 0)
         self.sessions.put(sid, s)
         if s["kind"] == "cancel":
@@ -404,7 +428,8 @@ class IntakeAgent:
 
     def _finish(self, sid: str, s: dict, out: dict) -> dict:
         """접수 결과를 1분 동안 기억(같은 확인이 또 와도 다시 접수하지 않고 같은 결과)"""
-        self.sessions.put(sid, {"kind": s["kind"], "stage": "done", "last": out, "slots": {}, "log": []})
+        self.sessions.put(sid, {"kind": s["kind"], "stage": "done", "last": out, "slots": {}, "log": [],
+                               'version': s.get('version', 0), 'confirmation_token': s.get('confirmation_token')})
         return out
 
     def _status(self, question: str) -> dict:
@@ -541,11 +566,18 @@ class IntakeAgent:
 
 
 def check_action(action) -> dict | None:
-    """위젯이 보내는 구조화된 동작(지금은 본인 확인 하나). 가린 값 모양이 아니면 거절(ValueError → 422)"""
+    """위젯의 가린 본인 확인 또는 초안 확인 요청. 형식 오류는 ValueError → HTTP 422."""
     if action is None:
         return None
+    if isinstance(action, dict) and action.get('type') == 'confirm':
+        if (set(action) != {'type', 'draft_version', 'confirmation_token'}
+                or type(action.get('draft_version')) is not int or not 0 <= action['draft_version'] <= 1000000
+                or not isinstance(action.get('confirmation_token'), str)
+                or not re.fullmatch(r'[A-Za-z0-9_-]{43}', action['confirmation_token'])):
+            raise ValueError('확인 요청의 초안 버전과 토큰 형식이 올바르지 않아요')
+        return dict(action)
     if not isinstance(action, dict) or action.get("type") != "identity" or set(action) != {"type", "name_masked", "id_no_masked"}:
-        raise ValueError('intake_action 은 {"type": "identity", "name_masked", "id_no_masked"} 만 받아요')
+        raise ValueError('intake_action 은 가린 본인 확인(identity) 또는 초안 확인(confirm)만 받아요')
     nm, idm = action["name_masked"], action["id_no_masked"]
     if not (isinstance(nm, str) and "*" in nm and MASK_RE.match(nm)) or not (isinstance(idm, str) and ID_MASK_RE.match(idm)):
         raise ValueError("본인 확인 정보는 가린 값만 받아요(예: 홍*동, ******-1******)")

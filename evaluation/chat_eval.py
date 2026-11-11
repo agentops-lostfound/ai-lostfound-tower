@@ -127,6 +127,7 @@ class Runner:
         svc, client = self.fresh()
         sid = f"eval-{item['no']:04d}-{int(time.time() * 1000) % 100000:05d}"
         histories, turns, t0, wait_id = {}, [], time.perf_counter(), ""
+        confirmations = {}
         for k, turn in enumerate(item["turns"]):
             if turn.get("wait"):                                   # 가상 세계의 뒤 작업(자동 연결 등)이 끝나길 기다림
                 try:
@@ -147,10 +148,17 @@ class Runner:
                 body["intake_action"] = ID_MASKED
             elif turn.get("action") == "identity_raw":
                 body["intake_action"] = ID_RAW
+            elif re.fullmatch(r'접수할게요|네|예|응|좋아요|맞아요|확인|접수|그래요?|ㅇㅇ|넵', body['question'].strip()):
+                if body['session_id'] in confirmations and not turn.get('omit_confirmation'):
+                    body['intake_action'] = dict(confirmations[body['session_id']])
             ts = time.perf_counter()
             try:
                 r = client.post("/chat/questions", json=body)
                 code, res = r.status_code, (r.json() if r.headers.get("content-type", "").startswith("application/json") else {})
+                if isinstance(res, dict) and res.get('confirmation'):
+                    confirmations[body['session_id']] = dict(res['confirmation'])
+                elif isinstance(res, dict) and res.get('status') != 'intake_done':
+                    confirmations.pop(body['session_id'], None)
             except Exception as e:                                   # 한 문항이 예외여도 나머지는 돈다
                 code, res = 599, {"answer": "", "generation_status": f"예외 {type(e).__name__}: {str(e)[:120]}"}
             why = check_turn(turn, code, res if isinstance(res, dict) else {})

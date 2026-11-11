@@ -581,7 +581,10 @@
       choices.forEach(function (c) {
         var btn = el("button", "choice", c);
         btn.type = "button";
-        btn.addEventListener("click", function () { if (!busy) send(c); });
+        var confirming = res.status === "intake_confirm" && /^(접수할게요|네)$/.test(c);
+        var proof = confirming && res.confirmation ? Object.assign({}, res.confirmation) : null;
+        if (confirming && !proof) btn.disabled = true;
+        btn.addEventListener("click", function () { if (!busy) send(c, null, null, proof); });
         row.append(btn);
       });
       m.append(row);

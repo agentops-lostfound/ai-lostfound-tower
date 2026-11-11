@@ -248,7 +248,7 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             params = inspect.signature(b.ask).parameters
             if "session_id" in params:
                 extra = {"session_id": sid, "channel": "staff" if staff else (mode or "web")}
-            if body.get("intake_action") is not None:      # 11/9 위젯 본인 확인 양식(가린 값만) — 모양이 다르면 422
+            if body.get("intake_action") is not None:      # 가린 본인 확인 또는 버전·토큰 확인 요청. 형식 오류는 422
                 from agents.chat_intake import check_action
                 try:
                     action = check_action(body.get("intake_action"))

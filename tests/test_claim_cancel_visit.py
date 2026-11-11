@@ -8,6 +8,7 @@
 import os
 import sys
 import unittest
+from chat_confirmation_helpers import ui_step, ui_ask
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -104,7 +105,7 @@ class UnknownPlaceTest(unittest.TestCase):
         ident = {"type": "identity", "name_masked": "홍*동", "id_no_masked": "******-1******"}
         out = None
         for q in ("분홍 핸드크림 잃어버렸어요 접수해 주세요", "모름", "어제", "없어요", ident, "네"):
-            out = a.step("s1", "" if isinstance(q, dict) else q, action=q if isinstance(q, dict) else None)
+            out = ui_step(a, "s1", "" if isinstance(q, dict) else q, action=q if isinstance(q, dict) else None)
         self.assertEqual(out["status"], "intake_done", out["answer"])
         self.assertNotIn("모름역", out["answer"])
         cid = out["intake"]["claim_id"]
@@ -151,7 +152,7 @@ class LostStationTest(unittest.TestCase):
         ident = {"type": "identity", "name_masked": "홍*동", "id_no_masked": "******-1******"}
         first = out = None
         for x in ("초록색 핸드크림을 잃어버렸는데 분실 접수좀 해줘", station_answer, "어제", "없어요", ident, "네"):
-            out = a.step("s", "" if isinstance(x, dict) else x, action=x if isinstance(x, dict) else None)
+            out = ui_step(a, "s", "" if isinstance(x, dict) else x, action=x if isinstance(x, dict) else None)
             first = first or out
         self.assertEqual(out["status"], "intake_done", out["answer"])
         c = svc.claims.get(out["intake"]["claim_id"])

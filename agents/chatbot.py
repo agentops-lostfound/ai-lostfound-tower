@@ -23,6 +23,7 @@ from agents.chat_intake import FOUND_SAY, LOST_SAY, SLOT_KO as SLOT_KO_JUDGE, In
 from langsmith import tracing_context
 
 _search_access = ContextVar('lf_chat_search_access', default=None)
+_intake_confirmation = ContextVar('lf_chat_intake_confirmation', default=None)
 
 
 class ChatState(TypedDict, total=False):
@@ -496,7 +497,7 @@ class Chatbot:
         with node_step('intake', as_type='agent', input={'question': state['question'], 'task': state.get('task') or None,
                                                         'start': state.get('intake_start') or None,
                                                         'form': bool(state.get('intake_action'))}) as obs:
-            res = self.intake.step(sid, state['question'], start=state.get('intake_start') or None, action=state.get('intake_action'),
+            res = self.intake.step(sid, state['question'], start=state.get('intake_start') or None, action=_intake_confirmation.get() or state.get('intake_action'),
                                    prior=state.get('questions'))
             obs.update(output={'status': res.get('status'), **(res.get('intake') or {})})
         return {'results': {**(state.get('results') or {}), 'intake': res}, 'path': state.get('path', []) + ['intake'], 'last': 'intake'}
@@ -624,7 +625,12 @@ class Chatbot:
                                     'decisions': out.get('decisions'), 'intake': out.get('intake')})
         from agents.observability import flush_soon
         flush_soon()                 # 11/9 질문 하나가 끝나면 바로 Langfuse 로(관제탑을 끌 때까지 기다리지 않음)
-        return wallet_nudge(question, history, out)
+        out = wallet_nudge(question, history, out)
+        if out.get('status') == 'intake_confirm':
+            proof = self.intake.confirmation(session_id, (out.get('intake') or {}).get('draft_version'))
+            if proof:
+                out = {**out, 'confirmation': proof}
+        return out
 
     def _ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, intake_action=None):
         question = checked_text(question, '질문', 500)
@@ -649,7 +655,11 @@ class Chatbot:
                 '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 카드지갑 찾아줘 / 본인인증에 실패하면?', []),
                 'agent': 'guidance', 'context_used': False}
         # Bearer credentials must never enter graph state, checkpoints or tracing.
+        from agents.chat_intake import check_action
+        intake_action = check_action(intake_action)
+        confirmation = intake_action if intake_action and intake_action.get('type') == 'confirm' else None
         context_token = _search_access.set(access_token)
+        confirmation_context = _intake_confirmation.set(confirmation)
         try:
             from agents.observability import callbacks_active, graph_callbacks
             handlers = graph_callbacks()     # 11/7 Langfuse callback 방식: 그래프 칸별 기록(키 없으면 빈 목록 = 기록 안 함)
@@ -657,11 +667,12 @@ class Chatbot:
             with tracing_context(enabled=False, parent=False), callbacks_active(bool(handlers)):
                 state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn,
                                            'history': turns if turns else history, 'questions': history,
-                                           'session_id': session_id or '', 'intake_action': intake_action,
+                                           'session_id': session_id or '', 'intake_action': {'type': 'confirm'} if confirmation else intake_action,
                                            'intake_start': intake_start, 'intake_active': intake_active},
                                           config={'callbacks': handlers, 'run_name': 'chatbot-graph'})
         finally:
             _search_access.reset(context_token)
+            _intake_confirmation.reset(confirmation_context)
         return {**state['result'], 'agent': state['route'],
                 'supervisor_checks': state.get('supervisor_checks', []), 'worker_executions': state.get('worker_executions', 0),
                 'agent_path': state.get('path', []), 'routing': state.get('routing', 'rule'),
