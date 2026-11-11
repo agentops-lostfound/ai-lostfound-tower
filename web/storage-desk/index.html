@@ -46,7 +46,7 @@
   .tag.st { color:var(--ui-primary); background:var(--ui-primary-soft); }   /* 11/9 습득 역 배지 */
   #arrivals h3 { font-size:13px; font-weight:700; margin:14px 0 8px; }
   #arrivals h3:first-child { margin-top:0; }
-  /* 11/9 실제 배치(위에서 본 모습): 제출보관함 H-1 은 보관판 위쪽 가운데, R1~R4 는 왼→오, 각 줄은 먼 칸(2) 위·가까운 칸(1) 아래, 로봇팔은 아래 가운데 */
+  /* 11/9 실제 배치(위에서 본 모습): 제출보관함 H-1 은 보관판 위쪽 가운데, R1~R4 는 왼→오, 각 줄은 1번 칸(먼 칸) 위·2번 칸(가까운 칸) 아래(11/11), 로봇팔은 아래 가운데 */
   .boardwrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
   #hbox { order:-1; width:40%; min-width:120px; }
   .robotmark { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:12px; color:var(--ui-text-3); }
@@ -255,7 +255,7 @@
       if (sec.kind === "staff") { sec.slots.forEach(function (s) { if (s.item) shelf.push(s); }); return; }   // 11/9 직원 보관 선반(보관판 밖)
       var row = el("div", undefined, "row" + (sec.code === "R1" ? " r1" : ""));
       row.appendChild(el("span", showText(sec.label), "rlabel"));
-      sec.slots.slice().sort(function (a, b) { return b.slot_id.localeCompare(a.slot_id); })   // 먼 칸(-2) 위, 가까운 칸(-1) 아래
+      sec.slots.slice().sort(function (a, b) { return a.slot_id.localeCompare(b.slot_id); })   // 11/11: 1번 칸(-1, 먼 칸) 위, 2번 칸(-2, 가까운 칸) 아래
         .forEach(function (s) { row.appendChild(slotButton(sec, s)); });
       board.appendChild(row);
     });

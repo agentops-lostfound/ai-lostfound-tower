@@ -342,9 +342,9 @@ class ApiRoutesTest(unittest.TestCase):
                 r[("POST", "/api/admin/storage/assign")](payload)
             self.assertEqual(cm.exception.status_code, code, payload)
         self.assertEqual(r[("POST", "/api/admin/storage/slots/{slot_id}/pose")]("R4-1", {"pose_name": "pose_1"})["pose_name"], "pose_1")
-        # 11/9 DB 칸 모드: R4-1 은 번호 7(가까운 줄) — 자세를 pose_1 로 바꿨으니 번호대로의 pose_7 과 다르다고 경고
+        # 11/9 DB 칸 모드: R4-1 은 번호 7(먼 줄, 11/11) — 자세를 pose_1 로 바꿨으니 번호대로의 pose_7 과 다르다고 경고
         t = r[("GET", "/api/admin/storage/robot-target/{item_id}")]("A-W01")
-        self.assertEqual((t["ok"], t["number"], t["row"], t["pose_name"], t["pose_expected"]), (True, 7, "near", "pose_1", "pose_7"))
+        self.assertEqual((t["ok"], t["number"], t["row"], t["pose_name"], t["pose_expected"]), (True, 7, "far", "pose_1", "pose_7"))
         self.assertEqual(len(t["warnings"]), 1)
         self.assertEqual(r[("GET", "/api/admin/storage/robot-target/{item_id}")]("A-W02")["code"], "no_slot")
         with self.assertRaises(self.HTTPException) as cm:

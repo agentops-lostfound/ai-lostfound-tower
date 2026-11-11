@@ -28,18 +28,27 @@ def store(db, poses=SLOT_POSES):
 
 
 class NumberingTest(unittest.TestCase):
-    def test_1357_near_2468_far_and_pose_n(self):
-        near = [s for s, n in SLOT_NUMBERS.items() if n % 2]
-        far = [s for s, n in SLOT_NUMBERS.items() if not n % 2]
-        self.assertEqual(near, ["R1-1", "R2-1", "R3-1", "R4-1"])      # -1 = 로봇 가까운 칸
-        self.assertEqual(far, ["R1-2", "R2-2", "R3-2", "R4-2"])
+    def test_1357_far_2468_near_and_pose_n(self):
+        far = [s for s, n in SLOT_NUMBERS.items() if n % 2]
+        near = [s for s, n in SLOT_NUMBERS.items() if not n % 2]
+        self.assertEqual(far, ["R1-1", "R2-1", "R3-1", "R4-1"])       # 11/11 실물: -1 = 먼 칸(탑뷰 위, 왼쪽 위가 1)
+        self.assertEqual(near, ["R1-2", "R2-2", "R3-2", "R4-2"])
         for slot, n in SLOT_NUMBERS.items():                             # 번호 N = 저장 자세 pose_N (013 마이그레이션)
             self.assertEqual(SLOT_POSES[slot], f"pose_{n}")
+
+    def test_sim_world_top_left_is_1(self):
+        """11/11 실물 확인: 탑뷰 왼쪽 위가 1번(R1-1), 그 아래가 2번 — 가상 세계 그림도 같은 배치(로봇은 아래, y 큼)"""
+        from agents.sim_world import ROBOT_BASE_MM, SLOT_IDS, SLOTS_MM
+        pos = dict(zip(SLOT_IDS, SLOTS_MM))
+        for col in ("R1", "R2", "R3", "R4"):
+            self.assertLess(pos[col + "-1"][1], pos[col + "-2"][1])            # -1 이 위(로봇에서 먼 쪽)
+            self.assertGreater(ROBOT_BASE_MM[1], pos[col + "-2"][1])
+        self.assertEqual(min(SLOTS_MM, key=lambda xy: (xy[1], xy[0])), pos["R1-1"])   # 맨 위 왼쪽 = R1-1
 
     def test_table_has_8_rows_in_number_order(self):
         rows = robot_targets(store({}).layout())
         self.assertEqual([r["number"] for r in rows], list(range(1, 9)))
-        self.assertEqual([r["row"] for r in rows[:2]], ["near", "far"])
+        self.assertEqual([r["row"] for r in rows[:2]], ["far", "near"])
         self.assertEqual(rows[6]["slot_id"], "R4-1")
         self.assertTrue(all(r["pose_name"] == r["pose_expected"] for r in rows))
 
@@ -55,7 +64,7 @@ class TargetTest(unittest.TestCase):
         t = robot_target(s.layout(), "A-W11")
         self.assertTrue(t["ok"])
         self.assertEqual((t["slot_id"], t["number"], t["row"], t["column"], t["pose_name"]),
-                         ("R2-2", 4, "far", "R2", "pose_4"))
+                         ("R2-2", 4, "near", "R2", "pose_4"))
         self.assertEqual(t["warnings"], [])
         self.assertEqual(t["outlet_sequence"][-1], "home")
 
