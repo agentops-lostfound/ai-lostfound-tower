@@ -221,9 +221,11 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
             notify(iid, "analyze")
             path = resolve_photo(row.get("photo_path") or "", root)
             feats = analyze(path)
-            cm = (measurer or measure_color)(path, feats)
             sm = (sizer or measure_size)(path)
             sm = sm if sm and sm.get("found") and sm.get("size_group") else None    # 품목 크기로 잰 것만 보냄(못 잰 사진은 Qwen 그대로)
+            # 11/11 색 측정은 품목에 따라 규칙이 다름(핸드크림만 하늘색·분홍 구별) → 크기가 립밤·핸드크림이면 그 품목으로 색을 잼
+            size_cat = {"핸드크림": "hand_cream", "립밤": "lip_balm"}.get((sm or {}).get("size_group"))
+            cm = (measurer or measure_color)(path, {**feats, "category": size_cat} if size_cat and isinstance(feats, dict) else feats)
             if sm:
                 tower.send(iid, feats, cm, sm)
             elif cm:

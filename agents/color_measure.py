@@ -27,7 +27,8 @@ CLIP = 245             # 이 값 이상 채널이 있으면 '날아간' 점(원�
 SAT_COLOR = 0.12       # 이보다 채도가 높으면 유채색
 MIN_AREA = 0.004       # 화면의 0.4% 보다 작으면 물건을 못 찾은 것으로 봄
 FELT_TEXTURE = 3.5     # 바닥 잔무늬가 이보다 약하면 펠트가 아님(도화지 약 2, 펠트 약 10) → 측정하지 않음
-COLORFUL = {"핸드크림", "립밤"}     # 포장 색이 다양한 품목 — 많이 날아갔으면 흰색이라 단정하지 않음
+COLORFUL = {"핸드크림", "립밤"}
+CREAM_BLUE, CREAM_PINK = 0.03, -0.02     # 11/11 핸드크림만: 날아가지 않은 부분의 (파랑 - 빨강) 이 이 이상이면 하늘색(파랑), 이 이하면 분홍     # 포장 색이 다양한 품목 — 많이 날아갔으면 흰색이라 단정하지 않음
 
 
 def _load(path):
@@ -221,6 +222,16 @@ def measure(path, category: str | None = None) -> dict:
             why += f" — 하얗게 날아간 점 {clipped * 100:.0f}%(연한 색일 수 있음)"
     else:
         name, sure, why = "회색", False, f"바닥과 비슷한 밝기({lum:.2f}배)"
+    # 11/11 하늘색 핸드크림이 계속 흰색으로 저장됨: 연한 포장이 대부분 하얗게 날아가 채도가 5%뿐이라 '흰색(애매)' → Qwen '흰색' 유지.
+    #   날아가지 않은 부분의 파랑-빨강 차이(바닥 대비)로 가른다 — 11/11 펠트 사진: 하늘색 크림 +0.04~+0.05 · 분홍 크림 -0.03~-0.08.
+    #   흰 휴대폰(+0.02)·흰 보조배터리(-0.02)와 겹치므로 **핸드크림일 때만** 쓴다(운영 핸드크림은 분홍·하늘색 두 개)
+    if category == "핸드크림" and name in ("흰색", "회색") and ok.sum() >= 20:
+        tilt = float(r[ok][:, 2].mean() - r[ok][:, 0].mean())
+        out["blue_red"] = round(tilt, 3)
+        if tilt >= CREAM_BLUE:
+            name, sure, why = "파랑", True, f"연한 하늘색 핸드크림(날아가지 않은 부분이 파랑 쪽 {tilt:+.2f})"
+        elif tilt <= CREAM_PINK:
+            name, sure, why = "분홍", True, f"연한 분홍 핸드크림(날아가지 않은 부분이 빨강 쪽 {tilt:+.2f})"
     out.update(color=name, sure=bool(sure), reason=why)
     return out
 

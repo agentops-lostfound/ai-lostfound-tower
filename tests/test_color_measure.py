@@ -81,6 +81,27 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(phone["color"], "흰색")
         self.assertTrue(phone["sure"])
 
+    def _half_blown(self, name, cat, rel):
+        """연한 크림: 둘레는 하얗게 날아가고 가운데 무늬만 연한 색이 남음(11/11 실물 사진처럼 날아간 점 약 75%)"""
+        p = scene(self.d / f"{name}.jpg", obj_rel=rel, box=(100, 60, 140, 120))
+        im = np.asarray(Image.open(p)).copy()
+        keep = im[75:105, 110:130].copy()
+        im[60:120, 100:140] = 252
+        im[75:105, 110:130] = keep
+        Image.fromarray(im).save(p, quality=95)
+        return cmz.measure(p, cat)
+
+    def test_sky_blue_and_pink_cream_not_white(self):
+        """11/11 하늘색 핸드크림이 계속 흰색으로 저장됨 → 핸드크림이면 날아가지 않은 부분의 파랑·빨강 기울기로 가름"""
+        sky = self._half_blown("sky", "핸드크림", (1.0, 1.06, 1.06))
+        self.assertEqual((sky["color"], sky["sure"]), ("파랑", True), sky)
+        pink = self._half_blown("pink", "핸드크림", (1.05, 1.02, 0.99))
+        self.assertEqual((pink["color"], pink["sure"]), ("분홍", True), pink)
+        neutral = self._half_blown("neutral", "핸드크림", (1.03, 1.03, 1.03))
+        self.assertEqual(neutral["color"], "흰색")               # 기울기가 없으면 예전처럼(애매 → Qwen 유지)
+        phone = self._half_blown("phone2", "모형폰", (1.0, 1.06, 1.06))
+        self.assertNotEqual(phone["color"], "파랑")               # 흰 휴대폰은 이 규칙을 쓰지 않음
+
     def test_smooth_floor_is_refused(self):
         """도화지·종이처럼 잔무늬가 없는 바닥은 회색 기준이 아니므로 재지 않음"""
         r = self.m("paper", obj_rel=(1.05, 0.45, 0.5), felt=False)

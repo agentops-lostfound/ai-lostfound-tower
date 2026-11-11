@@ -191,6 +191,25 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(n, 1)
         self.assertEqual(t.sent[0][2]["size_group"], "핸드크림")
 
+    def test_color_uses_size_category(self):
+        # 11/11 Qwen 이 크림을 립밤으로 읽어도 크기가 핸드크림이면 색은 핸드크림 규칙(하늘색·분홍 구별)으로 잰다
+        from tools import intake_qwen_worker as w
+        seen = []
+
+        class Tower:
+            def pending(self):
+                return [{"item_id": "A-20261111-0002", "photo_path": "photos/KIOSK-A/y.jpg"}]
+
+            def send(self, *a):
+                pass
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "photos/KIOSK-A").mkdir(parents=True)
+            (Path(d) / "photos/KIOSK-A/y.jpg").write_bytes(b"x")
+            w.process_once(Tower(), lambda p: {"category": "lip_balm", "colors": []}, {}, log=lambda *a: None, root=Path(d),
+                           measurer=lambda p, f: seen.append(f["category"]),
+                           sizer=lambda p: {"found": True, "size_group": "핸드크림", "length": 380, "width": 127})
+        self.assertEqual(seen, ["hand_cream"])
+
 
 if __name__ == "__main__":
     unittest.main()
