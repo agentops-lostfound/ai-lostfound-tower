@@ -513,6 +513,46 @@ class ExposureTest(unittest.TestCase):
         self.assertIn("BRIGHTNESS", props)
         self.assertEqual(ce.main(["--cam", "fake", "--dialog"]), 2)       # 가짜 카메라에는 설정 창이 없음
 
+    def test_camera_props(self):
+        """11/11 교육원: 노출 명령은 안 받지만 대비(CONTRAST)는 받음 — 260 → 200 이면 흰 폰이 날아가지 않음"""
+        import tempfile
+        import cv2
+        from agents.kiosk_camera import FakeSource, parse_props
+        from tools import camera_exposure as ce
+        self.assertEqual(parse_props("CONTRAST=200, gamma=18"), {"CONTRAST": 200.0, "GAMMA": 18.0})
+        self.assertEqual(parse_props("EXPOSURE=-6,CONTRAST=abc,FOO=1,GAIN=99999,,"), {})      # 정해 둔 이름·범위만
+        self.assertEqual(parse_props(None), {})
+        made = []
+        cams = KioskCameras({"KIOSK-A": 0}, opener=lambda src: made.append(FakeSource()) or made[-1],
+                            exposure={}, wb={}, props={"CONTRAST": 200.0})
+        try:
+            cams.feed("KIOSK-A").touch()
+            t0 = time.time()
+            while time.time() - t0 < 3 and not cams.feed("KIOSK-A").latest():
+                time.sleep(0.02)
+            st = cams.status()["KIOSK-A"]
+            self.assertEqual(st["props"]["CONTRAST"], {"requested": 200.0, "now": 200.0})
+            self.assertEqual(made[0].props[cv2.CAP_PROP_CONTRAST], 200.0)
+        finally:
+            cams.stop(2)
+        old = os.environ.get("TOWER_KIOSK_CAMPROPS")
+        os.environ["TOWER_KIOSK_CAMPROPS"] = "CONTRAST=200"
+        try:
+            self.assertEqual(KioskCameras({"KIOSK-A": "fake"}).feed("KIOSK-A").props, {"CONTRAST": 200.0})
+        finally:
+            if old is None:
+                os.environ.pop("TOWER_KIOSK_CAMPROPS", None)
+            else:
+                os.environ["TOWER_KIOSK_CAMPROPS"] = old
+        cam = _ExpCam()
+        cam.props[cv2.CAP_PROP_CONTRAST] = 260.0
+        r = ce.try_props(0, "CONTRAST=200", opener=lambda src: cam, settle=2)
+        self.assertEqual(r["state"]["CONTRAST"]["now"], 200.0)
+        self.assertIsNotNone(r["m"])
+        self.assertEqual(cam.props[cv2.CAP_PROP_CONTRAST], 260.0)                 # 확인 뒤 원래 값으로 되돌림
+        with self.assertRaises(SystemExit):
+            ce.try_props(0, "EXPOSURE=-6", opener=lambda src: _ExpCam(), settle=2)
+
     def test_tool_reports_closed_camera(self):
         import tempfile
         from tools import camera_exposure as ce
