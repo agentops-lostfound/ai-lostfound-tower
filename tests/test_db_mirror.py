@@ -128,7 +128,7 @@ class WritesTest(unittest.TestCase):
         db.real_items.add("A-20261110-0001")
         m.item_new(ROW)
         m.item_status("A-20261110-0001", "등록기계 보관", "회수 중", "staff")
-        m.item_features("A-20261110-0001", "지갑", {"color": "검정"}, {})
+        m.item_features("A-20261110-0001", "립밤", {"color": "검정"}, {})
         m.slot_assign("R2-1", "A-20261110-0001")
         m.claim_new({"claim_id": "C-20261110-0001", "item_id": "A-20261110-0001", "quiz": []})
         m.wait()
@@ -150,12 +150,12 @@ class WritesTest(unittest.TestCase):
     def test_claim_filters_columns_db_would_reject(self):
         m, db = mirror()
         m.claim_new({"claim_id": "C-20261110-0001", "item_id": "A-1", "name_masked": "변*원", "id_no_masked": ID_MASKED,
-                     "id_verified": True, "description": {"category": "지갑", "color": "검정", "place": "중앙"},
+                     "id_verified": True, "description": {"category": "립밤", "color": "검정", "place": "중앙"},
                      "quiz": [{"field": "place", "passed": True}, {"field": "weird", "passed": True}], "visit_date": "2026-11-10"})
         m.wait()
         claim = db.sqls("INSERT INTO claim (")[0]
         self.assertEqual(claim[:4], ("C-20261110-0001", "변*원", ID_MASKED, True))
-        self.assertEqual(claim[4], '{"category": "지갑", "color": "검정"}')   # claim.description 은 정해진 칸만 받는다
+        self.assertEqual(claim[4], '{"category": "립밤", "color": "검정"}')   # claim.description 은 정해진 칸만 받는다
         self.assertEqual(db.sqls("INSERT INTO quiz_attempt"), [("C-20261110-0001", "A-1", "place", True)])
         self.assertEqual(db.sqls("INSERT INTO reservation")[0], ("C-20261110-0001", "A-1", "2026-11-10"))
 
@@ -254,11 +254,11 @@ class AttachTest(unittest.TestCase):
                                              "finder": {"name": "김습득", "phone": PHONE}})
         self.assertEqual(r.status_code, 200, r.text)
         iid = r.json()["item_id"]
-        r = c.post(f"/api/kiosk/items/{iid}/features", json={"qwen": {"category": "wallet", "colors": ["black"], "shape": "rectangular",
+        r = c.post(f"/api/kiosk/items/{iid}/features", json={"qwen": {"category": "lip_balm", "colors": ["black"], "shape": "rectangular",
                                                                       "material": "leather", "visible_text": "VOVA"}, "confidence": 0.9})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertTrue(svc.sim.wait_idle(20))
-        lost = c.post("/sim/lost", json={"text": "검정 지갑 잃어버렸어요, 중앙역", "visit": "kiosk", "name_masked": "변*원",
+        lost = c.post("/sim/lost", json={"text": "검정 립밤 잃어버렸어요, 중앙역", "visit": "kiosk", "name_masked": "변*원",
                                          "id_no_masked": ID_MASKED}).json()
         for _ in range(5):
             if not lost.get("pending_id"):
@@ -292,7 +292,7 @@ class AttachTest(unittest.TestCase):
         self.assertTrue(item[3].startswith("photos/KIOSK-A/"))             # 사진 위치도 함께
         self.assertEqual(db.sqls("INSERT INTO finder_contact")[0][0], iid)
         feats = db.sqls("UPDATE item SET category")[0]
-        self.assertEqual((feats[0], feats[3]), ("지갑", iid))
+        self.assertEqual((feats[0], feats[3]), ("립밤", iid))
         import json
         pub, priv = json.loads(feats[1]), json.loads(feats[2])
         self.assertEqual(pub["color"], "검정")
@@ -427,8 +427,8 @@ class RealPostgresTest(unittest.TestCase):
         # 팀 DB 에 먼저 있던 실제 기록: 오늘 본센터 접수 0002 번(가상 표시 없음) + 직원이 넣은 칸
         from datetime import date
         real = f"H-{date.today():%Y%m%d}-0002"
-        self.q("INSERT INTO item (item_id, machine_id, place_text, status, category) VALUES (%s, 'CENTER', '실제 접수', '인계 완료', '지갑') RETURNING 1", real)
-        self.q("INSERT INTO item (item_id, machine_id, place_text, status, category) VALUES ('A-W01', 'KIOSK-A', 'x', '본센터 보관', '지갑') RETURNING 1")
+        self.q("INSERT INTO item (item_id, machine_id, place_text, status, category) VALUES (%s, 'CENTER', '실제 접수', '인계 완료', '립밤') RETURNING 1", real)
+        self.q("INSERT INTO item (item_id, machine_id, place_text, status, category) VALUES ('A-W01', 'KIOSK-A', 'x', '본센터 보관', '립밤') RETURNING 1")
         self.q("INSERT INTO storage_assignment (slot_id, item_id, assigned_by) VALUES ('R4-1', 'A-W01', 'staff') RETURNING 1")
         svc = build_sim_service(ENV)
         m = dm.DbMirror(self.dsn)
@@ -440,7 +440,7 @@ class RealPostgresTest(unittest.TestCase):
         self.assertEqual(self.q("SELECT place_text, status FROM item WHERE item_id = %s", real), [("실제 접수", "인계 완료")])
         self.assertEqual(self.q("SELECT item_id, assigned_by FROM storage_assignment WHERE slot_id = 'R4-1'"), [("A-W01", "staff")])
         row = self.q("SELECT machine_id, place_text, status, category, photo_path IS NOT NULL, object_id FROM item WHERE item_id = %s", iid)
-        self.assertEqual(row, [("KIOSK-A", "중앙역 승강장", "인계 대기", "지갑", True, None)])
+        self.assertEqual(row, [("KIOSK-A", "중앙역 승강장", "인계 대기", "립밤", True, None)])
         self.assertEqual(self.q("SELECT count(*) FROM finder_contact WHERE item_id = %s", iid), [(1,)])
         logs = [r[0] for r in self.q("SELECT to_status FROM item_status_log WHERE item_id = %s ORDER BY id", iid)]
         self.assertEqual(logs[:3], ["등록기계 보관", "회수 중", "본센터 보관"])

@@ -4,11 +4,11 @@
            단, 관제탑에는 진짜 화면과 **똑같은 입구**(create_item · set_item_features · create_claim · start_return · handover)로만 요청한다.
            → 진짜 화면이 생기면 그 단계만 연출기에서 빼면 된다(관제탑 코드는 그대로).
 
-    습득 신고("초량역 5번 출구 앞에서 검정 카드지갑 주웠어요")
+    습득 신고("초량역 5번 출구 앞에서 빨간 립밤 주웠어요")
       ① 등록기계 접수  service.create_item       ← 진짜: 등록기계 태블릿(김재민 PR #48)
       ② Qwen 특징     service.set_item_features ← 진짜: 김건태 Qwen 작업(사진)
       ③ 회수·보관함    세계에서 물건을 옮김        ← 진짜: 직원이 옮김(상태 변경 화면 TBD)
-    분실 신고("검정 카드지갑 잃어버렸어요, 초량역에서요")
+    분실 신고("빨간 립밤 잃어버렸어요, 초량역에서요")
       ④ 후보·확인 질문·예약  service.create_claim  ← 진짜: 분실인 웹(김재민 LF-2·4·6)
       ⑤ 방문 확인 → 반환     service.start_return  ← 진짜: 직원 화면 "반환 시작"
       ⑥ 인계 완료           service.handover      ← 진짜: 직원 화면 "분실인에게 건넴"
@@ -1121,7 +1121,7 @@ def build_sim_service(env: dict | None = None):
         except ValueError:
             return float(default)
     flag = lambda k: str(env.get(k) or "0").strip().lower() in ("1", "true", "yes", "on")  # noqa: E731
-    # 11/10 처음 보관함 물건: 기본 = 분홍 핸드크림 하나. TOWER_SIM_SEED=full 이면 예전 5개(휴대폰 2·보조배터리 2·카드지갑 1 — 칸 대기·닮은 물건 장면 연습용)
+    # 11/10 처음 보관함 물건: 기본 = 분홍 핸드크림 하나. TOWER_SIM_SEED=full 이면 예전 5개(휴대폰 2·보조배터리 2·립밤 1 — 칸 대기·닮은 물건 장면 연습용)
     seed = str(env.get("TOWER_SIM_SEED") or "").strip().lower()
     world = SimWorld(speed=num("TOWER_SIM_SPEED", 1.0), seed=seed if seed == "full" else True)
     board = LiveBoard()

@@ -888,12 +888,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     @app.post("/sim/found")
     def sim_found(payload: dict = Body(...)) -> dict:
-        """가상 습득 신고: {"text": "초량역 5번 출구 앞에서 검정 카드지갑 주웠어요"} → 접수 번호·이야기 번호(나머지는 뒤에서 진행)"""
+        """가상 습득 신고: {"text": "초량역 5번 출구 앞에서 빨간 립밤 주웠어요"} → 접수 번호·이야기 번호(나머지는 뒤에서 진행)"""
         return _sim_call(_sim().found, _text(payload))
 
     @app.post("/sim/lost")
     def sim_lost(payload: dict = Body(...)) -> dict:
-        """가상 분실 신고: {"text": "검정 카드지갑 잃어버렸어요, 초량역"} → 찾기 번호 또는 확인 질문(pending_id)
+        """가상 분실 신고: {"text": "빨간 립밤 잃어버렸어요, 초량역"} → 찾기 번호 또는 확인 질문(pending_id)
         11/7 분실인 웹: + {"visit": "kiosk", "name_masked": "변*원", "id_no_masked": "******-3******"} 이면
         방문을 자동으로 하지 않고 본센터 키오스크 회수 탭(찾기 번호 + 같은 신분 번호)을 기다린다"""
         opts = {}

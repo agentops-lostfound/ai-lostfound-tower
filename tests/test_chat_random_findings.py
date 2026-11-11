@@ -39,11 +39,11 @@ class RandomFindingsTest(unittest.TestCase):
 
     def test_lost_variants_are_not_all_the_same_question(self):
         a = GroundedRag(Guidance(), None)
-        r = a.ask("어제 중앙역 화장실에서 검정 반지갑 잃어버렸어요 별 스티커 붙어있어요")
-        self.assertIn("지갑 분실로 이해했어요", r["answer"])            # 물건을 말했는데 "어떤 물건?"이라고 되묻지 않음
+        r = a.ask("어제 중앙역 화장실에서 검정 립밤 잃어버렸어요 별 스티커 붙어있어요")
+        self.assertIn("립밤 분실로 이해했어요", r["answer"])            # 물건을 말했는데 "어떤 물건?"이라고 되묻지 않음
         self.assertNotIn("어떤 물건을 잃어버리셨나요", a.ask("찾기 번호 잃어버렸어요")["answer"])
         self.assertIn("4가지", a.ask("우산 잃어버렸어요")["answer"])        # 다루는 물건 목록을 알려 줌(11/9 품목 4종)
-        lip = a.ask("어제 초량역에서 립밤 잃어버렸어요")["answer"]          # 11/9 운영하지 않는 품목 → 분실 신고로 안내하지 않음
+        lip = a.ask("어제 초량역에서 카드지갑 잃어버렸어요")["answer"]          # 11/9 운영하지 않는 품목 → 분실 신고로 안내하지 않음
         self.assertIn("운영하지 않는 품목", lip)
         self.assertNotIn("분실로 이해했어요", lip)
 

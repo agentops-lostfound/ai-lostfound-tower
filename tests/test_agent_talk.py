@@ -11,7 +11,7 @@ from agents.sim_director import build_sim_service  # noqa: E402
 from discord_ops.reporter import CHANNELS, NO_FALLBACK, Reporter  # noqa: E402
 
 ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
-FOUND = "초량역 5번 출구 앞에서 검정 카드지갑 주웠어요"
+FOUND = "초량역 5번 출구 앞에서 검정 립밤 주웠어요"
 
 
 def agent_events(svc):
@@ -110,7 +110,7 @@ class SimTalkTest(unittest.TestCase):
         ev2 = [e for e in self.svc.board.since(last, limit=999) if e["channel"] == "agent"]
         self.assertTrue(any(e["agent"]["kind"] == "learn" for e in ev2))
         self.assertFalse(any(e["agent"]["kind"] == "coach" for e in ev2))
-        r = self.d.lost("검정 카드지갑 잃어버렸어요 초량역에서요")
+        r = self.d.lost("검정 립밤 잃어버렸어요 초량역에서요")
         self.assertTrue(self.d.wait_idle())
         ev3 = agent_events(self.svc)
         self.assertTrue(any(e["agent"]["from"] == "로봇팔 에이전트" and "범위 안" in e["body"] for e in ev3))
@@ -129,7 +129,7 @@ class SimTalkTest(unittest.TestCase):
         self.assertIsNone(svc.talk)
         svc.sim.found(FOUND)
         self.assertTrue(svc.sim.wait_idle())
-        r = svc.sim.lost("검정 카드지갑 잃어버렸어요 초량역에서요")
+        r = svc.sim.lost("검정 립밤 잃어버렸어요 초량역에서요")
         self.assertTrue(svc.sim.wait_idle())
         self.assertEqual(svc.world.items[r["item_id"]]["status"], "인계 완료")
         self.assertFalse(any(e["channel"] == "agent" for e in svc.board.since(0, limit=999)))

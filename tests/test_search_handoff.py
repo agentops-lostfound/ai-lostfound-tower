@@ -15,7 +15,7 @@ from agents.lost_api import create_app
 from agents.lost_input import DescriptionService, KST, text_features
 from agents.search_context import search_context
 
-CONTEXT = {'category': '지갑', 'color': '검정', 'lost_date': '2026-11-01', 'lost_line': '1호선', 'lost_station': '중앙역'}
+CONTEXT = {'category': '립밤', 'color': '검정', 'lost_date': '2026-11-01', 'lost_line': '1호선', 'lost_station': '중앙역'}
 
 
 class SearchHandoffTests(unittest.TestCase):
@@ -47,14 +47,14 @@ class SearchHandoffTests(unittest.TestCase):
         self.assertNotIn('station', result['candidates'][0])
 
     def test_station_has_priority_without_filling_cards_from_other_stations(self):
-        self.insert(('DEMO-007','지갑','검정','본센터 보관','1호선','초량','2026-11-04'),
-                    ('DEMO-008','지갑','검정','본센터 보관','1호선','부산','2026-11-04'))
+        self.insert(('DEMO-007','립밤','검정','본센터 보관','1호선','초량','2026-11-04'),
+                    ('DEMO-008','립밤','검정','본센터 보관','1호선','부산','2026-11-04'))
         result = self.agent.ask('찾아줘', context=CONTEXT)
         self.assertEqual(len(result['candidates']), 1)
         self.assertEqual(self.agent.resolve_candidate(result['search_result_id'],1,None), 'DEMO-001')
 
     def test_station_without_results_falls_back_only_to_same_line(self):
-        self.insert(('DEMO-007','지갑','검정','본센터 보관','2호선','센텀','2026-11-04'))
+        self.insert(('DEMO-007','립밤','검정','본센터 보관','2호선','센텀','2026-11-04'))
         result = self.agent.ask('찾아줘', context={**CONTEXT,'lost_station':'광안역'})
         self.assertEqual(len(result['candidates']), 1)
         self.assertEqual(self.agent.resolve_candidate(result['search_result_id'],1,None), 'DEMO-001')
@@ -62,7 +62,7 @@ class SearchHandoffTests(unittest.TestCase):
     def test_future_reception_can_match_but_reception_before_loss_is_excluded(self):
         result = self.agent.ask('핸드크림 찾아줘', context={'lost_date':'2026-11-03'})
         self.assertEqual(result['status'], 'items_not_found')
-        result = self.agent.ask('지갑 찾아줘', context={'lost_date':'2026-11-03'})
+        result = self.agent.ask('립밤 찾아줘', context={'lost_date':'2026-11-03'})
         self.assertEqual(result['status'], 'items_found')
 
     def test_new_category_cannot_inherit_old_category_color_or_location(self):
@@ -71,43 +71,43 @@ class SearchHandoffTests(unittest.TestCase):
         self.assertFalse(warnings)
 
     def test_new_explicit_color_overrides_reviewed_color(self):
-        context, _ = search_context('파란 지갑 찾아줘', CONTEXT)
+        context, _ = search_context('파란 립밤 찾아줘', CONTEXT)
         self.assertEqual(context['color'], '파랑')
         self.assertEqual(context['lost_station'], '중앙')
 
     def test_question_line_without_spacing_and_station_suffix_normalize(self):
-        context, _ = search_context('2026-11-01 1호선중앙역 검정 지갑 찾아줘')
+        context, _ = search_context('2026-11-01 1호선중앙역 검정 립밤 찾아줘')
         self.assertEqual(context['lost_station'], '중앙')
         self.assertEqual(context['lost_line'], '1호선')
 
     def test_ambiguous_question_does_not_silently_use_old_context(self):
-        self.assertEqual(self.agent.ask('지갑 말고 USB 찾아줘', context=CONTEXT)['status'], 'search_needs_details')
+        self.assertEqual(self.agent.ask('립밤 말고 USB 찾아줘', context=CONTEXT)['status'], 'search_needs_details')
 
     def test_future_date_invalid_line_and_private_identity_context_are_rejected(self):
         future = (datetime.now(KST).date()+timedelta(days=1)).isoformat()
         for context in [{'lost_date':future}, {'lost_line':'2; DROP'}, {'id_verified':True},
                         {'mark':'private'}, {'lost_station':'010-1234-5678'}, []]:
             with self.subTest(context=context), self.assertRaises(ValueError):
-                self.agent.ask('지갑 찾아줘', context=context)
+                self.agent.ask('립밤 찾아줘', context=context)
 
     def test_pink_alias_uses_latest_team_color_contract(self):
-        self.assertEqual(text_features('핑크 지갑')[0]['color'], '분홍')
+        self.assertEqual(text_features('핑크 립밤')[0]['color'], '분홍')
 
     def test_real_search_requires_loss_metadata_even_after_trusted_verification(self):
         db = MagicMock(mode='postgres')
         agent = SearchAgent(db, authorize=lambda token: token=='valid')
-        self.assertEqual(agent.ask('지갑 찾아줘','valid')['status'], 'search_needs_details')
+        self.assertEqual(agent.ask('립밤 찾아줘','valid')['status'], 'search_needs_details')
         db.search.assert_not_called()
 
     def test_empty_bearer_cannot_be_authorized_by_a_permissive_adapter(self):
         db = MagicMock(mode='postgres')
         agent = SearchAgent(db, authorize=lambda _:True)
-        self.assertEqual(agent.ask('지갑 찾아줘',None,CONTEXT)['status'], 'authentication_required')
+        self.assertEqual(agent.ask('립밤 찾아줘',None,CONTEXT)['status'], 'authentication_required')
         db.search.assert_not_called()
 
     def test_custom_database_extra_fields_and_duplicate_items_do_not_reach_api(self):
         db = MagicMock(mode='postgres')
-        row = {'item_id':'A-W01','category':'지갑','color':'검정','status':'본센터 보관',
+        row = {'item_id':'A-W01','category':'립밤','color':'검정','status':'본센터 보관',
                'station':'secret-station','mark':'secret-answer','score':0.98}
         db.search.return_value = [row, dict(row)]
         agent = SearchAgent(db, authorize=lambda token: token=='valid')
@@ -145,7 +145,7 @@ class CandidateRegistryTests(unittest.TestCase):
         with self.assertRaises(RuntimeError): registry.issue(['A-W02'],'two')
 
     def test_revoked_trusted_session_cannot_resolve_an_existing_reference(self):
-        db=MagicMock(mode='postgres'); db.search.return_value=[{'item_id':'A-W01','category':'지갑','color':'검정','status':'본센터 보관'}]
+        db=MagicMock(mode='postgres'); db.search.return_value=[{'item_id':'A-W01','category':'립밤','color':'검정','status':'본센터 보관'}]
         allowed=[True]; agent=SearchAgent(db,authorize=lambda _:allowed[0])
         result=agent.ask('찾아줘','valid',CONTEXT)
         allowed[0]=False
@@ -159,8 +159,8 @@ class PostgresSearchFilterTests(unittest.TestCase):
         return PostgresItemSearch('synthetic-test',connect=MagicMock(return_value=connection)),cursor,connection
 
     def test_bound_station_line_and_korean_date_lower_boundary(self):
-        db,cursor,connection=self.db([[('A-W01','지갑','검정','본센터 보관')]])
-        db.search('지갑','검정',{**CONTEXT,'lost_station':'중앙'})
+        db,cursor,connection=self.db([[('A-W01','립밤','검정','본센터 보관')]])
+        db.search('립밤','검정',{**CONTEXT,'lost_station':'중앙'})
         sql,params=cursor.execute.call_args.args
         self.assertEqual(sql,SQL_SEARCH)
         self.assertEqual(params[4:8],('1호선','1호선','중앙','중앙'))
@@ -168,8 +168,8 @@ class PostgresSearchFilterTests(unittest.TestCase):
         self.assertTrue(connection.read_only)
 
     def test_fallback_changes_station_only_and_preserves_date_and_line(self):
-        db,cursor,_=self.db([[],[('A-W01','지갑','검정','본센터 보관')]])
-        result=db.search('지갑','검정',{**CONTEXT,'lost_station':'광안'})
+        db,cursor,_=self.db([[],[('A-W01','립밤','검정','본센터 보관')]])
+        result=db.search('립밤','검정',{**CONTEXT,'lost_station':'광안'})
         queries=[c.args for c in cursor.execute.call_args_list if c.args[0]==SQL_SEARCH]
         self.assertEqual(len(queries),2)
         self.assertEqual(queries[0][1][6:8],('광안','광안'))

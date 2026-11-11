@@ -18,7 +18,7 @@ from tools import intake_qwen_worker as worker  # noqa: E402
 
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
 PHOTO = "data:image/jpeg;base64," + base64.b64encode(JPEG).decode()
-QWEN_WALLET = {"category": "wallet", "colors": ["black"], "shape": "rectangular", "materials": ["leather"],
+QWEN_WALLET = {"category": "lip_balm", "colors": ["red"], "shape": "cylindrical", "materials": ["plastic"],   # 11/11 운영 품목 립밤(이름은 예전 그대로)
                "logos_or_text": [], "sticker_status": "absent", "stickers": [], "distinctive_features": []}
 QWEN_UNKNOWN = {**QWEN_WALLET, "category": "unknown", "colors": []}
 

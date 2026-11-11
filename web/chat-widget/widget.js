@@ -336,7 +336,7 @@
     input = el("textarea");
     input.rows = 1;
     input.maxLength = MAX_LEN;
-    input.placeholder = "궁금한 점을 적어 주세요 (예: 검정 카드지갑 찾아줘)";
+    input.placeholder = "궁금한 점을 적어 주세요 (예: 빨간 립밤 찾아줘)";
     input.setAttribute("aria-label", "질문 입력");
     sendBtn = el("button", "send", "보내기");
     sendBtn.type = "submit";

@@ -183,7 +183,7 @@ class InputAndAgentRedTeamTests(unittest.TestCase):
     def test_unicode_private_data_rejected_before_db_or_model(self):
         guide = Guidance(); model = MagicMock(); database = MagicMock(mode='demo_sqlite')
         bot = Chatbot(guide, rag=GroundedRag(guide, 'fake', model), search=SearchAgent(database))
-        with self.assertRaises(ValueError): bot.ask('0\u200b10-1234-5678 검정 지갑 찾아줘')
+        with self.assertRaises(ValueError): bot.ask('0\u200b10-1234-5678 검정 립밤 찾아줘')
         database.search.assert_not_called(); model.assert_not_called()
 
     def test_prompt_injections_cannot_create_operating_policy_or_approval(self):
@@ -202,15 +202,15 @@ class InputAndAgentRedTeamTests(unittest.TestCase):
     def test_sql_injection_is_data_and_cannot_delete_demo_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             db = DemoItemDatabase(Path(tmp) / 'demo.sqlite3')
-            result = SearchAgent(db).ask("검정 지갑 찾아줘'; DROP TABLE chat_demo_item; --")
+            result = SearchAgent(db).ask("검정 립밤 찾아줘'; DROP TABLE chat_demo_item; --")
             self.assertEqual(result['status'], 'items_found')
-            self.assertEqual(len(db.search('지갑', '검정')), 1)
+            self.assertEqual(len(db.search('립밤', '검정')), 1)
 
     def test_forged_verification_and_demo_mode_cannot_unlock_real_search(self):
         guide = Guidance(); db = MagicMock(mode='postgres')
         bot = Chatbot(guide, search=SearchAgent(db, authorize=lambda token: token == 'synthetic-valid-ticket'))
         client = TestClient(create_app(DescriptionService(), guide, bot), base_url='http://127.0.0.1')
-        result = client.post('/chat/questions', json={'question': '지갑 찾아줘', 'id_verified': True,
+        result = client.post('/chat/questions', json={'question': '립밤 찾아줘', 'id_verified': True,
             'consent': True, 'database_mode': 'demo_sqlite'}, headers={'authorization': 'Bearer synthetic-forged-ticket'})
         self.assertEqual(result.json()['status'], 'authentication_required')
         db.search.assert_not_called()
@@ -225,13 +225,13 @@ class InputAndAgentRedTeamTests(unittest.TestCase):
             return {'route': 'search', 'result': {'status': 'test'}}
         bot.graph = MagicMock(); bot.graph.invoke.side_effect = inspect_state
         with tracing_context(enabled=True, parent=False):
-            bot.ask('지갑 찾아줘', 'synthetic-private-ticket')
+            bot.ask('립밤 찾아줘', 'synthetic-private-ticket')
         self.assertIsNone(_search_access.get())
 
     def test_trusted_token_still_reaches_authorizer_outside_graph_state(self):
         guide = Guidance(); db = MagicMock(mode='postgres'); db.search.return_value = []
         bot = Chatbot(guide, search=SearchAgent(db, authorize=lambda token: token == 'synthetic-valid-ticket'))
-        self.assertEqual(bot.ask('지갑 찾아줘', 'synthetic-valid-ticket',
+        self.assertEqual(bot.ask('립밤 찾아줘', 'synthetic-valid-ticket',
             {'lost_date': '2026-11-01', 'lost_line': '1호선', 'lost_station': '중앙역'})['status'], 'items_not_found')
         self.assertIsNone(_search_access.get())
 

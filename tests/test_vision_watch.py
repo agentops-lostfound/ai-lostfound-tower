@@ -169,7 +169,7 @@ class ApiTest(unittest.TestCase):
         self.assertNotIn("qwen_worker", plain)
 
     def test_text_report_is_not_called_qwen(self):
-        self.c.post("/sim/found", json={"text": "중앙역 승강장에서 검정 카드지갑 주웠어요"})
+        self.c.post("/sim/found", json={"text": "중앙역 승강장에서 검정 립밤 주웠어요"})
         self.svc.sim.wait_idle(20)
         full = self.state()
         self.assertEqual([e for e in full["events"] if e["channel"] == "vision"], [])        # 사진이 없으니 사진 분석 사건도 없다

@@ -56,7 +56,7 @@ class NumberingTest(unittest.TestCase):
 class TargetTest(unittest.TestCase):
     def setUp(self):
         self.db = {"A-W11": {"status": "본센터 보관", "category": "보조배터리"},
-                   "A-W12": {"status": "본센터 보관", "category": "지갑"}}
+                   "A-W12": {"status": "본센터 보관", "category": "립밤"}}
 
     def test_item_in_slot_gives_pose(self):
         s = store(self.db)
@@ -90,7 +90,7 @@ class TargetTest(unittest.TestCase):
 class FlowTest(unittest.TestCase):
     def be(self):
         b = MockBackend()
-        b.db["A-1"] = {"status": "승인·수령 예약", "features": {"category": "지갑"}}
+        b.db["A-1"] = {"status": "승인·수령 예약", "features": {"category": "립밤"}}
         return b
 
     def target(self, **kw):
@@ -189,7 +189,7 @@ class RobotPartEnvTest(unittest.TestCase):
         from agents.robot_part import load_robot_part
         part = load_robot_part("tests.test_robot_db_target:FakeTowerRobot")
         fb = MockBackend()
-        fb.db["A-W11"] = {"status": "승인·수령 예약", "features": {"category": "지갑"}}
+        fb.db["A-W11"] = {"status": "승인·수령 예약", "features": {"category": "립밤"}}
         be = CompositeBackend(robot=part, fallback=fb)
         t = {"ok": True, "slot_id": "R4-2", "number": 8, "pose_name": "pose_8"}
         out = run_return(ReturnRequest("C-9", "A-W11", robot_target=t), be, Rep())

@@ -15,7 +15,7 @@ import re
 import threading
 import time
 
-from agents.contracts import active_category_text, category_label, is_active_category, inactive_category_message
+from agents.contracts import ACTIVE_CATEGORIES, active_category_text, category_label, is_active_category, inactive_category_message
 
 SESSION_TTL_S = 600
 STATION_NAMES = ("초량", "중앙")                 # 등록기계가 있는 역(sim_world.STATIONS) — 주운 역은 이 둘만
@@ -49,7 +49,7 @@ FOUND_ORDER = ("category", "color", "station", "place")
 # 11/10 사람 조작 시뮬레이션: 핸드크림을 고른 뒤 색 선택지가 '검정·흰색·갈색·파랑'뿐이라 분홍·초록 핸드크림을 고를 수 없었다
 # → 품목을 알면 그 품목의 실제 물건 색(구매 목록·시연 물건 기준)을 먼저 보여 준다. 다른 색은 글로 말하면 된다
 COLOR_BY_CATEGORY = {"모형폰": ["검정", "흰색", "파랑"], "보조배터리": ["흰색", "검정"], "핸드크림": ["분홍", "초록", "흰색"],
-                     "지갑": ["검정", "갈색"]}
+                     "지갑": ["검정", "갈색"], "립밤": ["빨강", "파랑"]}   # 11/11 립밤(실물: 빨강·파랑 2개)
 CANCEL_ORDER = ("claim_id", "identity")      # 11/10 대화로 찾기 요청 취소: 찾기 번호 → 본인 확인(가린 값) → 확인 → 창구
 CLAIM_RE = re.compile(r"\bC-\d{8}-\d{4}\b", re.I)
 CANCEL_TARGET = re.compile(r"찾기\s*(?:요청|신청|번호)|방문\s*예약|수령\s*예약|예약|분실\s*(?:접수|신고)|C-\d{8}-\d{4}", re.I)
@@ -71,7 +71,7 @@ QUESTIONS = {
                        "화면에서 가려서 보내고, 원래 값은 저장하지 않아요.",
 }
 CHOICES = {
-    "category": ["휴대폰", "보조배터리", "핸드크림", "카드지갑"],     # 11/10: 보관함 열 순서, 지갑은 카드지갑으로 보여 줌
+    "category": [category_label(c) for c in ACTIVE_CATEGORIES],     # 보관함 열 순서(11/11: 휴대폰·보조배터리·핸드크림·립밤)
     "station_lost": ["초량", "중앙", "부산역", "모름"], "station_found": ["초량", "중앙"],     # 11/10 잃어버린 역은 모를 수 있다(주운 역은 등록기계라 꼭 필요)
     "color": ["검정", "흰색", "갈색", "파랑"],                  # 품목을 모를 때. 품목을 알면 아래 COLOR_BY_CATEGORY
     "when": ["오늘", "어제", "모름"], "detail": ["없어요"], "place": ["모름"],
@@ -238,8 +238,8 @@ class IntakeAgent:
             m = OTHER_ITEM.search(question or "")
             if m and kind in ("lost", "found") and not extract(question, kind).get("category"):
                 where = "역무실에 맡겨 주세요" if kind == "found" else "역무실에 문의해 주세요"
-                return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — 지갑·휴대폰·핸드크림·보조배터리 "
-                                                  f"4가지만 접수해요. {where}.", None, done=True)
+                return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — {active_category_text()} "
+                                                  f"{len(ACTIVE_CATEGORIES)}가지만 접수해요. {where}.", None, done=True)
             s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True,
                  "version": 0}
             for said in [p for p in (prior or []) if isinstance(p, str) and kind in ("lost", "found")][-3:]:

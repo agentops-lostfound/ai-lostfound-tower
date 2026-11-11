@@ -109,6 +109,7 @@ class PhoneDirectionTest(unittest.TestCase):
         from pathlib import Path
         html = (Path(__file__).resolve().parent.parent / "web/live/index.html").read_text(encoding="utf-8")
         self.assertNotIn("rotate(-45)", html)                    # '\' 방향(예전)이 남아 있지 않음
-        self.assertGreaterEqual(html.count("rotate(45)"), 3)     # 칸 자리 · 보관된 휴대폰 · 범례
+        self.assertGreaterEqual(html.count("rotate(45)"), 2)     # 보관된 휴대폰 · 범례
+        self.assertIn('"모형폰": {rot: 45', html)               # 11/11 칸 자리는 품목별 모양 표(PUT_SHAPE)로 — 휴대폰 '/'
         from agents.storage import LAYOUT
         self.assertEqual(next(r for r in LAYOUT if r[0] == "R1")[5], "45도 사선·상단 오른쪽 위")

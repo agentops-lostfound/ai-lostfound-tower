@@ -188,6 +188,15 @@ def resolve_turn(question, history, context, guidance):
             if len(topics) == 1 and topics[0] in TOPIC_LABELS:
                 resolved = TOPIC_LABELS[topics[0]] + ' ' + question
                 return resolved, context, True
+    # 11/11 "립밤은요?"(물건 놓는 법 뒤): 립밤이 '다루는 물건' 문서에도 있어 그 답이 나왔다 — 물건 이름 하나 + '은요?' 뿐이면
+    # 앞 주제(하나일 때)로 먼저 이어 묻는다. 앞 주제로 답이 없으면 아래 원래 길로
+    bare_item = has_attribute and bool(re.fullmatch(r'[가-힣a-z0-9]{1,10}(?:은|는)요?[?？.!]*', q.replace(' ', '')))
+    if bare_item and previous and not search_intent(question):
+        topics = [s['topic'] for s in guidance.ask(previous)['sources']]
+        if len(topics) == 1 and topics[0] in TOPIC_LABELS:
+            resolved = TOPIC_LABELS[topics[0]] + ' ' + question
+            if guidance.ask(resolved)['status'] != 'not_found':
+                return resolved, context, True
     if elliptical and not search_intent(question) and guidance.ask(question)['status'] == 'not_found':
         # 11/9 채점표: "그럼 다시 시도할 수는 있어요?"(본인인증 뒤), "지갑은요?"(물건 놓는 법 뒤) — 앞 주제가 하나면 그 주제로 이어 묻기
         if previous:
