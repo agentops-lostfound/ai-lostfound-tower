@@ -619,7 +619,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const box = $("cardVision"), v = visCur && vis[visCur];
     const head = `<h4>Qwen3-VL 사진 분석`;
     if (!v) {
-      box.innerHTML = head + `<span class="stg">${worker.on ? "작업자 켜짐 · 대기" : "작업자 꺼짐"}</span></h4>` +
+      box.innerHTML = head + `<span class="stg">${worker.on ? (worker.busy ? "작업자 켜짐 · 분석 중" : "작업자 켜짐 · 대기") : "작업자 꺼짐"}</span></h4>` +
         `<p class="vnote">키오스크가 찍은 사진을 Qwen 이 읽어 <b>종류·색·모양·재질</b>을 뽑고, 그 값이 <code>item</code> 표에 저장돼요.</p>` +
         (worker.on ? "" : `<p class="vnote warn">Qwen 작업자가 꺼져 있어요. 관제탑 PC 에서 <code>.\\.venv-qwen\\Scripts\\python.exe tools\\intake_qwen_worker.py</code> 를 켜 주세요.</p>`);
       return;
