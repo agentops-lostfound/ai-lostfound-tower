@@ -72,7 +72,8 @@ SQL_MAX_CLAIM = "SELECT COALESCE(MAX(CAST(RIGHT(claim_id, 4) AS INTEGER)), 0) FR
 SQL_RECENT = (
     "SELECT i.item_id, i.machine_id, m.station, m.kind, i.place_text, i.status, i.category, (i.photo_path IS NOT NULL), "
     "i.received_at, a.slot_id, (SELECT count(*) FROM item_status_log l WHERE l.item_id = i.item_id), "
-    "(i.object_id LIKE 'SIM%%') IS TRUE "
+    "(i.object_id LIKE 'SIM%%') IS TRUE, "
+    "i.features->>'color', i.features->>'shape', i.features->>'material' "      # 11/11 공개 특징(색·모양·재질)만 — 비공개 특징은 읽지 않음
     "FROM item i JOIN machine m USING (machine_id) LEFT JOIN storage_assignment a USING (item_id) "
     "ORDER BY i.received_at DESC, i.item_id DESC LIMIT %s")
 SQL_COUNTS = ("SELECT (SELECT count(*) FROM item), (SELECT count(*) FROM item_status_log), (SELECT count(*) FROM claim), "
@@ -388,7 +389,7 @@ class DbMirror:
         with self._connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(SQL_RECENT, (limit,))
             cols = ("item_id", "machine_id", "station", "kind", "place_text", "status", "category", "has_photo", "received_at",
-                    "slot_id", "status_logs", "virtual")
+                    "slot_id", "status_logs", "virtual", "color", "shape", "material")
             items = [{k: _iso(v) for k, v in zip(cols, r)} for r in cur.fetchall()]
             cur.execute(SQL_COUNTS)
             c = cur.fetchone()

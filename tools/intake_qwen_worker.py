@@ -83,10 +83,12 @@ class Tower:
     def pending(self, limit: int = 5) -> list[dict]:
         return self._call("GET", f"/api/admin/intake/pending-photos?limit={limit}") or []
 
-    def send(self, item_id: str, features: dict, color_measure: dict | None = None) -> dict:
+    def send(self, item_id: str, features: dict, color_measure: dict | None = None, size_measure: dict | None = None) -> dict:
         body = {"qwen": features, "confidence": CONFIDENCE}
         if color_measure:
             body["color_measure"] = color_measure
+        if size_measure:
+            body["size_measure"] = size_measure
         return self._call("POST", f"/api/kiosk/items/{item_id}/features", body)
 
     def stage(self, item_id: str, stage: str, detail: str = "") -> None:
@@ -108,6 +110,7 @@ def qwen_analyzer(max_edge: int = 512):
         sys.path.insert(0, p)
     from config.settings import Settings
     from vision.item_features import extract_item_features
+    hint_prompt()                       # 11/11 품목을 모양으로 가르는 기준을 Qwen 질문 뒤에 덧붙임(vision 파일은 그대로)
     settings = replace(Settings(), max_edge=max_edge, log_dir=ROOT / "qwen" / "logs" / "intake")
 
     def analyze(path: Path) -> dict:
@@ -169,7 +172,43 @@ def measure_color(path: Path, feats: dict) -> dict | None:
         return None
 
 
-def process_once(tower, analyze, tries: dict, log=print, root: Path | None = None, measurer=None) -> int:
+def measure_size(path: Path) -> dict | None:
+    """11/11 같은 사진의 길이·폭(회색 펠트, 자르기 정보 필요) → 관제탑에 보낼 요약(실패하면 None)"""
+    try:
+        from agents.size_measure import measure, size_measure_on, summary
+        return summary(measure(path)) if size_measure_on() else None
+    except Exception:
+        return None
+
+
+# 11/11 Qwen 질문 보탬 — vision/item_features.py(김건태 담당)는 고치지 않고, 이 작업자가 쓸 때만 뒤에 덧붙인다.
+#   키오스크는 물건 둘레만 잘라 키워 보내므로 Qwen 은 크기를 모른다 → 모양으로 가르는 기준을 알려 준다(크기는 size_measure 가 따로 확인)
+PROMPT_HINT = """
+This kiosk receives only four kinds of items. The photo is cropped and enlarged, so do NOT judge by apparent size.
+- hand_cream: a soft squeezable FLAT tube. One end is a wide flat crimped seal; the other end narrows to a small screw cap.
+  Usually printed with patterns, flowers or text over most of the body. Length about 3x width.
+- lip_balm: a small RIGID ROUND stick with straight parallel sides and the same width along its whole length,
+  a cap on one end, often a plain solid color with a printed label. No crimped seal, no tapering.
+- phone: a thin flat slab with rounded corners and camera lenses or a camera bump on the back.
+- power_bank: a thick slab with rounded corners, NO camera lenses; may show ports or an indicator on a short edge.
+When the evidence is unclear, prefer unknown over a wrong category.
+"""
+
+
+def hint_prompt() -> bool:
+    """vision.item_features.PROMPT 뒤에 PROMPT_HINT 를 한 번만 붙임(끄기 TOWER_QWEN_HINT=0). 붙였으면 True"""
+    if str(os.environ.get("TOWER_QWEN_HINT", "1")).strip().lower() in ("0", "false", "no", "off"):
+        return False
+    try:
+        import vision.item_features as vf
+    except Exception:
+        return False
+    if PROMPT_HINT not in vf.PROMPT:
+        vf.PROMPT = vf.PROMPT.rstrip("\n") + "\n" + PROMPT_HINT.strip() + "\n"
+    return True
+
+
+def process_once(tower, analyze, tries: dict, log=print, root: Path | None = None, measurer=None, sizer=None) -> int:
     """대기 물건 한 번 처리 → 보낸 개수. tries: 접수 번호 → 실패 횟수(같은 사진을 끝없이 다시 돌리지 않게)"""
     sent = 0
     for row in tower.pending():
@@ -182,8 +221,14 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
             notify(iid, "analyze")
             path = resolve_photo(row.get("photo_path") or "", root)
             feats = analyze(path)
-            cm = (measurer or measure_color)(path, feats)
-            if cm:
+            sm = (sizer or measure_size)(path)
+            sm = sm if sm and sm.get("found") and sm.get("size_group") else None    # 품목 크기로 잰 것만 보냄(못 잰 사진은 Qwen 그대로)
+            # 11/11 색 측정은 품목에 따라 규칙이 다름(핸드크림만 하늘색·분홍 구별) → 크기가 립밤·핸드크림이면 그 품목으로 색을 잼
+            size_cat = {"핸드크림": "hand_cream", "립밤": "lip_balm"}.get((sm or {}).get("size_group"))
+            cm = (measurer or measure_color)(path, {**feats, "category": size_cat} if size_cat and isinstance(feats, dict) else feats)
+            if sm:
+                tower.send(iid, feats, cm, sm)
+            elif cm:
                 tower.send(iid, feats, cm)
             else:
                 tower.send(iid, feats)
@@ -201,6 +246,8 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
         tries.pop(iid, None)
         sent += 1
         mtxt = f" · 색 측정 {cm.get('color') or '-'}({'확실' if cm.get('sure') else '애매'})" if cm else ""
+        if sm:
+            mtxt += f" · 크기 {sm.get('size_group') or '-'}({sm.get('length') or '-'}×{sm.get('width') or '-'})"
         log(f"[완료] {iid} {feats.get('category')} {feats.get('colors')}{mtxt} ({time.perf_counter() - started:.1f}초)")
     return sent
 

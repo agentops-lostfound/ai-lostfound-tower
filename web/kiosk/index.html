@@ -460,6 +460,7 @@ const isCenter = kiosk === 'CENTER';     // 회수는 본센터 키오스크만(
 $('#raway').hidden = isCenter; $('#rform').hidden = !isCenter;
 let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬영·자동 초기화가 습득 화면을 다시 켜지 않게
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
+let photoGeom = null;      // 11/11 잘라 키운 정보 {crop,frame,up} — 관제탑이 물건 크기를 잴 때 되돌림(agents/size_measure.py)
 let step = 1;
 const CATS = ['모형폰','보조배터리','핸드크림','립밤'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/11 지갑 대신 립밤.
 const CAT_LABEL = {'모형폰': '휴대폰'};                                                   // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
@@ -828,11 +829,13 @@ function capture() {
   } catch (e) { r = null; }
   if (r) {
     const up = Math.max(1, Math.min(3, 720 / Math.max(r.w, r.h)));       // 잘린 사진이 작으면 긴 변 720 까지 키움(최대 3배)
+    photoGeom = {crop: [r.x, r.y, r.w, r.h], frame: [W, H], up: Math.round(r.w * up) / r.w};
     c.width = Math.round(r.w * up); c.height = Math.round(r.h * up);
     const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
     g.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
   } else {
     [c.width, c.height] = [W, H];
+    photoGeom = {crop: null, frame: [W, H], up: 1};
     c.getContext('2d').drawImage(v, 0, 0);
   }
   const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
@@ -1192,6 +1195,7 @@ async function submit(withContact) {
   const buttons = [$('#skip'), $('#send')]; buttons.forEach(b => b.disabled = true);
   $('#err').classList.remove('on');
   const body = {machine_id: kiosk, place_text: place, photo: await blobToDataUrl(photo), client: CLIENT_ID};   // client: 조작 화면 확인용(저장 안 함)
+  if (photoGeom) body.photo_geom = photoGeom;          // 11/11 크기 측정용(숫자만)
   if (withContact) {
     const n = $('#cname').value.trim(), p = $('#cphone').value.trim();
     if (n || p) body.finder = {name: n || null, phone: p || null};

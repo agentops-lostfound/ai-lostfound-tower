@@ -32,6 +32,11 @@
 - 11/11 화이트밸런스 고정(TOWER_KIOSK_WB): 자동 화이트밸런스는 화면에 큰 색 물건이 들어오면 그 색을 빼 버려(분홍 크림 → 덜 분홍)
   물건마다 색 기준이 달라진다. 켈빈(빛의 색온도, 2800~6500) 값으로 고정한다. 형식은 노출과 같음(전체·기계별·auto, 비우면 건드리지 않음).
   값 고르기: python tools/camera_exposure.py --exposure -6 --wb auto,4000,4600,5200,6000 (회색 펠트가 가장 회색으로 찍히는 값을 추천)
+- 11/11 교육원 웹캠은 노출 명령을 받지 않음(-1). 드라이버 설정 창(--dialog)에서 대비 260 → 200 이면 흰 폰이 날아가지 않음
+  (clip 13% → 0%, 바닥 밝기 87). 그 값을 카메라를 열 때마다 넣는다(드라이버 값은 웹캠을 다시 꽂으면 풀릴 수 있음, 추정):
+    TOWER_KIOSK_CAMPROPS=CONTRAST=200            # 이름: BRIGHTNESS·CONTRAST·SATURATION·GAMMA·GAIN·SHARPNESS·BACKLIGHT·HUE
+    TOWER_KIOSK_MJPG=0                            # 교육원 웹캠은 MJPG 에서 대비가 영상에 안 먹음 → MJPG 없이 열기(추정, --try --no-mjpg 로 확인)
+  확인: python tools/camera_exposure.py --try CONTRAST=200 (관제탑 끈 상태, 넣은 값·카메라가 읽은 값·날아간 점 %)
 """
 from __future__ import annotations
 
@@ -125,6 +130,48 @@ def apply_exposure(cap, value) -> dict | None:
         return {"requested": value, "error": type(e).__name__}
 
 
+CAM_PROPS = ("BRIGHTNESS", "CONTRAST", "SATURATION", "GAMMA", "GAIN", "SHARPNESS", "BACKLIGHT", "HUE")
+
+
+def parse_props(text: str | None) -> dict:
+    """11/11 웹캠 영상 설정(드라이버 '비디오 프로세서 앰프' 값) 읽기: 'CONTRAST=200,GAMMA=18' → {'CONTRAST': 200.0, ...}.
+    정해 둔 이름(CAM_PROPS)·숫자(-10000~10000)만 받는다"""
+    out: dict = {}
+    for part in (text or "").split(","):
+        if "=" not in part:
+            continue
+        name, v = (x.strip() for x in part.split("=", 1))
+        name = name.upper()
+        if name not in CAM_PROPS:
+            continue
+        try:
+            f = float(v)
+        except ValueError:
+            continue
+        if -10000 <= f <= 10000:
+            out[name] = f
+    return out
+
+
+def apply_props(cap, props: dict | None) -> dict | None:
+    """영상 설정을 넣고 카메라가 읽어 준 값을 돌려준다({'CONTRAST': {'requested': 200, 'now': 200}}). 비었으면 None"""
+    if not props:
+        return None
+    import cv2
+    out = {}
+    for name, v in props.items():
+        pid = getattr(cv2, "CAP_PROP_" + name, None)
+        if pid is None:
+            continue
+        try:
+            cap.set(pid, float(v))
+            get = getattr(cap, "get", None)
+            out[name] = {"requested": v, "now": get(pid) if get else None}
+        except Exception as e:
+            out[name] = {"requested": v, "error": type(e).__name__}
+    return out
+
+
 def parse_wb(text: str | None) -> dict:
     """화이트밸런스 설정 읽기('5000', 'KIOSK-A=4600,KIOSK-C=auto')"""
     return parse_exposure(text, WB_MIN, WB_MAX)
@@ -188,11 +235,19 @@ def _backends() -> list:
     return [cv2.CAP_ANY]
 
 
-def _open(src, mjpg: bool = True):
+def mjpg_default() -> bool:
+    """11/11 TOWER_KIOSK_MJPG=0 이면 압축 형식(MJPG)을 쓰지 않고 연다. 교육원 웹캠은 MJPG 에서 대비(CONTRAST) 설정이
+    영상에 반영되지 않았음(읽은 값은 200 인데 날아감 12% 그대로, MJPG 없이 연 드라이버 설정 창에서는 0%)"""
+    return str(os.environ.get("TOWER_KIOSK_MJPG", "1")).strip().lower() not in ("0", "false", "no", "off")
+
+
+def _open(src, mjpg: bool | None = None):
     """카메라 열기. 여러 방식(backend)을 차례로 시도해 처음 열리는 것을 돌려준다(모두 실패하면 닫힌 카메라)"""
     if src == "fake":
         return FakeSource()
     import cv2
+    if mjpg is None:
+        mjpg = mjpg_default()
     cap = None
     backends = _backends()
     for n, backend in enumerate(backends):
@@ -273,10 +328,12 @@ def stop_all(timeout: float = 1.5) -> bool:
 class CameraFeed:
     """카메라 하나를 뒤에서 읽어 최신 JPEG 하나를 들고 있는다. 보는 사람이 없으면 닫는다"""
 
-    def __init__(self, src, opener=_open, clock=time.monotonic, exposure=None, wb=None):
+    def __init__(self, src, opener=_open, clock=time.monotonic, exposure=None, wb=None, props=None):
         self.src, self._opener, self._clock = src, opener, clock
         self.exposure = exposure      # 11/11 노출 고정 값(None = 카메라가 정함)
         self.wb = wb                  # 11/11 화이트밸런스 고정 값(켈빈, None = 카메라가 정함)
+        self.props = props or {}      # 11/11 영상 설정(대비 등, TOWER_KIOSK_CAMPROPS)
+        self.props_state: dict | None = None
         self.exposure_state: dict | None = None   # 마지막으로 정한 결과(상태 화면용)
         self.wb_state: dict | None = None
         self._lock = threading.Lock()
@@ -298,6 +355,7 @@ class CameraFeed:
         """카메라를 열거나 다시 열 때마다 노출·화이트밸런스를 다시 정한다(다시 열면 풀릴 수 있음)"""
         self.exposure_state = apply_exposure(cap, self.exposure)
         self.wb_state = apply_wb(cap, self.wb)
+        self.props_state = apply_props(cap, self.props)
 
     def touch(self) -> None:
         """누군가 보고 있음 → 없으면 읽기 시작"""
@@ -378,7 +436,7 @@ class CameraFeed:
                         reopens += 1
                         cap.release()
                         time.sleep(min(1.0, 0.3 * reopens))        # 방금 놓은 카메라가 풀릴 시간
-                        cap = _open(self.src, mjpg=(reopens % 2 == 0)) if self._opener is _open else self._opener(self.src)
+                        cap = _open(self.src, mjpg=mjpg_default() ^ (reopens % 2 == 1)) if self._opener is _open else self._opener(self.src)
                         with self._lock:
                             self._cap = cap
                         if not cap.isOpened():
@@ -415,16 +473,29 @@ class CameraFeed:
 
 
 class KioskCameras:
-    def __init__(self, config: dict | None = None, opener=_open, exposure: dict | None = None, wb: dict | None = None):
+    def __init__(self, config: dict | None = None, opener=_open, exposure: dict | None = None, wb: dict | None = None,
+                 props: dict | None = None):
         self.config = parse_config(os.environ.get("TOWER_KIOSK_CAMERAS")) if config is None else config
         self.exposure = parse_exposure(os.environ.get("TOWER_KIOSK_EXPOSURE")) if exposure is None else exposure
         self.wb = parse_wb(os.environ.get("TOWER_KIOSK_WB")) if wb is None else wb
-        self._feeds = {name: CameraFeed(src, opener, exposure=exposure_for(self.exposure, name), wb=exposure_for(self.wb, name))
-                       for name, src in self.config.items()}
+        self.props = parse_props(os.environ.get("TOWER_KIOSK_CAMPROPS")) if props is None else props
+        # 11/11 교육원: 웹캠 1대를 두 기계(KIOSK-A=0,KIOSK-C=0)에 같이 쓰면 카메라를 두 번 열어 한쪽 화면이 새까맸다
+        #   → 같은 카메라 번호는 읽기(CameraFeed) 하나를 함께 쓴다(노출·화이트밸런스는 먼저 적힌 기계 값). 'fake' 는 따로
+        by_src: dict = {}
+        self._feeds = {}
+        for name, src in self.config.items():
+            if src != "fake" and src in by_src:
+                self._feeds[name] = by_src[src]
+                continue
+            feed = CameraFeed(src, opener, exposure=exposure_for(self.exposure, name), wb=exposure_for(self.wb, name),
+                              props=self.props)
+            self._feeds[name] = feed
+            if src != "fake":
+                by_src[src] = feed
         _ALL.add(self)
 
     def stop(self, timeout: float = 1.5) -> bool:
-        return all([f.stop(timeout) for f in self._feeds.values()])
+        return all([f.stop(timeout) for f in {id(f): f for f in self._feeds.values()}.values()])
 
     def feed(self, machine: str) -> CameraFeed | None:
         return self._feeds.get(machine)
@@ -437,7 +508,8 @@ class KioskCameras:
                        **({"size": [OUT_W, OUT_H]} if f.latest() is not None else {}),
                        **({"stalls": f.stalls} if f.stalls else {}),
                        **({"exposure": f.exposure_state} if f.exposure_state else {}),
-                       **({"white_balance": f.wb_state} if f.wb_state else {})} for name, f in self._feeds.items()}
+                       **({"white_balance": f.wb_state} if f.wb_state else {}),
+                       **({"props": f.props_state} if f.props_state else {})} for name, f in self._feeds.items()}
 
 
 def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
@@ -516,6 +588,6 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
     return cams
 
 
-__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "parse_exposure", "exposure_for", "apply_exposure",
-           "parse_wb", "apply_wb",
+__all__ = ["mjpg_default", "KioskCameras", "CameraFeed", "FakeSource", "parse_config", "parse_exposure", "exposure_for", "apply_exposure",
+           "parse_wb", "apply_wb", "parse_props", "apply_props",
            "add_camera_routes", "is_dark", "valid_size", "fit"]

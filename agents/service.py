@@ -19,8 +19,8 @@ from dataclasses import fields, replace
 from typing import Callable
 
 from agents.claims import ClaimError, ClaimStore, MemoryClaimStore, parse_claim, public_view, web_gates
-from agents.intake import (IntakeError, IntakeStore, MemoryIntakeStore, decode_photo, parse_features, parse_intake, receipt,
-                           save_photo, valid_item_id)
+from agents.intake import (IntakeError, IntakeStore, MemoryIntakeStore, decode_photo, parse_features, parse_geom, parse_intake,
+                           receipt, save_geom, save_photo, valid_item_id)
 from agents.contracts import (show_ko, CLAIM_ID_RE, DECISION_REJECTED, DECISION_RETURNED, DECISION_STAFF, DECISION_STOPPED,
                               DECISIONS, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, HOLD_REASONS, STAFF_STOP_REASON)
 from agents.records import MemoryRecorder, Recorder
@@ -259,22 +259,26 @@ class TowerService:
     def create_item(self, payload: object) -> dict:
         """등록기계: 접수 → 접수 번호. 연락처는 저장만 하고 돌려주지 않는다.
         11/4: "photo"(data URL)를 함께 보내면 관제탑이 사진을 저장하고 photo_path 를 채운다(photo_path 와 같이 보내면 422)."""
-        photo_file = None
+        photo_file = geom_file = None
         try:
             body = dict(payload) if isinstance(payload, dict) else payload
             photo = body.pop("photo", None) if isinstance(body, dict) else None
+            geom = body.pop("photo_geom", None) if isinstance(body, dict) else None      # 11/11 자르기 정보(크기 측정용)
             if photo is not None and isinstance(body, dict) and body.get("photo_path") is not None:
                 raise IntakeError("photo 와 photo_path 는 하나만")
             intake = parse_intake(body)
             if photo is not None:
                 raw, ext = decode_photo(photo)
                 intake["photo_path"], photo_file = save_photo(raw, ext, intake["machine_id"], self.photo_dir)
+                geom_file = save_geom(photo_file, parse_geom(geom))
             row = self.intake.create(intake)
         except IntakeError as e:
             self._drop(photo_file)
+            self._drop(geom_file)
             raise RequestError(str(e)) from e
         except Exception as e:
             self._drop(photo_file)
+            self._drop(geom_file)
             raise Unavailable(f"접수 저장소 연결 실패({type(e).__name__})") from e
         return receipt(row)
 
@@ -825,7 +829,8 @@ class TowerService:
 
     # ---------- 인계 교차 검증(11/6, docs/design/handover_cross_check.md) ----------
     # 로봇이 제출보관함(H-1)에 둔 물건을 직원이 AI 판단과 독립적으로 3가지 확인한 뒤에만 건넨다.
-    # 하나라도 틀리면 반환 보류 → 물건은 원래 보관 칸으로(칸 예약은 인계 완료 때만 풀림, 011 마이그레이션)
+    # 하나라도 틀리면 반환 보류 → 물건을 보관함으로 되돌림. 11/11(021): 로봇 칸 예약은 인계 대기 때 풀리므로 원래 칸이 다른 물건으로
+    #   찼을 수 있다 → 보관 화면의 '칸 배정 필요'에서 추천 빈 칸에 넣는다(원래 칸이 비어 있으면 그 칸)
     def handover_queue(self, limit: int = 20) -> list[dict]:
         """직원 화면: 제출보관함에서 확인을 기다리는 반환(인계 대기). 개인정보는 가린 이름만"""
         out = []
@@ -882,7 +887,7 @@ class TowerService:
             reason = "본인 아님" if "id_match" in failed else "물건 다름"
             out = self.hold_handover(case_id, {"reason": reason})
             result = {**out, "result": HANDOVER_HOLD, "checks": dict(payload),
-                      "next": "물건을 원래 보관 칸에 다시 넣고 '보관함으로 되돌림'을 누르세요"}
+                      "next": "'보관함으로 되돌림'을 누른 뒤 보관 화면 '칸 배정 필요'에서 추천 칸에 넣으세요(원래 칸이 비어 있으면 그 칸)"}
         try:
             self.reporter.progress(case_id, "교차 검증", f"물건 {result['item_id']} · {summary}")
         except Exception:
@@ -890,7 +895,8 @@ class TowerService:
         return result
 
     def restock(self, case_id: str, payload: object) -> dict:
-        """반환 보류된 물건을 원래 보관 칸에 다시 넣었다 → 본센터 보관(직원). 본문 {"staff_confirmed": true}"""
+        """반환 보류된 물건을 보관함으로 되돌림 → 본센터 보관(직원). 본문 {"staff_confirmed": true}.
+        11/11(021): 원래 칸 예약은 인계 대기 때 풀렸으므로 칸이 없으면 보관 화면 '칸 배정 필요'에 뜬다(가상 시연은 빈 칸에 자동)"""
         if not isinstance(payload, dict) or set(payload) != {"staff_confirmed"} or payload["staff_confirmed"] is not True:
             raise RequestError('본문은 {"staff_confirmed": true} 만 보냅니다(원래 칸에 넣은 뒤)')
         be, item_id, status = self._waiting_item(case_id)

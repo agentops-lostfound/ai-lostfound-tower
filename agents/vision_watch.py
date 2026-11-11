@@ -21,6 +21,9 @@ STAGES = {"queued": "사진 접수 · 분석 차례 기다림", "picked": "작�
           "analyze": "Qwen 분석 중", "result": "결과 도착", "fail": "분석 실패"}
 WORKER_STAGES = ("wait_gpu", "analyze", "fail")      # 작업자가 직접 알릴 수 있는 단계
 WORKER_ALIVE_S = 12.0                                  # 이 시간 안에 대기 목록을 물었으면 작업자가 켜져 있다고 본다
+# 11/11 교육원: 사진 한 장 분석(모델 올리기 + 추론)이 15~30초라 그동안 작업자가 대기 목록을 묻지 않아 '작업자 꺼짐'으로 보였다
+#   → 작업자가 '분석 시작'·'그래픽카드 기다림'을 알린 뒤 결과·실패가 오기 전까지는 이 시간 동안 '분석 중'(켜짐)으로 본다
+WORKER_BUSY_S = 240.0
 MAX_ITEMS = 200
 
 
@@ -60,6 +63,7 @@ class VisionWatch:
         self._queued: dict[str, float] = {}      # 접수 번호 → 접수 시각
         self._picked: set[str] = set()
         self._seen = 0.0                         # 작업자가 대기 목록을 마지막으로 물은 때
+        self._busy: dict[str, float] = {}        # 분석 중인 물건 → 작업자가 마지막으로 단계를 알린 때(결과·실패가 오면 지움)
 
     def _emit(self, item_id: str, stage: str, **more) -> None:
         try:
@@ -96,16 +100,25 @@ class VisionWatch:
             return False
         with self._lock:
             self._seen = self._clock()
+            if stage == "fail":
+                self._busy.pop(item_id, None)
+            else:
+                self._busy[item_id] = self._seen
         self._emit(item_id, stage, detail=_txt(detail, 100), waited=self._waited(item_id))
         return True
 
-    def result(self, item_id: str, qwen: dict | None, feats: dict | None, measure: dict | None = None) -> None:
-        """결과가 들어와 저장됨: Qwen 이 읽은 값(원본)과 저장한 값을 나란히. measure = 11/11 색 측정(Qwen 색 → 측정 색 → 쓴 색)"""
+    def result(self, item_id: str, qwen: dict | None, feats: dict | None, measure: dict | None = None, size: dict | None = None) -> None:
+        """결과가 들어와 저장됨: Qwen 이 읽은 값(원본)과 저장한 값을 나란히. measure = 11/11 색 측정(Qwen 색 → 측정 색 → 쓴 색),
+        size = 11/11 크기 측정(Qwen 품목 → 크기로 본 품목 → 쓴 품목, 길이·폭)"""
         more = {"measure": {k: (_txt(v, 100) if isinstance(v, str) else v) for k, v in measure.items()}} if isinstance(measure, dict) else {}
+        if isinstance(size, dict):
+            more["size"] = {k: (_txt(v, 120) if isinstance(v, str) else v) for k, v in size.items()}
         self._emit(item_id, "result", seconds=self._waited(item_id), raw=raw_view(qwen), saved=saved_view(feats), **more)
         with self._lock:
             self._queued.pop(item_id, None)
             self._picked.discard(item_id)
+            self._busy.pop(item_id, None)
+            self._seen = self._clock()               # 결과를 보낸 것도 작업자가 살아 있다는 표시
 
     def _waited(self, item_id: str):
         with self._lock:
@@ -113,9 +126,14 @@ class VisionWatch:
         return None if t is None else round(self._clock() - t, 1)
 
     def worker(self) -> dict:
+        """{"on": 켜져 있나, "seen_ago": 마지막 신호 뒤 초, "busy": 사진 분석 중인가}"""
         with self._lock:
-            ago = None if not self._seen else round(self._clock() - self._seen, 1)
-        return {"on": ago is not None and ago <= WORKER_ALIVE_S, "seen_ago": ago}
+            now = self._clock()
+            ago = None if not self._seen else round(now - self._seen, 1)
+            for k in [k for k, t in self._busy.items() if now - t > WORKER_BUSY_S]:
+                self._busy.pop(k, None)              # 너무 오래된 '분석 중'은 버림(작업자가 중간에 꺼진 경우)
+            busy = bool(self._busy)
+        return {"on": (ago is not None and ago <= WORKER_ALIVE_S) or busy, "seen_ago": ago, "busy": busy}
 
 
 __all__ = ["VisionWatch", "raw_view", "saved_view", "STAGES", "WORKER_STAGES"]

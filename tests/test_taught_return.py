@@ -59,7 +59,7 @@ class TaughtReturnTests(unittest.TestCase):
         self.addCleanup(self.close)
         self.url = f'http://127.0.0.1:{self.server.server_port}'
         self.client = RemoteTowerRobot(url=self.url, token=self.token, expected_mode='simulation')
-        self.env = {'TOWER_SIM': '1', 'TOWER_SIM_SPEED': '0', 'TOWER_AGENT_TALK': '0',
+        self.env = {'TOWER_SIM': '1', 'TOWER_SIM_SEED': 'cream', 'TOWER_SIM_SPEED': '0', 'TOWER_AGENT_TALK': '0',
                     'TOWER_GPU_LEASE': '0', 'LF_LANGFUSE': '0', 'TOWER_ROBOT_SEQUENCE': 'taught',
                     'TOWER_ROBOT_TARGET': 'db', 'TOWER_ROBOT_PART': 'robot.remote_client:RemoteTowerRobot',
                     'TOWER_REMOTE_ROBOT_URL': self.url, 'TOWER_REMOTE_ROBOT_TOKEN': self.token,
@@ -112,7 +112,10 @@ class TaughtReturnTests(unittest.TestCase):
         self.assertTrue(any('11/11' in step['step'] and '도착' in step['step'] for step in saved['steps']))
         state = api.get('/api/admin/live/state?detail=1').json()
         self.assertEqual(state['robot_control']['mode'], 'taught_remote')
-        self.assertFalse(state['world']['arm']['joints'])
+        # 11/11 가상 팔이 실물 단계 기록을 따라 움직임(agents/taught_mirror.py): 끝나면 원점, 관절 막대는 가상 계산 값
+        self.assertEqual(state['world']['robot']['telemetry_available'], 'stage')
+        self.assertTrue(state['world']['arm']['joints'])
+        self.assertEqual(state['world']['arm']['real']['pose'], 'home')
         stages = {s['key']: s for s in self.svc.board.stories[story['story_id']]['stages']}
         self.assertEqual(stages['deliver']['state'], 'done')
         self.assertEqual(stages['handover']['state'], 'active')               # 11/11 무인 인계: 분실인이 꺼내고 키오스크 [물건 받았어요]
@@ -123,6 +126,46 @@ class TaughtReturnTests(unittest.TestCase):
         self.assertEqual(self.svc.world.db_get_item(self.item_id)['status'], '인계 완료')
         self.assertEqual(self.motion.count, 11)                                    # 인계 확인은 로봇을 움직이지 않는다
         self.assertEqual(api.post('/sim/reset', json={}).status_code, 409)
+
+    def test_virtual_arm_follows_real_stage_events(self):
+        # 11/11 사용자 요청: 4 로봇 작업대의 가상 팔이 실물 팔과 같이 움직이게 — 단계마다 자리·집게·들고 있는 물건 확인
+        from agents.sim_world import BASKET_MM, DROP_Z, HOME_MM, PICK_Z, SLOTS_MM, SLOT_IDS, HOVER_Z
+        self.client.arm_local()
+        mirror = self.svc.robot_mirror
+        self.assertIsNotNone(mirror)
+        seen = []
+        orig = mirror.event
+
+        def spy(ev):
+            orig(ev)
+            if ev.get('event') == 'stage_arrived':
+                a = self.svc.world.arm
+                seen.append((ev['pose_name'], a['x'], a['y'], a['z'], self.svc.world.items[self.item_id]['loc'], a.get('holding')))
+        mirror.event = spy
+        result = self.svc.kiosk_return(self.body)
+        self.assertEqual(result['decision'], DECISION_RETURNED, result)
+        got = {p: (x, y, z, loc, held) for p, x, y, z, loc, held in seen}
+        self.assertEqual([p for p, *_ in seen], expected_sequence(5))
+        sx, sy = SLOTS_MM[SLOT_IDS.index('R3-1')]                               # pose_5 = R3-1
+        self.assertEqual(got['pose_5'][:3], (sx, sy, HOVER_Z))
+        self.assertEqual(got['pose_5_target'][:3], (sx, sy, PICK_Z))
+        self.assertEqual(got['pose_5_target'][3], 'bin')                      # 아직 칸에
+        self.assertEqual(got['pose_5_close'][3:], ('gripper', self.item_id))  # 집게 닫음 → 들고 있음
+        self.assertEqual(got['close'][:3], (BASKET_MM[0], BASKET_MM[1], DROP_Z))
+        self.assertEqual(got['open'][3:], ('basket', None))                   # 제출보관함에 내려놓음
+        self.assertEqual(got['home'][:2], HOME_MM)
+        from agents.sim_world import REST_JOINTS
+        a = self.svc.world.arm                                                 # 끝나면 실물 home 처럼 접힌 대기 자세
+        self.assertTrue(a['rest'])
+        self.assertEqual(a['joints'], REST_JOINTS)
+        self.assertEqual(self.motion.count, 11)                                # 그림은 로봇 명령을 더하지 않음
+
+    def test_virtual_arm_never_breaks_sequence_checks(self):
+        self.client.arm_local()
+        self.svc.robot_mirror.place = Mock(side_effect=RuntimeError('그림 오류'))   # 그림이 실패해도 반환은 그대로
+        result = self.svc.kiosk_return(self.body)
+        self.assertEqual(result['decision'], DECISION_RETURNED, result)
+        self.assertEqual(self.motion.count, 11)
 
     def test_no_fake_success_when_executor_is_not_armed(self):
         result = self.svc.kiosk_return(self.body)
