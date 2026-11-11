@@ -479,13 +479,23 @@ class KioskCameras:
         self.exposure = parse_exposure(os.environ.get("TOWER_KIOSK_EXPOSURE")) if exposure is None else exposure
         self.wb = parse_wb(os.environ.get("TOWER_KIOSK_WB")) if wb is None else wb
         self.props = parse_props(os.environ.get("TOWER_KIOSK_CAMPROPS")) if props is None else props
-        self._feeds = {name: CameraFeed(src, opener, exposure=exposure_for(self.exposure, name), wb=exposure_for(self.wb, name),
-                                        props=self.props)
-                       for name, src in self.config.items()}
+        # 11/11 교육원: 웹캠 1대를 두 기계(KIOSK-A=0,KIOSK-C=0)에 같이 쓰면 카메라를 두 번 열어 한쪽 화면이 새까맸다
+        #   → 같은 카메라 번호는 읽기(CameraFeed) 하나를 함께 쓴다(노출·화이트밸런스는 먼저 적힌 기계 값). 'fake' 는 따로
+        by_src: dict = {}
+        self._feeds = {}
+        for name, src in self.config.items():
+            if src != "fake" and src in by_src:
+                self._feeds[name] = by_src[src]
+                continue
+            feed = CameraFeed(src, opener, exposure=exposure_for(self.exposure, name), wb=exposure_for(self.wb, name),
+                              props=self.props)
+            self._feeds[name] = feed
+            if src != "fake":
+                by_src[src] = feed
         _ALL.add(self)
 
     def stop(self, timeout: float = 1.5) -> bool:
-        return all([f.stop(timeout) for f in self._feeds.values()])
+        return all([f.stop(timeout) for f in {id(f): f for f in self._feeds.values()}.values()])
 
     def feed(self, machine: str) -> CameraFeed | None:
         return self._feeds.get(machine)
