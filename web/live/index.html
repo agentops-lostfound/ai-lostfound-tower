@@ -113,6 +113,11 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .purge-row button{flex:none;font:inherit;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:7px;border:1px solid currentColor;background:transparent;color:var(--ui-err, #d33);cursor:pointer}
 .purge-row button.armed{background:var(--ui-err, #d33);color:#fff;border-color:var(--ui-err, #d33)}
 .purge-row button:disabled{opacity:.4;cursor:default}
+.purge-row.stuck{outline:1px dashed var(--ui-err, #d33)}
+.purge-all{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;font-size:12px;opacity:.95}
+.purge-all button{font:inherit;font-size:12px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid var(--ui-err, #d33);background:transparent;color:var(--ui-err, #d33);cursor:pointer}
+.purge-all button.armed{background:var(--ui-err, #d33);color:#fff}
+.purge-all button:disabled{opacity:.4;cursor:default}
 .tok i{width:9px;height:9px;border-radius:3px;display:inline-block;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
 /* 기록 */
 .log{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:72vh;overflow:auto}
@@ -217,7 +222,7 @@ details.more .robot-note{margin-top:0}
   <span class="spacer"></span>
   <button class="stop" id="btnStop" title="반환 진행 중에도 누를 수 있음">🛑 정지</button>
   <button id="btnHome" title="로봇 주변을 확인한 뒤에만">원점 복귀</button>
-  <button id="btnReset" hidden>가상 세계 초기화</button>
+  <button id="btnReset" hidden title="두 번 눌러 실행 — 가상 세계와 기록을 처음 상태로(실물 로봇 PC 상태는 그대로)">전체 초기화</button>
   <span data-theme-slot></span>
 </header>
 <div class="banner" id="banner" hidden></div>
@@ -267,7 +272,8 @@ details.more .robot-note{margin-top:0}
       <div class="places" id="places"></div>
       <details class="purge" id="purgeBox">
         <summary>🗑 기록 삭제(직원) <span id="purgeCount"></span></summary>
-        <p class="purge-note">물건 하나에 딸린 기록을 <b>전부</b> 지워요 — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록(팀 DB 포함). <b>되돌릴 수 없어요.</b> 사진 파일만 남아요. 반환 중인 물건은 지울 수 없어요.</p>
+        <p class="purge-note">물건 하나에 딸린 기록을 <b>전부</b> 지워요 — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록(팀 DB 포함). <b>되돌릴 수 없어요.</b> 사진 파일만 남아요. 반환이 진행 중인 물건은 지울 수 없어요. 로봇이 움직이지 않아 <b>반환 중에 멈춘</b> 물건은 [반환 취소](같은 칸에 그대로 보관) 또는 [삭제]를 쓸 수 있어요.</p>
+        <div class="purge-all"><button type="button" id="purgeAll">전체 삭제</button><span>물건 기록을 모두 지워요(멈춘 반환 포함) — 두 번 눌러 실행</span></div>
         <div class="purge-list" id="purgeList"></div>
         <div class="msg" id="purgeMsg" role="status" aria-live="polite"></div>
       </details>
@@ -451,28 +457,59 @@ details.more .robot-note{margin-top:0}
         `<span class="tok" title="${esc(itemTip(i))}" aria-label="${esc(itemTip(i))}"><i style="background:${COLORS[i.color]||"#b9b4ff"}"></i>${stShort(i) ? `<span class="st">${esc(stShort(i))}</span>` : ""}${esc(catName(i.category))} ${esc(i.item_id)}${i.loc==="staff"?" (직원)":""}${i.waiting?" · 칸 대기":""}</span>`).join("") :
         '<span class="empty">없음</span>'}</div></div>`;
     }).join("");
-    renderPurge();
+    renderPurge(); renderPurgeAll();
   }
 
   // ---------- 11/10 기록 삭제(직원): 저장소에 있는 물건의 기록을 통째로 지운다 ----------
   // 물건마다 [삭제] → 한 번 더 눌러야 실행(4초 안). POST /api/admin/items/{번호}/purge — 물건·상태 기록·연락처·보관 칸·찾기 요청·반환 기록을 모두 지운다
   const LOC_NAME = {kiosk: "등록기계", transit: "이동 중", bin: "보관 칸", shelf: "직원 보관 선반", gripper: "로봇 집게", basket: "제출보관함", handed: "인계 완료", staff: "직원 손"};
-  let purgeArmed = null, purgeBusy = false;
+  let purgeArmed = null, purgeBusy = false, liveBusy = false, realRobot = false;
   function renderPurge() {
     const box = $("purgeList"); if (!box || !world) return;
     const rows = world.items.slice().sort((a, b) => a.item_id < b.item_id ? -1 : 1);
-    const sig = JSON.stringify([rows.map(i => [i.item_id, i.loc, i.status, i.slot_id, i.category]), purgeArmed, purgeBusy]);
+    const sig = JSON.stringify([rows.map(i => [i.item_id, i.loc, i.status, i.slot_id, i.category]), purgeArmed, purgeBusy, liveBusy]);
     if (box.dataset.last === sig) return;
     box.dataset.last = sig;
     $("purgeCount").textContent = `물건 ${rows.length}개`;
     box.innerHTML = rows.length ? rows.map(i => {
-      const moving = i.loc === "gripper" || i.status === "반환 중";
+      const inReturn = i.loc === "gripper" || i.status === "반환 중";
+      const stuck = inReturn && !liveBusy;              // 11/11 관제탑은 쉬는데 '반환 중'으로 남음 = 로봇이 멈춘 반환
+      const moving = inReturn && !stuck;
       const where = (i.slot_id ? i.slot_id + " " : "") + (LOC_NAME[i.loc] || i.loc);
-      return `<div class="purge-row"><span class="id">${esc(i.item_id)}</span><span class="what" title="${esc(itemTip(i))}">${esc(catName(i.category))} · ${esc(where)} · ${esc(i.status)}</span>` +
+      const back = stuck && i.loc === "bin" ? `<button type="button" data-unstick="${esc(i.item_id)}" class="${purgeArmed === "u:" + i.item_id ? "armed" : ""}"${purgeBusy ? " disabled" : ""} title="로봇이 집지 않았을 때 — 같은 칸에 그대로 보관">${purgeArmed === "u:" + i.item_id ? "한 번 더 → 반환 취소" : "반환 취소"}</button>` : "";
+      return `<div class="purge-row${stuck ? " stuck" : ""}"><span class="id">${esc(i.item_id)}</span><span class="what" title="${esc(itemTip(i))}">${esc(catName(i.category))} · ${esc(where)} · ${esc(i.status)}${stuck ? " (멈춤)" : ""}</span>` + back +
         `<button type="button" data-purge="${esc(i.item_id)}" class="${purgeArmed === i.item_id ? "armed" : ""}"${moving || purgeBusy ? " disabled" : ""}>${purgeArmed === i.item_id ? "한 번 더 → 삭제" : "삭제"}</button></div>`;
     }).join("") : '<span class="empty">물건이 없어요</span>';
   }
+  // 11/11 [반환 취소]·[전체 삭제]도 한 번 더 눌러야 실행(4초 안)
+  function arm(key, msg) {
+    purgeArmed = key; $("purgeMsg").textContent = msg; renderPurge();
+    setTimeout(() => { if (purgeArmed === key) { purgeArmed = null; $("purgeMsg").textContent = ""; renderPurge(); renderPurgeAll(); } }, 4000);
+  }
+  function renderPurgeAll() {
+    const b = $("purgeAll"); if (!b) return;
+    b.classList.toggle("armed", purgeArmed === "all"); b.textContent = purgeArmed === "all" ? "한 번 더 → 전체 삭제" : "전체 삭제";
+    b.disabled = purgeBusy || liveBusy;
+  }
+  $("purgeAll").addEventListener("click", async () => {
+    if (purgeArmed !== "all") { arm("all", "물건 기록을 모두 지우려면 한 번 더 누르세요(되돌릴 수 없음, 사진 파일은 남음)"); renderPurgeAll(); return; }
+    purgeArmed = null; purgeBusy = true; renderPurge(); renderPurgeAll();
+    try {
+      const d = await post("/api/admin/items/purge-all");
+      $("purgeMsg").textContent = `물건 ${d.deleted.length}개 기록을 지웠어요` + (d.kept.length ? ` · 남긴 ${d.kept.length}개: ` + d.kept.map(k => `${k.item_id}(${k.reason})`).join(", ") : "");
+    } catch (err) { $("purgeMsg").textContent = err.message; }
+    purgeBusy = false; renderPurge(); renderPurgeAll();
+  });
   $("purgeList").addEventListener("click", async (e) => {
+    const u = e.target.closest("button[data-unstick]");
+    if (u && !u.disabled) {
+      const id = u.dataset.unstick, key = "u:" + id;
+      if (purgeArmed !== key) { arm(key, `${id} 반환을 취소하고 같은 칸에 그대로 두려면 한 번 더 누르세요 — 로봇이 물건을 집지 않았는지 먼저 보세요`); return; }
+      purgeArmed = null; purgeBusy = true; renderPurge();
+      try { const d = await post(`/api/admin/items/${encodeURIComponent(id)}/return-cancel`); $("purgeMsg").textContent = `${id} 반환을 취소했어요 · ${d.slot} 칸에 그대로 보관`; }
+      catch (err) { $("purgeMsg").textContent = `${id} — ${err.message}`; }
+      purgeBusy = false; renderPurge(); return;
+    }
     const b = e.target.closest("button[data-purge]"); if (!b || b.disabled) return;
     const id = b.dataset.purge;
     if (purgeArmed !== id) {
@@ -746,7 +783,7 @@ details.more .robot-note{margin-top:0}
       failCount = 0;
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
       $("mode").textContent = d.robot_control ? "실물 원격 티칭 · 배치 참고도" : d.sim ? "가상 시연" : "진짜 부품";
-      $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim || !!d.robot_control;
+      $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim; liveBusy = !!d.busy; realRobot = !!d.robot_control;   // 11/11 실물 모드에서도 [전체 초기화](두 번 눌러)
       if (d.world) {
         if (!world) { drawBench(d.world.bench); drawSide(); }
         world = d.world;
@@ -804,7 +841,19 @@ details.more .robot-note{margin-top:0}
     clearTimeout(homeArmed); homeArmed = null; b.classList.remove("confirm"); b.textContent = "원점 복귀";
     post("/api/admin/robot/home",{staff_confirmed: true}).catch(e => $("tryMsg").textContent = e.message);
   };
-  $("btnReset").onclick = () => post("/sim/reset").then(() => $("tryMsg").textContent = "초기화했습니다").catch(e => $("tryMsg").textContent = e.message);
+  // 11/11 [전체 초기화]: 한 번 더 눌러야 실행(4초 안) — 실물 모드면 force_real 로 화면·기록만 처음으로(로봇 PC 는 그대로)
+  let resetArmed = false;
+  $("btnReset").onclick = () => {
+    const b = $("btnReset");
+    if (!resetArmed) {
+      resetArmed = true; b.classList.add("confirm"); b.textContent = "한 번 더 → 전체 초기화";
+      $("tryMsg").textContent = "가상 세계와 기록을 처음 상태로 돌려요(되돌릴 수 없음)" + (realRobot ? " · 실물 로봇 PC 상태는 바뀌지 않아요" : "") + " — 한 번 더 누르세요";
+      setTimeout(() => { if (resetArmed) { resetArmed = false; b.classList.remove("confirm"); b.textContent = "전체 초기화"; } }, 4000);
+      return;
+    }
+    resetArmed = false; b.classList.remove("confirm"); b.textContent = "전체 초기화";
+    post("/sim/reset", realRobot ? {force_real: true} : {}).then(() => $("tryMsg").textContent = "초기화했습니다").catch(e => $("tryMsg").textContent = e.message);
+  };
 
   document.querySelectorAll(".try [data-kind]").forEach(btn => btn.onclick = async () => {
     const text = $("tryText").value.trim(); if (!text) return;

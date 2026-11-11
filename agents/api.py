@@ -500,6 +500,33 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         가상 세계와 팀 DB(함께 저장 중이면) 모두에서 지운다. 사진 파일은 남는다"""
         return _item_action(item_id, "cancel_item")
 
+    @app.post("/api/admin/items/purge-all", dependencies=admin)
+    def items_purge_all() -> dict:
+        """11/11 [전체 삭제](로봇 작업대, 두 번 눌러 실행): 가상 세계 물건 기록을 모두 지운다(멈춘 반환 포함). 반환 진행 중이면 409"""
+        d = getattr(svc, "sim", None)
+        if d is None or not callable(getattr(d, "purge_all", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        out = d.purge_all()
+        if not out.get("ok"):
+            raise HTTPException(status_code=409, detail=out.get("reason") or "할 수 없어요")
+        return out
+
+    @app.post("/api/admin/items/{item_id}/return-cancel", dependencies=admin)
+    def item_return_cancel(item_id: str) -> dict:
+        """11/11 [반환 취소](두 번 눌러 실행): 로봇이 움직이지 않아 '반환 중'에 멈춘 물건을 같은 칸 '본센터 보관'으로. 반환 진행 중이면 409"""
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        d = getattr(svc, "sim", None)
+        if d is None or not callable(getattr(d, "cancel_stuck_return", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        if item_id not in d.world.items:
+            raise HTTPException(status_code=404, detail="없는 물건 번호예요")
+        out = d.cancel_stuck_return(item_id)
+        if not out.get("ok"):
+            raise HTTPException(status_code=409, detail=out.get("reason") or "할 수 없어요")
+        return out
+
     @app.post("/api/admin/items/{item_id}/purge", dependencies=admin)
     def item_purge(item_id: str) -> dict:
         """[기록 삭제](로봇 작업대 화면): 물건 하나에 딸린 기록을 전부 지운다(되돌릴 수 없음) — 물건·상태 기록·연락처·보관 칸·
@@ -512,7 +539,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
         if svc.health().get("busy"):
             raise HTTPException(status_code=409, detail="반환이 진행 중이에요 — 끝난 뒤 다시 눌러 주세요")
-        out = d.purge_item(item_id)
+        out = d.purge_item(item_id, stuck=True)          # 11/11 멈춘 반환('반환 중'인데 관제탑은 쉬는 중)도 지울 수 있게 — 진행 중이면 그대로 409
         if not out.get("ok"):
             raise HTTPException(status_code=404 if out.get("code") == "not_found" else 409, detail=out.get("reason") or "할 수 없어요")
         return {"ok": True, "item_id": item_id, "claims": out.get("claims") or [], "cases": out.get("cases") or [], "slot": out.get("slot")}
@@ -928,12 +955,14 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         return {**st, "events": [e for e in board.since(after, story_id) if e.get("channel") != "agent"], "seq": board.last_seq}
 
     @app.post("/sim/reset", dependencies=admin)     # 11/8 무작위 시험: 로그인 없이 시연 전체를 지울 수 있었다
-    def sim_reset() -> dict:
-        """가상 세계 초기화(보관함 시연 물건 5개·로봇 원점). 반환 진행 중이면 409. 관리자 잠금이 켜져 있으면 로그인 필요"""
+    def sim_reset(payload: dict | None = Body(None)) -> dict:
+        """가상 세계 초기화(보관함 시연 물건 5개·로봇 원점). 반환 진행 중이면 409. 관리자 잠금이 켜져 있으면 로그인 필요.
+        11/11 실물 연결 모드는 본문 {"force_real": true}(로봇 작업대 [전체 초기화]를 두 번 누름)일 때만 — 로봇 PC 상태는 바뀌지 않음"""
         d = _sim()
         if svc.health()["busy"]:
             raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
-        return _sim_call(d.reset)
+        force = bool(isinstance(payload, dict) and payload.get("force_real") is True)
+        return _sim_call(lambda: d.reset(force_real=force))
 
     @app.get("/returns", dependencies=admin)
     @app.get("/api/admin/returns", dependencies=admin)
