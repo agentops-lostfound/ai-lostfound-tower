@@ -273,6 +273,35 @@ def dialog(cam) -> int:
     return 0
 
 
+def try_props(cam, text: str, opener=None, settle: int = SETTLE_FRAMES) -> dict:
+    """영상 설정을 OpenCV 로 넣어 보고(관제탑과 같은 방식) 읽은 값·날아간 점 % 를 돌려준다 — 끝나면 원래 값으로 되돌림"""
+    import cv2
+    from agents.kiosk_camera import _open, apply_props, fit, is_dark, parse_props
+    props = parse_props(text)
+    if not props:
+        raise SystemExit(f"설정을 읽을 수 없음: {text!r} (예: CONTRAST=200)")
+    cap = (opener or _open)(cam)
+    if cap is None or not cap.isOpened():
+        return {"error": "카메라를 열 수 없음(관제탑을 끄고 다시)"}
+    try:
+        before = read_props(cap)
+        state = apply_props(cap, props)
+        frame, n = None, 0
+        while n < settle * 3:
+            ok, f = cap.read()
+            n += 1
+            if ok and f is not None and not is_dark(f):
+                frame = f
+                if n >= settle:
+                    break
+            time.sleep(0.03)
+        m = measure(fit(frame)[0]) if frame is not None else None
+        apply_props(cap, {k: before[k] for k in props if before.get(k) not in (None, -1.0)})   # 되돌림
+        return {"state": state, "m": m}
+    finally:
+        cap.release()
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="키오스크 웹캠 노출 값 고르기")
     ap.add_argument("--cam", default="0", help="OpenCV 카메라 번호(tools/list_cameras.py 로 확인, 기본 0)")
@@ -281,6 +310,7 @@ def main(argv=None) -> int:
     ap.add_argument("--exposure", default="auto", help="화이트밸런스 시험 중 쓸 노출 값(먼저 고른 값, 기본 auto)")
     ap.add_argument("--props", action="store_true", help="이 웹캠이 받아들이는 설정 목록만 보고 끝")
     ap.add_argument("--dialog", action="store_true", help="웹캠 드라이버 설정 창 + 미리보기(날아간 점 % 실시간)")
+    ap.add_argument("--try", dest="try_", default="", help="영상 설정을 OpenCV 로 넣어 확인(예: CONTRAST=200) — .env TOWER_KIOSK_CAMPROPS 값 확인용")
     a = ap.parse_args(argv)
     try:
         import cv2
@@ -292,6 +322,21 @@ def main(argv=None) -> int:
         return show_props(cam)
     if a.dialog:
         return dialog(cam)
+    if a.try_:
+        r = try_props(cam, a.try_)
+        if "error" in r:
+            print(r["error"])
+            return 2
+        for k, st in (r["state"] or {}).items():
+            print(f"{k}: 넣은 값 {st.get('requested'):g} → 카메라가 읽은 값 {st.get('now')}")
+        m = r["m"]
+        if m is None:
+            print("영상이 까맘 — 다시 실행")
+            return 2
+        good = m["clipped"] < CLIP_OK
+        print(f"바닥 {m['floor']:.0f} · 날아간 점 {m['clipped'] * 100:.2f}% · 색 치우침 {m['cast'] * 100:.1f}% → "
+              + (f"좋음: .env 에 TOWER_KIOSK_CAMPROPS={a.try_}" if good else "아직 날아감 — 값을 더 낮춰 보기"))
+        return 0
     out = ROOT / "data" / "exposure_check"
     if a.wb:
         exp = parse_values(a.exposure)[0]
