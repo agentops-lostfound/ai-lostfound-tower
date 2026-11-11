@@ -32,8 +32,8 @@ sequenceDiagram
   alt 불일치
     Sup->>BE: db_set_status(item_id, 반환 보류)
     Sup->>Rep: alert(case, 불일치)
-  else 직원 확인 완료
-    Sup->>Rep: progress(case, 직원 확인 완료)
+  else 본인 확인 완료
+    Sup->>Rep: progress(case, 본인 확인 완료)
   end
 ```
 

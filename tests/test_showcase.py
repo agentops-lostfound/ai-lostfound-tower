@@ -206,6 +206,17 @@ class DbWatchTest(unittest.TestCase):
             self.assertIn(want, ops)
         self.assertNotIn(ID_MASKED, json.dumps(evs, ensure_ascii=False))
         self.assertEqual(d["item_id"], out["matched_object"])
+        self.assertNotIn(("storage_assignment", "DELETE"), ops)                   # 인계 대기 동안은 칸을 잡아 둠
+
+        # 11/11 무인 인계: [물건 받았어요] → 인계 완료 → 보관 칸이 저절로 빔(트리거) 사건이 남는다(화면 item 카드 slot_id '비움')
+        mark = self.board.last_seq
+        self.svc.sim.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": ID_MASKED})
+        evs = db_events(self.board, mark)
+        ops = [(e["db"]["table"], e["db"]["op"]) for e in evs]
+        self.assertIn(("storage_assignment", "DELETE"), ops)
+        self.assertGreater(ops.index(("storage_assignment", "DELETE")), ops.index(("item", "UPDATE")))
+        rel = next(e["db"] for e in evs if e["db"]["table"] == "storage_assignment")
+        self.assertEqual((rel["key"], rel["by"]), (d["item_id"], "DB 트리거"))
 
     def test_same_status_rewrite_is_skipped_and_select_is_quiet(self):
         d = self.svc.sim.found("중앙역 승강장에서 검정 립밤 주웠어요")
@@ -306,7 +317,7 @@ class PageContractTest(unittest.TestCase):
     def test_showcase_page(self):
         html = (ROOT / "web" / "showcase" / "index.html").read_text(encoding="utf-8")
         for needle in ("/api/admin/live/state?after=${seq}&detail=1", "/kiosk?machine=${machine}", '"/kiosk?machine=CENTER&tab=ret&demo=1"',
-                       '$("fLost").src = "/phone"', '$("full").src = "/live"', "/ui/theme.css",
+                       '$("fLost").src = "/phone"', '$("full").src = "/live?embed=1"', "/ui/theme.css",
                        "data-theme-slot", "prefers-reduced-motion"):
             self.assertIn(needle, html)
         # 11/10 에이전트 그림은 일이 생긴 쪽으로 자동 전환(사용자가 한 번 고르면 영영 멈추던 옛 방식 'pinned' 는 없앰),
@@ -337,6 +348,15 @@ class PageContractTest(unittest.TestCase):
         admin = (ROOT / "web" / "admin" / "index.html").read_text(encoding="utf-8")
         self.assertIn("storage: '/storage'}", admin)
 
+
+
+class LiveEmbedTest(unittest.TestCase):
+    def test_live_embed_mode_fits_one_screen(self):
+        """11/11 발표 화면 ④: /live?embed=1 은 제목·연결 칩을 빼고 작업대 그림 높이를 화면에 맞춘다"""
+        html = (ROOT / "web" / "live" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('get("embed") === "1") document.documentElement.classList.add("embed")', html)
+        self.assertIn("html.embed #bench{max-height:calc(100vh - 150px)", html)
+        self.assertIn("html.embed header h1,html.embed header .chip.conn{display:none}", html)
 
 if __name__ == "__main__":
     unittest.main()

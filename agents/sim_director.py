@@ -874,9 +874,9 @@ class SimDirector:
                     self.visit_wait[cid] = sid
                     return
                 shelf = w.items[item_id]["loc"] == LOC_SHELF
-                self.board.stage("visit", "active", "분실인 도착 · 직원 확인 중" + (" · 직원 보관 선반 물건 — 직원이 가져다 드려요" if shelf else ""))
+                self.board.stage("visit", "active", "자동 연습 · 본센터 방문·본인 확인을 건너뜀" + (" · 직원 보관 선반 물건 — 직원이 가져다 드려요" if shelf else ""))   # 11/11 무인 인계와 헷갈리지 않게
                 w.sleep(1.0)
-                self.rep.progress(cid, "본센터 방문", "분실인 도착 · 직원이 실물 신분증·안쪽 특징 확인(가상)")
+                self.rep.progress(cid, "본센터 방문", "자동 연습 — 본인 확인을 건너뛰고 반환 시작(실제는 본센터 키오스크에서 찾기 번호·신분 번호)")
                 w.sleep(1.5)
                 if "grasp_fail" in tags:
                     w.inject(grasp_fail=1)
@@ -914,7 +914,7 @@ class SimDirector:
                     return
                 w.sleep(3.0)
                 self.svc.handover(out["case_id"], {"staff_confirmed": True})               # 진짜 직원 화면과 같은 입구
-                self.board.finish(sid, f"인계 완료 — {item_id} 를 분실인에게 건넴", True)
+                self.board.finish(sid, f"인계 완료(자동 연습) — {item_id} · 실제는 분실인이 제출보관함에서 꺼내고 키오스크 [물건 받았어요]", True)
             except (RequestError, Conflict, NotFound, Unavailable) as e:
                 self.rep.alert(cid, f"가상 반환 진행 중단: {e}", "")
                 self.board.finish(sid, f"중단: {e}", False)
