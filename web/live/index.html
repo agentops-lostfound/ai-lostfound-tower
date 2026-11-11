@@ -684,6 +684,12 @@ details.more .robot-note{margin-top:0}
              `<span class="val">${v.toFixed(1)}${esc(j.unit)}</span></div>`;
     }).join("");
     const real = r.telemetry_available === "stage" ? a.real : null;     // 11/11 실물 단계 기록(로봇 PC 저장 자세 값, normalized)
+    if (r.telemetry_available === "live") {                            // 11/11 실제 팔로워 관절(로봇 PC 읽기 전용 조회)
+      const lv = a.live || {}, st = a.real;
+      $("joints").insertAdjacentHTML("beforeend", `<p class="realpose">🟢 실물 관절 실시간${st ? ` · ${esc(st.index ?? "-")}/${esc(st.total ?? "-")} <b>${esc(st.pose)}</b> ${esc(st.state)}` : ""}` +
+        (lv.normalized && Object.keys(lv.normalized).length ? `<br><span>팔로워 관측(normalized) ${Object.entries(lv.normalized).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(" · ")}</span>` : "") +
+        `<br><span>막대·각도 = 실물 각도를 가상 팔 기준(0° = 'ㄱ' 자세)으로 옮긴 값 · 그림 위치 차이 약 3cm</span></p>`);
+    }
     if (r.telemetry_available === "stage") {
       $("joints").insertAdjacentHTML("beforeend", `<p class="realpose">🤖 실물 ${real ? `${esc(real.index ?? "-")}/${esc(real.total ?? "-")} <b>${esc(real.pose)}</b> ${esc(real.state)}` : "대기 — 반환이 시작되면 단계마다 따라 움직여요"}` +
         (real && real.values && Object.keys(real.values).length ? `<br><span>저장 자세 값(normalized) ${Object.entries(real.values).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(" · ")}</span>` : "") +
@@ -825,7 +831,7 @@ details.more .robot-note{margin-top:0}
       const d = await r.json();
       failCount = 0;
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
-      $("mode").textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 원격 티칭 · 가상 팔이 단계 따라 움직임" : "실물 원격 티칭 · 배치 참고도") : d.sim ? "가상 시연" : "진짜 부품";
+      $("mode").textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "live" ? "실물 원격 티칭 · 실제 관절 실시간" : d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 원격 티칭 · 가상 팔이 단계 따라 움직임" : "실물 원격 티칭 · 배치 참고도") : d.sim ? "가상 시연" : "진짜 부품";
       $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim; liveBusy = !!d.busy; realRobot = !!d.robot_control;   // 11/11 실물 모드에서도 [전체 초기화](두 번 눌러)
       if (d.world) {
         if (!world) { drawBench(d.world.bench); drawSide(); }
@@ -835,7 +841,7 @@ details.more .robot-note{margin-top:0}
         renderRobot(world);
         renderItems();
         const ph = $("phase");
-        ph.textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 단계 기록(시작·도착)을 따라 움직이는 그림 · 실제 위치는 현장 확인" : "실물 원격 티칭 · 그림은 배치 참고 · 아래 단계 기록 확인") :
+        ph.textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "live" ? "실제 팔로워 관절값으로 그린 그림 · 실제 위치는 현장 확인" : d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 단계 기록(시작·도착)을 따라 움직이는 그림 · 실제 위치는 현장 확인" : "실물 원격 티칭 · 그림은 배치 참고 · 아래 단계 기록 확인") :
           (world.arm.stopped ? "🛑 정지 — 확인 후 원점 복귀" : world.arm.phase);
         ph.className = "phase" + (world.arm.stopped ? " stopped" : "");
         $("armChip").textContent = world.arm.stopped ? "정지" : world.arm.phase;

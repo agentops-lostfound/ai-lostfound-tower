@@ -127,6 +127,15 @@ tools\start_tower.bat lan
 - 그림만 바꾼다: 로봇에 명령을 더 보내지 않고, 단계 순서 검사(`agents/taught_return.py`)가 먼저 돈 뒤에 그린다. 그림이 실패해도 반환은 그대로(시험 `tests/test_taught_return.py`)
 - 한계: 실시간 관절값이 아니라 단계 기록을 따른다 — 한 단계 안의 실제 궤적·속도와 다를 수 있음. 로봇 PC 가 Studio 관측 관절값을 내보내면(`/v1/` 에 관절 읽기 추가, 정규화 → 각도는 보정값 필요 `robot/vendor_coordinates.py`) 그 값으로 바꿀 수 있다
 
+## 실제 팔로워 관절로 그리기 (11/11 저녁, 로봇 PC GET /v1/joints)
+
+- 로봇 PC(김건태 LF-21): `GET http://10.10.21.30:8767/v1/joints` — 기존 Bearer 토큰, 읽기 전용(명령·arm·job·lease 무관), `positions`(팔로워 normalized) + `degrees`(보정값으로 바꾼 Studio/LeRobot 각도, 집게는 0~100). 관측이 없거나 1초 넘으면 `available:false`
+- 관제탑 `agents/live_joints.py`: 서버가 반환 중(과 뒤 10초) 초당 5번, 평소 초당 1번 읽음. 브라우저는 로봇 PC 를 부르지 않음. 토큰·주소는 기록에 남기지 않음
+- 각도 옮기기: Studio 각도(보정 범위 가운데 = 0°) → 가상 팔 각도(0° = 'ㄱ' 자세) 는 관절마다 영점(+ 배율) `STUDIO_TO_SIM`. 11/11 보정값으로 바꾼 저장 자세 9개(pose_1~8_target · close)의 집게 끝이 그림의 칸·제출보관함에 오도록 맞춤 — 남는 차이 평균 약 3cm(그림용). home 근처(위팔·팔꿈치·손목 normalized 8 안)는 접힌 대기 자세로 그림
+- 실시간 관측이 있으면 자리·관절은 실물 관절이 정하고, 단계 기록(`taught_mirror`)은 단계 표시·물건 옮기기(close 도착 → 집게, open 도착 → 제출보관함)만 한다. 끊기면 단계 기록 따라가기로 자동으로 돌아감
+- `/live` 상단 '실물 원격 티칭 · 실제 관절 실시간', 로봇 카드 '🟢 실물 관절 실시간 + 팔로워 관측(normalized)'. 끄기 `.env` `TOWER_LIVE_JOINTS=0`
+- 로봇 PC 보정을 새로 하면 그림 영점이 달라질 수 있음 → `tests/test_live_joints.py` 의 보정값을 바꿔 시험
+
 ## 정지·실패
 
 - 키오스크 정지 또는 `/api/robot/stop`은 기존 관제탑 정지 입구를 통해 같은 원격 부품을 정지시킨다. 원격 lease 5초 단절도 정지 요청·실행 불허로 전환한다. HOLD는 하드웨어 비상정지가 아니다.
