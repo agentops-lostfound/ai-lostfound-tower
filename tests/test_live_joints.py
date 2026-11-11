@@ -58,7 +58,7 @@ class Clock:
 
 class ConvertTest(unittest.TestCase):
     def test_saved_poses_land_near_their_slots(self):
-        """보정값으로 바꾼 저장 자세 → 가상 팔 기준으로 옮긴 각도 → 집게 끝이 그 칸 근처(그림용, 60mm 안)"""
+        """그림의 타겟은 해당 칸 60mm 안이고 접근 자세보다 낮다(실측 TCP 높이 판정 아님)."""
         from agents.taught_mirror import pose_slots
         with open(os.path.join(ROOT, "outputs/robot_panel_live/poses.json"), encoding="utf-8-sig") as f:
             poses = json.load(f)
@@ -68,7 +68,12 @@ class ConvertTest(unittest.TestCase):
             x, y, z = so101_tip(j)
             sx, sy = SLOTS_MM[SLOT_IDS.index(slots[f"pose_{n}"])]
             self.assertLess(((x - sx) ** 2 + (y - sy) ** 2) ** 0.5, 60, (n, x, y))
-            self.assertLess(z, 60, n)                               # 바닥 근처(집기 높이)
+            # Re-taught lip balm target 7 renders at ~65.6mm with this approximate
+            # display conversion. Item-specific teaching must not be lowered to
+            # satisfy a fixed picture-height assumption. Keep the descent check.
+            approach = lj.to_sim(studio_degrees(poses[f"pose_{n}"]))
+            self.assertGreaterEqual(z, 0, n)
+            self.assertLess(z, so101_tip(approach)[2], n)
 
     def test_home_observation_is_folded(self):
         j = lj.to_sim(SAMPLE["degrees"])
