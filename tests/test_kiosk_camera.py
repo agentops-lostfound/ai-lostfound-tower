@@ -578,5 +578,19 @@ class ExposureTest(unittest.TestCase):
             ce.parse_values("auto,-20")
 
 
+class SharedCameraTest(unittest.TestCase):
+    def test_same_camera_number_opens_once(self):
+        """11/11 교육원: KIOSK-A=0,KIOSK-C=0 → 카메라를 한 번만 열고 두 기계가 같은 영상(전에는 한쪽이 새까맘)"""
+        from agents.kiosk_camera import KioskCameras
+        made = []
+        cams = KioskCameras({"KIOSK-A": 0, "KIOSK-C": 0, "KIOSK-B": 1}, opener=lambda src: made.append(src) or None)
+        try:
+            self.assertIs(cams.feed("KIOSK-A"), cams.feed("KIOSK-C"))
+            self.assertIsNot(cams.feed("KIOSK-A"), cams.feed("KIOSK-B"))
+            self.assertEqual(set(cams.status()), {"KIOSK-A", "KIOSK-B", "KIOSK-C"})
+        finally:
+            cams.stop(0.5)
+
+
 if __name__ == "__main__":
     unittest.main()
