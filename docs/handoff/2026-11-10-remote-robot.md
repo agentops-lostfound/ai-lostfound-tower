@@ -76,7 +76,7 @@ $env:TOWER_REMOTE_ROBOT_MODE = 'simulation'
 로봇 PC 첫 터미널(키·Follower 환경변수 준비):
 
 ```powershell
-$env:TOWER_ROBOT_MOVE_SECONDS = '5'
+$env:TOWER_ROBOT_MOVE_SECONDS = '3'
 .\.venv\Scripts\python.exe -X utf8 -m robot.remote_executor --live --host 0.0.0.0 --port 8767 --allow-client 10.10.21.21
 ```
 

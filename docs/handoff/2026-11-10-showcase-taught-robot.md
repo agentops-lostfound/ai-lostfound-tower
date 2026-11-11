@@ -72,7 +72,7 @@ Studio 서버/드라이버/티칭 JSON은 이번에 바뀌지 않았다. 기존 
 저장소 폴더에서:
 
 ```powershell
-$env:TOWER_ROBOT_MOVE_SECONDS = '5'
+$env:TOWER_ROBOT_MOVE_SECONDS = '3'
 .\.venv\Scripts\python.exe -X utf8 -m robot.remote_executor `
   --live --host 0.0.0.0 --port 8767 --allow-client 10.10.21.21 --allow-slot R1-1
 ```
