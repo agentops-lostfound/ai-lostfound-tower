@@ -9,7 +9,7 @@
  * - 화면 키보드가 붙은 칸은 readonly 로 둔다 → 태블릿 자체 키보드·윈도우 한글 입력기가 끼어들지 않음
  *
  * 쓰는 법
- *   <script src="/ui/vkeyboard.js"></script>
+ *   <script src="/ui/vkeyboard.js?v=20261111a"></script>
  *   VK.attach(document, {skin: "kiosk"})                    // 키오스크: 이 화면의 입력칸 전부
  *   VK.attach(iframe.contentDocument, {skin: "phone", mount: 틀안의_자리})   // 발표용 폰 화면(/phone)
  */
@@ -92,18 +92,18 @@
 .vk .vk-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;padding:0 4px;font-size:15px;color:var(--vk-sub)}
 .vk .vk-bar b{color:var(--vk-fg)}
 .vk-kiosk{--vk-h:62px;--vk-r:12px;--vk-gap:8px;--vk-fs:24px;--vk-key:var(--ui-surface,#fff);--vk-fn:var(--ui-fill-hover,#e8ebed);
-  --vk-fg:var(--ui-text,#191f28);--vk-sub:var(--ui-text-3,#6b7684);--vk-accent:var(--ui-primary,#3182f6);--vk-down:var(--ui-primary-soft,#e8f3ff);
+  --vk-fg:var(--ui-text,#191f28);--vk-sub:var(--ui-text-3,#6b7684);--vk-accent:var(--ui-primary,#f06a00);--vk-down:var(--ui-primary-soft,#fff1e5);
   --vk-shadow:rgba(0,0,0,.18);--vk-touch:rgba(49,130,246,.35);background:var(--ui-fill,#f2f4f6);border-top:1px solid var(--ui-line,#e5e8eb);
   padding:12px max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));
   box-shadow:0 -6px 24px rgba(0,0,0,.18)}
 .vk-kiosk .vk-rows{max-width:1100px;margin:0 auto}
 .vk-kiosk.vk-pad .vk-rows{max-width:520px}
 .vk-phone{position:absolute;--vk-h:42px;--vk-r:6px;--vk-gap:6px;--vk-fs:19px;--vk-key:#fff;--vk-fn:#abb0ba;--vk-fg:#000;--vk-sub:#5b6270;
-  --vk-accent:#3182f6;--vk-down:#d0d4db;--vk-shadow:rgba(0,0,0,.35);--vk-touch:rgba(0,0,0,.18);background:#d1d4db;padding:8px 4px 26px}
+  --vk-accent:#f06a00;--vk-down:#d0d4db;--vk-shadow:rgba(0,0,0,.35);--vk-touch:rgba(0,0,0,.18);background:#d1d4db;padding:8px 4px 26px}
 .vk-phone .vk-row.vk-r2{padding:0 5%}
 .vk-phone.vk-pad{--vk-h:48px}
 @media (prefers-color-scheme:dark){.vk-phone{--vk-key:#6b6b6f;--vk-fn:#464649;--vk-fg:#fff;--vk-sub:#c7c7cc;--vk-down:#8a8a8f;background:#2b2b2e}}
-.vk-target-on{outline:3px solid var(--ui-primary,#3182f6)!important;outline-offset:1px}
+.vk-target-on{outline:3px solid var(--ui-primary,#f06a00)!important;outline-offset:1px}
 `;
 
   // ── 키보드 하나(문서 하나에 붙음) ─────────────────────────
@@ -114,7 +114,7 @@
       const st = host.createElement("style"); st.id = "vk-style"; st.textContent = CSS; host.head.appendChild(st);
     }
     if (doc !== host && !doc.getElementById("vk-style")) {            // 폰 화면: iframe 안 입력칸 테두리용
-      const st = doc.createElement("style"); st.id = "vk-style"; st.textContent = ".vk-target-on{outline:3px solid #3182f6!important;outline-offset:1px}"; doc.head.appendChild(st);
+      const st = doc.createElement("style"); st.id = "vk-style"; st.textContent = ".vk-target-on{outline:3px solid #f06a00!important;outline-offset:1px}"; doc.head.appendChild(st);
     }
     const kb = host.createElement("div");
     kb.className = "vk vk-" + opt.skin;

@@ -232,7 +232,7 @@ class InputAndAgentRedTeamTests(unittest.TestCase):
         guide = Guidance(); db = MagicMock(mode='postgres'); db.search.return_value = []
         bot = Chatbot(guide, search=SearchAgent(db, authorize=lambda token: token == 'synthetic-valid-ticket'))
         self.assertEqual(bot.ask('지갑 찾아줘', 'synthetic-valid-ticket',
-            {'lost_date': '2026-11-01', 'lost_line': '2호선', 'lost_station': '해운대역'})['status'], 'items_not_found')
+            {'lost_date': '2026-11-01', 'lost_line': '1호선', 'lost_station': '중앙역'})['status'], 'items_not_found')
         self.assertIsNone(_search_access.get())
 
 

@@ -40,7 +40,7 @@ class HangulTest(unittest.TestCase):
 class WiringTest(unittest.TestCase):
     def test_kiosk_uses_keyboard(self):
         html = (ROOT / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('<script src="/ui/vkeyboard.js"></script>', html)
+        self.assertIn('<script src="/ui/vkeyboard.js?v=20261111a"></script>', html)
         self.assertIn("VK.attach(document, { skin: 'kiosk' })", html)
         self.assertIn('id="rid" data-vk="id"', html)              # 가린 신분증: 숫자 + * + -
         self.assertIn('id="rclaim" data-vk="en" data-vk-upper', html)

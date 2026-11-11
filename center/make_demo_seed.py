@@ -22,8 +22,8 @@ def build() -> str:
     with open(os.path.join(ROOT, "evaluation", "test_cases.json"), encoding="utf-8") as f:
         spec = json.load(f)
     lines = ["-- 시연 데이터(자동 생성: python center/make_demo_seed.py). 진짜 접수가 생기면 쓰지 않는다",
-             "INSERT INTO machine VALUES ('KIOSK-A', 'kiosk', '2호선', '해운대', FALSE),",
-             "                           ('KIOSK-C', 'kiosk', '1호선', '서면', TRUE),",
+             "INSERT INTO machine VALUES ('KIOSK-A', 'kiosk', '1호선', '중앙', FALSE),",
+             "                           ('KIOSK-C', 'kiosk', '1호선', '초량', TRUE),",
              "                           ('CENTER', 'center', '1호선', '부산', FALSE)",
              "ON CONFLICT (machine_id) DO NOTHING;"]
     for oid, feats in spec["objects"].items():

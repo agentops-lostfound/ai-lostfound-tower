@@ -12,7 +12,7 @@
        11/8 디자인 개편: 흰 바탕 + 미니멀, 휴대폰 우선. 색은 공통 토큰(/ui/theme.css 의 --ui-*)만 쓰고, 라이트·다크 전환은 /ui/theme.js.
        동작(id, JS 가 쓰는 class, 스크립트)은 바꾸지 않았다 — 바뀐 것은 스타일과 꾸미기용 감싸는 요소뿐
        11/8 글 줄이기: 안내 문장을 짧게 하고 진행 단계·물건 종류·본센터에서 받는 순서·가져갈 것을 선 그림(인라인 SVG)으로 바꿨다 -->
-  <link rel="stylesheet" href="/ui/theme.css">
+  <link rel="stylesheet" href="/ui/theme.css?v=20261111a">
   <script src="/ui/theme.js"></script>
   <style>
     *{box-sizing:border-box}
@@ -218,8 +218,8 @@
           <label class="label" for="station">어디서 잃어버렸나요?</label>
           <span class="select"><select id="station">
             <option value="">잘 모르겠어요</option>
-            <option value="해운대역">해운대역</option>
-            <option value="서면역">서면역</option>
+            <option value="중앙역">중앙역</option>
+            <option value="초량역">초량역</option>
             <option value="부산역">부산역 (본센터)</option>
           </select></span>
         </div>
@@ -506,6 +506,6 @@ function resetAll() {
 $('#again').addEventListener('click', resetAll);
 $('#clear').addEventListener('click', () => setTimeout(resetAll, 0));
 </script>
-<script src="/chat-widget/widget.js?v=20261110d" defer></script>
+<script src="/chat-widget/widget.js?v=20261111a" defer></script>
 </body>
 </html>

@@ -4,11 +4,11 @@
            단, 관제탑에는 진짜 화면과 **똑같은 입구**(create_item · set_item_features · create_claim · start_return · handover)로만 요청한다.
            → 진짜 화면이 생기면 그 단계만 연출기에서 빼면 된다(관제탑 코드는 그대로).
 
-    습득 신고("서면역 5번 출구 앞에서 검정 카드지갑 주웠어요")
+    습득 신고("초량역 5번 출구 앞에서 검정 카드지갑 주웠어요")
       ① 등록기계 접수  service.create_item       ← 진짜: 등록기계 태블릿(김재민 PR #48)
       ② Qwen 특징     service.set_item_features ← 진짜: 김건태 Qwen 작업(사진)
       ③ 회수·보관함    세계에서 물건을 옮김        ← 진짜: 직원이 옮김(상태 변경 화면 TBD)
-    분실 신고("검정 카드지갑 잃어버렸어요, 서면역에서요")
+    분실 신고("검정 카드지갑 잃어버렸어요, 초량역에서요")
       ④ 후보·확인 질문·예약  service.create_claim  ← 진짜: 분실인 웹(김재민 LF-2·4·6)
       ⑤ 방문 확인 → 반환     service.start_return  ← 진짜: 직원 화면 "반환 시작"
       ⑥ 인계 완료           service.handover      ← 진짜: 직원 화면 "분실인에게 건넴"
@@ -46,7 +46,7 @@ PLACE_UNKNOWN_SAY = re.compile(r"(어디|어느\s*역|장소|역)[^.?!]{0,12}(�
 TO_FOUND = "주운 물건이면 '습득 신고'를 눌러 주세요 — 분실 신고는 잃어버린 물건을 찾을 때 써요"
 CANDIDATE_STATUSES = ("등록기계 보관", "회수 중", "본센터 보관")
 QUIZ_KO = {"place": "장소", "color": "색", "visible_text": "글자", "mark": "표시", "shape": "모양"}
-QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (서면·해운대·부산역, 기억나지 않으면 '모름')", "color": "물건 색이 무엇인가요?",
+QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (초량·중앙·부산역, 기억나지 않으면 '모름')", "color": "물건 색이 무엇인가요?",
                   "visible_text": "물건에 적힌 글자(로고)가 있다면 무엇인가요?",
                   "mark": "물건에 붙은 스티커나 표시가 있다면 어떤 모양인가요?"}
 
@@ -155,7 +155,7 @@ class SimDirector:
             raise RequestError(TO_LOST)
         machine, place = parse_place(clean)
         if not machine:
-            raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 서면·해운대 중 하나를 넣어 주세요(등록기계가 있는 역)")
+            raise RequestError("어느 역에서 주웠는지 알 수 없어요 — 초량·중앙 중 하나를 넣어 주세요(등록기계가 있는 역)")
         q = sim_qwen(clean)
         if q["category"] == "unknown":
             raise RequestError(f"무슨 물건인지 알 수 없어요 — {active_category_text()} 중 하나를 넣어 주세요")

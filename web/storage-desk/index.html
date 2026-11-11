@@ -9,7 +9,7 @@
      11/9 칸 규칙(015·016 열 배정): R1 휴대폰 전용(45도 '/') · R2 보조배터리 · R3 핸드크림 · R4 카드지갑(11/10 018). 립밤은 운영 품목이 아니라 받는 열이 없음(→ 선반). 맞는 빈 칸이 없으면 역 물건은 '칸 대기'(회수하지 않음, 칸이 비면 먼저 온 순서로 자동 회수),
           본센터 물건은 직원 보관 선반(S-n, 로봇이 집지 않음 → 반환은 직원이 직접 건넴)을 추천. 꽉 차면 가장 오래 보관된 물건부터 선반으로 옮기기를 제안
      개인정보: 물건 번호·품목·공개 특징·등록 사진만. 연락처·비공개 특징은 보이지 않음 -->
-<link rel="stylesheet" href="/ui/theme.css">
+<link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
 <style>
   /* 11/8 디자인 개편: 자체 다크 규칙을 없애고 공통 토큰(--ui-*)을 쓴다 — 라이트·다크는 공통 토큰과 전환 버튼(data-theme)을 따라 바뀜 */
@@ -174,12 +174,12 @@
   // 품목 값('모형폰')은 서버·DB 그대로, 화면 이름만 바꾼다(agents/contracts.py CATEGORY_LABEL 과 같게)
   var CAT_LABEL = { "모형폰": "휴대폰", "지갑": "카드지갑" };   // 11/10 지갑 → 카드지갑
   function catName(c) { return CAT_LABEL[c] || c || ""; }
-  // 11/9 습득 역: 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터) — agents/contracts.py station_name 과 같게
-  var LETTER_ST = { A: "해운대역", S: "서면역", H: "부산역 본센터" };
-  var ST_SHORT = { "해운대역": "해운대", "서면역": "서면", "부산역 본센터": "본센터" };
+  // 11/9 습득 역: 물건 번호 앞글자(A 중앙 · S 초량 · H 본센터) — agents/contracts.py station_name 과 같게
+  var LETTER_ST = { A: "중앙역", S: "초량역", H: "부산역 본센터" };
+  var ST_SHORT = { "중앙역": "중앙", "초량역": "초량", "부산역 본센터": "본센터" };
   function stationOf(it) {
     var id = (it && it.item_id) || "";
-    return (it && it.station) || ({ "KIOSK-A": "해운대역", "KIOSK-C": "서면역", "CENTER": "부산역 본센터" })[it && it.machine_id] ||
+    return (it && it.station) || ({ "KIOSK-A": "중앙역", "KIOSK-C": "초량역", "CENTER": "부산역 본센터" })[it && it.machine_id] ||
       (/^[A-Z]-/.test(id) ? LETTER_ST[id[0]] || "" : "");
   }
   function itemFull(it) {

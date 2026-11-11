@@ -34,7 +34,7 @@ class VirtualWorkflowTests(unittest.TestCase):
         self.client = TestClient(create_app(self.service, self.guide, self.bot), base_url='http://127.0.0.1:8111')
         self.addCleanup(self.client.close)
         self.metadata = {'lost_date': (datetime.now(KST).date()-timedelta(days=2)).isoformat(),
-                         'lost_line': '2호선', 'lost_station': '해운대역'}
+                         'lost_line': '1호선', 'lost_station': '중앙역'}
 
     def confirm(self, client, path, payload):
         response = client.post('/descriptions/'+path, json={**self.metadata, **payload})

@@ -18,7 +18,7 @@ def web_payload(**over):
     p = {"consent": True, "name_masked": "변*원", "id_no_masked": "******-3******", "id_verified": True,
          "description": {"category": "지갑", "color": "검정", "mark": "별 모양 스티커"},
          "item_id": "A-W01", "quiz": [{"field": "mark", "passed": True}], "visit_date": "2026-11-04",
-         "lost_station": "해운대"}
+         "lost_station": "중앙"}
     p.update(over)
     return p
 

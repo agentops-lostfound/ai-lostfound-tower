@@ -17,9 +17,9 @@ from agents.tools import MockBackend  # noqa: E402
 from discord_ops.reporter import Reporter  # noqa: E402
 
 ENV = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
-OTHERS = ["서면역 1번 출구 검정 카드지갑 주웠어요", "해운대역 대합실 흰색 보조배터리 주웠어요",
-          "해운대역 2번 출구 흰색 핸드크림 주웠어요", "서면역 개찰구 흰색 보조배터리 주웠어요"]
-LIPBALM = "서면역 화장실 앞 립밤 주웠어요"            # 11/9 운영 품목에서 뺌
+OTHERS = ["초량역 1번 출구 검정 카드지갑 주웠어요", "중앙역 대합실 흰색 보조배터리 주웠어요",
+          "중앙역 2번 출구 흰색 핸드크림 주웠어요", "초량역 개찰구 흰색 보조배터리 주웠어요"]
+LIPBALM = "초량역 화장실 앞 립밤 주웠어요"            # 11/9 운영 품목에서 뺌
 
 
 def until(cond, timeout=10.0):
@@ -53,12 +53,12 @@ class SimFullTest(unittest.TestCase):
         b = self.found(OTHERS[2])                                      # 핸드크림 → 핸드크림 열
         self.assertEqual((self.slot(a), self.slot(b)), ("R4-2", "R3-1"))
         with self.assertRaises(RequestError) as cm:                    # USB: 11/9 품목 4종 고정 → 접수하지 않음
-            self.d.found("서면역 개찰구 은색 USB 주웠어요")
+            self.d.found("초량역 개찰구 은색 USB 주웠어요")
         self.assertIn("운영하지 않는 품목", str(cm.exception))
         with self.assertRaises(RequestError) as cm:                    # 립밤: 운영하지 않는 품목 → 접수하지 않음
             self.d.found(LIPBALM)
         self.assertIn("운영하지 않는 품목", str(cm.exception))
-        phone = self.found("서면역 3번 출구 빨간 휴대폰 주웠어요")
+        phone = self.found("초량역 3번 출구 빨간 휴대폰 주웠어요")
         self.assertIsNone(self.slot(phone))                            # 휴대폰은 R4-2 가 비어 있어도 넣지 않음
         self.assertEqual((self.w.items[phone]["loc"], self.w.items[phone]["status"]), ("kiosk", "등록기계 보관"))
         self.assertIn(phone, self.w.wait_queue)
@@ -96,7 +96,7 @@ class SimFullTest(unittest.TestCase):
         self.assertEqual((self.w.items[w2]["loc"], self.w.items[w2]["status"], self.w.wait_queue), ("shelf", "본센터 보관", []))
 
     def test_handover_done_frees_slot_and_collects_waiting_phone(self):
-        phone = self.found("서면역 3번 출구 빨간 휴대폰 주웠어요")
+        phone = self.found("초량역 3번 출구 빨간 휴대폰 주웠어요")
         self.assertIn(phone, self.w.wait_queue)
         r = self.d.lost("화이트 휴대폰 잃어버렸어요 부산역")              # 시연 물건(R1) 반환 → 인계 완료 → 칸이 빔
         if "pending_id" in r:
@@ -113,7 +113,7 @@ class SimFullTest(unittest.TestCase):
         self.assertIn(a, [c["item_id"] for c in cands])                # 선반 물건도 분실 신고 후보
         self.w.arm["phase"] = "대기"
         before = dict(self.w.arm)
-        r = self.d.lost("검정 카드지갑 잃어버렸어요 서면역에서요")
+        r = self.d.lost("검정 카드지갑 잃어버렸어요 초량역에서요")
         self.assertTrue(self.d.wait_idle(60))
         self.assertEqual(r["item_id"], a)
         st = self.svc.board.story(r["story_id"])

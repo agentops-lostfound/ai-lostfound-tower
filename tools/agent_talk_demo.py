@@ -19,8 +19,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-STORIES = ["서면역 5번 출구 앞에서 검정 카드지갑 주웠어요", "해운대역 2번 출구에서 파란 보조배터리 주웠어요"]
-LOST = "검정 카드지갑 잃어버렸어요 서면역에서요"
+STORIES = ["초량역 5번 출구 앞에서 검정 카드지갑 주웠어요", "중앙역 2번 출구에서 파란 보조배터리 주웠어요"]
+LOST = "검정 카드지갑 잃어버렸어요 초량역에서요"
 
 
 def main(argv=None) -> int:

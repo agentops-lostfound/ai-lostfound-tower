@@ -12,7 +12,7 @@ from agents.candidate_registry import CandidateRegistry
 
 SEARCH_STATUSES = ('등록기계 보관', '본센터 보관')
 DEMO_MODES = ('demo_sqlite', 'sim_tower')          # 가짜 물건만 다루는 검색 — 본인인증 없이 후보 조회 가능
-MACHINE_STATIONS = {'KIOSK-A': '해운대', 'KIOSK-C': '서면', 'CENTER': '부산'}
+MACHINE_STATIONS = {'KIOSK-A': '중앙', 'KIOSK-C': '초량', 'CENTER': '부산'}
 SQL_SEARCH = """SELECT i.item_id, i.category, i.features->>'color', i.status
 FROM item i JOIN machine m ON m.machine_id = i.machine_id
 WHERE i.category = %s AND (%s::text IS NULL OR i.features->>'color' = %s)
@@ -54,13 +54,13 @@ class DemoItemDatabase:
             db.executemany('INSERT INTO chat_demo_catalog VALUES (?, ?, ?, ?, ?, ?, ?) '
                            'ON CONFLICT(item_id) DO UPDATE SET received_date=excluded.received_date, category=excluded.category, '
                            'color=excluded.color, status=excluded.status', [
-                ('DEMO-001', '지갑', '검정', '본센터 보관', '2호선', '해운대', recent),
-                ('DEMO-002', '모형폰', '검정', '본센터 보관', '1호선', '서면', recent),
-                ('DEMO-003', 'USB', '회색', '등록기계 보관', '1호선', '서면', recent),
+                ('DEMO-001', '지갑', '검정', '본센터 보관', '1호선', '중앙', recent),
+                ('DEMO-002', '모형폰', '검정', '본센터 보관', '1호선', '초량', recent),
+                ('DEMO-003', 'USB', '회색', '등록기계 보관', '1호선', '초량', recent),
                 # 11/9 립밤은 운영 품목에서 뺌 → 갈색 지갑으로 바꿈(예전 시연 DB 파일도 위 ON CONFLICT 로 덮어씀)
-                ('DEMO-004', '지갑', '갈색', '본센터 보관', '2호선', '해운대', recent),
-                ('DEMO-005', '보조배터리', '흰색', '본센터 보관', '2호선', '해운대', recent),
-                ('DEMO-006', '핸드크림', '흰색', '등록기계 보관', '1호선', '서면', older)])
+                ('DEMO-004', '지갑', '갈색', '본센터 보관', '1호선', '중앙', recent),
+                ('DEMO-005', '보조배터리', '흰색', '본센터 보관', '1호선', '중앙', recent),
+                ('DEMO-006', '핸드크림', '흰색', '등록기계 보관', '1호선', '초량', older)])
 
     def search(self, category, color, context=None):
         context = context or {}
