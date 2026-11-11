@@ -222,18 +222,29 @@ def show_props(cam) -> int:
     return 0
 
 
-def dialog(cam) -> int:
+def dialog(cam, tower: bool = False) -> int:
     """웹캠 드라이버 설정 창(DirectShow) + 미리보기 창. 미리보기에 바닥 밝기·날아간 점 %·바닥 색 치우침을 실시간으로.
-    키: s = 지금 사진 저장, q 또는 Esc = 끝(끝날 때 바뀐 설정 값을 출력)"""
+    키: s = 지금 사진 저장, q 또는 Esc(미리보기 창을 누른 뒤) 또는 터미널 Ctrl+C = 끝(끝날 때 바뀐 설정 값을 출력)
+    tower=True(11/11): 관제탑과 똑같이 연다(1280×720 요청 + MJPG 설정) — 기본 열기(해상도 지정 없음)에서는 대비 200 이
+    먹었는데 관제탑 방식(--try)에서는 안 먹어, 촬영 모드에 따라 다른지 보려고"""
     import cv2
     from agents.kiosk_camera import fit
     if cam == "fake":
         print("가짜 카메라에는 드라이버 설정 창이 없음")
         return 2
-    cap = cv2.VideoCapture(cam, cv2.CAP_DSHOW if os.name == "nt" else cv2.CAP_ANY)
-    if not cap.isOpened():
+    if tower:
+        from agents.kiosk_camera import _open
+        cap = _open(cam)
+    else:
+        cap = cv2.VideoCapture(cam, cv2.CAP_DSHOW if os.name == "nt" else cv2.CAP_ANY)
+    if cap is None or not cap.isOpened():
         print("카메라를 열 수 없음(관제탑을 끄고 다시)")
         return 2
+    try:
+        w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print(f"열린 방식: {_backend(cap)} · 촬영 크기 {w}×{h}" + (" (관제탑과 같은 방식)" if tower else " (해상도 지정 없음)"))
+    except Exception:
+        pass
     out = ROOT / "data" / "exposure_check"
     out.mkdir(parents=True, exist_ok=True)
     before = read_props(cap)
@@ -263,6 +274,8 @@ def dialog(cam) -> int:
                 print(f"저장 {p.relative_to(ROOT)} · {txt}")
             elif k in (ord("q"), 27):
                 break
+    except KeyboardInterrupt:                                 # 터미널에서 Ctrl+C 로 닫아도 바뀐 설정은 출력
+        pass
     finally:
         after = read_props(cap)
         cap.release()
@@ -329,6 +342,7 @@ def main(argv=None) -> int:
     ap.add_argument("--exposure", default="auto", help="화이트밸런스 시험 중 쓸 노출 값(먼저 고른 값, 기본 auto)")
     ap.add_argument("--props", action="store_true", help="이 웹캠이 받아들이는 설정 목록만 보고 끝")
     ap.add_argument("--dialog", action="store_true", help="웹캠 드라이버 설정 창 + 미리보기(날아간 점 % 실시간)")
+    ap.add_argument("--tower", action="store_true", help="--dialog 를 관제탑과 같은 방식(1280×720 요청 + MJPG 설정)으로 열기")
     ap.add_argument("--no-mjpg", action="store_true", help="--try 를 압축 형식(MJPG) 없이 열어 시험(.env TOWER_KIOSK_MJPG=0 과 같음)")
     ap.add_argument("--try", dest="try_", default="", help="영상 설정을 OpenCV 로 넣어 확인(예: CONTRAST=200) — .env TOWER_KIOSK_CAMPROPS 값 확인용")
     a = ap.parse_args(argv)
@@ -341,7 +355,7 @@ def main(argv=None) -> int:
     if a.props:
         return show_props(cam)
     if a.dialog:
-        return dialog(cam)
+        return dialog(cam, tower=a.tower)
     if a.try_:
         r = try_props(cam, a.try_, mjpg=False if a.no_mjpg else None)
         if "error" in r:
