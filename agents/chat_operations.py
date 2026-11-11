@@ -38,6 +38,21 @@ def _text(value):
     return value
 
 
+def binding_digest(binding_key, domain, value):
+    """서버 인증/작업 어댑터가 공유하는 버전 1 HMAC 결합 규칙."""
+    if not isinstance(binding_key, bytes) or len(binding_key) < 32:
+        raise ValueError('a persistent binding key of at least 32 bytes is required')
+    encoded = json.dumps([domain, value], ensure_ascii=False, sort_keys=True,
+                         separators=(',', ':'), allow_nan=False).encode('utf-8')
+    return hmac.new(binding_key, encoded, hashlib.sha256).hexdigest()
+
+
+def owner_scope(binding_key, owner):
+    if not isinstance(owner, Owner):
+        raise ValueError('a server authenticated Owner is required')
+    return binding_digest(binding_key, 'owner', [owner.subject, owner.auth_session])
+
+
 @dataclass(frozen=True)
 class Owner:
     subject: str
@@ -103,14 +118,10 @@ class OperationJournal:
             )''')
 
     def _digest(self, domain, value):
-        encoded = json.dumps([domain, value], ensure_ascii=False, sort_keys=True,
-                             separators=(',', ':'), allow_nan=False).encode('utf-8')
-        return hmac.new(self._key, encoded, hashlib.sha256).hexdigest()
+        return binding_digest(self._key, domain, value)
 
     def _owner(self, owner):
-        if not isinstance(owner, Owner):
-            raise ValueError('a server authenticated Owner is required')
-        return self._digest('owner', [owner.subject, owner.auth_session])
+        return owner_scope(self._key, owner)
 
     def _request(self, kind, payload):
         if kind not in KINDS or not isinstance(payload, dict):
