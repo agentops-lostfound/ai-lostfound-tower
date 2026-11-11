@@ -6,7 +6,7 @@
 <title>분실물 접수 키오스크</title>
 <link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
-<script src="/ui/vkeyboard.js?v=20261111a"></script>
+<script src="/ui/vkeyboard.js?v=20261111b"></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
    한줄 설명: 색을 직접 쓰지 않고 "역할 이름(토큰)"으로 쓰면, 다크 모드는 토큰 값만 바뀌어 화면 전체가 함께 바뀐다.
@@ -80,6 +80,8 @@ input[type=text]:focus,input[type=tel]:focus,textarea:focus{border-color:var(--u
 #s4{align-items:stretch}
 #s4 #count{color:var(--ui-primary);font-weight:700}
 #lost,#ret{overflow:auto;justify-content:flex-start;gap:18px}
+#lost{padding:0;overflow:hidden}
+#lostFrame{display:block;width:100%;height:100%;min-height:0;flex:1;border:0;border-radius:inherit;background:var(--ui-surface)}
 #lost h1,#ret h1{font-size:38px}
 #raway,#rform,#rwork,#rdone{display:flex;flex-direction:column;gap:18px}
 #raway[hidden],#rform[hidden],#rwork[hidden],#rdone[hidden]{display:none}
@@ -288,17 +290,10 @@ body.demo-mode #stn{flex:1 1 auto}
     <button type="button" id="tabLost" role="tab" aria-selected="false">물건 잃어버렸어요<br>(분실접수)</button>
     <button type="button" id="tabRet" role="tab" aria-selected="false">물건 찾으러 왔어요<br>(회수)</button>
   </nav>
-  <section id="lost" class="lostsec" data-scroll-hint>
-    <h1>잃어버린 물건을 알려 주세요</h1>
-    <div class="chips" id="lcat"></div>
-    <input type="text" id="lcolor" maxlength="40" placeholder="색상 (예: 검정)" autocomplete="off">
-    <textarea id="lfeat" maxlength="200" placeholder="특징 (예: 별 스티커, 키링)"></textarea>
-    <input type="text" id="lplace" maxlength="40" placeholder="장소 (예: 초량역 5번 출구)" autocomplete="off">
-    <input type="text" id="ldate" maxlength="10" placeholder="때 (예: 어제 저녁)" autocomplete="off">
-    <p class="legal ico"><svg class="pic" viewBox="0 0 32 32" role="img"><title>개인정보 쓰지 않기</title><rect x="4" y="7" width="24" height="18" rx="3"/><path d="M9 20c1-3 3-4 4-4s3 1 4 4M18 13h6M18 18h4"/><circle cx="13" cy="12.5" r="2.5"/><path class="p" d="M3 29L29 3"/></svg><span>이름·전화번호·주민번호는 <b>적지 마세요</b></span></p>
-    <p class="err" id="lerr" role="alert"></p>
-    <p class="legal" id="lnote" hidden>확인했어요. 아직 저장은 안 돼요(준비 중). 역무실에서 도와 드릴게요.</p>
-    <button id="lsend" disabled>확인하기</button>
+  <section id="lost" class="lostsec">
+    <!-- 11/11 분실 접수: 휴대폰 분실인 웹(/lost)과 같은 화면·같은 접수(찾기 번호 또는 대기 번호)를 키오스크 안에 띄운다.
+         예전에는 저장하지 않고 역무실 안내만 하는 입력칸이었다. 주소 ?embed=kiosk&station=이 키오스크 역 -->
+    <iframe id="lostFrame" title="분실 접수(분실인 웹과 같은 화면)"></iframe>
   </section>
   <section id="ret" class="lostsec" data-scroll-hint>
     <div id="raway" hidden>
@@ -471,7 +466,7 @@ const CAT_LABEL = {'모형폰': '휴대폰'};                                   
 const catLabel = c => CAT_LABEL[c] || c;
 const Q = new URLSearchParams(location.search);
 const DEMO = Q.get('demo') === '1';      // 11/8 직원용 시연 모드: 실제 카메라 대신 가상 카메라(캔버스)가 물건을 넣은 것처럼 보여 줌
-let lcat = '';
+const PII = /\d{2,4}-?\d{3,4}-?\d{4}|\d{6}-?\d{7}|\S+@\S+/;   // 장소 칸에 개인정보가 섞였는지
 function tab(which) {
   curTab = which;
   const lost = which === 'lost', ret = which === 'ret';
@@ -479,6 +474,7 @@ function tab(which) {
     $(id).classList.toggle('on', n === which); $(id).setAttribute('aria-selected', String(n === which));
   });
   $('#lost').classList.toggle('on', lost); $('#ret').classList.toggle('on', ret);
+  if (lost) openLost(); else if (lostKb) lostKb.hide();
   $('#prog').style.visibility = which === 'found' ? 'visible' : 'hidden';
   if (lost || ret) { stopCam(); sections.forEach(s => s.classList.remove('on')); }
   else { go(step); if (step === 1) startCam(); }
@@ -486,20 +482,18 @@ function tab(which) {
 $('#tabFound').onclick = () => tab('found');
 $('#tabLost').onclick = () => tab('lost');
 $('#tabRet').onclick = () => tab('ret');
-CATS.forEach(c => {
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = catLabel(c);
-  b.onclick = () => { lcat = c; document.querySelectorAll('#lcat button').forEach(x => x.classList.toggle('on', x === b)); lcheck(); };
-  $('#lcat').appendChild(b);
-});
-const PII = /\d{2,4}-?\d{3,4}-?\d{4}|\d{6}-?\d{7}|\S+@\S+/;
-function lcheck() { $('#lsend').disabled = !(lcat && ($('#lcolor').value.trim() || $('#lfeat').value.trim()) && $('#lplace').value.trim()); }
-['#lcolor', '#lfeat', '#lplace', '#ldate'].forEach(s => $(s).oninput = lcheck);
-$('#lsend').onclick = () => {
-  const all = ['#lcolor', '#lfeat', '#lplace', '#ldate'].map(s => $(s).value).join(' ');
-  $('#lerr').textContent = '이름·전화번호·주민번호처럼 보이는 내용이 있어요. 지우고 다시 눌러 주세요.';
-  $('#lerr').classList.toggle('on', PII.test(all));
-  $('#lnote').hidden = PII.test(all);
-};
+// 11/11 분실 접수 탭 = 분실인 웹(/lost)을 틀로. 화면 키보드는 바깥(키오스크) 아래에 뜨고 글자는 틀 안 칸에 들어간다
+let lostKb = null;
+function openLost() {
+  const f = $('#lostFrame'); if (f.dataset.ready) return;
+  f.dataset.ready = '1';
+  f.addEventListener('load', () => {
+    if (lostKb) { lostKb.hide(); lostKb.el.remove(); lostKb = null; }
+    try { lostKb = VK.attach(f.contentDocument, { skin: 'kiosk', mount: document.body }); } catch (_) { lostKb = null; }
+  });
+  const st = kiosk === 'CENTER' ? '' : station + '역';
+  f.src = '/lost?embed=kiosk' + (st ? '&station=' + encodeURIComponent(st) : '');
+}
 function go(n) {
   step = n; lastTouch = Date.now();
   sections.forEach((s, i) => s.classList.toggle('on', curTab === 'found' && i === n - 1));
@@ -889,7 +883,7 @@ const SRV = {gapMs: 80, staleMs: 3000, downMs: 12000};
 const SRV_STREAM = {getTracks: () => [], getVideoTracks: () => []};
 let srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '';
 function serverOpen() {
-  const machine = encodeURIComponent(Q.get('machine') || 'KIOSK-A');
+  const machine = encodeURIComponent(Q.get('camsrc') || Q.get('machine') || 'KIOSK-A');   // 11/11 camsrc: 다른 기계의 서버 카메라를 빌려 씀(발표 화면 초량역)
   const run = ++srvRun; srvSeq = -1; srvLast = 0; srvNote = '';
   return new Promise((resolve, reject) => {
     let opened = false;

@@ -49,6 +49,11 @@ code,.mono{font-family:var(--ui-mono)}
 .scenes button[aria-selected="true"]{background:var(--ui-primary);color:var(--ui-on-primary)}
 .scenes button .no{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(127,127,127,.22);font-size:12px;font-weight:700}
 .scenes button[aria-selected="true"] .no{background:rgba(255,255,255,.26)}
+/* 11/11 ① 탭: 켜진 채로 한 번 더 누르면 중앙역 ⇄ 초량역. 켜져 있을 때만 ⇄ 표시 */
+.scenes .swap{display:none;margin-left:6px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.26)}
+.scenes button[aria-selected="true"] .swap{display:inline-block}
+#foundStn{display:inline-block;animation:stn .25s ease-out}
+@keyframes stn{from{opacity:0;transform:translateY(-4px)}}
 .chips{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--ui-fill);font-size:13px;font-weight:600;color:var(--ui-text-2);white-space:nowrap}
 .chip b{color:var(--ui-text)}
@@ -205,6 +210,14 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
 .dbtable .id{font-family:var(--ui-mono);font-size:12px;color:var(--ui-primary);font-weight:700;white-space:nowrap}
 .dbtable .where b{display:block} .dbtable .where small{color:var(--ui-text-3)}
 .dbtable .ph{width:46px;height:36px;border-radius:7px;object-fit:cover;display:block;background:var(--ui-fill)}
+/* 11/11 찍힌 사진 크게 보기(이 창 안에서): 작은 사진을 누르면 화면 위에 크게, 바깥·✕·Esc 로 닫음 */
+.dbtable .ph,.vhead img{cursor:zoom-in}
+.lightbox{position:fixed;inset:0;z-index:50;background:rgba(12,14,18,.82);display:grid;place-items:center;padding:40px}
+.lightbox[hidden]{display:none}
+.lightbox figure{margin:0;max-width:min(1200px,92vw);display:flex;flex-direction:column;gap:12px;align-items:center}
+.lightbox img{max-width:100%;max-height:80vh;border-radius:16px;background:var(--ui-surface);box-shadow:var(--ui-shadow);cursor:zoom-out}
+.lightbox figcaption{color:#fff;font-weight:700;font-size:15px;font-family:var(--ui-mono)}
+.lightbox button{position:fixed;top:20px;right:24px;width:48px;height:48px;border-radius:50%;border:0;background:var(--ui-surface);color:var(--ui-text);font:700 22px var(--ui-font);cursor:pointer}
 .dbtable .noph{font-size:11.5px;color:var(--ui-text-3)}
 .dbtable .tag{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--ui-fill);color:var(--ui-text-3);margin-left:4px}
 .graphwrap{padding:0 12px;flex:none}
@@ -249,7 +262,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
 <header class="bar">
   <h1>AI 분실물 관제탑<small>통합 시연</small></h1>
   <nav class="scenes" role="tablist" aria-label="시연 장면">
-    <button role="tab" data-scene="found" aria-selected="true"><span class="no">1</span>습득 · 중앙역 키오스크</button>
+    <button role="tab" data-scene="found" aria-selected="true" title="켜진 채로 한 번 더 누르면 중앙역 ⇄ 초량역"><span class="no">1</span>습득 · <span id="foundStn">중앙역</span> 키오스크<span class="swap" aria-hidden="true">⇄</span></button>
     <button role="tab" data-scene="lost" aria-selected="false"><span class="no">2</span>분실 신고 · 분실인 휴대폰</button>
     <button role="tab" data-scene="pickup" aria-selected="false"><span class="no">3</span>회수 · 본센터 키오스크</button>
     <button role="tab" data-scene="robot" aria-selected="false"><span class="no">4</span>로봇 작업대</button>
@@ -332,8 +345,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
 
   // ================= 장면 =================
   const SCENES = {
-    found:  {frame: "fFound",  kind: "found", label: "촬영 카메라 · 접수증",
-             cap: "<b>중앙역 등록기계 KIOSK-A</b><br>물건을 놓으면 자동으로 찍고 → 가운데 <code>item</code> 표에 새 행이 생겨요"},
+    found:  {frame: "fFound",  kind: "found", label: "촬영 카메라 · 접수증", cap: ""},   // cap 은 foundCap()(역이 바뀜)
     lost:   {frame: "fLost",   kind: "lost",
              cap: "<b>분실인 휴대폰 · 분실인 웹</b><br>신고하면 닮은 습득물을 찾고 → <code>claim</code> 표에 찾기 요청이 저장돼요"},
     pickup: {frame: "fPickup", kind: "lost", label: "물건 나오는 곳",
@@ -370,10 +382,19 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   }
   let scene = SCENES[qs.get("scene")] ? qs.get("scene") : "found";
   let camMode = ["server", "demo", "browser"].includes(qs.get("cam")) ? qs.get("cam") : null;   // null = 서버 설정을 보고 정함
+  // 11/11 ① 습득 키오스크: 중앙역(KIOSK-A) ⇄ 초량역(KIOSK-C). ?kiosk=C 로 초량역부터. 서버 카메라가 없는 기계는 다른 기계 카메라를 빌림(camsrc)
+  const FOUND_STN = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역"};
+  let foundMachine = qs.get("kiosk") === "C" ? "KIOSK-C" : "KIOSK-A";
+  let camMachines = {};
+  const foundCap = () => `<b>${FOUND_STN[foundMachine]} 등록기계 ${foundMachine}</b><br>물건을 놓으면 자동으로 찍고 → 가운데 <code>item</code> 표에 새 행이 생겨요`;
   const loaded = {};
 
   function kioskUrl(machine) {
-    const cam = camMode === "server" ? "&cam=server" : camMode === "demo" ? "&demo=1" : "";
+    let cam = camMode === "server" ? "&cam=server" : camMode === "demo" ? "&demo=1" : "";
+    if (camMode === "server" && !camMachines[machine]) {          // 이 기계에 웹캠이 없으면 설정된 기계 카메라를 같이 씀(교육원 PC 웹캠 1대)
+      const src = Object.keys(camMachines).find((m) => m !== "CENTER");
+      if (src) cam += `&camsrc=${encodeURIComponent(src)}`;
+    }
     return `/kiosk?machine=${machine}${cam}`;
   }
   function bare(frame) {                         // 기기 틀 안 화면에서는 스크롤 막대를 숨긴다(스크롤은 그대로 됨)
@@ -385,7 +406,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   function load(sc) {
     if (loaded[sc]) return;
     loaded[sc] = true;
-    if (sc === "found") $("fFound").src = kioskUrl("KIOSK-A");
+    if (sc === "found") $("fFound").src = kioskUrl(foundMachine);
     // 본센터 키오스크는 회수 탭으로 바로 연다(?tab=ret → 카메라를 켜지 않음). &demo=1: 습득 탭으로 넘어가도 실제 웹캠을 잡지 않게
     // — 중앙역 키오스크가 쓰는 PC 웹캠과 다투면 영상이 깨진다(11/10)
     else if (sc === "pickup") $("fPickup").src = "/kiosk?machine=CENTER&tab=ret&demo=1";
@@ -403,14 +424,24 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       $("standKiosk").hidden = phone; $("standPhone").hidden = !phone;
       $("fFound").hidden = sc !== "found"; $("fPickup").hidden = sc !== "pickup";
       $("cardVision").hidden = sc !== "found"; $("cardClaim").hidden = sc === "found";     // 습득 장면: 찾기 요청 대신 사진 분석(Qwen)
-      $("cap").innerHTML = SCENES[sc].cap;
+      $("cap").innerHTML = sc === "found" ? foundCap() : SCENES[sc].cap;
       if (SCENES[sc].label) $("kLabel").textContent = SCENES[sc].label;
       fit();
     }
     renderSteps(); renderGuides();
     try { history.replaceState(null, "", location.pathname + "?scene=" + sc + (qs.get("cam") ? "&cam=" + qs.get("cam") : "")); } catch (_) {}
   }
-  document.querySelectorAll(".scenes button").forEach((b) => b.onclick = () => setScene(b.dataset.scene));
+  function swapFound() {                          // 11/11 켜진 ① 탭을 다시 누르면 역 바꾸기
+    foundMachine = foundMachine === "KIOSK-A" ? "KIOSK-C" : "KIOSK-A";
+    const s = $("foundStn"); s.textContent = FOUND_STN[foundMachine]; s.style.animation = "none"; void s.offsetWidth; s.style.animation = "";
+    $("fFound").title = `${FOUND_STN[foundMachine]} 키오스크(습득)`;
+    $("fFound").src = kioskUrl(foundMachine);
+    $("cap").innerHTML = foundCap();
+    try { const u = new URL(location.href); if (foundMachine === "KIOSK-C") u.searchParams.set("kiosk", "C"); else u.searchParams.delete("kiosk"); history.replaceState(null, "", u); } catch (_) {}
+  }
+  document.querySelectorAll(".scenes button").forEach((b) => b.onclick = () => {
+    if (b.dataset.scene === "found" && scene === "found") swapFound(); else setScene(b.dataset.scene);
+  });
 
   // 기기 크기: 왼쪽 칸 높이에 맞춰 세로 키오스크(화면 9:16)와 휴대폰을 줄여 그린다. 안쪽 화면은 460×818 로 그린 뒤 축소(글자 비율 유지)
   const KW = 460, KH = 818;
@@ -975,14 +1006,40 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   // ================= 시작 =================
   async function start() {
     if (!camMode) {                               // 서버 카메라가 설정된 기계면 server, 아니면 가상 카메라(자동 촬영)
-      try { const d = await (await fetch("/api/kiosk/cameras", {cache: "no-store"})).json(); camMode = d.machines && d.machines["KIOSK-A"] ? "server" : "demo"; }
+      try { const d = await (await fetch("/api/kiosk/cameras", {cache: "no-store"})).json(); camMachines = d.machines || {};
+        camMode = Object.keys(camMachines).some((m) => m !== "CENTER") ? "server" : "demo"; }
       catch (_) { camMode = "demo"; }
+    } else if (camMode === "server") {
+      try { camMachines = (await (await fetch("/api/kiosk/cameras", {cache: "no-store"})).json()).machines || {}; } catch (_) {}
     }
+    $("foundStn").textContent = FOUND_STN[foundMachine];
     drawCard("item"); drawCard("claim"); drawVision(false); drawGraph();
     setScene(scene);
     poll(); pump();
   }
   start();
+})();
+</script>
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="찍힌 사진 크게 보기">
+  <button type="button" id="lbClose" aria-label="닫기">✕</button>
+  <figure><img id="lbImg" alt="찍힌 사진"><figcaption id="lbCap"></figcaption></figure>
+</div>
+<script>
+(function () {   // 11/11 작은 사진(팀 DB 조회 표 · 사진 분석 카드)을 누르면 이 창 안에서 크게
+  const box = document.getElementById("lightbox"), img = document.getElementById("lbImg"), cap = document.getElementById("lbCap");
+  let back = null;
+  function open(src, label) { back = document.activeElement; img.src = src; cap.textContent = label || ""; box.hidden = false; document.getElementById("lbClose").focus(); }
+  function close() { box.hidden = true; img.removeAttribute("src"); if (back && back.focus) back.focus(); }
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest && e.target.closest(".dbtable img.ph, .vhead img");
+    if (t && !box.contains(t)) {
+      const m = /items\/([^/]+)\/photo/.exec(t.getAttribute("src") || "");
+      open(t.src, m ? decodeURIComponent(m[1]) : "");
+      return;
+    }
+    if (!box.hidden && (e.target === box || e.target.id === "lbClose" || e.target === img)) close();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !box.hidden) close(); });
 })();
 </script>
 </body>

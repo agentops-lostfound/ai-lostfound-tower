@@ -14,6 +14,8 @@
        11/8 글 줄이기: 안내 문장을 짧게 하고 진행 단계·물건 종류·본센터에서 받는 순서·가져갈 것을 선 그림(인라인 SVG)으로 바꿨다 -->
   <link rel="stylesheet" href="/ui/theme.css?v=20261111a">
   <script src="/ui/theme.js"></script>
+  <script>/* 11/11 키오스크 '분실 접수' 탭 안(?embed=kiosk): 앱 머리띠·AI 안내 단추·꼬리말을 빼고(키오스크에 이미 있음) 글자를 키움 */
+  try { if (new URLSearchParams(location.search).get("embed") === "kiosk") document.documentElement.classList.add("embed-kiosk"); } catch (_) {}</script>
   <style>
     *{box-sizing:border-box}
     body{margin:0;background:var(--ui-bg);font-family:var(--ui-font);color:var(--ui-text);line-height:1.5}
@@ -21,6 +23,9 @@
 
     /* 머리말: 위쪽 줄(이름표 + 라이트/다크 버튼) → 큰 제목 → 단계 표시 */
     header{padding:8px 0 4px}
+    html.embed-kiosk .appbar,html.embed-kiosk .chatbtn,html.embed-kiosk footer{display:none!important}
+    html.embed-kiosk body{font-size:17px}
+    html.embed-kiosk .chip{min-height:52px;font-size:18px}
     .appbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px}
     .tag{font-size:12px;letter-spacing:.1em;font-weight:700;color:var(--ui-text-3);min-width:0}
     .theme-slot{display:inline-flex;flex:none}
@@ -71,6 +76,7 @@
     .chip:active{transform:scale(.97)}
     .chip[aria-pressed="true"]{background:var(--ui-primary);color:var(--ui-on-primary)}
     .chip .ci{width:18px;height:18px;flex:none;margin-right:6px}
+    .chip.more{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ui-line);color:var(--ui-text-2);font-weight:600}
     .chip .sw{display:inline-block;flex:none;width:14px;height:14px;border-radius:50%;margin-right:8px;border:1px solid var(--ui-line)}
     .chip[aria-pressed="true"] .sw{border-color:var(--ui-on-primary)}
     input,select,textarea{width:100%;min-width:0;font:500 16px/1.4 var(--ui-font);border:1.5px solid transparent;border-radius:var(--ui-radius);
@@ -316,8 +322,31 @@ const COLORS = [['검정','#111'],['흰색','#fff'],['회색','#9ca3af'],['빨�
   ['갈색','#8b5a2b'],['초록','#16a34a'],['노랑','#facc15'],['분홍','#f472b6'],['기타','linear-gradient(135deg,#a855f7,#f97316)']];
 const state = {cat: '', color: '', claim: null, story: null, poll: null, after: 0, idMasked: ''};
 
-$('#colors').innerHTML = COLORS.map(([c, sw]) =>
-  `<button type="button" class="chip" data-v="${c}"><span class="sw" style="background:${sw}"></span>${c === '기타' ? '기타(보라·주황 등)' : c}</button>`).join('');
+// 11/11 색 고르기 정리: 11개를 한꺼번에 보이면 어지러워서, 고른 품목의 실제 물건 색(챗봇 대화 접수와 같은 목록)을 먼저 보이고
+// 나머지는 [다른 색 ▾] 안에 둔다. 고른 색이 접힌 쪽에 있으면 펼친 채로 둔다
+const COLOR_FIRST = {'': ['검정', '흰색', '빨강', '파랑', '분홍'], '모형폰': ['검정', '흰색', '파랑'], '보조배터리': ['흰색', '검정'],
+                     '핸드크림': ['분홍', '초록', '흰색', '파랑'], '립밤': ['빨강', '파랑']};
+let colorsOpen = false;
+function renderColors() {
+  const first = COLOR_FIRST[state.cat] || COLOR_FIRST[''];
+  const open = colorsOpen || (state.color && !first.includes(state.color));
+  const chip = ([c, sw]) => `<button type="button" class="chip" data-v="${c}" aria-pressed="${state.color === c}"><span class="sw" style="background:${sw}"></span>${c === '기타' ? '기타(보라·주황 등)' : c}</button>`;
+  const main = COLORS.filter(([c]) => first.includes(c)).sort((a, b) => first.indexOf(a[0]) - first.indexOf(b[0]));
+  const rest = COLORS.filter(([c]) => !first.includes(c));
+  $('#colors').innerHTML = main.map(chip).join('') +
+    (open ? rest.map(chip).join('') + `<button type="button" class="chip more" data-more="0">접기 ▴</button>`
+          : `<button type="button" class="chip more" data-more="1">다른 색 ${rest.length}개 ▾</button>`);
+}
+renderColors();
+$('#colors').addEventListener('click', e => {
+  const m = e.target.closest('[data-more]'); if (!m) return;
+  e.stopImmediatePropagation(); colorsOpen = m.dataset.more === '1'; renderColors();
+}, true);
+// 11/11 키오스크 분실 접수 탭: 이 키오스크가 있는 역을 미리 골라 둠(?station=중앙역). 모르면 '잘 모르겠어요' 그대로
+function presetStation() {
+  try { const st0 = new URLSearchParams(location.search).get('station'); if (st0 && [...$('#station').options].some(o => o.value === st0)) $('#station').value = st0; } catch (_) {}
+}
+presetStation();
 function chipGroup(sel, key) {
   $(sel).addEventListener('click', e => {
     const b = e.target.closest('.chip'); if (!b) return;
@@ -325,6 +354,7 @@ function chipGroup(sel, key) {
     $(sel).querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
     state[key] = on ? b.dataset.v : '';
+    if (key === 'cat') { colorsOpen = false; renderColors(); }   // 품목이 바뀌면 그 품목 색을 먼저
     check();
   });
 }
@@ -501,6 +531,7 @@ function resetAll() {
   $('#form').reset(); state.cat = state.color = '';
   document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
   $('#day').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  presetStation(); colorsOpen = false; renderColors();
   err($('#err1'), ''); steps(1, 0); show('#s-form'); check();
 }
 $('#again').addEventListener('click', resetAll);
