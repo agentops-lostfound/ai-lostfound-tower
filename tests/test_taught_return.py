@@ -154,6 +154,10 @@ class TaughtReturnTests(unittest.TestCase):
         self.assertEqual(got['close'][:3], (BASKET_MM[0], BASKET_MM[1], DROP_Z))
         self.assertEqual(got['open'][3:], ('basket', None))                   # 제출보관함에 내려놓음
         self.assertEqual(got['home'][:2], HOME_MM)
+        from agents.sim_world import REST_JOINTS
+        a = self.svc.world.arm                                                 # 끝나면 실물 home 처럼 접힌 대기 자세
+        self.assertTrue(a['rest'])
+        self.assertEqual(a['joints'], REST_JOINTS)
         self.assertEqual(self.motion.count, 11)                                # 그림은 로봇 명령을 더하지 않음
 
     def test_virtual_arm_never_breaks_sequence_checks(self):

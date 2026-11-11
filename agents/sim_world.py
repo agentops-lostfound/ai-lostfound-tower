@@ -249,6 +249,12 @@ SO101_LIMITS = {"shoulder_pan": (-110.0, 110.0), "shoulder_lift": (-100.0, 100.0
 SO101_GRIP_DEG = (-10.0, 100.0)                       # 집게 관절 각도 범위(0% 닫힘 ~ 100% 열림, 화면 그림용)
 # 11/9: 실제 규격 배치로 바꾸고 실제 크기(1.0)로 그린다(예전 1.6배는 H-1 을 한가운데에 수직으로 놓으려던 가정 때문)
 ARM_SCALE = 1.0
+# 11/11 접힌 대기 자세(실물 home): 김건태님 전달 · outputs/robot_panel_live/poses.json 'home' 의 Studio normalized 값.
+#   실물 사진처럼 위팔이 뒤로 눕고 아래팔이 그 위로 접히며 집게가 위를 본다. 보정값이 없어 normalized 를 각도로 그대로 보고
+#   관절 한계 안으로 자른 근사(-100~100 → 도). 칸 자세는 이 근사로 그리면 50~90mm 어긋나 위치 기준(IK)으로 그린다
+REST_REAL = {"shoulder_pan": -3.8179147243499756, "shoulder_lift": -99.41324615478516, "elbow_flex": 99.45872497558594,
+             "wrist_flex": -98.72340393066406, "wrist_roll": 9.89011001586914, "gripper": 4.505716323852539}
+REST_JOINTS = {k: round(max(lo, min(hi, REST_REAL[k])), 1) for k, (lo, hi) in SO101_LIMITS.items()}
 
 
 def so101_joints(x: float, y: float, z: float, gripper: float, roll: float = 0.0, scale: float | None = None) -> dict:
@@ -340,8 +346,8 @@ class SimWorld:
         self.contacts: dict[str, dict] = {}       # 저장 여부 확인용(밖으로 나가지 않음)
         self._places = [{"place_id": i + 1, "machine_id": m, "label": label, "use_count": 0}
                         for i, (m, label) in enumerate((m, l) for m, ls in DEMO_PLACES.items() for l in ls)]
-        self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "z": HOME_Z, "gripper": HOME_GRIP, "phase": "대기",
-                    "holding": None, "stopped": False, "target": None, "joints": so101_joints(*HOME_MM, HOME_Z, HOME_GRIP)}
+        self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "z": HOME_Z, "gripper": REST_JOINTS["gripper"], "phase": "대기",
+                    "holding": None, "stopped": False, "target": None, "joints": dict(REST_JOINTS), "rest": True}
         self.homing: threading.Thread | None = None
         self._seq: dict[str, int] = {}                 # 접수 번호 앞부분별 마지막 순번(초기화해도 유지)    # 바구니에 내려놓은 뒤 원점으로 돌아가는 중(뒤에서)
         self.faults = {"grasp_fail": 0, "calib_fail": False, "blur": False}
@@ -798,6 +804,13 @@ class SimRobot:
         arm = self.world.arm
         arm.update(kw)
         arm["joints"] = so101_joints(arm["x"], arm["y"], arm["z"], arm["gripper"])
+        arm["rest"] = False
+        self.world._touch()
+
+    def _rest(self, phase: str = "대기") -> None:
+        """원점에 도착 → 실물 home 처럼 접힌 대기 자세로 그림(관절 = REST_JOINTS). 화면이 관절을 부드럽게 따라가므로 접히는 모습이 보임"""
+        arm = self.world.arm
+        arm.update(phase=phase, gripper=REST_JOINTS["gripper"], joints=dict(REST_JOINTS), rest=True)
         self.world._touch()
 
     def _move(self, x=None, y=None, z=None, grip=None, seconds: float = 1.0, phase: str | None = None) -> bool:
@@ -896,7 +909,7 @@ class SimRobot:
         def go_home():
             w.sleep(0.4)
             if self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점으로"):
-                self._pose(phase="대기")
+                self._rest()
         w.homing = threading.Thread(target=go_home, daemon=True)
         w.homing.start()
         return robot_result(True)
@@ -917,7 +930,7 @@ class SimRobot:
         arm["target"] = None
         self._move(z=HOVER_Z + 40, grip=HOME_GRIP, seconds=0.6, phase="원점 복귀 · 들어 올림")
         self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점 복귀")
-        self._pose(phase="대기")
+        self._rest()
         return robot_result(True)
 
     def robot_state(self) -> dict:
@@ -927,5 +940,5 @@ class SimRobot:
                 "joints": {k: float(v) for k, v in (arm.get("joints") or {}).items()}, "source": "sim"}
 
 
-__all__ = ["SLOT_IDS", "slot_rows", "SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
+__all__ = ["SLOT_IDS", "slot_rows", "SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "REST_JOINTS", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
            "lost_station", "mm_to_px", "STATIONS", "LOST_STATIONS", "LOST_MACHINE_STATION", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]

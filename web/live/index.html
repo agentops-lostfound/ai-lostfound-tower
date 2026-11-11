@@ -666,7 +666,7 @@ details.more .robot-note{margin-top:0}
       return;
     }
     const held = a.holding ? `들고 있음 ${a.holding}` : "빈 집게";
-    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, `집게 높이 ${Math.round(a.z)}mm(작업대)`, held]
+    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, a.rest ? "접힌 대기 자세(실물 home)" : `집게 높이 ${Math.round(a.z)}mm(작업대)`, held]
       .map(t => `<span class="chip">${esc(t)}</span>`).join("");
     $("joints").innerHTML = r.joints.map(j => {
       const v = (a.joints || {})[j.name] ?? 0;

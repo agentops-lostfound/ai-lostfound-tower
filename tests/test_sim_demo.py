@@ -25,6 +25,28 @@ def story_of(svc, sid):
     return svc.board.story(sid)
 
 
+class RestPoseTest(unittest.TestCase):
+    """11/11 실물 home(김건태님 전달, Studio normalized) 처럼 원점에서는 접힌 대기 자세로 그림"""
+
+    def test_world_starts_and_returns_to_folded_rest(self):
+        from agents.sim_world import REST_JOINTS, REST_REAL, SO101_LIMITS, SimRobot, SimWorld, so101_tip
+        self.assertEqual(REST_REAL["shoulder_lift"], -99.41324615478516)
+        for k, (lo, hi) in SO101_LIMITS.items():
+            self.assertTrue(lo <= REST_JOINTS[k] <= hi, k)
+        x, y, z = so101_tip(REST_JOINTS)
+        self.assertGreater(z, 200)                                   # 집게가 위를 봄(접혀서 높이 있음)
+        w = SimWorld(speed=0, seed=False)
+        self.assertTrue(w.arm["rest"])
+        self.assertEqual(w.arm["joints"], REST_JOINTS)
+        r = SimRobot(w)
+        r.robot_approach([205.0, 310.0], [])
+        self.assertFalse(w.arm["rest"])                              # 움직이면 위치 기준(IK) 관절
+        self.assertNotEqual(w.arm["joints"], REST_JOINTS)
+        r.robot_home()
+        self.assertTrue(w.arm["rest"])
+        self.assertEqual(w.arm["joints"], REST_JOINTS)
+
+
 class SimPartsTest(unittest.TestCase):
     def test_parts_keep_contracts(self):
         w = SimWorld(speed=0, seed="full")
