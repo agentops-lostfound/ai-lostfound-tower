@@ -24,6 +24,11 @@
     발표 화면(틀 3개)·다른 탭이 MJPEG 를 붙잡고 있으면 새 영상 연결이 줄을 서다 까맣게 남았다. 이제 화면 하나 = 짧은 요청 하나씩
   · 사진마다 번호(X-Frame-Seq)·나이(X-Frame-Age-Ms)·어두움(X-Frame-Dark)을 붙여, 화면이 '멈춤'과 '까맘'을 구별해 다시 연결한다
   · 카메라 읽기가 멈추면(STALL_S 동안 새 사진 없음) 다른 쪽에서 카메라를 놓아 읽기를 풀고 다시 연다(Windows DirectShow 가 read 에서 멈춤)
+- 11/11 노출 고정(TOWER_KIOSK_EXPOSURE): 회색 펠트를 깔자 카메라 자동 노출이 화면을 밝게 올려 연한 색(분홍·하늘색 핸드크림)과
+  흰 물건이 하얗게 날아감(물건 픽셀의 40~87% 가 최댓값). 노출을 고정하면 바닥·조명이 바뀌어도 물건 밝기가 그대로다.
+    TOWER_KIOSK_EXPOSURE=-6                       # 모든 키오스크 카메라(DirectShow 값: 2의 거듭제곱 초, -6 ≈ 1/64초, 작을수록 어두움)
+    TOWER_KIOSK_EXPOSURE=KIOSK-A=-6,KIOSK-C=auto  # 기계별. 비우면 지금처럼 카메라가 정함(아무것도 건드리지 않음)
+  값 고르기: 관제탑을 끄고 python tools/camera_exposure.py (값마다 사진·날아간 비율을 비교해 추천)
 """
 from __future__ import annotations
 
@@ -59,11 +64,69 @@ def parse_config(text: str | None) -> dict:
     return out
 
 
+EXPOSURE_MIN, EXPOSURE_MAX = -13, 0     # DirectShow 노출 값 범위(대부분의 USB 웹캠, 추정 — 카메라마다 받아들이는 범위가 다를 수 있음)
+AUTO_ON, AUTO_OFF = 0.75, 0.25          # OpenCV DirectShow 에서 CAP_PROP_AUTO_EXPOSURE 의 자동/수동 값
+
+
+def parse_exposure(text: str | None) -> dict:
+    """노출 설정 읽기. '-6' → {'*': -6.0}, 'KIOSK-A=-6,KIOSK-C=auto' → {'KIOSK-A': -6.0, 'KIOSK-C': 'auto'}.
+    범위 밖·숫자 아닌 값은 버린다(잘못 쓴 값이 카메라를 새까맣게 만들지 않게)"""
+    def value(s: str):
+        s = s.strip().lower()
+        if s == "auto":
+            return "auto"
+        try:
+            v = float(s)
+        except ValueError:
+            return None
+        return v if EXPOSURE_MIN <= v <= EXPOSURE_MAX else None
+    out: dict = {}
+    for part in (text or "").split(","):
+        if not part.strip():
+            continue
+        if "=" in part:
+            name, s = (x.strip() for x in part.split("=", 1))
+            if not name or len(name) > 20 or not all(c.isalnum() or c in "-_" for c in name):
+                continue
+        else:
+            name, s = "*", part
+        v = value(s)
+        if v is not None:
+            out[name] = v
+    return out
+
+
+def exposure_for(config: dict, machine: str):
+    """기계 하나의 노출 값(None = 건드리지 않음)"""
+    return config.get(machine, config.get("*"))
+
+
+def apply_exposure(cap, value) -> dict | None:
+    """열린 카메라에 노출을 정한다. None = 아무것도 안 함, 'auto' = 자동으로 되돌림, 숫자 = 자동을 끄고 그 값으로 고정.
+    → {'requested': 값, 'auto': 읽은 자동 값, 'now': 읽은 노출 값} (카메라가 값을 안 받아들이면 now 가 다르게 나옴)"""
+    if value is None:
+        return None
+    import cv2
+    try:
+        if value == "auto":
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, AUTO_ON)
+        else:
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, AUTO_OFF)
+            cap.set(cv2.CAP_PROP_EXPOSURE, float(value))
+        get = getattr(cap, "get", None)
+        auto = get(cv2.CAP_PROP_AUTO_EXPOSURE) if get else None
+        now = get(cv2.CAP_PROP_EXPOSURE) if get else None
+        return {"requested": value, "auto": auto, "now": now}
+    except Exception as e:                                # 노출을 못 바꿔도 영상은 계속 보낸다
+        return {"requested": value, "error": type(e).__name__}
+
+
 class FakeSource:
     """웹캠 없이 시험용 무늬(회색 바닥 + 격자 + 시각에 따라 바뀌는 작은 숫자 칸)"""
 
     def __init__(self, *_):
         self.n = 0
+        self.props: dict = {}
 
     def isOpened(self) -> bool:
         return True
@@ -77,8 +140,12 @@ class FakeSource:
         img[10:20, 10:10 + (self.n % 50)] = 90        # 살짝 바뀌는 칸(영상이 흐르는지 확인용, 물건 감지 기준보다 작음)
         return True, img
 
-    def set(self, *_):
+    def set(self, prop=None, value=None, *_):
+        self.props[prop] = value
         return True
+
+    def get(self, prop):
+        return self.props.get(prop, 0.0)
 
     def release(self):
         pass
@@ -176,8 +243,10 @@ def stop_all(timeout: float = 1.5) -> bool:
 class CameraFeed:
     """카메라 하나를 뒤에서 읽어 최신 JPEG 하나를 들고 있는다. 보는 사람이 없으면 닫는다"""
 
-    def __init__(self, src, opener=_open, clock=time.monotonic):
+    def __init__(self, src, opener=_open, clock=time.monotonic, exposure=None):
         self.src, self._opener, self._clock = src, opener, clock
+        self.exposure = exposure      # 11/11 노출 고정 값(None = 카메라가 정함)
+        self.exposure_state: dict | None = None   # 마지막으로 정한 결과(상태 화면용)
         self._lock = threading.Lock()
         self._jpeg: bytes | None = None
         self._seen = 0.0
@@ -250,6 +319,7 @@ class CameraFeed:
             if not cap.isOpened():
                 self._fail("카메라를 열 수 없음(번호·USB 연결·다른 프로그램 사용 중 확인 — python tools/list_cameras.py)")
                 return
+            self.exposure_state = apply_exposure(cap, self.exposure)
             fails, dark_run, reopens, next_reopen = 0, 0, 0, 0.0
             while not self._stop and self._clock() - self._seen < IDLE_CLOSE_S:
                 ok, frame = cap.read()
@@ -277,6 +347,7 @@ class CameraFeed:
                         if not cap.isOpened():
                             self._fail("카메라를 다시 열 수 없음(다른 프로그램이 쓰는 중인지 확인)")
                             return
+                        self.exposure_state = apply_exposure(cap, self.exposure)   # 다시 열면 카메라 설정이 풀릴 수 있음
                         dark_run = 0
                         next_reopen = self._clock() + min(DARK_RETRY_MAX_S, 2.0 * reopens)
                         continue
@@ -307,9 +378,11 @@ class CameraFeed:
 
 
 class KioskCameras:
-    def __init__(self, config: dict | None = None, opener=_open):
+    def __init__(self, config: dict | None = None, opener=_open, exposure: dict | None = None):
         self.config = parse_config(os.environ.get("TOWER_KIOSK_CAMERAS")) if config is None else config
-        self._feeds = {name: CameraFeed(src, opener) for name, src in self.config.items()}
+        self.exposure = parse_exposure(os.environ.get("TOWER_KIOSK_EXPOSURE")) if exposure is None else exposure
+        self._feeds = {name: CameraFeed(src, opener, exposure=exposure_for(self.exposure, name))
+                       for name, src in self.config.items()}
         _ALL.add(self)
 
     def stop(self, timeout: float = 1.5) -> bool:
@@ -324,7 +397,8 @@ class KioskCameras:
                        **({"warning": "영상이 새까맘(렌즈 가림·조명·다른 카메라 번호 확인)"} if f.dark else
                           {"warning": "웹캠이 낮은 화질로 열림 — 실제 영상만 잘라 보내는 중(다른 프로그램이 웹캠을 쓰는지 확인)"} if f.cropped else {}),
                        **({"size": [OUT_W, OUT_H]} if f.latest() is not None else {}),
-                       **({"stalls": f.stalls} if f.stalls else {})} for name, f in self._feeds.items()}
+                       **({"stalls": f.stalls} if f.stalls else {}),
+                       **({"exposure": f.exposure_state} if f.exposure_state else {})} for name, f in self._feeds.items()}
 
 
 def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
@@ -403,4 +477,5 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
     return cams
 
 
-__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "add_camera_routes", "is_dark", "valid_size", "fit"]
+__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "parse_exposure", "exposure_for", "apply_exposure",
+           "add_camera_routes", "is_dark", "valid_size", "fit"]
