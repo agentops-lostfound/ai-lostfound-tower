@@ -134,6 +134,8 @@ class TaughtMirror:
         self._set(goal)
         if kind == "stage_arrived":
             self._carry(pose)
+            if pose == "home":
+                self._fold()
 
     def _glide(self, goal: dict, gen: int) -> None:
         arm = self.w.arm
@@ -154,6 +156,13 @@ class TaughtMirror:
             if goal.get(k) is not None:
                 arm[k] = round(float(goal[k]), 1)
         arm["joints"] = self.sw.so101_joints(arm["x"], arm["y"], arm["z"], arm["gripper"])
+        arm["rest"] = False
+        self.w._touch()
+
+    def _fold(self) -> None:
+        """실물 home 도착 → 접힌 대기 자세(실물 home 저장 값 근사, sim_world.REST_JOINTS)"""
+        arm = self.w.arm
+        arm.update(gripper=self.sw.REST_JOINTS["gripper"], joints=dict(self.sw.REST_JOINTS), rest=True)
         self.w._touch()
 
     def _carry(self, pose: str) -> None:
@@ -191,6 +200,7 @@ class TaughtMirror:
     def homed(self, result) -> None:
         if isinstance(result, dict) and result.get("ok") is True:
             self._set(self.place("home"))
+            self._fold()
             self.w.arm["phase"] = "실물 원점 복귀"
             self.w.arm["real"] = {"pose": "home", "index": None, "total": None, "state": "도착", "values": {}}
             self.w._touch()
