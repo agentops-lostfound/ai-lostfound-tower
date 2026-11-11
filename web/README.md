@@ -152,6 +152,7 @@
   2. `.env` 에 `TOWER_KIOSK_CAMERAS=KIOSK-A=0`(기계=번호, 1번 단계에서 "영상이 보이는 번호" — 교육원 PC 웹캠 1대면 0, 여러 대면 쉼표 `KIOSK-A=0,KIOSK-C=1`) → 관제탑 다시 켜기
   3. 태블릿 크롬: `http://10.10.21.21:8100/kiosk?machine=KIOSK-A&cam=server` — 머리말에 "PC 카메라 연결됨"
   4. 상태 확인: `http://10.10.21.21:8100/api/kiosk/cameras` · 한 장 보기 `/api/kiosk/camera/KIOSK-A.jpg`
+  5. **11/11 노출 고정(선택, `TOWER_KIOSK_EXPOSURE`)**: 회색 펠트를 깔면 카메라 자동 노출이 화면을 밝게 올려 분홍·하늘색 핸드크림·흰 물건이 하얗게 날아간다(색이 흰색으로 찍힘). 관제탑을 끄고 흰 폰을 상자 가운데 둔 채 `python tools/camera_exposure.py` → 값마다 사진(`data/exposure_check/sheet.jpg`)과 "물건 날아감 %"가 나오고 추천 값이 나온다 → `.env` 에 `TOWER_KIOSK_EXPOSURE=-6`(추천 값) → 관제탑 다시 켜기 → `/api/kiosk/cameras` 의 `exposure` 에 요청 값·카메라가 읽은 값이 보임. 비우면 예전처럼 카메라가 정함. "노출 값을 바꿔도 밝기가 거의 같음"이 나오면 이 웹캠이 노출 고정을 받지 않는 것 — 비워 둔다
   - 같은 웹캠을 PC 크롬 키오스크(`127.0.0.1`)가 동시에 쓰면 "다른 프로그램이 사용 중" — 서버 카메라를 쓰는 동안 PC 쪽 키오스크 탭은 닫는다
   - 설정에 없는 기계 번호는 열지 않는다(404, 주소만 바꿔 탑뷰 카메라를 보지 못하게). 아무도 안 보면 60초 뒤 웹캠을 닫는다
   - 끌 때: Ctrl+C 한 번이면 3초 안에 꺼진다(11/9 저녁 — 키오스크 영상 연결이 끝나지 않아 `Waiting for connections to close` 에서 멈추던 것을 `--timeout-graceful-shutdown 3` 으로 막음, `tools/start_tower.bat`)

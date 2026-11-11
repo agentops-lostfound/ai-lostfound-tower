@@ -312,5 +312,134 @@ class BlackFrameRetryTest(unittest.TestCase):
             feed.stop(2)
 
 
+class _ExpCam:
+    """노출 값에 따라 밝기가 바뀌는 가짜 웹캠(자동이면 펠트 위처럼 밝게 올려 흰 물건이 날아감).
+    ignore=True 면 노출 고정을 무시하는 카메라"""
+
+    def __init__(self, ignore=False):
+        import cv2
+        self.cv2, self.ignore, self.props = cv2, ignore, {}
+
+    def isOpened(self):
+        return True
+
+    def set(self, prop, value):
+        self.props[prop] = value
+        return True
+
+    def get(self, prop):
+        return self.props.get(prop, 0.0)
+
+    def read(self):
+        import numpy as np
+        cv2 = self.cv2
+        manual = self.props.get(cv2.CAP_PROP_AUTO_EXPOSURE) == 0.25 and not self.ignore
+        gain = 2 ** (self.props.get(cv2.CAP_PROP_EXPOSURE, -5) + 5) if manual else 1.6   # -5 = 기준, 자동 = 1.6배
+        img = np.zeros((720, 960, 3), np.float32)
+        img[:] = 95                                    # 회색 펠트
+        img[260:460, 380:580] = 165                     # 흰 폰(기준 노출에서 165)
+        return True, np.clip(img * gain, 0, 255).astype(np.uint8)
+
+    def release(self):
+        pass
+
+
+class ExposureTest(unittest.TestCase):
+    """11/11 펠트 위에서 자동 노출이 연한 색을 날림 → TOWER_KIOSK_EXPOSURE 로 노출 고정"""
+
+    def test_parse(self):
+        from agents.kiosk_camera import exposure_for, parse_exposure
+        self.assertEqual(parse_exposure("-6"), {"*": -6.0})
+        self.assertEqual(parse_exposure("KIOSK-A=-6, KIOSK-C=auto"), {"KIOSK-A": -6.0, "KIOSK-C": "auto"})
+        self.assertEqual(parse_exposure("abc, X=5, Y=-20, ../e=-6, , KIOSK-A="), {})     # 숫자 아님·범위 밖·이상한 이름·빈 값
+        self.assertEqual(parse_exposure(None), {})
+        cfg = parse_exposure("-7,KIOSK-C=-5")
+        self.assertEqual(exposure_for(cfg, "KIOSK-A"), -7.0)
+        self.assertEqual(exposure_for(cfg, "KIOSK-C"), -5.0)
+        self.assertIsNone(exposure_for({}, "KIOSK-A"))
+
+    def test_feed_applies_exposure_and_reports(self):
+        import cv2
+        from agents.kiosk_camera import FakeSource
+        made = []
+        cams = KioskCameras({"KIOSK-A": 0, "KIOSK-C": 1}, opener=lambda src: made.append(FakeSource()) or made[-1],
+                            exposure={"KIOSK-A": -6.0})
+        try:
+            for m in ("KIOSK-A", "KIOSK-C"):
+                cams.feed(m).touch()
+            t0 = time.time()
+            while time.time() - t0 < 3 and not all(cams.feed(m).latest() for m in ("KIOSK-A", "KIOSK-C")):
+                time.sleep(0.02)
+            st = cams.status()
+            self.assertEqual(st["KIOSK-A"]["exposure"]["requested"], -6.0)
+            self.assertEqual(st["KIOSK-A"]["exposure"]["now"], -6.0)
+            self.assertNotIn("exposure", st["KIOSK-C"])                     # 값이 없으면 카메라를 건드리지 않음
+            props = [c.props for c in made]
+            self.assertTrue(any(p.get(cv2.CAP_PROP_AUTO_EXPOSURE) == 0.25 and p.get(cv2.CAP_PROP_EXPOSURE) == -6.0 for p in props))
+            self.assertTrue(any(cv2.CAP_PROP_AUTO_EXPOSURE not in p for p in props))
+        finally:
+            cams.stop(2)
+
+    def test_env_is_read(self):
+        old = os.environ.get("TOWER_KIOSK_EXPOSURE")
+        os.environ["TOWER_KIOSK_EXPOSURE"] = "KIOSK-A=-7"
+        try:
+            cams = KioskCameras({"KIOSK-A": "fake"})
+            self.assertEqual(cams.feed("KIOSK-A").exposure, -7.0)
+        finally:
+            if old is None:
+                os.environ.pop("TOWER_KIOSK_EXPOSURE", None)
+            else:
+                os.environ["TOWER_KIOSK_EXPOSURE"] = old
+
+    def test_apply_auto_and_none(self):
+        import cv2
+        from agents.kiosk_camera import apply_exposure
+        cam = _ExpCam()
+        self.assertIsNone(apply_exposure(cam, None))
+        self.assertEqual(cam.props, {})
+        apply_exposure(cam, "auto")
+        self.assertEqual(cam.props[cv2.CAP_PROP_AUTO_EXPOSURE], 0.75)
+        self.assertNotIn(cv2.CAP_PROP_EXPOSURE, cam.props)
+
+    def test_tool_recommends_value_without_clipping(self):
+        import tempfile
+        from tools import camera_exposure as ce
+        with tempfile.TemporaryDirectory() as d:
+            cams = []
+            rows = ce.run(0, ["auto", -4, -5, -6], Path(d), opener=lambda src: cams.append(_ExpCam()) or cams[-1], settle=2)
+            m = {r["value"]: r["m"] for r in rows}
+            self.assertGreater(m["auto"]["clipped"], 0.05)                   # 자동: 흰 폰(화면의 약 6%)이 날아감(165×1.6)
+            self.assertGreater(m[-4]["clipped"], 0.05)                       # -4: 2배 → 날아감
+            self.assertEqual(m[-5]["clipped"], 0.0)
+            best, _ = ce.recommend(rows)
+            self.assertEqual(best, -5)                                       # 안 날아가는 값 중 가장 밝은 값
+            self.assertTrue((Path(d) / "exp_m5.jpg").exists())
+            ce.sheet(rows, Path(d) / "sheet.jpg")
+            self.assertTrue((Path(d) / "sheet.jpg").exists())
+            import cv2
+            for c in cams[1:]:
+                self.assertEqual(c.props[cv2.CAP_PROP_AUTO_EXPOSURE], 0.75)  # 끝나면 자동으로 되돌림
+
+    def test_tool_detects_camera_ignoring_exposure(self):
+        import tempfile
+        from tools import camera_exposure as ce
+        with tempfile.TemporaryDirectory() as d:
+            rows = ce.run(0, [-5, -6, -7], Path(d), opener=lambda src: _ExpCam(ignore=True), settle=2)
+            best, why = ce.recommend(rows)
+            self.assertIsNone(best)
+            self.assertIn("받아들이지 않", why)
+
+    def test_tool_reports_closed_camera(self):
+        import tempfile
+        from tools import camera_exposure as ce
+        with tempfile.TemporaryDirectory() as d:
+            rows = ce.run(0, [-6], Path(d), opener=lambda src: _Closed(), settle=2)
+            self.assertIn("열 수 없음", rows[0]["error"])
+            self.assertEqual(ce.recommend(rows)[0], None)
+        with self.assertRaises(SystemExit):
+            ce.parse_values("auto,-20")
+
+
 if __name__ == "__main__":
     unittest.main()
