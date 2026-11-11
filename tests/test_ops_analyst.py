@@ -130,6 +130,44 @@ def _chat_snapshot():
 
 
 class ChatbotMetricsTests(unittest.TestCase):
+    def test_no_chat_observations_cannot_be_reported_as_healthy(self):
+        for chat in (None, {'requests': {'question': {'total': 0, 'error': 0}}},
+                     {'requests': {'question': {'total': True}}},
+                     {'requests': {'question': {'total': '0'}}}):
+            with self.subTest(chat=chat):
+                calls = []
+                def llm(payload):
+                    calls.append(payload)
+                    if 'format' in payload:
+                        return {'message': {'content': '{"focus":"chatbot"}'}}
+                    return {'message': {'content': '실패율 0%, 응답 시간 평균 0ms, 정상 작동 중이며 품질이 우수합니다.'}}
+                out = OpsAnalyst(reader=Reader(dict(DATA, chat=chat)), llm=llm, model='m').run('챗봇 답변 품질 현황 알려줘')
+                self.assertIn('판단할 수 없습니다', out['report'])
+                self.assertNotIn('정상 작동', out['report'])
+                self.assertNotIn('0%', out['report'])
+                self.assertNotIn('reporter', out['used_llm'])
+                self.assertTrue(all('format' in call for call in calls))
+
+    def test_explicit_chatbot_focus_cannot_be_replaced_by_other_domain(self):
+        calls = []
+        def llm(payload):
+            calls.append(payload)
+            return {'message': {'content': '{"focus":"robot"}'}}
+        out = OpsAnalyst(reader=Reader(DATA), llm=llm, model='m').run('챗봇 질문 처리 현황')
+        self.assertEqual(out['focus'], 'chatbot')
+        self.assertEqual(calls[0]['format']['properties']['focus']['enum'], ['chatbot'])
+        self.assertIn('운영 지표를 조회하지 못했습니다', out['report'])
+        self.assertNotIn('reporter', out['used_llm'])
+
+    def test_observed_chat_metrics_still_allow_checked_model_report(self):
+        def llm(payload):
+            if 'format' in payload:
+                return {'message': {'content': '{"focus":"chatbot"}'}}
+            return {'message': {'content': '챗봇 질문 기록 5건 중 오류 1건을 확인했습니다. 기록을 살펴봐 주세요.'}}
+        out = OpsAnalyst(reader=Reader(dict(DATA, chat=_chat_snapshot())), llm=llm, model='m').run('챗봇 질문 처리 현황')
+        self.assertIn('reporter', out['used_llm'])
+        self.assertIn('질문 기록 5건', out['report'])
+
     def test_chat_numbers_in_facts_and_report(self):
         data = dict(DATA, chat=_chat_snapshot())
         f = analyze(data, "chatbot")
@@ -164,6 +202,19 @@ class ChatbotMetricsTests(unittest.TestCase):
 
 
 class GraphTests(unittest.TestCase):
+    def test_fully_empty_observations_cannot_generate_a_healthy_system_claim(self):
+        calls = []
+        def llm(payload):
+            calls.append(payload)
+            if 'format' in payload:
+                return {'message': {'content': '{"focus":"overall"}'}}
+            return {'message': {'content': '실패율 0%로 전체 시스템이 정상 작동 중입니다.'}}
+        out = OpsAnalyst(reader=Reader({'returns': [], 'live': {}}), llm=llm, model='m').run('오늘 관제 현황 요약')
+        self.assertIn('아직 관제 기록이 없습니다', out['report'])
+        self.assertNotIn('정상 작동', out['report'])
+        self.assertNotIn('reporter', out['used_llm'])
+        self.assertTrue(all('format' in call for call in calls))
+
     def test_off_topic_is_refused_without_reading(self):
         r = Reader(DATA)
         out = OpsAnalyst(reader=r).run("오늘 점심 뭐 먹지?")

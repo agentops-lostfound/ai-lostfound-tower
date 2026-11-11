@@ -42,6 +42,7 @@ def main(argv=None):
     from agents import local_model
     from agents import chat_supervisor
     from agents import prompts
+    from agents import chat_agents
     from agents.chat_agents import AgentBrain
     original_request, original_decide = local_model.ask_local_model, chat_supervisor.decide
     original_plan = AgentBrain.plan_contract
@@ -95,7 +96,7 @@ def main(argv=None):
                      'agents/chat_api.py', 'agents/chat_intake.py', 'agents/chat_find_auth.py',
                      'agents/chat_postgres_access.py', 'agents/chat_session_issuer.py',
                      'agents/chat_identity_evidence.py', 'agents/chat_operations.py')}
-    for name in ('agents/chat_planner.py', 'tools/validate_chat_midm.py', 'evaluation/chat_eval.py'):
+    for name in ('agents/chat_planner.py', 'agents/ops_analyst.py', 'tools/validate_chat_midm.py', 'evaluation/chat_eval.py'):
         report['meta']['source_sha256'][name] = hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}',
@@ -105,6 +106,7 @@ def main(argv=None):
     started = time.perf_counter()
     with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, env, clear=True), \
          mock.patch.object(local_model, 'ask_local_model', request), mock.patch.object(chat_supervisor, 'decide', decide), \
+         mock.patch.object(chat_agents, 'ask_local_model', request), \
          mock.patch.object(AgentBrain, 'plan_contract', plan_contract), \
          prompts.usage_scope():
         os.environ['TOWER_CHAT_DEMO_DB'] = str(Path(tmp) / 'demo.sqlite3')

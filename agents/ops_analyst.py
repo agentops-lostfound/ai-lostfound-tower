@@ -24,6 +24,7 @@ from agents import prompts
 
 FOCUSES = ("overall", "failures", "robot", "speed", "chatbot")
 FOCUS_LABEL = {"overall": "전체 현황", "failures": "실패·보류 원인", "robot": "로봇팔 동작", "speed": "처리 시간", "chatbot": "AI 챗봇 운영(LLMOps)"}
+CHAT_FOCUS_RE = re.compile(r"챗봇|답변|LLMOps|질문\s*처리")
 DECISION_LABEL = {"returned": "반환 완료", "rejected": "반환 거절(안전 규칙)", "staff_check": "확인 필요로 넘김",
                   "stopped": "로봇 정지"}
 STAGE_LABEL = {"claim": "찾기 요청·확인 질문", "approve": "메인 AI 승인", "visit": "방문·신분 확인", "topview": "탑뷰 촬영",
@@ -160,7 +161,18 @@ def findings(f: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------- 보고자(reporter)
+def _chat_observed(chat):
+    return isinstance(chat, dict) and type(chat.get('questions')) is int and chat['questions'] > 0
+
+
 def template_report(f: dict, question: str) -> str:
+    if f.get('focus') == 'chatbot' and not _chat_observed(f.get('chat')):
+        chat = f.get('chat')
+        message = ('챗봇 운영 지표를 조회하지 못했습니다.' if chat is None else
+                   '챗봇 질문 관측 기록이 아직 없습니다.' if type(chat.get('questions')) is int and chat['questions'] == 0
+                   else '챗봇 질문 관측 수를 확인하지 못했습니다.')
+        return '\n'.join(['# 관제 분석 보고 — AI 챗봇 운영(LLMOps)', '', f'요청: {question}', '',
+            message, '관측 자료가 없어 응답 품질·오류율·응답 시간을 판단할 수 없습니다.'])
     lines = [f"# 관제 분석 보고 — {FOCUS_LABEL.get(f['focus'], '전체 현황')}", "", f"요청: {question}", "", "## 핵심"]
     lines += [f"- {x}" for x in f["findings"]]
     lines += ["", "## 숫자", f"- 반환 기록 {f['returns_total']}건: " +
@@ -273,17 +285,18 @@ class OpsAnalyst:
 
     def planner(self, s: OpsState) -> OpsState:
         q = s["question"]
-        focus = ("chatbot" if re.search(r"챗봇|답변|LLMOps|질문\s*처리", q) else "robot" if re.search(r"로봇|집기|정지|팔", q) else "failures" if re.search(r"실패|보류|원인|거절|막", q)
+        focus = ("chatbot" if CHAT_FOCUS_RE.search(q) else "robot" if re.search(r"로봇|집기|정지|팔", q) else "failures" if re.search(r"실패|보류|원인|거절|막", q)
                  else "speed" if re.search(r"시간|속도|느려|오래|p95", q) else "overall")
         used = list(s.get("used_llm", []))
         cfg = self._cfg("ops-planner", 0)
         if cfg:
             try:
+                allowed_focus = ('chatbot',) if focus == 'chatbot' else FOCUSES
                 out = self._call('ops-planner', cfg, q, schema={
                     'type': 'object', 'required': ['focus'], 'additionalProperties': False,
-                    'properties': {'focus': {'type': 'string', 'enum': list(FOCUSES)}}})
+                    'properties': {'focus': {'type': 'string', 'enum': list(allowed_focus)}}})
                 f = json.loads(out["message"]["content"]).get("focus")
-                if f in FOCUSES:
+                if f in allowed_focus:
                     focus = f
                     used.append("planner")
             except (OSError, ValueError, KeyError, TypeError):
@@ -332,6 +345,10 @@ class OpsAnalyst:
         facts, q = s["facts"], s["question"]
         report = template_report(facts, q)
         used = list(s.get("used_llm", []))
+        if not _chat_observed(facts.get('chat')) and (facts.get('focus') == 'chatbot' or CHAT_FOCUS_RE.search(q)):
+            return {'report': template_report({**facts, 'focus': 'chatbot'}, q), 'used_llm': used}
+        if not (facts['returns_total'] or facts['stories_total'] or facts['alerts_total'] or _chat_observed(facts.get('chat'))):
+            return {'report': report, 'used_llm': used}
         cfg = self._cfg("ops-reporter", 0.2)
         if cfg:
             try:

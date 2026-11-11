@@ -178,10 +178,21 @@ class StagingTest(unittest.TestCase):
         from agents.ops_analyst import OpsAnalyst
         class Reader:
             def collect(self):
-                return {'returns': [], 'live': {'stories': [], 'events': []}, 'chat': None}
+                return {'returns': [{'decision': 'returned', 'seconds': 2}],
+                        'live': {'stories': [], 'events': []}, 'chat': None}
         with prompts.usage_scope():
             OpsAnalyst(reader=Reader(), llm=lambda p: {'message': {'content': '{}'}}, model='base').run('오늘 반환 실패 원인')
             self.assertEqual({r['agent'] for r in prompts.loaded_versions()}, {'ops-planner', 'ops-reporter'})
+
+    def test_empty_ops_observations_do_not_record_an_unmade_reporter_call(self):
+        from agents.ops_analyst import OpsAnalyst
+        class Reader:
+            def collect(self):
+                return {'returns': [], 'live': {'stories': [], 'events': []}, 'chat': None}
+        with prompts.usage_scope():
+            out = OpsAnalyst(reader=Reader(), llm=lambda p: {'message': {'content': '{}'}}, model='base').run('오늘 반환 실패 원인')
+            self.assertEqual({r['agent'] for r in prompts.loaded_versions()}, {'ops-planner'})
+            self.assertIn('아직 관제 기록이 없습니다', out['report'])
 
     def test_eval_does_not_copy_arbitrary_model_named_secrets(self):
         from evaluation.chat_eval import model_info
