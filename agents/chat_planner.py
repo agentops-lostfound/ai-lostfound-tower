@@ -37,8 +37,16 @@ def allowed_instructions():
             for worker, task in WORK_TASKS.items() for ref in WORK_INPUTS[worker]]
 
 
+def allowed_plans():
+    """배열 요소를 따로 조합하지 않고 유효한 완성 계획 하나를 고르게 한다."""
+    return [{'version': 2, 'steps': [instruction_for(worker, len(workers) > 1).public_contract()
+                                     for worker in workers]}
+            for workers in (('guidance',), ('item_search',), ('item_search', 'guidance'))]
+
+
 def output_schema():
     return {'type': 'object', 'additionalProperties': False, 'required': ['version', 'steps'],
+            'enum': allowed_plans(),
             'properties': {'version': {'type': 'integer', 'enum': [2]},
                 'steps': {'type': 'array', 'minItems': 1, 'maxItems': 2, 'items': {
                     'type': 'object', 'additionalProperties': False,

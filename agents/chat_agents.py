@@ -105,12 +105,13 @@ class AgentBrain:
         return list(decision.workers) if decision.instructions else None
 
     def plan_contract(self, question, history=None, rule_steps=None):
-        from agents.chat_planner import (PlanningDecision, output_schema, allowed_instructions,
+        from agents.chat_planner import (PlanningDecision, output_schema, allowed_instructions, allowed_plans,
                                           parse_proposal, instruction_for)
         required = [worker for worker in (rule_steps or []) if worker in WORKERS]
         parsed = self._ask("planner-llm", "planner", output_schema(),
             {"previous_questions": [h for h in (history or []) if isinstance(h, str)][-4:],
-             "question": question, 'required_workers': required, 'allowed_instructions': allowed_instructions()})
+             "question": question, 'required_workers': required, 'allowed_instructions': allowed_instructions(),
+             'allowed_plans': allowed_plans()})
         try:
             version, instructions = parse_proposal(parsed)
         except ValueError as error:

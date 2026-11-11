@@ -6,7 +6,7 @@ from unittest import mock
 
 from agents.chat_agents import AgentBrain
 from agents.chat_planner import (
-    WorkInstruction, allowed_instructions, instruction_for, output_schema, parse_proposal, safe_proposal,
+    WorkInstruction, allowed_instructions, allowed_plans, instruction_for, output_schema, parse_proposal, safe_proposal,
 )
 
 
@@ -24,6 +24,11 @@ class PlannerContractTest(unittest.TestCase):
         schema = output_schema()
         allowed = schema['properties']['steps']['items']['enum']
         self.assertEqual(allowed, allowed_instructions())
+        self.assertEqual(schema['enum'], allowed_plans())
+        self.assertEqual(len(schema['enum']), 3)
+        self.assertNotIn(proposal('guidance', 'guidance'), schema['enum'])
+        self.assertTrue(all(len(parse_proposal(plan)[1]) == len({step['worker'] for step in plan['steps']})
+                            for plan in schema['enum']))
         self.assertNotIn({'worker': 'guidance', 'task': 'search_candidates', 'input_ref': 'search_part'}, allowed)
         allowed[0]['worker'] = 'intake'
         self.assertNotIn('intake', [step['worker'] for step in allowed_instructions()])
