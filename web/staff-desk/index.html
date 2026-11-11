@@ -493,7 +493,7 @@
   });
   $("robotHome").addEventListener("click", function () {
     $("robotHome").hidden = true; $("robotHomeOk").hidden = false;
-    $("robotMsg").textContent = "로봇 팔 주변에 사람·물건이 없는지 확인한 뒤 누르세요";
+    $("robotMsg").textContent = "집게의 물건을 먼저 빼고 로봇 팔 주변·복귀 경로를 확인한 뒤 누르세요";
   });
   $("robotHomeOk").addEventListener("click", async function () {
     $("robotHomeOk").disabled = true; $("robotMsg").textContent = "원점 복귀 중…";
