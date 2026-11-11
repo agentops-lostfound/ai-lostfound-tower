@@ -226,3 +226,30 @@ def station_name(machine_id=None, item_id=None) -> str:
 def public_card(features: dict) -> dict:
     """후보 카드에 보여도 되는 값만 남긴다(비공개 특징 제거)."""
     return {k: v for k, v in features.items() if k not in PRIVATE_FIELDS}
+
+
+# 11/11 실물 시험: 아이폰 목업 뒤 사과 로고 — 분실인은 "사과"라고 답하고 Qwen 은 영어("apple logo")로 적어 확인 질문이 '글자 틀림'이 됐다.
+# 로고·글자를 비교할 때 같은 뜻의 말을 한 묶음으로 본다(한국어·영어·흔한 별칭). 묶음 이름은 영어 소문자 — 저장 값은 바꾸지 않는다
+LOGO_ALIASES = {
+    "apple": ["apple", "애플", "사과"],          # '아이폰'·'갤럭시'는 넣지 않음 — 품목 이름이라 누구나 말할 수 있어 확인 질문이 쉬워짐
+    "samsung": ["samsung", "삼성"],
+    "lg": ["lg", "엘지"],
+    "xiaomi": ["xiaomi", "샤오미", "mi"],
+    "anker": ["anker", "앤커"],
+    "star": ["star", "별"],
+    "heart": ["heart", "하트"],
+}
+_ALIAS_OF = {w: k for k, ws in LOGO_ALIASES.items() for w in ws}
+
+
+def logo_tokens(text) -> set[str]:
+    """로고·글자 비교용 낱말 묶음: 소문자 낱말 → 같은 뜻 묶음 이름(LOGO_ALIASES). 'logo'·'로고'·'sticker'·'스티커'·'글자'는 뺀다"""
+    import re as _re
+    words = set(_re.findall(r"[0-9a-z가-힣]+", str(text or "").lower()))
+    words -= {"logo", "로고", "sticker", "스티커", "글자", "마크", "mark", "printed", "text"}
+    out = set()
+    for w in words:
+        hit = _ALIAS_OF.get(w) or next((k for a, k in _ALIAS_OF.items() if len(a) >= 2 and not a.isascii() and w.startswith(a)), None)
+        out.add(hit or w)                          # "사과로고"·"애플이요"처럼 조사가 붙어도 앞부분으로 찾는다
+    return out
+

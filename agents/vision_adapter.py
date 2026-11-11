@@ -10,6 +10,8 @@
 """
 from __future__ import annotations
 
+import re
+
 import json
 import math
 import time
@@ -52,6 +54,14 @@ def to_features(qwen: dict | None, confidence: float) -> dict:
     else:
         mark = UNKNOWN
     texts = [t for t in qwen.get("logos_or_text") or [] if isinstance(t, str) and t.strip()]
+    # 11/11 실물 시험: 아이폰 목업 뒤 사과 로고를 Qwen 은 글자가 아니라 특징("apple logo on back")으로 적는다(프롬프트: 상표 추측 금지).
+    #   특징 문장에 '…logo' 가 있으면 그 말을 글자 칸에도 남겨 확인 질문(글자·로고)에 쓰이게 한다 — 새로 지어내지 않고 Qwen 이 쓴 말만
+    for d in qwen.get("distinctive_features") or []:
+        if isinstance(d, str) and re.search(r"\blogo\b", d, re.I):
+            m = re.search(r"([A-Za-z][A-Za-z0-9-]{1,15}(?:[- ][A-Za-z][A-Za-z0-9]{1,15})?)[- ]?(?:shaped )?logo", d, re.I)
+            if m and m.group(1).lower() not in ("a", "the", "small", "white", "black", "silver", "gray", "grey"):
+                texts.append(m.group(1).lower() + " logo")
+    texts = list(dict.fromkeys(texts))
     materials = [m for m in qwen.get("materials") or [] if isinstance(m, str) and m.strip()]
     return {"category": CATEGORY.get(qwen.get("category"), UNKNOWN),
             "color": _color(qwen.get("colors") or []),

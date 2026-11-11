@@ -27,7 +27,7 @@ import uuid
 from datetime import date
 
 from agents.claims import ClaimError, MemoryClaimStore, has_pii
-from agents.contracts import (DECISION_RETURNED, HANDOVER_DONE, NONE, SHOW_KO, UNKNOWN, active_category_text,
+from agents.contracts import (DECISION_RETURNED, logo_tokens, HANDOVER_DONE, NONE, SHOW_KO, UNKNOWN, active_category_text,
                               inactive_category_message, is_active_category, public_card, show_ko)
 from agents.live import LiveBoard
 from agents.service import Conflict, NotFound, RequestError, TowerService, Unavailable
@@ -45,7 +45,7 @@ UNKNOWN_ANSWER = re.compile(r"(모름|몰라요?|모르겠어요?|잘\s*모르�
 PLACE_UNKNOWN_SAY = re.compile(r"(어디|어느\s*역|장소|역)[^.?!]{0,12}(모르|몰라|기억\s*(?:이|은)?\s*안)")
 TO_FOUND = "주운 물건이면 '습득 신고'를 눌러 주세요 — 분실 신고는 잃어버린 물건을 찾을 때 써요"
 CANDIDATE_STATUSES = ("등록기계 보관", "회수 중", "본센터 보관")
-QUIZ_KO = {"place": "장소", "color": "색", "visible_text": "글자", "mark": "표시", "shape": "모양"}
+QUIZ_KO = {"place": "장소", "color": "색", "visible_text": "글자·로고", "mark": "표시", "shape": "모양"}
 QUIZ_QUESTIONS = {"place": "어느 역에서 잃어버리셨나요? (초량·중앙·부산역, 기억나지 않으면 '모름')", "color": "물건 색이 무엇인가요?",
                   "visible_text": "물건에 적힌 글자(로고)가 있다면 무엇인가요?",
                   "mark": "물건에 붙은 스티커나 표시가 있다면 어떤 모양인가요?"}
@@ -82,9 +82,8 @@ def _far_color(a, b) -> bool:
 
 
 def _same_text(a: str, b: str) -> bool:
-    wa, wb = (set(re.findall(r"[0-9a-z가-힣]+", (s or "").lower())) for s in (a, b))
-    wa.discard("sticker"), wb.discard("sticker")
-    return bool(wa & wb)
+    """글자·로고·스티커 답 비교: 겹치는 낱말이 하나라도 있으면 같음. 11/11 '사과'↔'apple logo'처럼 같은 뜻 말은 한 묶음(contracts.LOGO_ALIASES)"""
+    return bool(logo_tokens(a) & logo_tokens(b))
 
 
 # 화면·메시지용 한국어(저장 값은 Qwen 원문 그대로 — 진짜 Qwen 결과와 같게)
