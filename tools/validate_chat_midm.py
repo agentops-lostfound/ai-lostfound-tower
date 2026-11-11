@@ -42,8 +42,15 @@ def main(argv=None):
     from agents import local_model
     from agents import chat_supervisor
     from agents import prompts
+    from agents.chat_agents import AgentBrain
     original_request, original_decide = local_model.ask_local_model, chat_supervisor.decide
-    calls, audits, audit_examples = [], Counter(), []
+    original_plan = AgentBrain.plan_contract
+    calls, audits, audit_examples, planner_checks = [], Counter(), [], Counter()
+
+    def plan_contract(brain, *a, **kw):
+        decision = original_plan(brain, *a, **kw)
+        planner_checks[decision.audit['validation'] + ':' + decision.audit['reason']] += 1
+        return decision
 
     def request(payload, *a, **kw):
         props = (payload.get('format') or {}).get('properties', {}) if isinstance(payload.get('format'), dict) else {}
@@ -88,6 +95,8 @@ def main(argv=None):
                      'agents/chat_api.py', 'agents/chat_intake.py', 'agents/chat_find_auth.py',
                      'agents/chat_postgres_access.py', 'agents/chat_session_issuer.py',
                      'agents/chat_identity_evidence.py', 'agents/chat_operations.py')}
+    for name in ('agents/chat_planner.py', 'tools/validate_chat_midm.py', 'evaluation/chat_eval.py'):
+        report['meta']['source_sha256'][name] = hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}',
                                                           'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -96,6 +105,7 @@ def main(argv=None):
     started = time.perf_counter()
     with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, env, clear=True), \
          mock.patch.object(local_model, 'ask_local_model', request), mock.patch.object(chat_supervisor, 'decide', decide), \
+         mock.patch.object(AgentBrain, 'plan_contract', plan_contract), \
          prompts.usage_scope():
         os.environ['TOWER_CHAT_DEMO_DB'] = str(Path(tmp) / 'demo.sqlite3')
         from tools.chat_live_check import installed_models, model_ready, model_probe
@@ -143,6 +153,7 @@ def main(argv=None):
                 # 긴 실행 중에도 완료된 문항과 실제 호출 증거를 보존한다.
                 report['model_calls'] = calls
                 report['supervisor_checks'] = dict(audits)
+                report['planner_checks'] = dict(planner_checks)
                 report['supervisor_rejection_examples'] = audit_examples
                 report['meta']['prompt_usage'] = prompts.loaded_versions()
                 report['meta']['prompt_provenance'] = prompts.usage_summary()
@@ -153,6 +164,7 @@ def main(argv=None):
                              'median_seconds': statistics.median(seconds) if seconds else None,
                              'p95_seconds': sorted(seconds)[max(0, int(len(seconds) * .95) - 1)] if seconds else None}
         report['model_calls'], report['supervisor_checks'] = calls, dict(audits)
+        report['planner_checks'] = dict(planner_checks)
         report['supervisor_rejection_examples'] = audit_examples
         report['meta']['prompt_usage'] = prompts.loaded_versions()
         report['meta']['prompt_provenance'] = prompts.usage_summary()

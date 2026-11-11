@@ -201,6 +201,8 @@ def main(argv=None):
                     'evaluation/chat_eval.py', 'tools/chat_live_check.py', 'tools/validate_chat_datasets.py')
     report['meta']['source_sha256'] = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
                                       for name in source_names if (ROOT / name).is_file()}
+    for name in ('agents/chat_planner.py', 'agents/chat_agents.py'):
+        report['meta']['source_sha256'][name] = hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}',
             'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()

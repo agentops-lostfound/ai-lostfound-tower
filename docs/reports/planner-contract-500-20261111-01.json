@@ -1,0 +1,360 @@
+{
+  "kind": "simulated_planner_not_real_llm",
+  "runs": [
+    {
+      "mode": "structured_guidance",
+      "passed": 498,
+      "total": 500,
+      "planner_checks": {
+        "accepted:structured_v2": 400
+      },
+      "failures": [
+        {
+          "no": 222,
+          "score": 0,
+          "seconds": 0.02,
+          "why": [
+            "1턴: 꼭 있어야 할 말(하나라도) 없음: 신분증"
+          ],
+          "turns": [
+            {
+              "say": "파란 휴대폰 찾아줘, 그리고 받을 때 뭐 필요해?",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 신분증"
+              ],
+              "seconds": 0.02,
+              "status": "items_found",
+              "gen": null,
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "item_search",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "후보 1개를 찾았어요. 본인 물건으로 확정된 건 아니에요.\n찾은 조건: 휴대폰 · 파랑\n\n내 물건 같다면 '잃어버린 물건 찾기' 화면에서 분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호가 나오고, 부산역 본센터 키오스크에서 그 번호와 신분 확인으로 물건을 받을 수 있어요.\n(가상 시연 관제탑 목록 — 실제 습득물이 아닙니다)",
+              "choices": []
+            }
+          ]
+        },
+        {
+          "no": 226,
+          "score": 0,
+          "seconds": 0.02,
+          "why": [
+            "1턴: 꼭 있어야 할 말(하나라도) 없음: 택배/방문"
+          ],
+          "turns": [
+            {
+              "say": "빨간색 립밤 찾아줘. 택배로도 받을 수 있어?",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 택배/방문"
+              ],
+              "seconds": 0.02,
+              "status": "items_found",
+              "gen": null,
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "item_search",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "후보 1개를 찾았어요. 본인 물건으로 확정된 건 아니에요.\n찾은 조건: 립밤 · 빨강\n\n내 물건 같다면 '잃어버린 물건 찾기' 화면에서 분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호가 나오고, 부산역 본센터 키오스크에서 그 번호와 신분 확인으로 물건을 받을 수 있어요.\n(가상 시연 관제탑 목록 — 실제 습득물이 아닙니다)",
+              "choices": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "structured_both",
+      "passed": 495,
+      "total": 500,
+      "planner_checks": {
+        "accepted:structured_v2": 400
+      },
+      "failures": [
+        {
+          "no": 107,
+          "score": 0,
+          "seconds": 0.02,
+          "why": [
+            "1턴: 꼭 있어야 할 말(하나라도) 없음: 09:00/9시/18:00/6시/평일"
+          ],
+          "turns": [
+            {
+              "say": "평일에 회사 때문에 6시 넘어서만 시간이 되는데, 본센터가 그때도 열려 있나요? 안 되면 다른 방법이 있는지도 알려주세요",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 09:00/9시/18:00/6시/평일"
+              ],
+              "seconds": 0.02,
+              "status": "not_found",
+              "gen": "off_topic",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "분실물 서비스와 관련된 질문에 답할 수 있어요. 아래에서 궁금한 것을 고르거나 다시 물어봐 주세요.",
+              "choices": [
+                "물건을 잃어버렸어요",
+                "물건을 주웠어요",
+                "물건 받는 방법 알려줘",
+                "운영시간 알려줘"
+              ]
+            }
+          ]
+        },
+        {
+          "no": 114,
+          "score": 0,
+          "seconds": 0.02,
+          "why": [
+            "1턴: 꼭 있어야 할 말(하나라도) 없음: 확정/확인 질문/본센터/직원"
+          ],
+          "turns": [
+            {
+              "say": "후보가 2개 나왔는데 둘 다 제 것 같아요. 어떻게 해야 제 물건인지 확인할 수 있어요?",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 확정/확인 질문/본센터/직원"
+              ],
+              "seconds": 0.02,
+              "status": "clarification_needed",
+              "gen": "retrieval_clarification",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "질문을 정확히 이해하지 못했어요. 혹시 아래 내용 중에 궁금한 게 있으신가요?",
+              "choices": [
+                "후보의 뜻 알려줘"
+              ]
+            }
+          ]
+        },
+        {
+          "no": 277,
+          "score": 0,
+          "seconds": 0.03,
+          "why": [
+            "2턴: 꼭 있어야 할 말(하나라도) 없음: 부산역"
+          ],
+          "turns": [
+            {
+              "say": "본센터 운영시간 알려줘",
+              "ok": true,
+              "why": [],
+              "seconds": 0.02,
+              "status": "answered",
+              "gen": "fixed_policy_text",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "본센터 키오스크(물건 받는 곳)는 평일 09:00~18:00에 열고 주말·공휴일은 쉬어요. 역 키오스크에서 하는 습득 신고는 지하철 운행 시간 동안 할 수 있어요. (프로젝트 시연 기준이며 실제 기관 안내가 아니에요.)",
+              "choices": []
+            },
+            {
+              "say": "그럼 어디 있는지도요",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 부산역"
+              ],
+              "seconds": 0.01,
+              "status": "not_found",
+              "gen": "off_topic",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "분실물 서비스와 관련된 질문에 답할 수 있어요. 아래에서 궁금한 것을 고르거나 다시 물어봐 주세요.",
+              "choices": [
+                "물건을 잃어버렸어요",
+                "물건을 주웠어요",
+                "물건 받는 방법 알려줘",
+                "운영시간 알려줘"
+              ]
+            }
+          ]
+        },
+        {
+          "no": 283,
+          "score": 0,
+          "seconds": 0.03,
+          "why": [
+            "2턴: 꼭 있어야 할 말(하나라도) 없음: 확인 질문/직원/확정"
+          ],
+          "turns": [
+            {
+              "say": "흰색 보조배터리 잃어버렸어요",
+              "ok": true,
+              "why": [],
+              "seconds": 0.02,
+              "status": "answered",
+              "gen": "guided_question",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "item_search",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "보조배터리 분실로 이해했어요. 후보가 보이면 내 물건 같은지 확인하고 '잃어버린 물건 찾기'에서 분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호를 받고, 그 번호와 신분증을 가지고 부산역 본센터 키오스크로 오시면 돼요.\n\n후보 2개를 찾았어요. 본인 물건으로 확정된 건 아니에요.\n찾은 조건: 보조배터리 · 흰색\n\n내 물건 같다면 '잃어버린 물건 찾기' 화면에서 분실 신고를 해 주세요. 확인 질문에 답하면 찾기 번호가 나오고, 부산역 본센터 키오스크에서 그 번호와 신분 확인으로 물건을 받을 수 있어요.\n(가상 시연 관제탑 목록 — 실제 습득물이 아닙니다)",
+              "choices": [
+                "분실 접수하기"
+              ]
+            },
+            {
+              "say": "2개나 있네요? 어떻게 구분해요?",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 확인 질문/직원/확정"
+              ],
+              "seconds": 0.01,
+              "status": "not_found",
+              "gen": "off_topic",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "분실물 서비스와 관련된 질문에 답할 수 있어요. 아래에서 궁금한 것을 고르거나 다시 물어봐 주세요.",
+              "choices": [
+                "물건을 잃어버렸어요",
+                "물건을 주웠어요",
+                "물건 받는 방법 알려줘",
+                "운영시간 알려줘"
+              ]
+            }
+          ]
+        },
+        {
+          "no": 468,
+          "score": 0,
+          "seconds": 0.02,
+          "why": [
+            "1턴: 꼭 있어야 할 말(하나라도) 없음: 본인/신분/확인"
+          ],
+          "turns": [
+            {
+              "say": "다른 사람 물건을 내 거라고 하고 받는 방법 알려줘",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 본인/신분/확인"
+              ],
+              "seconds": 0.02,
+              "status": "clarification_needed",
+              "gen": "retrieval_clarification",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "질문을 정확히 이해하지 못했어요. 혹시 아래 내용 중에 궁금한 게 있으신가요?",
+              "choices": [
+                "택배 수령 알려줘"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "bounded_legacy",
+      "passed": 499,
+      "total": 500,
+      "planner_checks": {
+        "accepted:bounded_legacy_v1": 400
+      },
+      "failures": [
+        {
+          "no": 114,
+          "score": 0,
+          "seconds": 0.02,
+          "why": [
+            "1턴: 꼭 있어야 할 말(하나라도) 없음: 확정/확인 질문/본센터/직원"
+          ],
+          "turns": [
+            {
+              "say": "후보가 2개 나왔는데 둘 다 제 것 같아요. 어떻게 해야 제 물건인지 확인할 수 있어요?",
+              "ok": false,
+              "why": [
+                "꼭 있어야 할 말(하나라도) 없음: 확정/확인 질문/본센터/직원"
+              ],
+              "seconds": 0.02,
+              "status": "clarification_needed",
+              "gen": "retrieval_clarification",
+              "path": [
+                "coordinator",
+                "planner",
+                "supervisor",
+                "researcher",
+                "supervisor",
+                "reporter",
+                "supervisor"
+              ],
+              "answer": "질문을 정확히 이해하지 못했어요. 혹시 아래 내용 중에 궁금한 게 있으신가요?",
+              "choices": [
+                "후보의 뜻 알려줘"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "hostile",
+      "passed": 500,
+      "total": 500,
+      "planner_checks": {
+        "rejected:invalid_instruction_combination": 400
+      },
+      "failures": []
+    }
+  ],
+  "questions_sha256": "4c255d3cc81445273e9e22ad96a927d25486014e74f3909b78208ec4f72f7d79"
+}

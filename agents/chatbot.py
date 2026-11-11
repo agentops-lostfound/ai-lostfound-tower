@@ -57,6 +57,7 @@ class ChatState(TypedDict, total=False):
     work_question: str   # 섞인 질문에서 이 일꾼 몫만 떼어 낸 말(없으면 원래 질문)
     worker_executions: int  # 결과 종류 수가 아닌 실제 업무 일꾼 호출 횟수(reporter 제외)
     supervisor_checks: list  # 모델 제안 → 코드 수락/거절 → 실제 선택(민감값 제외)
+    planner_check: dict     # 검증된 읽기 작업·입력 참조의 계약 판정(모델 원문 없음)
 
 
 # 계획 이름(planner·supervisor 가 쓰는 짧은 이름) → 그래프 칸(에이전트) 이름. Langfuse 나무의 칸 이름과 같게 보여 준다
@@ -226,7 +227,8 @@ class Chatbot:
     def _planner(self, state):
         from agents.observability import node_step
         with node_step('planner', as_type='agent', input={'question': state['question']}) as obs:
-            validation_notes, proposed_plan = [], None
+            validation_notes, proposed_plan, model_instructions = [], None, {}
+            planner_check = {'validation': 'not_requested', 'reason': 'rule_path'}
             if state.get('ops_turn'):
                 plan, routing = ['ops'], 'rule'
             elif state.get('intent') == 'intake':
@@ -239,7 +241,15 @@ class Chatbot:
                 if self.brain is not None:
                     sig = self._signals(state)
                     must = [w for w in ('item_search', 'guidance') if sig[w]]
-                    got = self.brain.plan(state['question'], state.get('questions'), must)
+                    if callable(getattr(self.brain, 'plan_contract', None)):
+                        decision = self.brain.plan_contract(state['question'], state.get('questions'), must)
+                        got = list(decision.workers) if decision.instructions else None
+                        planner_check = decision.audit
+                        model_instructions = {step.worker: step for step in decision.instructions}
+                    else:
+                        got = self.brain.plan(state['question'], state.get('questions'), must)
+                        planner_check = {'validation': 'accepted' if got else 'rejected',
+                                         'reason': 'internal_legacy_adapter'}
                     proposed_plan = [w for w in (got or []) if w in ('guidance', 'item_search')]
                     from agents.guidance import off_topic
                     if got and 'item_search' in got and off_topic(state['question']):
@@ -256,20 +266,36 @@ class Chatbot:
                             validation_notes.append('search_requires_request_and_item')
                     if got:
                         plan, routing = got, 'model'
-            steps = [self._step(i + 1, w, {**state, '_plan_now': plan}, 'planner') for i, w in enumerate(plan)]
+            steps = [self._step(i + 1, w, {**state, '_plan_now': plan}, 'planner',
+                                instruction=model_instructions.get(w)) for i, w in enumerate(plan)]
             obs.update(output={'plan': plan, 'proposed_plan': proposed_plan, 'validation_notes': validation_notes,
-                               'routing': routing, 'steps': [f"{x['no']}. {x['agent']} — {x['task']}" for x in steps]})
+                               'routing': routing, 'steps': [f"{x['no']}. {x['agent']} — {x['task']}" for x in steps],
+                               'proposal_check': planner_check})
             return {'plan': plan, 'steps': steps, 'results': {}, 'path': state.get('path', []) + ['planner'], 'decisions': [], 'offers': [],
                     'last': '', 'stop': False, 'task': '', 'worker_executions': 0, 'supervisor_checks': [],
+                    'planner_check': planner_check,
                     'routing': 'model' if routing == 'model' or state.get('routing') == 'model' else 'rule'}
 
     MAX_STEPS = 6       # 일꾼 호출 상한(다시 계획이 되풀이되지 않게)
 
-    def _step(self, no, name, state, by, note=''):
+    def _step(self, no, name, state, by, note='', instruction=None):
         """계획 한 단계 = {번호, 맡을 에이전트, 지시(task), 상태, 누가 정했나}. 지시는 질문에서 규칙이 읽은 값으로 구체적으로 적는다"""
         q = state.get('question') or ''
         both = {'guidance', 'item_search'} <= set(state.get('plan') or []) or (by == 'planner' and {'guidance', 'item_search'} <= set(state.get('_plan_now') or []))
-        part = sub_question(q, name) if both and name in ('guidance', 'item_search') else q
+        from agents.chat_planner import WorkInstruction, instruction_for, parse_proposal
+        if name in ('guidance', 'item_search'):
+            try:
+                if type(instruction) is not WorkInstruction or instruction.worker != name:
+                    raise ValueError('invalid_instruction')
+                parse_proposal({'version': 2, 'steps': [instruction.public_contract()]})
+                if instruction.input_ref != instruction_for(name, both).input_ref:
+                    raise ValueError('input_scope_does_not_match_final_plan')
+            except ValueError:
+                instruction = instruction_for(name, both)
+        else:
+            instruction = None
+        scoped = instruction is not None and instruction.input_ref in ('guidance_part', 'search_part')
+        part = sub_question(q, name) if scoped else q
         if name == 'item_search':
             from agents.lost_input import text_features
             f, _ = text_features(part)
@@ -288,6 +314,7 @@ class Chatbot:
         else:
             task = '관제 기록 분석 보고(읽기 전용, 숫자는 기록에서만)'
         return {'no': no, 'agent': STEP_AGENT.get(name, name), 'plan_name': name, 'task': task, 'status': 'todo', 'by': by,
+                **({'instruction': instruction.public_contract()} if instruction else {}),
                 **({'input': part} if part != q else {}),
                 **({'note': note} if note else {})}
 
