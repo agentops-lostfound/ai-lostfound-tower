@@ -38,7 +38,7 @@ BENCH_MM = (560.0, 620.0)
 BIN_MM = (0.0, 240.0, 500.0, 490.0)                   # 보관판 x1, y1, x2, y2
 SLOT_IDS = ["R1-1", "R1-2", "R2-1", "R2-2", "R3-1", "R3-2", "R4-1", "R4-2"]
 _ROW_X = {"R1": 70.0, "R2": 205.0, "R3": 325.0, "R4": 445.0}
-_SLOT_Y = {"1": 420.0, "2": 310.0}                    # 1 = 로봇 쪽(가까움), 2 = 먼 쪽
+_SLOT_Y = {"1": 310.0, "2": 420.0}                    # 11/11 실물 확인: 1 = 먼 쪽(탑뷰 위), 2 = 로봇 쪽(아래)
 SLOTS_MM = [(_ROW_X[sid[:2]], _SLOT_Y[sid[3]]) for sid in SLOT_IDS]   # 보관 칸 8개(순서 = SLOT_IDS)
 # 11/9 실제 규격(사용자 실측): 보관판 500×250, 테두리 마킹테이프 15mm. 로봇 쪽 아래에 15mm 덧댄 띠(받침 앞 돌출부 두 개 폭)로 가운데 맞춤.
 # 제출보관함 H-1(200×200, 테두리 테이프)은 보관판 위쪽 가운데에 딱 붙임
@@ -561,7 +561,7 @@ class SimWorld:
 
     def free_slot(self, category: str | None = None, item_id: str | None = None, res: dict | None = None) -> int | None:
         """빈 칸 고르기(보관함 정답지 recommend_slot 과 같은 규칙, 11/9): 그 품목을 받는 행(또는 제한 없는 행)의 빈 칸 중
-        로봇에 가까운 칸(1번 줄)부터. 품목이 다른 열(R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑)은 섞지 않는다 → 맞는 칸이 없으면 None(칸 대기·선반).
+        1번 칸(먼 줄)부터. 품목이 다른 열(R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑)은 섞지 않는다 → 맞는 칸이 없으면 None(칸 대기·선반).
         품목을 모르면(시연 부품) 아무 빈 칸. 정답지가 이미 예약한 칸(반환 중·보류 물건의 원래 칸)은 비어 보여도 쓰지 않는다"""
         used = self._taken(item_id, self._reserved() if res is None else res)
         free = sorted((i for i in range(len(SLOTS_MM)) if i not in used),

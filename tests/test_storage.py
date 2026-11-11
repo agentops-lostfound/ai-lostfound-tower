@@ -195,7 +195,7 @@ class PhoneRowAndShelfTest(unittest.TestCase):
             self.s.assign("A-W21", "R1-1", override_category=False)          # 지갑을 R1 에
 
     def test_each_column_takes_its_category_near_robot_first(self):
-        """11/9(015·016): 열마다 품목 하나 — R4 카드지갑 · R2 보조배터리 · R3 핸드크림(USB 는 운영 품목 아님). 로봇 쪽(1번) 칸 먼저"""
+        """11/9(015·016): 열마다 품목 하나 — R4 카드지갑 · R2 보조배터리 · R3 핸드크림(USB 는 운영 품목 아님). 1번 칸(먼 줄) 먼저"""
         rec = self.recommend(self.s.layout(), "지갑")
         self.assertEqual((rec["slot_id"], rec["other_row"]), ("R4-1", False))
         self.s.assign("A-W21", "R4-1")
