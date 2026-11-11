@@ -280,16 +280,18 @@ def _backend(cap) -> str:
         return "?"
 
 
-def try_props(cam, text: str, opener=None, settle: int = SETTLE_FRAMES) -> dict:
+def try_props(cam, text: str, opener=None, settle: int = SETTLE_FRAMES, mjpg: bool | None = None) -> dict:
     """영상 설정을 OpenCV 로 넣어 보고(관제탑과 같은 방식) 읽은 값·날아간 점 % 를 돌려준다 — 끝나면 원래 값으로 되돌림.
     11/11 교육원: 처음 연 카메라가 까만 영상만 줌 → 관제탑(CameraFeed)처럼 압축 형식(MJPG)을 빼고 다시 열어 한 번 더"""
     from agents.kiosk_camera import _open, apply_props, fit, is_dark, parse_props
     props = parse_props(text)
     if not props:
         raise SystemExit(f"설정을 읽을 수 없음: {text!r} (예: CONTRAST=200)")
-    tries = [lambda: (opener or _open)(cam)]
+    from agents.kiosk_camera import mjpg_default
+    first = mjpg_default() if mjpg is None else mjpg
+    tries = [lambda: (opener(cam) if opener else _open(cam, mjpg=first))]
     if opener is None:
-        tries.append(lambda: _open(cam, mjpg=False))
+        tries.append(lambda: _open(cam, mjpg=not first))
     out: dict = {}
     for n_try, op in enumerate(tries, 1):
         cap = op()
@@ -310,7 +312,7 @@ def try_props(cam, text: str, opener=None, settle: int = SETTLE_FRAMES) -> dict:
                 time.sleep(0.03)
             m = measure(fit(frame)[0]) if frame is not None else None
             apply_props(cap, {k: before[k] for k in props if before.get(k) not in (None, -1.0)})   # 되돌림
-            out = {"state": state, "m": m, "backend": _backend(cap), "mjpg": n_try == 1}
+            out = {"state": state, "m": m, "backend": _backend(cap), "mjpg": first if n_try == 1 else not first}
         finally:
             cap.release()
         if out.get("m") is not None:
@@ -327,6 +329,7 @@ def main(argv=None) -> int:
     ap.add_argument("--exposure", default="auto", help="화이트밸런스 시험 중 쓸 노출 값(먼저 고른 값, 기본 auto)")
     ap.add_argument("--props", action="store_true", help="이 웹캠이 받아들이는 설정 목록만 보고 끝")
     ap.add_argument("--dialog", action="store_true", help="웹캠 드라이버 설정 창 + 미리보기(날아간 점 % 실시간)")
+    ap.add_argument("--no-mjpg", action="store_true", help="--try 를 압축 형식(MJPG) 없이 열어 시험(.env TOWER_KIOSK_MJPG=0 과 같음)")
     ap.add_argument("--try", dest="try_", default="", help="영상 설정을 OpenCV 로 넣어 확인(예: CONTRAST=200) — .env TOWER_KIOSK_CAMPROPS 값 확인용")
     a = ap.parse_args(argv)
     try:
@@ -340,11 +343,11 @@ def main(argv=None) -> int:
     if a.dialog:
         return dialog(cam)
     if a.try_:
-        r = try_props(cam, a.try_)
+        r = try_props(cam, a.try_, mjpg=False if a.no_mjpg else None)
         if "error" in r:
             print(r["error"])
             return 2
-        print(f"열린 방식: {r.get('backend')} · 압축 형식 MJPG {'켬' if r.get('mjpg') else '끔(까만 영상이라 다시 열었음)'}")
+        print(f"열린 방식: {r.get('backend')} · 압축 형식 MJPG {'켬' if r.get('mjpg') else '끔'}")
         for k, st in (r["state"] or {}).items():
             print(f"{k}: 넣은 값 {st.get('requested'):g} → 카메라가 읽은 값 {st.get('now')}")
         m = r["m"]
@@ -353,7 +356,8 @@ def main(argv=None) -> int:
             return 2
         good = m["clipped"] < CLIP_OK
         print(f"바닥 {m['floor']:.0f} · 날아간 점 {m['clipped'] * 100:.2f}% · 색 치우침 {m['cast'] * 100:.1f}% → "
-              + (f"좋음: .env 에 TOWER_KIOSK_CAMPROPS={a.try_}" if good else "아직 날아감 — 값을 더 낮춰 보기"))
+              + (f"좋음: .env 에 TOWER_KIOSK_CAMPROPS={a.try_}" + (" 와 TOWER_KIOSK_MJPG=0" if not r.get("mjpg") else "") if good
+                 else "아직 날아감 — " + ("--no-mjpg 를 붙여 다시(MJPG 에서는 설정이 영상에 안 먹는 웹캠이 있음)" if r.get("mjpg") else "값을 더 낮춰 보기")))
         return 0
     out = ROOT / "data" / "exposure_check"
     if a.wb:

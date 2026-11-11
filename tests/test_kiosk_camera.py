@@ -553,6 +553,20 @@ class ExposureTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             ce.try_props(0, "EXPOSURE=-6", opener=lambda src: _ExpCam(), settle=2)
 
+    def test_mjpg_switch(self):
+        from agents.kiosk_camera import mjpg_default
+        old = os.environ.get("TOWER_KIOSK_MJPG")
+        try:
+            os.environ.pop("TOWER_KIOSK_MJPG", None)
+            self.assertTrue(mjpg_default())
+            os.environ["TOWER_KIOSK_MJPG"] = "0"
+            self.assertFalse(mjpg_default())
+        finally:
+            if old is None:
+                os.environ.pop("TOWER_KIOSK_MJPG", None)
+            else:
+                os.environ["TOWER_KIOSK_MJPG"] = old
+
     def test_tool_reports_closed_camera(self):
         import tempfile
         from tools import camera_exposure as ce
