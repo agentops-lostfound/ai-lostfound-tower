@@ -250,7 +250,13 @@ class KioskPageTest(unittest.TestCase):
         self.assertNotIn("new Image()", html.split("function serverOpen")[1].split("function serverStop")[0])
         for s in ("X-Frame-Seq", "X-Frame-Dark", "PC 카메라 다시 연결 중", "serverWarn('down')"):
             self.assertIn(s, html)
-        self.assertIn("!DEMO && !SERVER_CAM && window.isSecureContext === false", html)   # 서버 카메라는 https 없이도
+        self.assertIn("!DEMO && !SERVER_CAM && window.isSecureContext === false", html)
+        # 11/11 2차: 서버 카메라는 보이는 캔버스에 바로 그림 — captureStream → <video> 단계가 멈추면 사진이 와도 까맸다
+        srv = html.split("function serverOpen")[1].split("function serverStop")[0]
+        self.assertNotIn("captureStream", srv)
+        self.assertIn('<canvas id="camCanvas" hidden>', html)
+        self.assertIn("function camEl() { return SERVER_CAM ? $('#camCanvas') : $('#cam'); }", html)
+        self.assertIn("const v = camEl(); if (!camReady()) return null;", html)            # 자동 감지도 캔버스를 읽음   # 서버 카메라는 https 없이도
 
 
 

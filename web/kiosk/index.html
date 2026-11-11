@@ -105,7 +105,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .card b{display:block;font-size:21px;margin-bottom:2px;color:var(--ui-text)}
 /* 11/8 자동 촬영을 눈에 보이게: 촬영 무대(카메라 화면 + 가운데 틀 + 상태 칩 + 3·2·1 원 + 찰칵 번쩍임) */
 .stage{position:relative;width:100%;aspect-ratio:4/3;max-height:40vh;border-radius:20px;overflow:hidden;background:var(--ui-fill)}
-.stage video,#cam{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0}
+.stage video,#cam,#camCanvas{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0}
 .stage .frame{position:absolute;inset:16% 20%;border:3px dashed color-mix(in srgb,var(--ui-surface) 80%,transparent);border-radius:16px;transition:border-color .2s}
 .stage[data-phase="hand"] .frame{border-color:var(--ui-warn)}
 .stage[data-phase="count"] .frame,.stage[data-phase="shot"] .frame{border-style:solid;border-color:var(--ui-ok)}
@@ -338,6 +338,7 @@ body.demo-mode #stn{flex:1 1 auto}
       <div class="camwrap">
         <div class="stage" id="stage" data-phase="find">
           <video id="cam" playsinline muted hidden></video>
+          <canvas id="camCanvas" hidden></canvas>   <!-- 11/11 서버 카메라는 받은 사진을 이 캔버스에 바로 그림(영상 요소를 거치지 않음) -->
           <span class="frame" aria-hidden="true"></span>
           <span class="camchip" id="camChip" data-state="find"><i aria-hidden="true"></i><span id="camChipText">카메라 찾는 중</span></span>
           <div class="ring" id="ring" aria-hidden="true">
@@ -524,8 +525,12 @@ let waitSince = 0; const noiseHist = [];   // 11/8 잡음 수준(흔들림 최�
 let againUntil = 0, phase = '', shooting = false;
 const rgbHist = [], avgHist = [], pixNoise = [];   // 11/10 최근 색 화면 · 그 평균 화면 · 잡음 수준(평균 화면끼리 상위 5% 픽셀 차)
 const PHASES = ['place', 'hand', 'count', 'shot'];
+// 11/11 화면에 보이는 카메라 요소: 서버 카메라 = #camCanvas(받은 사진을 바로 그림), 그 밖 = #cam(<video>)
+function camEl() { return SERVER_CAM ? $('#camCanvas') : $('#cam'); }
+function camReady() { return SERVER_CAM ? !!(stream && srvLast) : !!$('#cam').videoWidth; }
+function camSize(el) { return SERVER_CAM ? [el.width, el.height] : [el.videoWidth, el.videoHeight]; }
 function small() {
-  const v = $('#cam'); if (!v.videoWidth) return null;
+  const v = camEl(); if (!camReady()) return null;
   probe = probe || Object.assign(document.createElement('canvas'), {width: AUTO.w, height: AUTO.h});
   const g = probe.getContext('2d', {willReadFrequently: true});
   g.drawImage(v, 0, 0, AUTO.w, AUTO.h);
@@ -748,10 +753,10 @@ function tick() {
   stillSince = 0; capture();
 }
 function capture() {
-  const v = $('#cam');
-  if (!(stream && v.videoWidth)) return;
+  const v = camEl();
+  if (!(stream && camReady())) return;
   shooting = true; shotSince = true; setPhase('shot'); camSay('찰칵! 찍었어요', 'shot');
-  const c = $('#cv'); c.width = v.videoWidth; c.height = v.videoHeight;
+  const c = $('#cv'); [c.width, c.height] = camSize(v);
   c.getContext('2d').drawImage(v, 0, 0);
   const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
   const gen = camGen;           // 찰칵을 잠깐 보여 준 뒤 다음 단계로(그 사이 탭을 옮기면 버림)
@@ -821,7 +826,7 @@ function camKind(e) {
   return 'nodevice';                              // NotFoundError·OverconstrainedError·mediaDevices 없음
 }
 function camDown(kind) {
-  $('.camwrap').classList.add('down'); $('#camDown').hidden = false; $('#cam').hidden = true;
+  $('.camwrap').classList.add('down'); $('#camDown').hidden = false; $('#cam').hidden = true; $('#camCanvas').hidden = true;
   $('#camCode').textContent = '점검 코드: ' + (CAM_CODE[kind] || kind);
   camChip('down', '카메라 점검 중'); setPhase('down');
   if (kind !== 'insecure' && kind !== 'denied') retryTimer = setTimeout(startCam, CAM.retryMs);
@@ -839,10 +844,14 @@ async function startCam() {
     opening.then(s => { if (gen !== camGen) s.getTracks().forEach(t => t.stop()); }, () => {});   // 늦게 열린 카메라는 바로 끔
     const s = await Promise.race([opening, wait(CAM.openMs).then(() => { throw named('TimeoutError'); })]);
     if (gen !== camGen) return;
-    stream = s; const v = $('#cam'); v.srcObject = s; v.hidden = false; v.play().catch(() => {});
-    for (const t0 = Date.now(); !v.videoWidth; await wait(100)) {
-      if (gen !== camGen) return;
-      if (Date.now() - t0 > CAM.frameMs) throw named('NoFrameError');
+    stream = s; const v = $('#cam');
+    if (SERVER_CAM) { v.hidden = true; $('#camCanvas').hidden = false; }       // 11/11 사진이 오면 바로 보임(영상 요소·자동 재생에 기대지 않음)
+    else {
+      v.srcObject = s; v.hidden = false; v.play().catch(() => {});
+      for (const t0 = Date.now(); !v.videoWidth; await wait(100)) {
+        if (gen !== camGen) return;
+        if (Date.now() - t0 > CAM.frameMs) throw named('NoFrameError');
+      }
     }
     s.getVideoTracks().forEach(t => t.addEventListener('ended', () => { if (gen === camGen) { stopCam(); camDown('lost'); } }));
     camUp(); camChip('ok', DEMO ? '가상 카메라 연결됨' : SERVER_CAM ? 'PC 카메라 연결됨' : '카메라 연결됨');
@@ -860,13 +869,16 @@ function stopCam() {
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = null; $('#cam').srcObject = null; demoStop(); serverStop();
 }
-// ---- 11/9 서버 카메라: PC 영상을 받아 캔버스에 그리고 captureStream 으로 <video> 에 넣음 ----
+// ---- 11/9 서버 카메라: PC 영상을 받아 화면의 캔버스(#camCanvas)에 바로 그림 ----
+// 11/11 2차: 예전엔 캔버스를 captureStream 으로 <video> 에 넣었는데, 그 단계가 멈추면(틀이 가려졌다 보임·자동 재생 거절 등)
+//  사진은 계속 오는데 화면은 까맣게 남았다 → 이제 받은 사진을 보이는 캔버스에 그리고, 감지·찍기도 그 캔버스를 읽는다
 // 11/11 검은 화면 완전 개선: 끝나지 않는 MJPEG(<img>) 대신 사진 한 장씩(.jpg?after=번호)을 이어 받는다.
 //  · 브라우저는 한 주소에 연결을 6개까지만 연다 — 발표 화면(틀 3개)·다른 탭이 MJPEG 를 붙잡으면 새 영상 연결이 줄을 서다 까맣게 남았다
 //  · 끊기면 MJPEG 은 아무 신호 없이 멈췄다 → 이제 요청마다 성공·실패를 알아, 멈추면 '다시 연결 중'을 띄우고 스스로 다시 받는다
 //  · 사진마다 번호·나이·어두움이 붙어 와서, 같은 사진은 다시 그리지 않고 '멈춤'(관제탑 카메라 읽기)·'까맘'(렌즈·조명)을 구별한다
 const SRV = {gapMs: 80, staleMs: 3000, downMs: 12000};
-let srvCanvas = null, srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '';
+const SRV_STREAM = {getTracks: () => [], getVideoTracks: () => []};
+let srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '';
 function serverOpen() {
   const machine = encodeURIComponent(Q.get('machine') || 'KIOSK-A');
   const run = ++srvRun; srvSeq = -1; srvLast = 0; srvNote = '';
@@ -874,9 +886,9 @@ function serverOpen() {
     let opened = false;
     const draw = async (blob) => {
       const bmp = await createImageBitmap(blob);
-      if (!srvCanvas) srvCanvas = Object.assign(document.createElement('canvas'), {width: bmp.width || 960, height: bmp.height || 720});
-      if (srvCanvas.width !== bmp.width || srvCanvas.height !== bmp.height) { srvCanvas.width = bmp.width; srvCanvas.height = bmp.height; }
-      srvCanvas.getContext('2d').drawImage(bmp, 0, 0); bmp.close && bmp.close();
+      const cv = $('#camCanvas');
+      if (cv.width !== bmp.width || cv.height !== bmp.height) { cv.width = bmp.width; cv.height = bmp.height; }
+      cv.getContext('2d').drawImage(bmp, 0, 0); bmp.close && bmp.close();
     };
     const loop = async () => {
       const t0 = Date.now();
@@ -889,10 +901,7 @@ function serverOpen() {
           const seq = Number(r.headers.get('X-Frame-Seq') || 0), age = Number(r.headers.get('X-Frame-Age-Ms') || 0);
           if (seq !== srvSeq) { await draw(await r.blob()); srvSeq = seq; srvLast = Date.now(); }
           serverWarn(r.headers.get('X-Frame-Dark') === '1' ? 'dark' : age > SRV.staleMs ? 'stale' : '');
-          if (!opened) {
-            if (!srvCanvas.captureStream) { reject(named('NotFoundError')); return; }
-            opened = true; resolve(srvCanvas.captureStream(15));
-          }
+          if (!opened && srvLast) { opened = true; resolve(SRV_STREAM); }       // 진짜 영상 줄기는 없음 — stopCam 이 부르는 모양만 맞춤
         } catch (e) {
           if (run !== srvRun) return;
           if (!opened && Date.now() - t0 > CAM.openMs) { reject(named('ServerCamError')); return; }
@@ -1004,7 +1013,7 @@ function gotPhoto(blob) {     // 찍힌 사진(실제 카메라·시연 모드 �
 }
 $('#retake').onclick = () => { go(1); startCam(); };
 // 11/10 자동 촬영이 안 될 때: [지금 찍기] = 감지와 상관없이 지금 화면을 찍는다 · [빈 상자 다시 확인] = 기억을 지우고 지금 상자를 빈 상자로 다시 잡는다
-$('#shotNow').onclick = () => { if (inControl && step === 1 && stream && !shooting && $('#cam').videoWidth) capture(); };
+$('#shotNow').onclick = () => { if (inControl && step === 1 && stream && !shooting && camReady()) capture(); };
 $('#emptyAgain').onclick = () => {
   dropEmpty(); empty = null; trueEmpty = null; adoptAsIs = true; shotSince = false; stillSince = 0; waitSince = 0;
   camSay('상자를 비워 주세요 · 빈 상자를 다시 확인해요', 'wait');
