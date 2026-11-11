@@ -127,8 +127,8 @@ class MemoryStorageTest(unittest.TestCase):
         self.items.db["A-W01"]["status"] = "반환 중"                  # 로봇이 집는 중: 칸은 유지, 내보내기에서는 빠짐
         self.assertNotIn("A-W01", self.s.export()["inventory"])
         self.assertEqual(self.s.layout()["summary"]["used"], 2)
-        self.items.db["A-W01"]["status"] = "인계 대기"                # 제출보관함: 칸 예약 유지(교차 검증이 틀리면 되돌림)
-        self.assertEqual(self.s.layout()["summary"]["used"], 2)
+        self.items.db["A-W01"]["status"] = "인계 대기"                # 11/11(021) 제출보관함에 놓임: 로봇 칸은 바로 빔
+        self.assertEqual(self.s.layout()["summary"]["used"], 1)
         self.items.db["A-W01"]["status"] = "인계 완료"                # 건넴 → 칸 비움
         self.items.db["A-W02"]["status"] = "인계 완료"
         self.assertEqual(self.s.assign("A-W05", "R4-1", override_category=True)["slot_id"], "R4-1")   # 화면 새로고침 없이 바로 넣기

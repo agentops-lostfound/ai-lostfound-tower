@@ -584,7 +584,7 @@ class HandoverTest(unittest.TestCase):
         self.assertEqual([r["case_id"] for r in q], ["X1"])
         self.assertNotIn("mark", q[0]["public"])                     # 목록에는 비공개 특징 없음
         self.assertEqual(self.svc.handover_secret("X1")["secret"]["mark"], "별 모양 스티커")
-        self.assertEqual(self.svc.storage.layout()["summary"]["used"], 1)   # 인계 대기 중에는 칸 예약
+        self.assertEqual(self.svc.storage.layout()["summary"]["used"], 0)   # 11/11(021) 제출보관함에 놓이면 로봇 칸은 바로 빔
         res = self.svc.verify_handover("X1", {"item_match": True, "id_match": True, "feature_match": True})
         self.assertEqual((res["result"], self.status()), ("인계 완료", "인계 완료"))
         self.assertEqual(self.svc.storage.layout()["summary"]["used"], 0)
@@ -593,17 +593,21 @@ class HandoverTest(unittest.TestCase):
         with self.assertRaises(Conflict):                             # 끝난 사례의 정답은 다시 안 보여 줌
             self.svc.handover_secret("X1")
 
-    def test_cross_check_fail_holds_then_restock_to_same_slot(self):
+    def test_cross_check_fail_holds_then_restock_to_free_slot(self):
+        """11/11(021): 제출보관함에 놓이면 로봇 칸 예약이 풀린다 → 보류된 물건은 '칸 배정 필요'에 떠서 직원이 추천 칸에 넣는다"""
         self.svc.storage.assign("A-W01", "R4-1")
         self.svc.storage.set_pose("R4-1", "pose_7")
         self.svc.start_return(ok_payload(case="X2"))
+        self.assertEqual(self.svc.storage.layout()["summary"]["used"], 0)   # 인계 대기 → 칸 빔(팀 DB 는 트리거가 즉시)
         res = self.svc.verify_handover("X2", {"item_match": True, "id_match": False, "feature_match": True})
         self.assertEqual((res["result"], res["reason"]), ("반환 보류", "본인 아님"))
-        self.assertEqual(self.svc.storage.layout()["summary"]["used"], 1)   # 원래 칸 그대로 예약
+        self.assertIn("칸 배정 필요", res["next"])
         with self.assertRaises(RequestError):
             self.svc.restock("X2", {})
         out = self.svc.restock("X2", {"staff_confirmed": True})
-        self.assertEqual((out["status"], out["slot"]), ("본센터 보관", {"slot_id": "R4-1", "pose_name": "pose_7", "staff_shelf": False}))
+        self.assertEqual((out["status"], out["slot"]), ("본센터 보관", None))
+        self.assertIn("A-W01", [r["item_id"] for r in self.svc.storage.unplaced()])     # 보관 화면 '칸 배정 필요'
+        self.svc.storage.assign("A-W01", "R4-1")                                         # 직원이 추천 칸에 넣음
         self.assertEqual(self.svc.storage.export()["inventory"], {"A-W01": {"section": "R4", "slot": "1"}})
         with self.assertRaises(Conflict):                             # 두 번 되돌릴 수 없음
             self.svc.restock("X2", {"staff_confirmed": True})

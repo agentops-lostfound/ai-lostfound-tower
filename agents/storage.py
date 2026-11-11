@@ -34,7 +34,11 @@ from agents.contracts import ITEM_ID_RE, MVP_CATEGORIES, category_label
 # 김건태 run_storage_check.ON_SHELF 와 같음: 이 상태일 때만 보관함 위에 있다고 본다
 ON_SHELF = ("본센터 보관", "확인 중", "승인·수령 예약")
 ARRIVING = ("등록기계 보관", "회수 중")   # 11/6 본센터 도착 처리(place)로 칸에 넣으면서 '본센터 보관'으로 바꿀 수 있는 상태
-RELEASE_STATUSES = ("인계 완료",)   # 11/6: 인계 대기 중에는 칸 예약 유지(교차 검증이 틀리면 원래 칸으로), 011 마이그레이션
+RELEASE_STATUSES = ("인계 완료",)   # 11/6: 모든 자리(보관 칸·직원 보관 선반)를 비우는 상태, 011 마이그레이션
+# 11/11(021): 로봇이 제출보관함에 놓으면(인계 대기) **로봇 보관 칸(kind shelf, R1~R4)** 은 바로 비운다 — 무인 인계에서 실물 칸은
+#   비었는데 예약이 남아 새 물건이 2번 칸으로 가고·다음 물건이 칸 대기가 되고·[물건 받았어요]를 안 누르면 대기 물건이 안 올라왔다.
+#   직원 보관 선반(kind staff, S)은 직원이 꺼내 건넬 때까지(인계 완료) 자리를 남긴다(직원 인계 목록이 'S-1 에서 꺼내세요'를 보임)
+OUTLET_STATUS = "인계 대기"
 CHECK_STATUSES = ("count_match", "count_mismatch", "verification_unavailable", "resolution_mismatch",
                   "invalid_calibration", "section_out_of_frame", "match_held")
 POSE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
@@ -367,11 +371,13 @@ class MemoryStorageStore:
             rows.append({"slot_id": slot_id, "section": s["code"], "slot_no": slot["slot_no"], "item_id": a["item_id"],
                          "status": item.get("status"), "category": item.get("category"),
                          "assigned_at": a["assigned_at"]})
-        # 메모리 저장소는 트리거가 없으니 바구니로 나간 물건은 여기서 칸을 비운다
-        for r in rows:
-            if r["status"] in RELEASE_STATUSES:
-                self._assign.pop(r["slot_id"], None)
-        return [r for r in rows if r["status"] not in RELEASE_STATUSES]
+        # 메모리 저장소는 트리거가 없으니 바구니로 나간 물건은 여기서 칸을 비운다(021 과 같은 규칙)
+        kinds = {s["code"]: s["kind"] for s in self._sections}
+        gone = [r for r in rows if r["status"] in RELEASE_STATUSES
+                or (r["status"] == OUTLET_STATUS and kinds.get(r["section"]) == "shelf")]
+        for r in gone:
+            self._assign.pop(r["slot_id"], None)
+        return [r for r in rows if r not in gone]
 
     def layout(self) -> dict:
         with self._lock:

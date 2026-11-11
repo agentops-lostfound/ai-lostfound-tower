@@ -24,7 +24,7 @@ import threading
 import time
 from datetime import date, datetime, timezone
 
-from agents.contracts import (ACTIVE_STATUSES, HANDOVER_DONE, HANDOVER_HOLD, MACHINE_LETTERS, NONE, STAFF_STOP_REASON,
+from agents.contracts import (ACTIVE_STATUSES, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, MACHINE_LETTERS, NONE, STAFF_STOP_REASON,
                               UNKNOWN, make_item_id, mentions_phone, robot_result, station_name, without_non_phone)
 from agents.intake import DEMO_PLACES, IntakeError, split_features
 from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa: F401 (RESULT_NAME: 문서용)
@@ -528,6 +528,7 @@ class SimWorld:
         cur = self.items.get(item_id)                          # 되돌림(보류→보관)일 때만 정답지를 읽는다 — 보관 화면 '넣기'는
         res = (self._reserved() if status == "본센터 보관" and cur and cur["loc"] in (LOC_STAFF, LOC_BASKET)
                else {})                                        # 정답지 잠금 안에서 이 함수를 부르므로 읽으면 교착(잠금 밖)
+        reslot = None                                          # 11/11 원래 칸 예약이 이미 풀려 새 빈 칸에 넣었으면 정답지에도 알림
         with self._lock:
             row = self.items.get(item_id)
             if row is None:
@@ -538,12 +539,20 @@ class SimWorld:
                 i = SLOT_IDS.index(sid) if sid else self.free_slot(row.get("category"), item_id, res)
                 if i is not None:
                     row["slot"], row["loc"] = i, LOC_BIN
+                    if not sid:
+                        reslot = SLOT_IDS[i]
             if status == HANDOVER_DONE and row["loc"] in (LOC_BASKET, LOC_SHELF):
-                row["loc"] = LOC_HANDED                # 직원이 바구니(또는 직원 보관 선반)에서 꺼내 분실인에게 건넴
+                row["loc"], row["loc_at"] = LOC_HANDED, time.time()   # 직원이 바구니(또는 직원 보관 선반)에서 꺼내 분실인에게 건넴
             elif status == HANDOVER_HOLD and row["loc"] == LOC_BASKET:
-                row["loc"] = LOC_STAFF                 # 직원이 꺼내 따로 보관
+                row["loc"], row["loc_at"] = LOC_STAFF, time.time()    # 직원이 꺼내 따로 보관
             self._touch()
-        if status == HANDOVER_DONE and self.on_freed:   # 11/9 칸 예약이 풀림 → 칸 대기 물건 회수(잠금 밖에서)
+        if reslot and self.on_bin is not None:          # 11/11 반환 보류 → 그때의 빈 칸에 넣음(원래 칸 예약은 인계 대기 때 풀림)
+            try:
+                self.on_bin(item_id, reslot)
+            except Exception:
+                pass
+        # 11/9 칸 예약이 풀림 → 칸 대기 물건 회수(잠금 밖에서). 11/11: 제출보관함에 놓인 때(인계 대기)도 칸이 빔
+        if status in (HANDOVER_DONE, HANDOVER_WAIT) and self.on_freed:
             try:
                 self.on_freed()
             except Exception:
@@ -667,6 +676,7 @@ class SimWorld:
             elif row["loc"] == LOC_BIN and loc != LOC_BIN:
                 row["slot"] = None
             row["loc"] = loc
+            row["loc_at"] = time.time()                         # 11/11 이 자리에 온 때(제출보관함·인계 완료 목록에서 최근 것만 그리려고)
             self._touch()
         if loc == LOC_BIN and self.on_bin:                 # 정답지(보관함 DB)에도 같은 칸으로(잠금 밖에서)
             try:
@@ -701,7 +711,7 @@ class SimWorld:
                               "loc": r["loc"], "category": r.get("category"), "color": r["features"].get("color"),
                               "place_text": r["place_text"], "mm": list(pos) if pos else None,
                               "slot_id": SLOT_IDS[r["slot"]] if pos else None,
-                              "waiting": r["item_id"] in self.wait_queue})
+                              "waiting": r["item_id"] in self.wait_queue, "loc_at": r.get("loc_at")})
             return {"version": self.version, "arm": dict(self.arm), "items": items,
                     "wait_queue": list(self.wait_queue),
                     "bench": {"size_mm": list(BENCH_MM), "bin_mm": list(BIN_MM), "basket_mm": list(BASKET_MM),

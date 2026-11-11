@@ -206,17 +206,18 @@ class DbWatchTest(unittest.TestCase):
             self.assertIn(want, ops)
         self.assertNotIn(ID_MASKED, json.dumps(evs, ensure_ascii=False))
         self.assertEqual(d["item_id"], out["matched_object"])
-        self.assertNotIn(("storage_assignment", "DELETE"), ops)                   # 인계 대기 동안은 칸을 잡아 둠
+        self.assertIn(("storage_assignment", "DELETE"), ops)                      # 11/11(021) 제출보관함에 놓이면 로봇 칸이 바로 빔
+        rel = next(e["db"] for e in evs if e["db"]["table"] == "storage_assignment")
+        self.assertEqual((rel["key"], rel["by"]), (out["matched_object"], "DB 트리거"))
+        self.assertIn("인계 대기", rel["note"])
 
         # 11/11 무인 인계: [물건 받았어요] → 인계 완료 → 보관 칸이 저절로 빔(트리거) 사건이 남는다(화면 item 카드 slot_id '비움')
         mark = self.board.last_seq
         self.svc.sim.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": ID_MASKED})
         evs = db_events(self.board, mark)
         ops = [(e["db"]["table"], e["db"]["op"]) for e in evs]
-        self.assertIn(("storage_assignment", "DELETE"), ops)
-        self.assertGreater(ops.index(("storage_assignment", "DELETE")), ops.index(("item", "UPDATE")))
-        rel = next(e["db"] for e in evs if e["db"]["table"] == "storage_assignment")
-        self.assertEqual((rel["key"], rel["by"]), (d["item_id"], "DB 트리거"))
+        self.assertIn(("item", "UPDATE"), ops)
+        self.assertNotIn(("storage_assignment", "DELETE"), ops)                   # 칸은 제출보관함에 놓일 때(인계 대기) 이미 비었음
 
     def test_same_status_rewrite_is_skipped_and_select_is_quiet(self):
         d = self.svc.sim.found("중앙역 승강장에서 검정 립밤 주웠어요")
