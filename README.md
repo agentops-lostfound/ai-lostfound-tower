@@ -18,6 +18,9 @@
 | `docs/` | 설계 문서, 시연 시나리오 | LF-18 |
 
 ## 시작하기
+
+Physical AI Studio의 저장 자세·복귀 기능을 다른 PC에 설치하려면 [Studio 공유 파일과 설치 순서](docs/handoff/studio-shared-install.md)를 따릅니다. 설치 압축본과 저장 자세는 저장소에 포함되며, Studio 자체와 장비 설정은 별도로 준비합니다.
+
 ```bash
 git clone https://github.com/<조직이름>/<저장소이름>.git
 cd <저장소이름>

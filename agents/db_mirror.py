@@ -54,6 +54,7 @@ SQL_QUIZ = "INSERT INTO quiz_attempt (claim_id, item_id, field, passed) VALUES (
 SQL_RESERVATION = ("INSERT INTO reservation (claim_id, item_id, visit_date) VALUES (%s, %s, %s) "
                    "ON CONFLICT (claim_id) DO NOTHING")
 SQL_VISITED = "UPDATE reservation SET status = 'visited' WHERE claim_id = %s"
+SQL_CANCELLED = "UPDATE reservation SET status = 'cancelled' WHERE claim_id = %s AND status = 'booked'"
 SQL_SHELF_SLOT = ("INSERT INTO storage_slot (slot_id, section_code, slot_no, note) SELECT %s, %s, %s, '직원 보관 선반' "
                   "WHERE EXISTS (SELECT 1 FROM storage_section WHERE section_code = %s) ON CONFLICT DO NOTHING")
 SQL_SLOT_MOVE_OUT = "DELETE FROM storage_assignment WHERE item_id = %s AND slot_id <> %s AND assigned_by = 'system'"
@@ -236,6 +237,53 @@ class DbMirror:
             return True
         self._put("item", run)                    # 건너뛸지는 이 쓰기가 정한다
 
+    def item_delete(self, item_id: str) -> None:
+        """11/10 접수 취소: 팀 DB 에서도 그 물건을 지운다 — 아직 등록기계에 있고(회수 전) 다른 기록(찾기·반환·보관 칸 등)에 걸려 있지 않을 때만.
+        딸린 기록(연락처·상태 기록)을 먼저 지우고 물건을 지운다. 조건에 안 맞으면 아무것도 지우지 않는다"""
+        def run(cur):
+            cur.execute("SELECT status FROM item WHERE item_id = %s", (item_id,))
+            got = cur.fetchone()
+            if got is None or got[0] != "등록기계 보관":
+                return False
+            for table in ("claim_candidate", "quiz_attempt", "reservation", "return_case", "collection_item",
+                          "storage_assignment", "inventory_check"):          # 표 이름은 이 고정 목록뿐
+                cur.execute(f"SELECT 1 FROM {table} WHERE item_id = %s LIMIT 1", (item_id,))
+                if cur.fetchone() is not None:
+                    return False
+            cur.execute("DELETE FROM finder_contact WHERE item_id = %s", (item_id,))
+            cur.execute("DELETE FROM item_status_log WHERE item_id = %s", (item_id,))
+            cur.execute("DELETE FROM item WHERE item_id = %s", (item_id,))
+            return True
+        self._put("item 지움", run, item_id)
+
+    def item_purge(self, item_id: str) -> None:
+        """11/10 물건 기록 전체 삭제: 팀 DB 에서 그 물건에 딸린 행을 전부 지운다(찌꺼기 없이).
+        반환 단계 → 반환 기록 → 확인 질문·방문 예약·후보 → (남는 것이 없는) 찾기 요청 → 보관 칸·개수 확인·회수 묶음 → 연락처·상태 기록 → 물건.
+        한 번에(트랜잭션 하나로) 지운다 — 중간에 실패하면 아무것도 지워지지 않는다"""
+        def run(cur):
+            cur.execute("SELECT 1 FROM item WHERE item_id = %s", (item_id,))
+            if cur.fetchone() is None:
+                return False
+            cur.execute("SELECT claim_id FROM claim_candidate WHERE item_id = %s UNION SELECT claim_id FROM quiz_attempt WHERE item_id = %s "
+                        "UNION SELECT claim_id FROM reservation WHERE item_id = %s UNION SELECT claim_id FROM return_case WHERE item_id = %s "
+                        "AND claim_id IS NOT NULL", (item_id,) * 4)
+            claims = [r[0] for r in cur.fetchall()]
+            cur.execute("DELETE FROM return_step WHERE case_id IN (SELECT case_id FROM return_case WHERE item_id = %s)", (item_id,))
+            cur.execute("DELETE FROM return_case WHERE item_id = %s", (item_id,))
+            for table in ("quiz_attempt", "reservation", "claim_candidate"):          # 표 이름은 이 고정 목록뿐
+                cur.execute(f"DELETE FROM {table} WHERE item_id = %s", (item_id,))
+            if claims:                                   # 이 물건만 가리키던 찾기 요청은 함께 지운다(다른 물건 후보가 남은 요청은 둔다)
+                cur.execute("DELETE FROM claim c WHERE c.claim_id = ANY(%s) "
+                            "AND NOT EXISTS (SELECT 1 FROM claim_candidate x WHERE x.claim_id = c.claim_id) "
+                            "AND NOT EXISTS (SELECT 1 FROM quiz_attempt x WHERE x.claim_id = c.claim_id) "
+                            "AND NOT EXISTS (SELECT 1 FROM reservation x WHERE x.claim_id = c.claim_id) "
+                            "AND NOT EXISTS (SELECT 1 FROM return_case x WHERE x.claim_id = c.claim_id)", (claims,))
+            for table in ("storage_assignment", "inventory_check", "collection_item", "finder_contact", "item_status_log"):
+                cur.execute(f"DELETE FROM {table} WHERE item_id = %s", (item_id,))
+            cur.execute("DELETE FROM item WHERE item_id = %s", (item_id,))
+            return True
+        self._put("item 전체 삭제", run, item_id)
+
     def item_features(self, item_id: str, category: str, pub: dict, priv: dict) -> None:
         args = (_cut(category or "확인 불가", 16), json.dumps(pub, ensure_ascii=False), json.dumps(priv, ensure_ascii=False), item_id)
         self._put("item 특징", lambda cur: cur.execute(SQL_FEATURES, args) and None, item_id)
@@ -270,6 +318,34 @@ class DbMirror:
 
     def claim_visited(self, claim_id: str) -> None:
         self._put("reservation", lambda cur: cur.execute(SQL_VISITED, (claim_id,)) and None)
+
+    def real_ids(self, ids: list[str]) -> set[str]:
+        """이 번호들 가운데 팀 DB 에 **가상 표시 없이**(진짜 접수로) 이미 있는 것. 못 읽으면 빈 집합(막지 않음)"""
+        if not ids:
+            return set()
+        try:
+            with self._connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute("SELECT item_id FROM item WHERE item_id = ANY(%s) AND (object_id IS NULL OR object_id NOT LIKE 'SIM%%')",
+                            (list(ids),))
+                return {r[0] for r in cur.fetchall()}
+        except Exception:
+            return set()
+
+    def sim_seed_seq(self, prefix: str, place_text: str) -> int | None:
+        """지난 실행이 팀 DB 에 남긴 **가상 시연용 처음 물건**(가상 표시 + 같은 장소 글)의 가장 작은 순번 — 다시 켤 때 그 번호를 다시 쓴다
+        (켤 때마다 가상 물건이 하나씩 늘지 않게). 없거나 못 읽으면 None"""
+        try:
+            with self._connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute("SELECT MIN(CAST(RIGHT(item_id, 4) AS INTEGER)) FROM item WHERE item_id LIKE %s "
+                            "AND object_id LIKE 'SIM%%' AND place_text = %s", (prefix + "%", place_text))
+                row = cur.fetchone()
+                return int(row[0]) if row and row[0] is not None else None
+        except Exception:
+            return None
+
+    def claim_cancelled(self, claim_id: str) -> None:
+        """11/10 찾기 요청 취소: 방문 전인 예약만 cancelled 로(찾기 요청·확인 질문 기록은 남긴다)"""
+        self._put("reservation", lambda cur: cur.execute(SQL_CANCELLED, (claim_id,)) and None)
 
     def slot_assign(self, slot_id: str, item_id: str) -> None:
         section, _, no = slot_id.partition("-")
@@ -368,6 +444,10 @@ def attach(svc, mirror: DbMirror):
             return out
         setattr(obj, name, run)
 
+    # 11/10 접수 취소: 가상 세계에서 지운 물건은 팀 DB 에서도 지운다
+    after(world, "delete_item", lambda out, pre, item_id, *a, **k: mirror.item_delete(item_id) if out is not None else None)
+    # 11/10 물건 기록 전체 삭제(로봇 작업대 화면의 [기록 삭제])
+    after(world, "purge_item", lambda out, pre, item_id, *a, **k: mirror.item_purge(item_id) if out is not None else None)
     # 접수: 번호를 팀 DB 와 맞춘 뒤 원래 접수 → 팀 DB 에도 저장. 사진이 있으면 키오스크의 진짜 접수(표시 없음), 없으면 가상 물건
     after(world, "create",
           lambda row, _pre, intake, today=None: mirror.item_new(
@@ -390,6 +470,8 @@ def attach(svc, mirror: DbMirror):
     after(claims, "create", lambda row, _pre, *a, **k: mirror.claim_new(row),
           before=lambda claim, today=None: mirror.sync_numbers(world, claims, today))
     after(claims, "mark_visited", lambda _out, _pre, claim_id, *a, **k: mirror.claim_visited(claim_id))
+    if callable(getattr(claims, "cancel", None)):
+        after(claims, "cancel", lambda out, _pre, claim_id, *a, **k: mirror.claim_cancelled(claim_id) if out else None)
 
     def assigned(out, _pre, item_id, slot_id, *a, **k):
         if (out or {}).get("ok"):
@@ -410,6 +492,26 @@ def attach(svc, mirror: DbMirror):
 
     # 지금 가상 세계에 이미 있는 물건(시연용 물건 5개)과 그 칸을 팀 DB 에 맞춘다
     mirror.sync_numbers(world, claims)
+    # 11/10 처음 물건이 해운대역 번호(A-…-0001)를 쓰게 되면서, 그날 진짜 키오스크 접수가 먼저 있었으면 번호가 겹친다.
+    #   겹친 채로 두면 가상 찾기 요청이 팀 DB 의 **다른 진짜 물건**에 걸린다 → 번호를 맞춘 뒤(위) 세계를 한 번 다시 채워 새 번호를 받는다.
+    #   막 켜진 세계(이야기 없음)일 때만 — 진행 중인 시연을 지우지 않는다
+    try:
+        clash = mirror.real_ids(list(world.items))
+        sim, board = getattr(svc, "sim", None), getattr(svc, "board", None)
+        if clash and sim is not None and callable(getattr(sim, "reset", None)) and not getattr(board, "stories", None):
+            seqs = getattr(world, "_seq", None)
+            seeds = list(world.items.values())
+            if len(seeds) == 1 and isinstance(seqs, dict):          # 처음 물건이 하나일 때: 지난 실행의 가상 물건 번호가 있으면 그 번호를 다시 씀
+                prefix = seeds[0]["item_id"][:-4]
+                again, top = mirror.sim_seed_seq(prefix, seeds[0].get("place_text") or ""), seqs.get(prefix, 0)
+                if again is not None:
+                    seqs[prefix] = again - 1
+                sim.reset(startup=True)
+                seqs[prefix] = max(top, seqs.get(prefix, 0))        # 다음 접수 번호는 팀 DB 의 가장 큰 번호 다음부터
+            else:
+                sim.reset(startup=True)
+    except Exception:
+        pass
     try:
         rows = [dict(r) for r in list(world.items.values())]
     except Exception:

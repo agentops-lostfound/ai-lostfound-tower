@@ -92,6 +92,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 /* 세로 키오스크(스탠드형): 검은 테두리 화면 + 밝은 몸체(촬영 카메라 창 · 접수증 나오는 곳 · 옆 단말기) */
 .stand{display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 18px 28px rgba(0,0,0,.22))}
 .k-head{background:var(--dev-bezel);border-radius:22px;padding:10px;position:relative;z-index:1;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white-space:nowrap}
 .k-screen{position:relative;overflow:hidden;border-radius:14px;background:#fff}
 .k-screen iframe{position:absolute;left:0;top:0;border:0;transform-origin:0 0;background:#fff}
 .k-body{position:relative;margin-top:-14px;padding:22px 9% 8px;border-radius:0 0 18px 18px;
@@ -167,6 +168,13 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 .vtable td{padding:2px 4px;overflow-wrap:anywhere;vertical-align:top;font-weight:600}
 .vtable td:first-child{color:var(--ui-text-3);font-weight:500;width:27%} .vtable td.lock{color:var(--ui-text-3);font-weight:500;font-size:11.5px}
 .vtable td.none{color:var(--ui-text-3);font-weight:500} .vtable tr.flash td{background:var(--upd-soft)}
+/* 11/10 물건 카드의 직원 단추: 본센터로 회수 · 접수 취소 */
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}
+.acts:empty{display:none}
+.acts button{font:inherit;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;border:1px solid var(--ui-line);background:var(--ui-surface);color:var(--ui-text);cursor:pointer}
+.acts button:hover{background:var(--ui-fill)} .acts button:disabled{opacity:.45;cursor:default}
+.acts button.danger{color:var(--del)} .acts button.armed{background:var(--del-soft);border-color:var(--del);color:var(--del)}
+.acts .msg1{font-size:11.5px;color:var(--del);align-self:center}
 .dbok{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--ui-ok-soft);color:var(--ui-ok);white-space:nowrap}
 .chip.warn{background:var(--ui-warn-soft);color:var(--ui-warn)} .chip.warn b{color:var(--ui-warn)}
 .chip.good{background:var(--ui-ok-soft);color:var(--ui-ok)} .chip.good b{color:var(--ui-ok)}
@@ -233,6 +241,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   </nav>
   <div class="chips">
     <span class="chip"><span class="dot" id="conn"></span><span id="connText">연결 중</span></span>
+    <span class="chip" id="robotMode" hidden>실물 로봇 · 회수 버튼으로 실행 · 직원 인계 확인</span>
     <span class="chip" id="srcChip" title="가운데 칸이 보여 주는 저장소">저장소 <b id="src">-</b></span>
     <span class="chip" id="lfChip" title="같은 단계가 Langfuse 에도 남는지">Langfuse <b id="lf">-</b></span>
     <button class="ghost" id="btnReset" hidden title="가상 세계를 처음 상태로(두 번 눌러 실행)">처음으로</button>
@@ -395,25 +404,87 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
   };
   const rows = {item: {}, claim: {}};
   const cur = {item: null, claim: null};
+  // DB 에 저장되는 품목 값(지갑·모형폰)과 화면 이름(카드지갑·휴대폰)이 달라서, DB 값 옆에 화면 이름을 함께 적는다(agents/contracts.py CATEGORY_LABEL)
+  const CAT_SHOW = {"지갑": "카드지갑", "모형폰": "휴대폰"};
+  const catCell = (v) => esc(v) + (CAT_SHOW[v] ? ` <small class="alias" title="DB 에는 '${esc(v)}' 로 저장하고, 화면·챗봇에서는 '${CAT_SHOW[v]}' 로 보여 줘요">= ${CAT_SHOW[v]}</small>` : "");
   const dbSaved = new Set();              // 팀 DB 에서 읽힌 접수 번호(팀 DB 조회 결과)
   function drawCard(t) {
     const c = CARD[t], key = cur[t], row = (key && rows[t][key]) || {};
     const saved = t === "item" && key && dbSaved.has(key) ? `<span class="dbok" title="팀 DB 의 item 표에서 이 접수 번호를 읽었어요">팀 DB 저장됨</span>` : "";
-    $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4><dl>` +
+    $(c.el).innerHTML = `<h4><code>${t}</code>${c.title} 표의 한 행${saved}<span class="pk">${key ? esc(key) : c.pk + " 없음"}</span></h4>` +
+      (t === "item" ? `<div class="acts" id="itemActs"></div>` : `<div class="acts" id="claimActs"></div>`) + `<dl>` +
       c.cols.map(([n, easy]) => { const v = row[n];
-        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + esc(v.text)}</dd>`; }).join("") + "</dl>";
+        return `<dt><code>${n}</code> ${easy}</dt><dd data-col="${n}" class="${v == null ? "none" : v.locked ? "locked" : ""}">${v == null ? "—" : (v.locked ? "🔒 " : "") + (n === "category" ? catCell(v.text) : esc(v.text))}</dd>`; }).join("") + "</dl>";    if (t === "claim") drawClaimActs();
+    if (t === "item") drawActs();
+  }
+  // 물건 카드의 직원 단추: 아직 등록기계에 있는 물건에만 보인다.
+  //  [본센터로 회수] 칸 대기·늦게 분석된 물건을 지금 회수(빈 칸이 없으면 직원 보관 선반) · [접수 취소] 실수로 접수한 물건을 지움(두 번 눌러 실행)
+  // 11/10 찾기 요청 카드의 직원 단추: 방문 전인 요청에만. [직원 확인 후 진행] 본센터 방문 대기에서 직원이 대면 확인하고 반환 시작(키오스크 입력 없이,
+  //  확인 질문이 맞지 않아 키오스크가 받지 않는 요청도) · [찾기 요청 취소] 요청과 방문 예약 취소(두 번 눌러 실행, 물건은 계속 보관)
+  let openClaims = {}, claimArmed = null, claimMsg = "", claimBusy = false, realRobotMode = false;
+  function drawClaimActs() {
+    const box = $("claimActs"); if (!box) return;
+    const key = cur.claim, oc = key && openClaims[key];
+    if (!oc) { box.innerHTML = claimMsg ? `<span class="msg1">${esc(claimMsg)}</span>` : ""; return; }
+    const dis = claimBusy ? " disabled" : "";
+    box.innerHTML = (oc.visit_wait ? `<button type="button" id="claimGo"${dis} title="직원이 신분증과 물건 특징을 직접 확인한 뒤 누르세요 — 키오스크 입력 없이 반환을 시작해요">${realRobotMode ? "직원 확인 후 실물 로봇 실행" : "직원 확인 후 진행"}</button>` : "") +
+      `<button type="button" id="claimCancel" class="danger${claimArmed === key ? " armed" : ""}"${dis} title="찾기 요청과 방문 예약을 취소해요. 물건은 계속 보관돼요">${claimArmed === key ? "한 번 더 누르면 취소돼요" : "찾기 요청 취소"}</button>` +
+      (oc.visit_wait && !oc.quiz_passed ? `<span class="msg1" style="color:var(--ui-text-3)">확인 질문 미통과 — 키오스크 대신 직원 확인</span>` : "") +
+      (claimMsg ? `<span class="msg1">${esc(claimMsg)}</span>` : "");
+    if ($("claimGo")) $("claimGo").onclick = () => claimAct(key, "visit");
+    $("claimCancel").onclick = () => {
+      if (claimArmed !== key) { claimArmed = key; claimMsg = ""; drawClaimActs(); setTimeout(() => { if (claimArmed === key) { claimArmed = null; drawClaimActs(); } }, 4000); return; }
+      claimArmed = null; claimAct(key, "cancel");
+    };
+  }
+  async function claimAct(key, what) {
+    if (what === 'visit' && realRobotMode && !window.confirm(
+      `찾기 요청 ${key}: 실물 로봇의 집기·배출·홈 복귀 11단계를 시작합니다. 직원 대면 확인과 물품 배치·이동 경로·정지 수단을 확인했나요?`
+    )) return;
+    claimMsg = ""; claimBusy = true; drawClaimActs();
+    try {
+      const r = await fetch(`/api/admin/claims/${encodeURIComponent(key)}/${what}`, {method: "POST"});
+      if (!r.ok) { const d = await r.json().catch(() => ({})); claimMsg = typeof d.detail === "string" ? d.detail : ((d.detail && d.detail.message) || "할 수 없어요"); }
+    } catch (_) { claimMsg = "관제탑에 연결할 수 없어요"; }
+    claimBusy = false; drawClaimActs();
+  }
+  let actArmed = null, actMsg = "";
+  function drawActs() {
+    const box = $("itemActs"); if (!box) return;
+    const key = cur.item, row = (key && rows.item[key]) || {};
+    const atKiosk = row.status && row.status.text === "등록기계 보관";
+    if (!key || !atKiosk) { box.innerHTML = ""; return; }
+    const known = row.category && !/모름|확인 불가/.test(row.category.text);
+    box.innerHTML = `<button type="button" id="actCollect"${known ? "" : " disabled"} title="${known ? "등록기계 → 본센터 회수 → 보관(빈 칸이 없으면 직원 보관 선반)" : "사진 분석이 끝나야 회수할 수 있어요"}">본센터로 회수</button>` +
+      `<button type="button" id="actCancel" class="danger${actArmed === key ? " armed" : ""}" title="실수로 접수한 물건을 기록에서 지워요(되돌릴 수 없음)">${actArmed === key ? "한 번 더 누르면 지워져요" : "접수 취소"}</button>` +
+      (actMsg ? `<span class="msg1">${esc(actMsg)}</span>` : "");
+    $("actCollect").onclick = () => itemAct(key, "collect");
+    $("actCancel").onclick = () => {
+      if (actArmed !== key) { actArmed = key; actMsg = ""; drawActs(); setTimeout(() => { if (actArmed === key) { actArmed = null; drawActs(); } }, 4000); return; }
+      actArmed = null; itemAct(key, "cancel");
+    };
+  }
+  async function itemAct(key, what) {
+    actMsg = "";
+    try {
+      const r = await fetch(`/api/admin/items/${encodeURIComponent(key)}/${what}`, {method: "POST"});
+      if (!r.ok) { const d = await r.json().catch(() => ({})); actMsg = typeof d.detail === "string" ? d.detail : "할 수 없어요"; }
+    } catch (_) { actMsg = "관제탑에 연결할 수 없어요"; }
+    drawActs();
   }
   function setCell(t, key, name, text, locked, live) {
     if (!key) return;
     const row = rows[t][key] = rows[t][key] || {};
     row[name] = {text, locked: !!locked};
+    if (t === "item" && cur.item === key && (name === "status" || name === "category")) { actMsg = ""; drawActs(); }
     if (cur[t] !== key) return;
     const dd = $(CARD[t].el).querySelector(`dd[data-col="${name}"]`);
     if (!dd) return;
-    dd.className = locked ? "locked" : ""; dd.textContent = (locked ? "🔒 " : "") + text;
+    dd.className = locked ? "locked" : "";
+    if (name === "category" && !locked) dd.innerHTML = catCell(text); else dd.textContent = (locked ? "🔒 " : "") + text;
     if (live) { dd.classList.add("flash"); setTimeout(() => dd.classList.remove("flash"), 60); }
   }
-  function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; drawCard(t); } }
+  function focusRow(t, key) { if (key && cur[t] !== key) { cur[t] = key; if (t === "item") { actArmed = null; actMsg = ""; } else { claimArmed = null; claimMsg = ""; } drawCard(t); } }
   function ring(t, cls) { const el = $(CARD[t].el); el.classList.add(cls); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("write", "read"), 900); }
 
   function applyDb(d, live) {
@@ -426,7 +497,11 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       if (chip) { chip.classList.remove("zero"); chip.querySelector("b").textContent = counts[d.table]; if (live) { chip.classList.add("hit"); setTimeout(() => chip.classList.remove("hit"), 700); } }
     }
     const k = d.key;
-    if (d.table === "item" && k) {
+    if (d.table === "item" && k && d.op === "DELETE") {           // 접수 취소: 카드와 사진 분석 카드에서 그 물건을 치운다
+      delete rows.item[k]; dbSaved.delete(k);
+      if (cur.item === k) { cur.item = null; drawCard("item"); }
+      if (vis[k]) { delete vis[k]; if (visCur === k) { visCur = null; drawVision(false); } }
+    } else if (d.table === "item" && k) {
       if (write) { focusRow("item", k); for (const c of d.cols) if (CARD.item.cols.some(([n]) => n === c.name)) setCell("item", k, c.name, c.value, c.hidden, live); if (live) ring("item", "write"); }
       else if (cur.item === k && live) ring("item", "read");
     } else if (d.table === "finder_contact" && k) { setCell("item", k, "finder_contact", "저장됨(이름·전화번호 가림)", true, live);
@@ -440,7 +515,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       setCell("claim", k, "quiz", (prev ? prev + " · " : "") + `${val("field")} ${val("passed") === "예" ? "통과" : "틀림"}`, false, live);
     } else if (d.table === "reservation" && k) {
       if (val("visit_date")) setCell("claim", k, "visit_date", val("visit_date"), false, live);
-      if (val("status")) setCell("claim", k, "visit", val("status") === "visited" ? "방문함(visited)" : "예약됨(booked)", false, live);
+      if (val("status")) setCell("claim", k, "visit", {visited: "방문함(visited)", cancelled: "취소됨(cancelled)"}[val("status")] || "예약됨(booked)", false, live);
     } else if (d.table === "return_case") {
       const cid = val("claim_id"); if (cid && cid !== "-") { focusRow("claim", cid); setCell("claim", cid, "decision", `${val("decision")} — ${val("reason")}`, false, live); if (live) ring("claim", "write"); }
     }
@@ -559,7 +634,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       return `<tr class="${fresh ? "new" : ""}${r.item_id === cur.item ? " cur" : ""}"><td>${photo}</td>` +
         `<td class="id">${esc(r.item_id)}${r.virtual ? `<span class="tag" title="글로 한 가상 신고·시연용 물건">시연</span>` : ""}</td>` +
         `<td class="where"><b>${esc(r.station || "")}${r.kind === "center" ? " 본센터" : "역"}</b><small>${esc(WHERE_KIND[r.kind] || "")} ${esc(r.machine_id)}</small></td>` +
-        `<td>${esc(r.place_text)}</td><td>${esc(r.category)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
+        `<td>${esc(r.place_text)}</td><td>${catCell(r.category)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
         `<td>${t ? `${two(t.getHours())}:${two(t.getMinutes())}:${two(t.getSeconds())}` : ""}</td></tr>`; }).join("");
     box.innerHTML = `<p class="counts">${counts}</p><table class="dbtable"><thead><tr>` +
       `<th>사진<code>photo_path</code></th><th>접수 번호<code>item_id</code></th><th>접수한 곳<code>machine_id</code></th><th>발견 장소<code>place_text</code></th>` +
@@ -764,7 +839,13 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     const ids = Object.values(st.ids || {}).filter(Boolean).join(" · ");
     box.innerHTML = `<span class="who">${st.kind === "found" ? "습득" : "분실·반환"} ${esc(st.story_id)}<small>${esc(ids)}</small></span><ol>` +
       st.stages.map((s) => `<li class="${esc(s.state)}" title="${esc(s.detail || "")}">${esc(s.label)}</li>`).join("") + `</ol>` +
-      (st.result ? `<span class="result">${st.result.ok ? "✅" : "⚠️"} ${esc(st.result.text)}</span>` : "");
+      (st.result ? `<span class="result">${st.result.ok ? "✅" : "⚠️"} ${esc(st.result.text)}${handoverWait(st) ? ` · <a href="/staff" target="_blank" rel="noopener" title="직원 화면에서 실물·신분증·확인 질문을 교차 검증하면 인계 완료로 바뀌어요">직원 화면 열기</a>` : ""}</span>` : "");
+  }
+  // 11/10 사람 조작 점검: 제출보관함까지 끝난 뒤 발표 화면에서 다음 할 일(직원 교차 검증)로 바로 갈 길이 없었다
+  function handoverWait(st) {
+    if (st.kind !== "lost") return false;
+    const g = Object.fromEntries((st.stages || []).map((s) => [s.label, s.state]));
+    return g["제출보관함 전달"] === "done" && g["인계 완료"] !== "done";
   }
 
   // ================= 읽기 · 순서대로 재생 =================
@@ -791,6 +872,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
     // _rush: 이미 끝난 챗봇 질문의 남은 단계 — 답이 벌써 사용자 화면에 나갔으니 그림도 곧바로 '답'까지 간다
     setTimeout(pump, !n ? 60 : queue[0]._rush ? 15 : (n > 60 || late > 4000) ? 20 : (n > 25 || late > 2000) ? 60 : (n > 8 || late > 900) ? 130 : 280);
   }
+  let moreNow = false;                    // 받을 기록이 더 남았으면 곧바로 다시 부른다
   async function poll() {
     try {
       const r = await fetch(`/api/admin/live/state?after=${seq}&detail=1`, {cache: "no-store"});
@@ -801,11 +883,12 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
       showMirror(d);
       $("lf").textContent = d.langfuse ? "기록 중" : "꺼짐";
-      $("btnReset").hidden = !d.sim;
+      $("btnReset").hidden = !d.sim || !!d.robot_control;
+      $("robotMode").hidden = !d.robot_control;
       const w = d.qwen_worker || {on: false};
       if (w.on !== worker.on) { worker = w; drawVision(false); } else worker = w;
       const evs = (d.events || []).filter((e) => e.channel === "db" || e.channel === "agent" || e.channel === "trace" || e.channel === "vision");
-      if (first) { evs.forEach((e) => handle(e, false)); first = false; drawGraph(); }
+      if (first) { evs.forEach((e) => handle(e, false)); if (!d.more) { first = false; drawGraph(); } }   // 처음 열 때 쌓인 기록이 200개를 넘으면 끝까지 이어 받은 뒤 그린다
       else {
         const at = Date.now(); evs.forEach((e) => { e._at = at; }); queue.push(...evs);
         const isChat = (e) => e.channel === "trace" && e.trace && e.trace.trace_name !== "tower-main-ai";
@@ -813,13 +896,17 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
         if (end >= 0) for (let i = 0; i <= end; i++) if (isChat(queue[i])) queue[i]._rush = true;
       }
       stories = d.stories || []; renderSteps();
-      seq = d.seq;
+      const oc = Object.fromEntries((d.claims_open || []).map((o) => [o.claim_id, o]));
+      const modeChanged = realRobotMode !== !!d.robot_control;
+      realRobotMode = !!d.robot_control;
+      if (modeChanged || JSON.stringify(oc) !== JSON.stringify(openClaims)) { openClaims = oc; drawClaimActs(); }
+      seq = d.seq; moreNow = !!d.more;
     } catch (e) {
       fails++;
       if (fails > 2) { $("conn").className = "dot off"; $("connText").textContent = "관제탑 연결 끊김"; }
     }
     clearTimeout(pollTimer);
-    pollTimer = setTimeout(poll, chatSince && Date.now() - chatSince < CHAT_BUSY_MAX_MS ? 120 : 500);        // 챗봇 질문이 진행 중이면 더 자주 읽는다(답과 그림이 같은 때에 끝나게)
+    pollTimer = setTimeout(poll, moreNow ? 30 : chatSince && Date.now() - chatSince < CHAT_BUSY_MAX_MS ? 120 : 500);        // 챗봇 질문이 진행 중이면 더 자주 읽는다(답과 그림이 같은 때에 끝나게)
   }
   function banner(html) { const b = $("banner"); b.hidden = !html; if (html) b.innerHTML = html; }
 

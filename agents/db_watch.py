@@ -179,6 +179,38 @@ class DbWatch:
         self._wrap(store, "set_features", features)
 
     # ----- 찾기 요청 저장소(claims) -----
+    def watch_delete(self, world) -> None:
+        """11/10 접수 취소(가상 세계 delete_item): item 행과 딸린 기록이 지워진다"""
+        fn = getattr(world, "delete_item", None)
+        if not callable(fn):
+            return
+
+        @functools.wraps(fn)
+        def run(item_id, *a, **k):
+            out = fn(item_id, *a, **k)
+            if out is not None:
+                try:
+                    self.emit("item", "DELETE", item_id, [col("item_id", item_id, True), col("status", out.get("status"), False)],
+                              by="직원(접수 취소)", note="실수로 접수한 물건을 지움 — 상태 기록·연락처도 함께(사진 파일은 남음)")
+                except Exception:
+                    pass
+            return out
+        world.delete_item = run
+
+        purge = getattr(world, "purge_item", None)
+        if callable(purge):
+            @functools.wraps(purge)
+            def run_purge(item_id, *a, **k):
+                out = purge(item_id, *a, **k)
+                if out is not None:
+                    try:
+                        self.emit("item", "DELETE", item_id, [col("item_id", item_id, True), col("status", out.get("status"), False)],
+                                  by="직원(기록 삭제)", note="물건에 딸린 기록을 모두 지움 — 상태 기록·연락처·보관 칸·찾기 요청·반환 기록(사진 파일은 남음)")
+                    except Exception:
+                        pass
+                return out
+            world.purge_item = run_purge
+
     def watch_claims(self, store) -> None:
         def created(row, claim, today=None):
             cid, iid = row.get("claim_id", ""), row.get("item_id", "")
@@ -215,7 +247,14 @@ class DbWatch:
 
         self._wrap(store, "create", created)
         self._wrap(store, "get", got)
+        def cancelled(out, claim_id, *a, **k):
+            if out:                                          # 실제로 취소된 것만(이미 방문·취소된 요청은 바뀌지 않음)
+                self.emit("reservation", "UPDATE", claim_id, [col("claim_id", claim_id), col("status", "cancelled", True)],
+                          by="직원·분실인", note="찾기 요청·방문 예약 취소 — 물건은 계속 보관")
+
         self._wrap(store, "mark_visited", visited)
+        if callable(getattr(store, "cancel", None)):
+            self._wrap(store, "cancel", cancelled)
 
     # ----- 보관함 정답지(storage) -----
     def watch_storage(self, store) -> None:
@@ -374,6 +413,7 @@ def attach(svc):
         world = getattr(svc, "world", None)
         if world is not None:
             w.watch_db_part(world)
+            w.watch_delete(world)
         w.watch_backend_factory(svc)
         w.watch_sim(svc)
         for name, label in (("kiosk_return", "본센터 키오스크 회수"), ("start_return", "반환 흐름")):

@@ -71,6 +71,45 @@ const plain = (fn) => { const r = clamp(fn(floor(QUIET))); const g = gray(r); g.
 out.no_avg = hasItem(plain(phone), plain(same), O);
 out.no_rgb = hasItem(gray(clamp(cream(0.90)(floor(QUIET)))), gray(floor(QUIET)), O);                    // 색 배열도 없으면 예전 기준만
 out.limit_few = pixLimit([40, 40, 40], O); out.limit_loud = pixLimit([30, 30, 30, 30, 30, 30], O);
+// 11/10 빈 상자 기억: 저장했다 되돌려도 같은 판단이 나오고, 켤 때 어느 기준을 쓸지 고른다
+{
+  const base = shot(same, FOIL), back = unpackFrame(packFrame(base), W, H);
+  const noises = []; let prev = shot(same, FOIL);
+  for (let k = 0; k < 8; k++) { const cur = shot(same, FOIL); noises.push(pixP95(cur.avg, prev.avg)); prev = cur; }
+  const o = Object.assign({}, O, {pixNow: pixLimit(noises, O)});
+  const orange = (r) => { for (let i = 0; i < r.length; i += 3) { r[i] = 235; r[i+1] = 130; r[i+2] = 40; } return r; };   // 주황 배경지를 깖
+  out.ref = {
+    packed_len: packFrame(base).length, back_ok: !!back && back.length === W * H && back.rgb.length === W * H * 3,
+    none: startBase(shot(cream(0.90), FOIL), null, o),                 // 기억 없음 → 지금 화면
+    empty_now: startBase(shot(same, FOIL), back, o),                   // 비어 있음 → 지금 화면
+    item_at_start: startBase(shot(cream(0.90), FOIL), back, o),        // 물건을 둔 채 켬 → 기억한 빈 상자
+    phone_at_start: startBase(shot(phone, FOIL), back, o),
+    light_change: startBase(shot((r) => scale(r, 0.82, 0.82, 0.82), FOIL), back, o),   // 조명만 바뀜 → 물건 아님
+    new_backdrop: startBase(shot(orange, QUIET), back, o),             // 배경지를 바꿈 → 기억을 버림
+    black_backdrop: startBase(shot((r) => scale(r, 0.15, 0.15, 0.15), QUIET), back, o),   // 검정 배경지
+    white_balance: startBase(shot((r) => scale(r, 1.06, 1.00, 0.93), FOIL), back, o),     // 카메라 색 균형만 조금 → 버리지 않음
+    broken: unpackFrame('abc', W, H), wrong_size: unpackFrame(btoa('x'.repeat(100)), W, H),
+    after_restore_item: hasItem(shot(cream(0.90), FOIL), back, o), after_restore_empty: hasItem(shot(same, FOIL), back, o),
+  };
+}
+// 11/10 물건이 생겼나 빠졌나
+{
+  const kinds = {};
+  for (const [name, noise] of [['quiet', QUIET], ['foil', FOIL]]) {
+    const noises = []; let prev = shot(same, noise);
+    for (let k = 0; k < 8; k++) { const cur = shot(same, noise); noises.push(pixP95(cur.avg, prev.avg)); prev = cur; }
+    const o = Object.assign({}, O, {pixNow: pixLimit(noises, O)});
+    const E = () => shot(same, noise), C = () => shot(cream(0.90), noise), P = () => shot(phone, noise);
+    const other = () => shot((r) => paint(r, 24, 12, 18, 22, (a, i) => { a[i] = 200; a[i+1] = 60; a[i+2] = 50; }), noise);   // 다른 물건(빨강)
+    kinds[name] = {cream_added: changeKind(C(), E(), o), cream_removed: changeKind(E(), C(), o),
+                   phone_added: changeKind(P(), E(), o), phone_removed: changeKind(E(), P(), o),
+                   nothing: changeKind(E(), E(), o), swapped: changeKind(other(), P(), o),
+                   light_only: changeKind(shot((r) => scale(r, 0.82, 0.82, 0.82), noise), E(), o),
+                   removed_and_dim: changeKind(shot((r) => scale(r, 0.85, 0.85, 0.85), noise), P(), o)};
+  }
+  out.kind = kinds;
+  const g = gray(floor(QUIET)); out.kind_no_rgb = changeKind(g, g, O);
+}
 console.log(JSON.stringify(out));
 """
 
@@ -139,10 +178,55 @@ class DetectTest(unittest.TestCase):
         self.assertFalse(self.out["no_rgb"])                            # 색 배열도 없으면 예전 기준만(오류 없이)
 
 
+    def test_saved_empty_box(self):
+        """11/10 물건을 둔 채 화면을 새로 열면 그 모습을 빈 상자로 기억해 영영 못 찍던 것 — 기억해 둔 빈 상자로 판단한다"""
+        ref = self.out["ref"]
+        self.assertTrue(ref["back_ok"])
+        self.assertEqual(ref["packed_len"], 64 * 48 * 4 // 3 * 4)        # 흑백 + 색 3장 = 12,288 바이트 → 글자 16,384개
+        self.assertEqual(ref["none"], "cur")
+        self.assertEqual(ref["empty_now"], "cur")
+        self.assertEqual(ref["item_at_start"], "ref")                   # 핸드크림을 둔 채 켜도 물건으로 본다
+        self.assertEqual(ref["phone_at_start"], "ref")
+        self.assertEqual(ref["light_change"], "cur")                    # 조명만 달라진 빈 상자는 물건이 아니다
+        self.assertEqual(ref["new_backdrop"], "drop")                   # 배경지를 바꾸면 옛 기억을 버린다
+        self.assertEqual(ref["black_backdrop"], "drop")
+        self.assertEqual(ref["white_balance"], "cur")                   # 색 균형이 조금 달라진 빈 상자는 그대로 빈 상자
+        self.assertIsNone(ref["broken"])
+        self.assertIsNone(ref["wrong_size"])
+        self.assertTrue(ref["after_restore_item"])
+        self.assertFalse(ref["after_restore_empty"])
+
+
+    def test_removed_item_is_not_a_new_item(self):
+        """11/10 물건이 든 모습을 빈 상자로 잘못 기억한 뒤 물건을 빼면 빈 상자를 찍던 것 — 뺀 것인지 놓은 것인지 가른다"""
+        for floor in ("quiet", "foil"):
+            k = self.out["kind"][floor]
+            with self.subTest(floor=floor):
+                self.assertEqual(k["phone_added"], "added")
+                self.assertEqual(k["phone_removed"], "removed")           # 빈 상자를 찍지 않는다
+                self.assertEqual(k["removed_and_dim"], "removed")         # 빼는 순간 조명이 달라져도
+                self.assertNotEqual(k["cream_added"], "removed")          # 놓은 물건을 '뺐다'고 하지 않는다(촬영을 막지 않음)
+                self.assertNotEqual(k["cream_removed"], "added")
+                self.assertEqual(k["nothing"], "unknown")
+                self.assertEqual(k["light_only"], "unknown")
+                self.assertNotEqual(k["swapped"], "removed")              # 다른 물건으로 바꾼 것은 새 물건(찍는다)
+        self.assertEqual(self.out["kind"]["quiet"]["cream_removed"], "removed")
+        self.assertEqual(self.out["kind_no_rgb"], "unknown")
+
+
 class WiringTest(unittest.TestCase):
+    def test_capture_help_and_five_seconds(self):
+        opt = auto_options()
+        self.assertEqual(opt["stillMs"], 5000.0)                        # 11/10 자동 촬영은 5초 멈춘 뒤
+        for needle in ('id="shotNow">지금 찍기</button>', 'id="emptyAgain">빈 상자 다시 확인<small>상자를 비운 뒤</small></button>', "if (how === 'ref') { empty = savedEmpty; trueEmpty = savedEmpty; }",
+                       "if (shotSince) { shotSince = false; saveEmpty(cur); }", "empty = null; adoptAsIs = true;", "if (DEMO) return null;", "changeKind(cur, empty, AUTO) === 'removed'", "empty = cur; trueEmpty = cur; saveEmpty(cur); removedSince = 0;",
+                       "처음부터 다시 5초", "손 빼고 5초"):
+            self.assertIn(needle, HTML)
+        self.assertNotIn("다시 3초 셀게요", HTML)
+
     def test_tick_uses_new_check(self):
         self.assertIn("if (!hasItem(cur, empty, AUTO)) {", HTML)
-        self.assertIn("!hasItem(cur, trueEmpty, AUTO)) empty = cur;", HTML)
+        self.assertIn("if (trueEmpty && empty !== trueEmpty && !hasItem(cur, trueEmpty, AUTO)) {", HTML)
         self.assertIn("out.rgb = rgb;", HTML)
         self.assertNotIn("diff(cur, empty)", HTML)                     # 예전 판단이 남아 있지 않다
         opt = auto_options()

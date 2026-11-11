@@ -6,6 +6,7 @@
 
 | 작업일 | 보고서 |
 |---|---|
+| 2026-11-10 | [통합 시연 화면·키오스크·찾기 요청·로봇 연결 진행 기록(변재원)](2026-11-10-jaewon-progress.md) |
 | 2026-11-05 | [SO-101 버튼형 티칭 GUI·외부 제어 연동과 실물 시험](2026-11-05-teaching-gui-verification.md) |
 | 2026-11-05 | [기존 SO-101 제어 라이브러리 검토·공식 dry-run](2026-11-05-existing-so101-control-review.md) |
 | 2026-11-05 | [Physical AI Studio·텔레옵 설정과 1280×720 비전 시험](2026-11-05-studio-topview-status.md) |

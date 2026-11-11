@@ -11,13 +11,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.backends import check_part  # noqa: E402
 from agents.contracts import CLAIM_ID_RE, ITEM_ID_RE, MACHINE_LETTERS  # noqa: E402
 from agents.live import LiveBoard, LiveReporter  # noqa: E402
-from agents.service import NotFound, RequestError  # noqa: E402
+from agents.service import Conflict, NotFound, RequestError  # noqa: E402
 from agents.sim_director import build_sim_service  # noqa: E402
 from agents.sim_world import SimRobot, SimTopview, SimWorld, parse_place, query_features, sim_qwen, split_tags  # noqa: E402
 from discord_ops.reporter import Reporter  # noqa: E402
 from tools import lostfound_bot as bot  # noqa: E402
 
-ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
+ENV = {"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
 FOUND = "서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"
 
 
@@ -27,7 +27,7 @@ def story_of(svc, sid):
 
 class SimPartsTest(unittest.TestCase):
     def test_parts_keep_contracts(self):
-        w = SimWorld(speed=0)
+        w = SimWorld(speed=0, seed="full")
         self.assertEqual(check_part(w, "db"), [])
         self.assertEqual(check_part(SimTopview(w), "vision"), [])
         self.assertEqual(check_part(SimRobot(w), "robot"), [])
@@ -50,7 +50,7 @@ class SimPartsTest(unittest.TestCase):
         self.assertEqual(split_tags("지갑 #집기실패 #보정실패"), ("지갑", {"grasp_fail", "calib_fail"}))
 
     def test_topview_goes_through_real_adapter_with_calibration_gate(self):
-        w = SimWorld(speed=0)
+        w = SimWorld(speed=0, seed="full")
         dets = SimTopview(w).vision_topview()
         self.assertEqual(len(dets), 5)                                     # 11/7 시연 물건 5개(칸 8개 중 3칸 비움)
         self.assertTrue(all("center_mm" in d for d in dets))
@@ -63,7 +63,7 @@ class SimPartsTest(unittest.TestCase):
         from agents.sim_world import SO101_JOINTS, SLOTS_MM
         self.assertEqual([n for n, _ in SO101_JOINTS], ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex",
                                                         "wrist_roll", "gripper"])
-        w = SimWorld(speed=0)
+        w = SimWorld(speed=0, seed="full")
         r = SimRobot(w)
         self.assertEqual(set(w.arm["joints"]), {n for n, _ in SO101_JOINTS})
         self.assertTrue(r.robot_approach(list(SLOTS_MM[0]), [0, 0])["ok"])
@@ -102,7 +102,7 @@ class SimPartsTest(unittest.TestCase):
         self.assertLess(j["wrist_flex"], 70)
 
     def test_robot_stop_halts_motion_midway(self):
-        w = SimWorld(speed=1)
+        w = SimWorld(speed=1, seed="full")
         r = SimRobot(w)
         out = {}
         t = threading.Thread(target=lambda: out.setdefault("r", r.robot_approach([60.0, 60.0], [160, 150])))
@@ -147,8 +147,8 @@ class DirectorTest(unittest.TestCase):
         titles = [m["title"] for m in self.svc.reporter.messages]
         self.assertTrue(any("등록기계 접수" in t for t in titles) and any("인계 완료" in t for t in titles))
 
-    def test_web_report_waits_for_center_kiosk_then_staff_verify(self):
-        """11/7 분실인 웹: 방문을 자동으로 하지 않고 본센터 키오스크 회수 → 로봇 → 제출보관함 → 직원 교차 검증 → 인계"""
+    def test_web_report_waits_for_center_kiosk_then_self_pickup(self):
+        """11/7 분실인 웹: 방문을 자동으로 하지 않고 본센터 키오스크 회수 → 로봇 → 제출보관함 → 11/11 분실인이 꺼내고 키오스크 [물건 받았어요] → 인계"""
         f = self.found()
         opts = {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-3******"}
         r = self.d.lost("검정 카드지갑 잃어버렸어요 서면역에서", opts)
@@ -165,13 +165,20 @@ class DirectorTest(unittest.TestCase):
         self.assertIn(r["claim_id"], self.d.visit_wait)
         out = self.d.kiosk_return({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-3******"})
         self.assertEqual(out["decision"], "returned")
+        self.assertTrue(out["self_pickup"])
         st = story_of(self.svc, r["story_id"])
-        self.assertTrue(st["result"]["ok"])
+        self.assertIsNone(st["result"])                                         # 분실인이 꺼낼 때까지 이야기는 열려 있다
         states = {s["key"]: s["state"] for s in st["stages"]}
-        self.assertEqual((states["visit"], states["deliver"], states["handover"]), ("done", "done", "todo"))
-        self.assertNotEqual(self.svc.world.items[f["item_id"]]["status"], "인계 완료")   # 인계는 직원 교차 검증이 한다
-        res = self.svc.verify_handover(out["case_id"], {"item_match": True, "id_match": True, "feature_match": True})
-        self.d.on_verify(out["case_id"], res)
+        self.assertEqual((states["visit"], states["deliver"], states["handover"]), ("done", "done", "active"))
+        self.assertNotEqual(self.svc.world.items[f["item_id"]]["status"], "인계 완료")
+        q = [x for x in self.svc.handover_queue() if x["case_id"] == out["case_id"]]
+        self.assertTrue(q and q[0]["self_pickup"])                              # 직원 화면에는 '직접 받는 중'으로만
+        with self.assertRaises(RequestError):                                   # 다른 신분 번호로는 인계 완료 못 함
+            self.d.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-1******"})
+        got = self.d.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-3******"})
+        self.assertEqual(got["by"], "kiosk")
+        with self.assertRaises(Conflict):                                       # 두 번 누름 → 이미 인계 완료
+            self.d.kiosk_handover({"machine_id": "CENTER", "claim_id": r["claim_id"], "id_no_masked": "******-3******"})
         st = story_of(self.svc, r["story_id"])
         self.assertEqual(next(s for s in st["stages"] if s["key"] == "handover")["state"], "done")
         self.assertIn("인계 완료", st["result"]["text"])
@@ -241,8 +248,8 @@ class DirectorTest(unittest.TestCase):
 
     def test_purchased_items_scenes(self):
         """실제 구매 목록 기준(11/4, 11/7 5개, 11/9 품목 4종): 갈색 지갑은 색으로 바로 찾고, 같은 제품 보조배터리 2개는 직원 확인"""
-        from agents.sim_world import SEED_ITEMS
-        self.assertEqual(len(SEED_ITEMS), 5)
+        from agents.sim_world import SEED_FULL, SEED_ITEMS
+        self.assertEqual((len(SEED_FULL), len(SEED_ITEMS)), (5, 1))   # 11/10: 평소에는 분홍 핸드크림 하나, 이 시험은 예전 5개 묶음(TOWER_SIM_SEED=full)
         r = self.lost("갈색 카드지갑 잃어버렸어요")
         self.assertTrue(story_of(self.svc, r["story_id"])["result"]["ok"])
         self.assertEqual(self.svc.world.items[r["item_id"]]["features"]["color"], "갈색")
@@ -301,7 +308,7 @@ class DirectorTest(unittest.TestCase):
         self.assertIn("운영하지 않는 품목", str(cm.exception))
         with self.assertRaises(RequestError) as cm:
             self.d.found("서면역 화장실 앞 립밤 주웠어요")        # 가상 세계에 립밤을 새로 만들지 않음
-        self.assertIn("지갑·휴대폰·핸드크림·보조배터리", str(cm.exception))
+        self.assertIn("휴대폰·보조배터리·핸드크림·카드지갑", str(cm.exception))
         self.assertEqual(self.svc.board.stories, {})            # 실패한 신고는 이야기를 만들지 않음
 
     def test_found_item_lands_in_same_slot_on_answer_sheet(self):
@@ -312,7 +319,7 @@ class DirectorTest(unittest.TestCase):
         lay = self.svc.storage.layout()
         held = {sl["slot_id"]: (sl.get("item") or {}).get("item_id") for sec in lay["sections"] for sl in sec["slots"]}
         self.assertEqual(held[sid], f["item_id"])
-        self.assertEqual(sid, "R2-2")                                      # 11/9 015 지갑 열(R2): R2-1 은 시연 카드지갑이 있어 2번 칸
+        self.assertEqual(sid, "R4-2")                                      # 11/10 018 카드지갑 열(R4): R4-1 은 시연 카드지갑이 있어 2번 칸
 
     def test_reset_restores_seed_and_keeps_claim_numbers(self):
         self.found()
@@ -464,6 +471,6 @@ class LostWebApiTest(unittest.TestCase):
     def test_lost_page_contract(self):
         html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
         for needle in ("visit: 'kiosk'", "maskName(", "******-${$('#gender').value}******", "/sim/stories/",
-                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261110b" defer></script>', "부산역 본센터"):
+                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261110d" defer></script>', "부산역 본센터"):
             self.assertIn(needle, html)
         self.assertNotIn("저장되거나 역무실로 전송되지 않습니다", html)        # 예전 데모 양식 문구 제거

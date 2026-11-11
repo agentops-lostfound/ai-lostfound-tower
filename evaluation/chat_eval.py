@@ -50,7 +50,8 @@ BROKEN = re.compile(r"[있없]요|[가-힣]{2,}요요")
 TOPIC_NAME = re.compile(r"\b[a-z]+_[a-z_]+\b")
 RAW_ID = re.compile(r"\d{6}\s*-\s*[1-4]\d{6}")
 RAW_PHONE = re.compile(r"01[016789]\s*-?\s*\d{3,4}\s*-?\s*\d{4}")
-SIM_ENV = {"TOWER_SIM": "1", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"}
+# 11/10: 평소 가상 시연은 분홍 핸드크림 하나로 시작하지만, 채점 문항(갈색 카드지갑·파란 휴대폰·흰 보조배터리 …)은 예전 5개 묶음을 기준으로 쓰였다
+SIM_ENV = {"TOWER_SIM": "1", "TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"}
 
 
 # ---------------------------------------------------------------- 채점

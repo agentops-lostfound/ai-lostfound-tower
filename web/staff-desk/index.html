@@ -127,6 +127,7 @@
 
   <section id="xcheck">
     <h2>제출보관함 교차 검증</h2>
+    <p class="muted">정상 흐름은 직원 없이 끝나요 — 분실인이 제출보관함에서 꺼내고 본센터 키오스크 [물건 받았어요]. 여기서는 예외만 확인해요: 직원 보관 선반 물건, 확인 질문이 맞지 않아 직원 대면 확인으로 진행한 요청, 분실인이 도움을 청한 경우</p>
     <div class="flow" role="group" aria-label="교차 검증: 물건, 신분증, 비공개 특징 세 가지가 모두 맞으면 건넴, 하나라도 다르면 반환 보류">
       <span class="chk"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="물건 대조"><path d="M3.5 8 12 3.5 20.5 8v8L12 20.5 3.5 16z"/><path d="M3.5 8 12 12.5 20.5 8M12 12.5v8"/></svg>물건</span>
       <span class="chk"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="신분증 대조"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14 10h4.5M14 13.5h3"/></svg>신분증</span>
@@ -176,6 +177,7 @@
     <label class="check"><input type="checkbox" id="g1"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="신분증"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14 10h4.5M14 13.5h3"/></svg><span><b>신분증</b> — 이름·사진이 방문자와 맞음</span></label>
     <label class="check"><input type="checkbox" id="g2"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="안쪽 특징"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5.5 5.5"/><path d="M8 10.5h5M10.5 8v5"/></svg><span><b>안쪽 특징</b> — 방문자 설명과 맞음</span></label>
     <label class="check"><input type="checkbox" id="g3"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="직원 최종 확인"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-3.6 3.7-5.5 7-5.5s6 1.9 7 5.5"/><path d="m15.5 4.5 1.5 1.5 3-3"/></svg><span><b>직원 최종 확인</b> — 돌려줘도 됨</span></label>
+    <label class="check" id="g4row" hidden><input type="checkbox" id="g4"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="직원 대면 확인"><path d="M4 12h4l3-7 4 14 3-7h2"/></svg><span><b>확인 질문 대신 직원 대면 확인</b> — 웹 확인 질문은 맞지 않았지만, 방문자에게 물건 특징을 직접 묻고 맞음(위 세 칸을 모두 확인했을 때만)</span></label>
     <p class="muted">맞지 않으면 체크하지 않고 반환 시작 → <b>반환 안 함</b> 기록, 로봇 안 움직임</p>
     <div class="row">
       <button id="start" class="primary" disabled>반환 시작</button>
@@ -245,11 +247,17 @@
   var DECISION = { returned: ["ok", "✅ 반환 완료"], rejected: ["bad", "⛔ 반환 안 함"],
                    staff_check: ["warn", "🙋 직원 확인 필요"], stopped: ["bad", "🛑 로봇 정지"] };
 
-  var CAT_LABEL = { "모형폰": "휴대폰" };   // 품목 값은 서버 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
+  var CAT_LABEL = { "모형폰": "휴대폰", "지갑": "카드지갑" };   // 11/10 지갑 → 카드지갑. 품목 값은 서버 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   function catName(c) { return CAT_LABEL[c] || c; }
   // 11/9 습득 역: 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터) — agents/contracts.py station_name 과 같게
   var LETTER_ST = { A: "해운대역", S: "서면역", H: "부산역 본센터" };
   function stationOf(id) { id = String(id || ""); return /^[A-Z]-/.test(id) ? LETTER_ST[id[0]] || "" : ""; }
+  function localTime(iso) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d)) return (iso || "").replace("T", " ").slice(0, 16);
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
   function el(tag, text, cls) { var e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
   // 11/5 /api/ 주소 체계: 찾기 접수는 /api/lost, 정지는 /api/robot(로그인 없이), 나머지 관리자 API 는 /api/admin
   function route(method, path) {
@@ -284,8 +292,9 @@
       var row = el("div", undefined, "qitem" + (xcur && xcur.case_id === q.case_id ? " on" : ""));
       row.appendChild(el("span", q.case_id + " · 물건 " + q.item_id + (stationOf(q.item_id) ? "(" + stationOf(q.item_id) + " 습득)" : "") + " · " + (catName(q.category) || "품목 미정") +
                                  (q.claim ? " · " + q.claim.name_masked : "") +
-                                 (q.staff_shelf ? " · 직원 보관 선반 " + q.slot + "에서 가져와 확인" : "")));   // 11/9 선반 물건은 로봇이 제출보관함에 두지 않음
-      var b = el("button", "확인 시작", "primary");
+                                 (q.staff_shelf ? " · 직원 보관 선반 " + q.slot + "에서 가져와 확인" : "") +   // 11/9 선반 물건은 로봇이 제출보관함에 두지 않음
+                                 (q.self_pickup ? " · 분실인이 키오스크에서 직접 받는 중(문제 있을 때만 확인)" : "")));
+      var b = el("button", q.self_pickup ? "직접 확인" : "확인 시작", q.self_pickup ? "" : "primary");   // 11/11 무인 인계 물건은 직원 차례가 아님
       b.addEventListener("click", function () { pick(q); });
       row.appendChild(b); box.appendChild(row);
     });
@@ -295,6 +304,8 @@
     var kv = $("xkv"); kv.textContent = "";
     [["사례", q.case_id], ["물건 번호", q.item_id], ["습득 역", stationOf(q.item_id) || "-"], ["품목", catName(q.category) || "-"], ["가린 이름", q.claim ? q.claim.name_masked : "-"],
      ["물건 위치", q.staff_shelf ? "직원 보관 선반 " + q.slot + " (직원이 가져옴)" : "제출보관함 H-1"]]
+      .concat(q.claim && q.claim.lost_station ? [["분실인이 말한 역", q.claim.lost_station + (/역$/.test(q.claim.lost_station) ? "" : "역") + (stationOf(q.item_id) && stationOf(q.item_id).indexOf(q.claim.lost_station) !== 0 ? " (습득 역과 다름)" : "")]] : [])
+      .concat(q.claim && q.claim.quiz_passed === false ? [["확인 질문", "⚠️ 맞지 않음 — 직원 대면 확인으로 진행한 요청이에요. ③을 꼭 확인하세요"]] : [])
       .forEach(function (p) { kv.appendChild(el("b", p[0])); kv.appendChild(el("span", p[1])); });
     var pub = q.public || {};
     $("xpub").textContent = Object.keys(pub).map(function (k) { return pub[k]; }).join(" · ") || "공개 특징 없음";
@@ -323,7 +334,10 @@
     var r = await api("GET", "/returns/" + encodeURIComponent(xcur.case_id) + "/secret");
     if (r.status !== 200) { $("xsecret").textContent = "답을 불러오지 못함: " + detail(r); $("xsecret").hidden = false; $("xreveal").disabled = false; return; }
     var s = r.data.secret || {};
-    $("xsecret").textContent = "정답: " + ([s.mark, s.visible_text].filter(Boolean).join(" · ") || "등록된 비공개 특징 없음 → 불일치로 고르고 직원이 판단");
+    // 11/10 사람 조작 시뮬레이션: 사진 분석이 못 찾은 값('없음'·'확인 불가')이 '정답: 없음 · 확인 불가'로 떠서 정답처럼 보였다 → 빈 값으로 본다
+    const real = [s.mark, s.visible_text].filter(v => v && !/^(없음|확인 불가|모름|-)$/.test(String(v).trim()));
+    $("xsecret").textContent = real.length ? "정답: " + real.join(" · ")
+      : "등록된 비공개 특징 없음(사진에서 글자·스티커를 못 찾음) — 분실인이 말한 특징을 실물에서 직접 확인해 고르세요";
     $("xsecret").hidden = false;
     document.querySelectorAll('.xstep[data-k="feature_match"] .seg button').forEach(function (b) { b.disabled = false; });
   });
@@ -372,10 +386,13 @@
       var ok = c.web_gates[k];
       var row = el("div", undefined, "gate");
       row.appendChild(el("span", ok ? "✅" : "❌", ok ? "ok" : "bad"));
-      row.appendChild(el("span", NAMES[k] + (ok ? " 통과" : " 통과 못 함 → 반환되지 않습니다")));
+      row.appendChild(el("span", NAMES[k] + (ok ? " 통과" : k === "quiz_passed" && c.web_gates.consent && c.web_gates.id_verified
+        ? " 통과 못 함 → 아래 '직원 대면 확인'으로만 진행할 수 있습니다" : " 통과 못 함 → 반환되지 않습니다")));
       g.appendChild(row);
     });
-    ["g1", "g2", "g3"].forEach(function (id) { $(id).checked = false; });
+    ["g1", "g2", "g3", "g4"].forEach(function (id) { $(id).checked = false; });
+    // 11/10 웹 확인 질문만 맞지 않은 요청: 직원 대면 확인으로 대신할 수 있는 칸(동의·본인인증은 대신 못 함)
+    $("g4row").hidden = !(c.web_gates.consent && c.web_gates.id_verified && !c.web_gates.quiz_passed);
     $("result").hidden = true;
     $("claimBox").hidden = false;
     refreshStart();
@@ -398,6 +415,13 @@
     var n = tries[current.claim_id] || 0;
     var body = { claim_id: current.claim_id, visitor_id_match: $("g1").checked,
                  inner_feature_ok: $("g2").checked, staff_confirmed: $("g3").checked };
+    if (!$("g4row").hidden && $("g4").checked) {
+      if (!($("g1").checked && $("g2").checked && $("g3").checked)) {
+        $("startMsg").textContent = "직원 대면 확인은 신분증·안쪽 특징·최종 확인을 모두 체크했을 때만 쓸 수 있습니다";
+        $("start").disabled = false; return;
+      }
+      body.staff_quiz_override = true;
+    }
     if (n > 0) body.case_id = ("R-" + current.claim_id + "-" + (n + 1)).slice(0, 32);
     var r = await api("POST", "/returns", body);
     var box = $("result"); box.textContent = ""; box.hidden = false;
@@ -437,7 +461,7 @@
       if (stationOf(x.item_id)) tr.lastChild.title = stationOf(x.item_id) + " 습득";        // 11/9 물건 번호에 마우스를 올리면 습득 역
       tr.appendChild(el("td", d[1], d[0]));
       tr.appendChild(el("td", x.reason));
-      tr.appendChild(el("td", (x.created_at || "").replace("T", " ").slice(0, 16)));
+      tr.appendChild(el("td", localTime(x.created_at)));          // 11/10 서버 시각(UTC, +00:00)을 그대로 잘라 9시간 늦게 보였다
       tb.appendChild(tr);
     });
   }

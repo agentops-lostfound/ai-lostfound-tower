@@ -101,6 +101,36 @@ def sub_question(question, kind):
     return ' '.join(got).strip() or question
 
 
+WALLET_NUDGE = "참고: 이곳에서는 지갑을 '카드지갑' 품목으로 받고 있어요. 다음부터는 '카드지갑'이라고 말씀해 주세요."
+
+
+def wallet_nudge(question, history, out):
+    """11/10 사용자 결정: 품목 이름은 '카드지갑'. 사용자가 그냥 '지갑'이라고 하면 알아듣되, 답에 한 줄을 덧붙여 '카드지갑'으로 이끈다.
+
+    붙이는 자리: 검색·안내 답은 **끝**(11/9 결정 "핵심이 먼저" — 후보 수가 첫 줄), 접수 대화는 답이 다음 질문으로 끝나므로 **앞**.
+
+    한 대화에 한 번만(앞 질문에 이미 '지갑'이 있었으면 다시 말하지 않음). 직원 관제 답·거절 답에는 붙이지 않는다.
+    답의 나머지(검색·접수·안내)는 그대로 — 저장 값은 여전히 '지갑'(agents/contracts.py CATEGORY_LABEL)."""
+    try:
+        from agents.guidance import fix_typos
+        text = fix_typos(str(question or ""))               # '지깝' 같은 오타도 지갑으로 읽은 뒤 판단
+        if "지갑" not in text or re.search(r"카드\s*지갑", text):
+            return out
+        if not isinstance(out, dict) or not out.get("answer"):
+            return out
+        # 물건 이야기로 받아들인 답에만(검색·접수, 또는 답이 이미 카드지갑을 말함) — 못 알아들은 답·직원 관제 답에는 붙이지 않음
+        if out.get("agent") not in ("search", "intake", "both") and "카드지갑" not in out["answer"]:
+            return out
+        if "지갑" in str(history or ""):
+            return out
+        if WALLET_NUDGE in out["answer"]:
+            return out
+        answer = (WALLET_NUDGE + "\n" + out["answer"]) if out.get("agent") == "intake" else (out["answer"].rstrip() + "\n" + WALLET_NUDGE)
+        return {**out, "answer": answer, "wallet_nudge": True}
+    except Exception:
+        return out
+
+
 def chat_text(report):
     """마크다운 보고서 → 채팅 말풍선용 글(위젯은 글자 그대로 보여 준다): 제목 기호·굵게·기울임 표시를 뺀다."""
     out = []
@@ -250,7 +280,7 @@ class Chatbot:
         elif name == 'intake':
             kind = state.get('intake_start') or ('진행 중' if state.get('intake_active') else '')
             task = {'lost': '대화로 분실 접수 시작 — 빈칸 하나씩 묻기', 'found': '대화로 습득 신고 시작 — 빈칸 하나씩 묻기',
-                    'status': '대기 번호 상태 조회'}.get(kind, '진행 중인 접수 이어 가기 — 이번 말로 빈칸 채우고 다음 칸 묻기·확인 받기')
+                    'status': '대기 번호 상태 조회', 'cancel': '대화로 찾기 요청 취소 — 찾기 번호·본인 확인 뒤 확인 받기'}.get(kind, '진행 중인 접수 이어 가기 — 이번 말로 빈칸 채우고 다음 칸 묻기·확인 받기')
         else:
             task = '관제 기록 분석 보고(읽기 전용, 숫자는 기록에서만)'
         return {'no': no, 'agent': STEP_AGENT.get(name, name), 'plan_name': name, 'task': task, 'status': 'todo', 'by': by,
@@ -594,7 +624,7 @@ class Chatbot:
                                     'decisions': out.get('decisions'), 'intake': out.get('intake')})
         from agents.observability import flush_soon
         flush_soon()                 # 11/9 질문 하나가 끝나면 바로 Langfuse 로(관제탑을 끌 때까지 기다리지 않음)
-        return out
+        return wallet_nudge(question, history, out)
 
     def _ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, intake_action=None):
         question = checked_text(question, '질문', 500)
@@ -616,7 +646,7 @@ class Chatbot:
             resolved = False        # 11/7: 무엇을 가리키는지 규칙이 못 정하면 모델(planner·안내 작성)이 앞 대화를 보고 판단
         if resolved is None:
             return {**self.guidance._response('clarification_needed',
-                '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 지갑 찾아줘 / 본인인증에 실패하면?', []),
+                '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 카드지갑 찾아줘 / 본인인증에 실패하면?', []),
                 'agent': 'guidance', 'context_used': False}
         # Bearer credentials must never enter graph state, checkpoints or tracing.
         context_token = _search_access.set(access_token)

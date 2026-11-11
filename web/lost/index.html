@@ -197,10 +197,10 @@
         <div class="field full">
           <span class="label">물건 종류 *</span>
           <div class="chips" id="cats" role="group" aria-label="물건 종류">
-            <button type="button" class="chip" data-v="지갑"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M15 10.5h6v5h-6a2.5 2.5 0 0 1 0-5zM16.5 13h.01"/></svg>지갑</button>
             <button type="button" class="chip" data-v="모형폰"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.2"/><path d="M11 18h2"/></svg>휴대폰</button>
-            <button type="button" class="chip" data-v="핸드크림"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 3h9l-1.5 13.5h-6z"/><path d="M10 16.5h4V20a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1z"/></svg>핸드크림</button>
             <button type="button" class="chip" data-v="보조배터리"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10.5v3M11.5 9l-2 3h3l-2 3"/></svg>보조배터리</button>
+            <button type="button" class="chip" data-v="핸드크림"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 3h9l-1.5 13.5h-6z"/><path d="M10 16.5h4V20a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1z"/></svg>핸드크림</button>
+            <button type="button" class="chip" data-v="지갑"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M15 10.5h6v5h-6a2.5 2.5 0 0 1 0-5zM16.5 13h.01"/></svg>카드지갑</button>
           </div>
         </div>
         <div class="field full">
@@ -238,7 +238,7 @@
               <option>1</option><option>2</option><option>3</option><option>4</option>
             </select></span>
           </div>
-          <p class="hint">가려서 보내요: <span class="mono">홍*동</span> <span class="mono">******-3******</span><br>본센터에서 같은 값을 다시 넣어요.</p>
+          <p class="hint"><span id="maskLead">가려서 보내요(예):</span> <span class="mono" id="maskName">홍*동</span> <span class="mono" id="maskId">******-3******</span><br>본센터 키오스크에서는 뒤 첫 자리 숫자만 다시 넣어요.</p>
         </div>
         <label class="agree full"><input type="checkbox" id="agree">
           <span><b>가린 이름·가린 번호·물건 설명</b> 저장에 동의해요.<small>반환 뒤엔 찾기 기록만 남기고 지워요. 원문은 저장 안 해요.</small></span></label>
@@ -283,9 +283,9 @@
           <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="번호 입력 그림"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9.5h.01M12 9.5h.01M16 9.5h.01M8 13h.01M12 13h.01M16 13h.01M10 16.2h4"/></svg></span>
             <span>찾기 번호<br><span class="mono" id="vcode">-</span></span></li>
           <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="가린 신분 번호 그림"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M7 12h.01M10 12h.01M13 12h.01M16 12h1.5"/></svg></span>
-            <span>가린 번호<br><span class="mono" id="vid">-</span></span></li>
+            <span>신분증 뒤 첫 자리<br><span class="mono" id="vid">-</span></span></li>
           <li><span class="si"><svg viewBox="0 0 24 24" role="img" aria-label="로봇이 꺼낸 상자 그림"><path d="M4 8.5l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8.5l8 4 8-4M12 12.5v8"/></svg></span>
-            <span>로봇이 <b>제출보관함</b>에<br>직원 확인 후 받기</span></li>
+            <span>로봇이 <b>제출보관함</b>에<br>직접 꺼내고 [물건 받았어요]</span></li>
         </ol>
         <div class="bring" role="group" aria-label="가져갈 것">
           <span class="bring-t">가져갈 것</span>
@@ -298,7 +298,10 @@
         <ul class="prog" id="prog"></ul>
       </div>
     </div>
-    <div class="actions"><button class="btn secondary" type="button" id="again">새로 신고하기</button></div>
+    <div class="actions"><button class="btn secondary" type="button" id="again">새로 신고하기</button>
+      <!-- 11/10 찾기 요청·방문 예약 취소(방문 전까지). 두 번 눌러 실행 — 신고할 때 넣은 가린 신분 번호로 본인 확인 -->
+      <button class="btn secondary" type="button" id="cancelClaim" hidden>찾기 요청 취소</button></div>
+    <p class="hint" id="cancelMsg" role="status" style="text-align:center;margin:6px 0 0" hidden></p>
   </section>
 
   <p class="notice">교육용 시연 화면이에요. 현금·신분증·위험물은 역무실로 문의하세요.</p>
@@ -336,6 +339,11 @@ function maskName(n) {
 }
 function check() {
   $('#send').disabled = !(state.cat && $('#name').value.trim() && $('#gender').value && $('#agree').checked);
+  // 11/10 사람 조작 시뮬레이션: 아무것도 안 넣었는데 '가려서 보내요: 홍*동 ******-3******'가 내 값처럼 보였다 → 넣은 값으로 바로 보여 주고, 비면 (예)
+  const nm = $('#name').value.trim(), g = $('#gender').value;
+  $('#maskLead').textContent = nm || g ? '가려서 보내요:' : '가려서 보내요(예):';
+  $('#maskName').textContent = nm ? maskName(nm) : '홍*동';
+  $('#maskId').textContent = `******-${g || (nm ? '?' : '3')}******`;
 }
 ['#name', '#gender', '#agree'].forEach(s => $(s).addEventListener('input', check));
 $('#agree').addEventListener('change', check);
@@ -373,7 +381,8 @@ $('#form').addEventListener('submit', async e => {
   state.idMasked = `******-${$('#gender').value}******`;
   $('#send').disabled = true; $('#send').textContent = '찾는 중…';
   try {
-    const res = await post('/sim/lost', {text, visit: 'kiosk', name_masked: maskName($('#name').value), id_no_masked: state.idMasked});
+    // 11/10 '잘 모르겠어요'(역을 고르지 않음) → 관제탑이 장소를 다시 묻지 않고 확인 질문에서도 뺀다
+    const res = await post('/sim/lost', {text, visit: 'kiosk', name_masked: maskName($('#name').value), id_no_masked: state.idMasked, place_unknown: !station});
     handle(res);
   } catch (x) { err($('#err1'), x.message); }
   finally { $('#send').textContent = '분실 신고하기'; check(); }
@@ -410,7 +419,7 @@ function done(res) {
     $('#visit').hidden = true;
   } else if (res.staff) {
     card.className = 'card warn';
-    head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">부산역 본센터 역무실에서<br>직원이 직접 확인해 드려요.</p>`;
+    head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">부산역 본센터에서<br>직원이 직접 확인해 드려요.</p>`;
     $('#cand').innerHTML = ''; $('#visit').hidden = true;
   } else if (res.claim_id && res.quiz_passed) {
     card.className = 'card ok';
@@ -422,13 +431,13 @@ function done(res) {
     card.className = 'card warn';
     head.innerHTML = `<div class="hint" style="margin:0">찾기 번호</div><div class="code">${esc(res.claim_id)}</div>
       <button type="button" class="ghost copyno" data-no="${esc(res.claim_id)}">번호 복사</button>
-      <p class="desc" style="margin:4px 0 0">확인 답이 달라요.<br>부산역 본센터 역무실에서 직원이 확인해요.</p>`;
+      <p class="desc" style="margin:4px 0 0">확인 답이 달라요.<br>부산역 본센터 직원이 확인해요.</p>`;
     $('#visit').hidden = true;
   }
   const top = (res.candidates || [])[0];
   $('#cand').innerHTML = top && !res.staff ? `<div class="cand"><b>${esc(top.card)}</b><span>${esc(top.status)} · ${esc(top.station)}</span></div>` : '';
   $('#vcode').textContent = res.claim_id || '-';
-  $('#vid').textContent = state.idMasked || '-';
+  $('#vid').textContent = (state.idMasked || '').replace(/^\*{6}-([1-4])\*{6}$/, '$1') || '-';   // 11/10 키오스크에는 이 숫자 하나만 넣는다
   steps(res.claim_id && res.quiz_passed ? 3 : 3, 2); show('#s-done');
   startPoll();
 }
@@ -449,20 +458,46 @@ async function pollOnce() {
     const r = await fetch(`/sim/stories/${encodeURIComponent(state.story)}`);
     if (!r.ok) return;
     const st = await r.json();
-    $('#prog').innerHTML = st.stages.map(s => `<li class="${s.state}"><span class="dot"></span>${esc(s.label)}<span class="det">${esc(s.detail || LABEL[s.state] || '')}</span></li>`).join('')
+    // 11/10 사람 조작 시뮬레이션: 취소·실패로 끝난 뒤에도 남은 단계가 '대기'로 보여 아직 진행될 것처럼 읽혔다 → 끝났으면 '진행 안 함'으로
+    const ended = st.result && !st.result.ok;
+    $('#prog').innerHTML = st.stages.map(s => { const k = ended && s.state === 'todo' ? 'skip' : s.state;
+      return `<li class="${k}"><span class="dot"></span>${esc(s.label)}<span class="det">${esc(s.detail || (ended && s.state === 'todo' ? '진행 안 함' : LABEL[k]) || '')}</span></li>`; }).join('')
       + (st.result ? `<li class="${st.result.ok ? 'done' : 'fail'}"><span class="dot"></span><b>${esc(st.result.text)}</b></li>` : '');
     $('#progwhen').textContent = '· 자동으로 새로 고침';
     const visit = st.stages.find(s => s.key === 'visit');
     if (visit && visit.state === 'done') steps(4, 3);
-    const ho = st.stages.find(s => s.key === 'handover');      // 직원 교차 검증(인계)까지 끝나야 멈춤
+    // 취소 단추: 찾기 번호가 있고 아직 방문 전(반환 시작 전)·끝나지 않았을 때만
+    $('#cancelClaim').hidden = !(state.claim && !st.result && !(visit && visit.state === 'done'));
+    const ho = st.stages.find(s => s.key === 'handover');      // 인계 완료(키오스크 [물건 받았어요] 또는 예외의 직원 교차 검증)까지 끝나야 멈춤
     const over = st.result && (!st.result.ok || (ho && (ho.state === 'done' || ho.state === 'fail')));
     if (over || Date.now() - state.started > 15 * 60 * 1000) { clearInterval(state.poll); state.poll = null; steps(4, 4); $('#progwhen').textContent = '· 끝'; }
   } catch (_) {}
 }
+let cancelArmed = false;
+$('#cancelClaim').addEventListener('click', async () => {
+  const b = $('#cancelClaim'), msg = $('#cancelMsg');
+  if (!state.claim) return;
+  if (!cancelArmed) {
+    cancelArmed = true; b.textContent = '한 번 더 누르면 취소돼요';
+    setTimeout(() => { if (cancelArmed) { cancelArmed = false; b.textContent = '찾기 요청 취소'; } }, 4000);
+    return;
+  }
+  cancelArmed = false; b.disabled = true; b.textContent = '찾기 요청 취소';
+  try {
+    const r = await fetch(`/api/lost/claims/${encodeURIComponent(state.claim)}/cancel`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify({id_no_masked: state.idMasked || ''})});
+    const j = await r.json().catch(() => ({}));
+    msg.hidden = false;
+    if (r.ok) { msg.textContent = '찾기 요청과 방문 예약을 취소했어요. 물건은 본센터에 그대로 보관돼요.'; b.hidden = true; pollOnce(); }
+    else msg.textContent = typeof j.detail === 'string' ? j.detail : ((j.detail && j.detail.message) || '취소하지 못했어요');
+  } catch (_) { msg.hidden = false; msg.textContent = '관제탑에 연결할 수 없어요'; }
+  b.disabled = false;
+});
 function startPoll() { clearInterval(state.poll); state.started = Date.now(); pollOnce(); state.poll = setInterval(pollOnce, 1500); }
 
 function resetAll() {
   clearInterval(state.poll); state.poll = null; state.story = state.claim = null; pending = null;
+  $('#cancelClaim').hidden = true; $('#cancelMsg').hidden = true; cancelArmed = false;
   $('#form').reset(); state.cat = state.color = '';
   document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
   $('#day').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -471,6 +506,6 @@ function resetAll() {
 $('#again').addEventListener('click', resetAll);
 $('#clear').addEventListener('click', () => setTimeout(resetAll, 0));
 </script>
-<script src="/chat-widget/widget.js?v=20261110b" defer></script>
+<script src="/chat-widget/widget.js?v=20261110d" defer></script>
 </body>
 </html>

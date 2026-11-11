@@ -139,6 +139,8 @@ def build_service(backend_factory=None) -> TowerService:
                        recorder=recorder, reviewer=reviewer, claims=claims, intake=intake,
                        gpu_lease=lease_from_env(), storage=storage)
     svc.board = board
+    from agents.taught_return import configure
+    configure(svc)
     from agents.tower_brain import build_from_env     # 11/8 관제탑 메인 AI(.env TOWER_BRAIN=1 일 때만)
     svc.brain = build_from_env(slot_lookup=svc.slot_area)
     return svc
@@ -228,6 +230,14 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """등록기계 화면: 습득물 접수 → 접수 번호. 본문: machine_id, place_text(필수), place_id(추천 고른 경우),
         finder {name, phone}(둘 다 선택 — 비우면 저장 안 함), photo(선택, data:image/jpeg;base64,… 5MB 이하) 또는 photo_path.
         연락처는 응답에 나오지 않음"""
+        # 11/10 조작 화면은 하나(agents/kiosk_control.py): 사진 접수는 그 기계의 조작 화면에서 온 것만 받는다.
+        # 조작 화면이 없으면(아무도 안 열었거나 옛 화면만 있음) 예전처럼 받는다. client 는 화면 ID 라 저장하지 않는다
+        if isinstance(payload, dict):
+            client = payload.pop("client", None)
+            ctl = getattr(app.state, "kiosk_control", None)
+            owner = ctl.owner(str(payload.get("machine_id") or "")) if ctl is not None and payload.get("photo") else None
+            if owner is not None and client != owner:
+                raise HTTPException(status_code=409, detail="다른 화면에서 사용 중이에요. 그 화면에서 접수하거나, 이 화면에서 [여기서 조작하기]를 눌러 주세요")
         try:
             rec = svc.create_item(payload)
         except RequestError as e:
@@ -358,6 +368,22 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         except Unavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
 
+    @app.post("/api/kiosk/handover")
+    def kiosk_handover(payload: dict = Body(...)) -> dict:
+        """11/11 무인 인계: 분실인이 제출보관함에서 물건을 꺼낸 뒤 본센터 키오스크 [받았어요](로그인 없음).
+        본문 {machine_id: "CENTER", claim_id, id_no_masked} — 회수와 같은 본인 확인. 선반 물건·직원 대면 확인 요청은 409 kind=staff"""
+        try:
+            d = getattr(svc, "sim", None)
+            return d.kiosk_handover(payload) if d is not None and callable(getattr(d, "kiosk_handover", None)) else svc.kiosk_handover(payload)
+        except RequestError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except NotFound as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Conflict as e:
+            raise HTTPException(status_code=409, detail={"kind": e.kind, "message": str(e)})
+        except Unavailable as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
     @app.post("/returns/{case_id}/handover", dependencies=admin)
     @app.post("/api/admin/returns/{case_id}/handover", dependencies=admin)
     def handover(case_id: str, payload: dict = Body(...)) -> dict:
@@ -447,6 +473,70 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def restock(case_id: str, payload: dict = Body(...)) -> dict:
         """반환 보류 물건을 원래 칸에 넣은 뒤 → 본센터 보관. 본문 {"staff_confirmed": true}"""
         return _case(lambda: svc.restock(case_id, payload))
+
+    # ---------- 11/10 직원 단추(통합 시연 화면): 본센터로 회수 · 접수 취소 ----------
+    def _item_action(item_id: str, name: str) -> dict:
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        d = getattr(svc, "sim", None)
+        fn = getattr(d, name, None) if d is not None else None
+        if not callable(fn):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        out = fn(item_id)
+        if not out.get("ok"):
+            raise HTTPException(status_code=404 if out.get("code") == "not_found" else 409, detail=out.get("reason") or "할 수 없어요")
+        return {"ok": True, "item_id": item_id}
+
+    @app.post("/api/admin/items/{item_id}/collect", dependencies=admin)
+    def item_collect(item_id: str) -> dict:
+        """[본센터로 회수]: 등록기계에 남아 있는 물건(칸 대기 · 사진 분석이 늦게 끝난 건)을 지금 회수한다.
+        맞는 빈 칸이 있으면 그 칸, 없으면 직원 보관 선반. 진행은 이야기(/api/admin/live/state)로 보인다"""
+        return _item_action(item_id, "collect_now")
+
+    @app.post("/api/admin/items/{item_id}/cancel", dependencies=admin)
+    def item_cancel(item_id: str) -> dict:
+        """[접수 취소]: 실수로 접수한 물건을 지운다(되돌릴 수 없음). 아직 등록기계에 있고 찾기 요청이 없을 때만.
+        가상 세계와 팀 DB(함께 저장 중이면) 모두에서 지운다. 사진 파일은 남는다"""
+        return _item_action(item_id, "cancel_item")
+
+    @app.post("/api/admin/items/{item_id}/purge", dependencies=admin)
+    def item_purge(item_id: str) -> dict:
+        """[기록 삭제](로봇 작업대 화면): 물건 하나에 딸린 기록을 전부 지운다(되돌릴 수 없음) — 물건·상태 기록·연락처·보관 칸·
+        찾기 요청(확인 질문·방문 예약)·반환 기록. 가상 세계 + 팀 DB(함께 저장 중이면). 반환 중인 물건은 409. 사진 파일은 남는다"""
+        from agents.intake import valid_item_id
+        if not valid_item_id(item_id):
+            raise HTTPException(status_code=422, detail="item_id 형식")
+        d = getattr(svc, "sim", None)
+        if d is None or not callable(getattr(d, "purge_item", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        if svc.health().get("busy"):
+            raise HTTPException(status_code=409, detail="반환이 진행 중이에요 — 끝난 뒤 다시 눌러 주세요")
+        out = d.purge_item(item_id)
+        if not out.get("ok"):
+            raise HTTPException(status_code=404 if out.get("code") == "not_found" else 409, detail=out.get("reason") or "할 수 없어요")
+        return {"ok": True, "item_id": item_id, "claims": out.get("claims") or [], "cases": out.get("cases") or [], "slot": out.get("slot")}
+
+    @app.post("/api/kiosk/items/{item_id}/cancel")
+    def kiosk_item_cancel(item_id: str, payload: dict = Body(...)) -> dict:
+        """키오스크 '접수되었습니다' 화면의 [접수 취소]: 방금(3분 안에) 이 화면에서 접수한 물건만 지운다.
+        본문 {"client": 화면 ID}. 그 기계의 조작 화면이 따로 있으면 그 화면만 취소할 수 있다"""
+        from datetime import datetime, timezone
+        row = (getattr(getattr(svc, "world", None), "items", None) or {}).get(item_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="없는 접수 번호예요")
+        ctl = getattr(app.state, "kiosk_control", None)
+        owner = ctl.owner(str(row.get("machine_id") or "")) if ctl is not None else None
+        client = payload.get("client") if isinstance(payload, dict) else None
+        if owner is not None and client != owner:
+            raise HTTPException(status_code=409, detail="다른 화면에서 사용 중이에요")
+        try:
+            age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(row.get("received_at")))).total_seconds()
+        except Exception:
+            age = 1e9
+        if age > 180:
+            raise HTTPException(status_code=409, detail="접수한 지 3분이 지나 여기서는 취소할 수 없어요 — 역무실에 알려 주세요")
+        return _item_action(item_id, "cancel_item")
 
     @app.get("/api/admin/items/{item_id}/photo", dependencies=admin)
     def item_photo(item_id: str):
@@ -688,10 +778,26 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         11/10 detail=1: 저장소(db)·에이전트(trace) 사건도 함께(통합 시연 화면 /showcase 전용) + db_source(memory|postgres)"""
         board = getattr(svc, "board", None)
         world = getattr(svc, "world", None)
-        out = {"seq": board.last_seq if board else 0,
-               "events": (board.since(after, story, detail=bool(detail)) if detail else board.since(after, story)) if board else [],
+        last = board.last_seq if board else 0
+        evs = (board.since(after, story, detail=bool(detail)) if detail else board.since(after, story)) if board else []
+        more = len(evs) >= 200                      # 11/10 한 번에 200개까지 — 더 있으면 받은 데까지만 seq 로 알려 다음에 이어 받게(전에는 나머지를 건너뜀)
+        out = {"seq": evs[-1]["seq"] if more else last, "more": more,
+               "events": evs,
                "stories": board.recent_stories() if board else [], "world": world.snapshot() if world else None,
                "sim": getattr(svc, "sim", None) is not None, "busy": svc.health()["busy"], "storage": _storage_brief()}
+        sim = getattr(svc, "sim", None)
+        if sim is not None and callable(getattr(sim, "open_claims", None)):
+            try:
+                out["claims_open"] = sim.open_claims()      # 11/10 방문 전 찾기 요청(직원 진행·취소 단추용, 개인정보 없음)
+            except Exception:
+                out["claims_open"] = []
+        if getattr(svc, "taught_robot", False):
+            out['robot_control'] = {'mode': 'taught_remote', 'verification_required': True}
+            if out['world']:
+                out['world']['arm'] = {**out['world']['arm'], 'joints': None,
+                                       'phase': '실물 원격 티칭 · 단계 기록 확인(그림은 배치 참고)'}
+                out['world']['robot']['role'] = '실물 원격 티칭 · 그림은 실시간 관절 상태가 아님'
+                out['world']['robot']['telemetry_available'] = False
         if detail:
             from agents import observability
             watch = getattr(svc, "db_watch", None)
@@ -772,7 +878,39 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                     if not isinstance(v, str) or "*" not in v or not 1 <= len(v) <= 32:
                         raise HTTPException(status_code=422, detail=f"{k}: 가린 값만(예: 변*원, ******-3******)")
                     opts[k] = v
+        if isinstance(payload, dict) and payload.get("place_unknown") is True:
+            opts["place_unknown"] = True          # 11/10 잃어버린 역을 모름(웹 '잘 모르겠어요') → 장소는 묻지도 채점하지도 않음
         return _sim_call(_sim().lost, _text(payload), opts)
+
+    def _claim_door(name: str):
+        """찾기 요청 취소·직원 진행: 가상 시연이면 진행판까지 함께 고치는 쪽(sim), 아니면 서비스 그대로"""
+        d = getattr(svc, "sim", None)
+        fn = getattr(d, name, None) if d is not None else None
+        return fn if callable(fn) else getattr(svc, name, None)
+
+    @app.post("/api/admin/claims/{claim_id}/cancel", dependencies=admin)
+    def claim_cancel_staff(claim_id: str) -> dict:
+        """[찾기 요청 취소](직원 화면·로봇 작업대·통합 화면): 방문 전인 찾기 요청과 방문 예약을 취소한다. 물건은 계속 보관.
+        방문 처리된(반환이 시작된) 요청은 409. 가상 세계 + 팀 DB(함께 저장 중이면 reservation.status = cancelled)"""
+        return _sim_call(lambda: _claim_door("cancel_claim")(claim_id, by_staff=True))
+
+    @app.post("/api/lost/claims/{claim_id}/cancel")
+    def claim_cancel_owner(claim_id: str, payload: dict = Body(...)) -> dict:
+        """분실인이 자기 찾기 요청을 취소: 본문 {"id_no_masked": "******-3******"} — 요청할 때 넣은 가린 신분 번호와 같아야 한다.
+        틀리면 422(여러 번 틀리면 409 locked). 남의 찾기 번호를 알아도 신분 번호 없이는 취소하지 못한다"""
+        if not isinstance(payload, dict) or set(payload) != {"id_no_masked"} or not isinstance(payload["id_no_masked"], str) \
+                or not 1 <= len(payload["id_no_masked"]) <= 32:
+            raise HTTPException(status_code=422, detail="본문은 id_no_masked(가린 신분 번호) 하나만 보냅니다")
+        return _sim_call(lambda: _claim_door("cancel_claim")(claim_id, id_no_masked=payload["id_no_masked"]))
+
+    @app.post("/api/admin/claims/{claim_id}/visit", dependencies=admin)
+    def claim_staff_visit(claim_id: str) -> dict:
+        """[직원 확인 후 진행](로봇 작업대·통합 화면): 본센터 방문 대기에서 멈춘 찾기 요청을 직원이 대면 확인하고 반환을 시작한다.
+        확인 질문이 맞지 않아 키오스크가 받지 않는 요청, 키오스크를 쓰지 못하는 분실인용. 가상 시연에서만(진짜는 /staff 의 반환 시작)"""
+        d = _sim()
+        if not callable(getattr(d, "staff_visit", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.staff_visit, claim_id)
 
     @app.post("/sim/lost/{pending_id}/answer")
     def sim_answer(pending_id: str, payload: dict = Body(...)) -> dict:
@@ -795,7 +933,7 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         d = _sim()
         if svc.health()["busy"]:
             raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
-        return d.reset()
+        return _sim_call(d.reset)
 
     @app.get("/returns", dependencies=admin)
     @app.get("/api/admin/returns", dependencies=admin)
@@ -840,6 +978,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     try:
         from agents.kiosk_camera import add_camera_routes
         add_camera_routes(app)
+        from agents.kiosk_control import add_control_routes      # 11/10 같은 기계 화면을 여러 PC 에서 열어도 조작 화면은 하나
+        add_control_routes(app)
     except ImportError:          # 시험용 가짜 fastapi(응답 클래스 없음)에서는 건너뜀
         pass
     return app

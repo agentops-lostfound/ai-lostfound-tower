@@ -9,7 +9,7 @@ flowchart LR
   subgraph Screens[화면 — 각 담당이 자유 기술로]
     Kiosk[습득물 등록기계 화면<br/>김재민 LF-2]
     Web[분실인 웹<br/>김재민 LF-4·6 · 정연우 LF-5]
-    Staff[직원 화면<br/>방문 확인 · 직원 최종 확인]
+    Staff[직원 화면 — 예외만<br/>직원 대면 확인 · 선반 물건 · 정지·원점]
   end
   subgraph Tower[관제탑 — 변재원]
     API[관제탑 API<br/>agents/api.py · FastAPI]
@@ -66,7 +66,8 @@ flowchart LR
 | `GET /claims/{claim_id}` | 직원 화면: 찾기 요청 조회(가린 이름·물건·예약·웹 확인) | 200 | 404 없음 · 422 번호 형식 |
 | `GET /staff` | 직원 화면(본센터 방문 확인) 페이지 | 200 | — |
 | `POST /returns` | 반환 흐름 실행 | 200 + 결과(decision·reason·approved·steps…·recorded) | 422 형식 오류 · 404 없는 찾기 번호 · 409 같은 사례 번호·이미 방문 처리(duplicate) 또는 다른 반환 진행 중(busy) · 503 DB 연결 안 됨 |
-| `POST /returns/{case_id}/handover` | 직원 화면: 바구니의 물건을 분실인에게 건넴 → `인계 대기` → `인계 완료` (11/4). 본문 `{"staff_confirmed": true}` | 200 + item_id·status | 404 없는 사례 · 409 이미 인계(duplicate)·인계할 상태 아님(state) · 422 본문 · 503 DB |
+| `POST /api/kiosk/handover` | 11/11 무인 인계: 분실인이 제출보관함에서 꺼낸 뒤 본센터 키오스크 [물건 받았어요] → `인계 대기` → `인계 완료`(`changed_by=kiosk`). 본문 `{"machine_id": "CENTER", "claim_id", "id_no_masked"}`(회수와 같은 본인 확인, 3번 틀리면 잠금) | 200 + item_id·status·by | 422 번호 틀림 · 404 없는 찾기 번호 · 409 이미 인계(duplicate)·인계 대기 아님(state)·예외는 직원(staff) |
+| `POST /returns/{case_id}/handover` | (11/11부터 예외만) 직원 화면: 바구니의 물건을 분실인에게 건넴 → `인계 대기` → `인계 완료` (11/4). 본문 `{"staff_confirmed": true}` | 200 + item_id·status | 404 없는 사례 · 409 이미 인계(duplicate)·인계할 상태 아님(state) · 422 본문 · 503 DB |
 | `POST /returns/{case_id}/hold` | 직원 화면: 인계 대기 중 건네지 않음 → `반환 보류` + 경보. 본문 `{"reason": "본인 아님"|"물건 다름"|"분실인 거부"|"기타"}` (자유 입력 없음) | 200 + item_id·status·reason | 404 · 409 이미 보류(duplicate)·인계 대기 아님(state) · 422 · 503 |
 | `GET /returns` | 최근 기록(단계 제외) | 200 | — |
 | `GET /returns/{case_id}` | 기록 하나(단계 포함) | 200 | 404 없음 · 422 번호 형식 |
@@ -82,6 +83,8 @@ flowchart LR
 - DB가 꺼져 있으면 API는 **503** 을 돌려주고 로봇을 움직이지 않는다(중복 실행 확인을 못 하므로). 반환이 끝난 뒤 기록만 실패하면 결과는 돌려주고 `recorded: false` + 관제 알림
 
 ## 3-2. 웹 ↔ 관제탑 2단계 연결 (11/3 결정)
+> 11/11: 아래 그림은 직원 화면으로 반환을 시작하는 길(예외·키오스크를 못 쓸 때)이다. 정상 흐름은 본센터 키오스크 `POST /api/kiosk/returns`(현장 관문은 서버가 정함) → 제출보관함 → 키오스크 `POST /api/kiosk/handover` 로 끝나 직원이 끼지 않는다.
+
 확인 6개 중 3개는 집에서 웹으로, 3개는 본센터 방문 때 생긴다 → 두 번에 나눠 보내고, **웹 결과는 저장된 값만** 쓴다(직원이 다시 입력하지 않음).
 ```mermaid
 sequenceDiagram

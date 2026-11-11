@@ -583,7 +583,7 @@ class GroundedRag:
             if retired:                               # 11/9 운영하지 않는 품목(립밤)은 분실 신고로 안내하지 않음
                 return {**base, 'status': 'answered', 'generation_status': 'fixed_policy_text',
                         'answer': f"{inactive_category_message(retired[0])}. 다른 물건이면 종류와 색을 알려 주세요. "
-                                  '예: "검정 지갑 잃어버렸어요"',
+                                  '예: "검정 카드지갑 잃어버렸어요"',
                         'choices': LOST_CHOICES}
             if named:
                 return {**base, 'status': 'answered', 'generation_status': 'guided_question',
@@ -592,7 +592,7 @@ class GroundedRag:
                         'choices': LOST_CHOICES}
             return {**base, 'status': 'clarification_needed', 'generation_status': 'guided_question',
                     'answer': f'어떤 물건을 잃어버리셨나요? 이 시연에서는 {active_category_text()} {len(ACTIVE_CATEGORIES)}가지를 찾을 수 있어요. '
-                              '물건 종류와 색을 알려 주세요. 예: "검정 지갑 잃어버렸어요"',
+                              '물건 종류와 색을 알려 주세요. 예: "검정 카드지갑 잃어버렸어요"',
                     'choices': LOST_CHOICES}
         if not hits:
             return {**base, 'generation_status': 'off_topic',

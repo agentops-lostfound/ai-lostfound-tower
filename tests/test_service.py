@@ -281,9 +281,11 @@ class ApiRoutesTest(unittest.TestCase):
                                         "/api/admin/storage/status",
                                         "/api/admin/storage/robot-targets", "/api/admin/storage/robot-target/{item_id}",
                                         "/api/admin/db/recent")] + \
-                  [("POST", p) for p in ("/api/admin/intake/analysis/{item_id}", "/api/admin/login", "/api/admin/logout", "/api/admin/returns",
+                  [("POST", p) for p in ("/api/admin/intake/analysis/{item_id}", "/api/admin/items/{item_id}/collect", "/api/admin/items/{item_id}/cancel", "/api/admin/items/{item_id}/purge",
+                                        "/api/admin/claims/{claim_id}/cancel", "/api/admin/claims/{claim_id}/visit", "/api/lost/claims/{claim_id}/cancel",   # 11/10 찾기 요청 취소·직원 진행
+                                        "/api/kiosk/items/{item_id}/cancel", "/api/admin/login", "/api/admin/logout", "/api/admin/returns",
                                          "/api/admin/returns/{case_id}/handover", "/api/admin/returns/{case_id}/hold",
-                                         "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/items",
+                                         "/api/admin/robot/home", "/api/kiosk/claims", "/api/kiosk/handover", "/api/kiosk/items",
                                          "/api/kiosk/items/{item_id}/features", "/api/kiosk/returns", "/api/lost/claims", "/api/robot/stop",
                                          "/api/admin/storage/assign", "/api/admin/storage/release",   # 11/6 보관함 정답지
                                          "/api/admin/storage/slots/{slot_id}/pose", "/api/admin/storage/checks",
