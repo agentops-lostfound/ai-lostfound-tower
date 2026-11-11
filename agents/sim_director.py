@@ -219,7 +219,11 @@ class SimDirector:
             return
         try:
             allowed = slot_rows().get((slot or "").split("-")[0]) if slot else None
-            self.talk.slot_reserved(item_id, item_id, cat, slot, allowed, wait_no)
+            # 11/11 채점 에이전트가 보관함 정답지(DB 와 같은 규칙)로 다시 봄 — 다른 물건이 회수하려고 잡아 둔 칸은 정답지에 아직 없으므로 따로
+            st = getattr(self.svc, "storage", None)
+            layout = st.layout() if st is not None else None
+            held = {s for s in (self.world.reserved_for(i) for i in list(self.world.collecting) if i != item_id) if s}
+            self.talk.slot_reserved(item_id, item_id, cat, slot, allowed, wait_no, layout=layout, held=held)
             if not slot:
                 self.talk.flush(item_id, f"습득 {item_id} 에이전트 대화(칸 대기)")
         except Exception:
@@ -1064,7 +1068,7 @@ class SimDirector:
         w = self.world
         if callable(getattr(self.board, "mark_epoch", None)):   # 11/10 새로 연 통합 시연 화면에 초기화 전 연습 기록이 섞이지 않게
             self.board.mark_epoch()
-        if self.talk is not None:                        # 11/9 에이전트가 배운 점도 처음으로(시연을 처음부터 다시 보여 주려고)
+        if self.talk is not None:                        # 11/9 에이전트 대화 기록도 처음으로(11/11 배운 점 연출은 없앰)
             self.talk.reset()
         with self._wait_lock:                            # 11/9 대기 분실 신고도 처음으로
             self.waiting_lost.clear()
@@ -1124,9 +1128,10 @@ def build_sim_service(env: dict | None = None):
         except ValueError:
             return float(default)
     flag = lambda k: str(env.get(k) or "0").strip().lower() in ("1", "true", "yes", "on")  # noqa: E731
-    # 11/10 처음 보관함 물건: 기본 = 분홍 핸드크림 하나. TOWER_SIM_SEED=full 이면 예전 5개(휴대폰 2·보조배터리 2·립밤 1 — 칸 대기·닮은 물건 장면 연습용)
+    # 처음 보관함 물건(11/11): 기본 = 비어 있음(none). TOWER_SIM_SEED=cream 이면 분홍 핸드크림 하나(R3-1, 11/10 기본),
+    #   full 이면 예전 5개(휴대폰 2·보조배터리 2·립밤 1 — 칸 대기·닮은 물건 장면 연습용). 모르는 값도 비어 있음
     seed = str(env.get("TOWER_SIM_SEED") or "").strip().lower()
-    world = SimWorld(speed=num("TOWER_SIM_SPEED", 1.0), seed=seed if seed == "full" else True)
+    world = SimWorld(speed=num("TOWER_SIM_SPEED", 1.0), seed=seed if seed in ("cream", "full") else "none")
     board = LiveBoard()
     real_vision = vision_part_from_env(env)
     matcher = matcher_part_from_env(env)

@@ -59,7 +59,7 @@ class TaughtReturnTests(unittest.TestCase):
         self.addCleanup(self.close)
         self.url = f'http://127.0.0.1:{self.server.server_port}'
         self.client = RemoteTowerRobot(url=self.url, token=self.token, expected_mode='simulation')
-        self.env = {'TOWER_SIM': '1', 'TOWER_SIM_SPEED': '0', 'TOWER_AGENT_TALK': '0',
+        self.env = {'TOWER_SIM': '1', 'TOWER_SIM_SEED': 'cream', 'TOWER_SIM_SPEED': '0', 'TOWER_AGENT_TALK': '0',
                     'TOWER_GPU_LEASE': '0', 'LF_LANGFUSE': '0', 'TOWER_ROBOT_SEQUENCE': 'taught',
                     'TOWER_ROBOT_TARGET': 'db', 'TOWER_ROBOT_PART': 'robot.remote_client:RemoteTowerRobot',
                     'TOWER_REMOTE_ROBOT_URL': self.url, 'TOWER_REMOTE_ROBOT_TOKEN': self.token,

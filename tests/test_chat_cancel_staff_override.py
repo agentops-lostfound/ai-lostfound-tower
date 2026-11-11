@@ -11,7 +11,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
+ENV = {"TOWER_SIM_SEED": "cream", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}   # 11/11 기본은 빈 보관함 → 분홍 핸드크림 묶음
 OPT = {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-1******"}
 IDENT = {"type": "identity", "name_masked": "홍*동", "id_no_masked": "******-1******"}
 OTHER = {"type": "identity", "name_masked": "홍*동", "id_no_masked": "******-2******"}

@@ -226,7 +226,7 @@ class OutletFreesSlotTest(unittest.TestCase):
             self.skipTest("fastapi 필요")
         from agents.api import build_app
         from agents.sim_director import build_sim_service
-        self.svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_AGENT_TALK": "0"})
+        self.svc = build_sim_service({"TOWER_SIM_SEED": "cream", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_AGENT_TALK": "0"})
         self.c = TestClient(build_app(self.svc))
         self.w = self.svc.world
 
