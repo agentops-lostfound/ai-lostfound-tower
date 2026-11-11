@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_chat_color_multiturn import setUpModule, tearDownModule  # noqa: F401
 from test_deerflow_langfuse import bot
 from test_chat_answer_gap import model, say
-from agents.chat_rag import GroundedRag, contact_optional_clear, generation_requirements
+from agents.chat_rag import GroundedRag, answer_gap, contact_optional_clear, generation_requirements
 from agents.guidance import Guidance
 
 
@@ -112,6 +112,11 @@ class GuidanceQualityTest(unittest.TestCase):
         self.assertEqual(generation_requirements('직원 보관 선반 물건도 직접 받나요?', passages), [])
         self.assertEqual(generation_requirements('본센터에서 직원한테 받나요?',
                                                 [{'text': '직원이 확인합니다.'}]), [])
+
+    def test_pickup_timing_accepts_after_removing_item(self):
+        q = '물건 받았어요 버튼은 언제 눌러요?'
+        self.assertIsNone(answer_gap(q, "물건을 직접 꺼낸 뒤 '물건 받았어요'를 누릅니다."))
+        self.assertEqual(answer_gap(q, '키오스크 버튼을 누릅니다.'), 'when')
 
 
 if __name__ == '__main__':
