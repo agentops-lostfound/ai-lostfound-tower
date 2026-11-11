@@ -134,6 +134,9 @@ def sim_qwen(text: str, query: bool = False) -> dict:
     color = _first(text, COLOR_WORDS)
     material = _first(text, MATERIAL_WORDS)
     words = [w for w in _LATIN.findall(text) if w.lower() != "usb"] + _QUOTED.findall(text)
+    # 11/11 한국어로 말한 로고·글자: "사과 로고", "애플", "삼성 글자" → 글자 칸(비교는 contracts.logo_tokens 가 같은 뜻으로 맞춤)
+    words += [m for m in re.findall(r"([가-힣A-Za-z0-9]{1,10})\s*(?:로고|글자|마크)", text) if m not in ("스티커", "글자", "로고")]
+    words += [w for w in ("사과", "애플", "삼성", "엘지", "샤오미", "앤커") if w in text]
     sticker_status, stickers = ("unknown" if query else "absent"), []
     if "스티커" in text:
         if re.search(r"스티커\s*(는|가)?\s*(없|안\s*붙)", text):
