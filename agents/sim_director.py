@@ -618,12 +618,15 @@ class SimDirector:
         out.sort(key=lambda c: (-c["score"], c["item_id"]))
         return out[:limit]
 
-    def _quiz_field(self, item_id: str) -> str | None:
+    def _quiz_field(self, item_id: str, desc: dict | None = None) -> str | None:
         """확인 질문으로 쓸 칸: 비공개 특징(글자·스티커) → 없으면 주운 역(등록기계 물건) → 없으면 색.
-        11/4 무작위 시험: 예전에는 색·역을 분실인이 말하지 않으면 묻지도 않고 오답 처리해 반환 거절이 71/80건이었다"""
+        11/4 무작위 시험: 예전에는 색·역을 분실인이 말하지 않으면 묻지도 않고 오답 처리해 반환 거절이 71/80건이었다.
+        11/11 사용자 결정: 특징은 선택 — desc(분실인 설명)를 주면, 분실인이 그 특징(글자·스티커)을 **말했을 때만** 특징으로 확인한다.
+        Qwen 이 거의 매번 글자를 하나쯤 읽어(예: 립밤 'Vaseline') 특징 칸을 비우면 늘 미통과 → 직원 확인으로 가던 것"""
         rec = self.world.db_get_item(item_id) or {}
         f = rec.get("features", {})
-        private = next((k for k in ("visible_text", "mark") if _known(f.get(k))), None)
+        private = next((k for k in ("visible_text", "mark")
+                        if _known(f.get(k)) and (desc is None or _known(desc.get(k)))), None)
         if private:
             return private
         if MACHINE_STATION.get(self.world.items.get(item_id, {}).get("machine_id")):
@@ -679,7 +682,7 @@ class SimDirector:
             if len(ties) > 1:                               # 그래도 못 가르면 자동으로 고르지 않는다(안전 규칙)
                 return self._staff_pick(desc, ties)
             cands = ties + [c for c in cands if c not in ties]
-        field = self._quiz_field(cands[0]["item_id"])
+        field = self._quiz_field(cands[0]["item_id"], desc)
         if field == "place" and station is None and "place" in asked:
             # 11/10 장소를 모른다고 답함 → 장소 대신 색으로 확인한다(색을 아직 말하지 않았으면 아래에서 묻는다)
             f0 = (self.world.db_get_item(cands[0]["item_id"]) or {}).get("features", {})
@@ -801,7 +804,7 @@ class SimDirector:
         rec = self.world.db_get_item(item_id) or {}
         f = rec.get("features", {})
         quiz = []
-        field = self._quiz_field(item_id)
+        field = self._quiz_field(item_id, desc)
         if field in ("visible_text", "mark"):
             quiz.append({"field": field, "passed": _same_text(desc.get(field, ""), f[field])})
         # 11/10 사용자 결정: 잃어버린 역을 모르면(station 없음) 장소는 묻지도 채점하지도 않는다 — 기억 못 하는 것이 오답은 아니다.

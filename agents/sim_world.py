@@ -164,7 +164,16 @@ def query_features(text: str) -> dict:
     f.pop("confidence", None)
     if q["sticker_status"] == "unknown":
         f.pop("mark", None)
-    return {k: v for k, v in f.items() if v not in (UNKNOWN, "", None)}
+    out = {k: v for k, v in f.items() if v not in (UNKNOWN, "", None)}
+    if "visible_text" not in out:                 # 11/11 한글 상표 이름('바세린' 등)도 글자 특징으로(영어 'Vaseline'만 잡히던 것)
+        brand = next((w for w in BRAND_WORDS if w in (text or "")), None)
+        if brand:
+            out["visible_text"] = brand
+    return out
+
+
+# 11/11 글자 특징으로 받을 한글 상표 이름 — contracts.LOGO_ALIASES 의 상표 묶음에서(별·하트는 스티커, '사과'는 '로고'를 붙여야 함)
+BRAND_WORDS = ["바세린", "삼성", "애플", "엘지", "샤오미", "앤커"]
 
 
 def parse_place(text: str) -> tuple[str | None, str | None]:
