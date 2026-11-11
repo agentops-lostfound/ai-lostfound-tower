@@ -373,6 +373,138 @@ class RemoteHttpTests(unittest.TestCase):
         self.assertEqual(posts, [])
         self.assertEqual(self.robot.calls, [])
 
+    def test_default_response_timeout_is_five_seconds(self):
+        opener = Mock()
+        opener.open.return_value.__enter__ = Mock(return_value=Mock(read=Mock(return_value=b'{}')))
+        opener.open.return_value.__exit__ = Mock(return_value=False)
+        client = RemoteTowerRobot(url=self.url, token=self.token, opener=opener)
+        client.health()
+        self.assertEqual(opener.open.call_args.kwargs['timeout'], 5)
+
+    def test_delayed_status_response_keeps_heartbeats_and_executes_once(self):
+        self.robot.block = True
+        self.client.arm_local()
+        original_get = self.server.RequestHandlerClass.do_GET
+        renewals = []
+        request = self.client.request
+        def observe(path, body=None, **kwargs):
+            result = request(path, body, **kwargs)
+            if path.endswith('/heartbeat'):
+                renewals.append(body.copy())
+            return result
+        self.client.request = observe
+        def delayed_get(handler):
+            if handler.path.startswith('/v1/jobs/'):
+                time.sleep(2.2)  # Exceeds the old 2s response deadline.
+                self.robot.release.set()
+            original_get(handler)
+        with patch.object(self.server.RequestHandlerClass, 'do_GET', delayed_get):
+            result = self.client.robot_go_pose('pose_1', 'R1-1')
+        self.assertTrue(result['ok'], result)
+        self.assertGreaterEqual(len(renewals), 2)
+        self.assertEqual(len(self.robot.calls), 1)
+        self.assertEqual(len(self.engine.jobs), 1)
+        count = len(renewals)
+        time.sleep(.3)
+        self.assertEqual(len(renewals), count, 'Finished job must not keep renewing')
+
+    def test_progress_callback_does_not_starve_five_second_lease(self):
+        self.client.arm_local()
+        self.engine.clock = lambda: self.now
+        self.now = 100.
+        renewed = threading.Event()
+        request = self.client.request
+        def observe(path, body=None, **kwargs):
+            result = request(path, body, **kwargs)
+            if path.endswith('/heartbeat'):
+                renewed.set()
+            return result
+        self.client.request = observe
+        def taught(target, progress):
+            progress({'event': 'stage_started', 'index': 1, 'total': 11, 'pose_name': 'home'})
+            self.robot.release.wait(3)
+            return {'ok': not self.robot.cancelled.is_set()}
+        self.robot.robot_run_sequence = taught
+        def slow_progress(event):
+            self.now += 6  # A coupled heartbeat would already have expired.
+            renewed.clear()
+            try:
+                self.assertTrue(renewed.wait(1), 'No heartbeat while progress callback was blocked')
+                self.engine.expire()
+                self.assertFalse(self.robot.cancelled.is_set())
+            finally:
+                self.robot.release.set()
+        target = {'ok': True, 'item_id': 'TEST', 'number': 1, 'pose_name': 'pose_1', 'slot_id': 'R1-1'}
+        result = self.client.robot_run_sequence(target, progress=slow_progress)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(self.engine.lease, 5.)
+
+    def test_heartbeat_loss_stops_without_resubmitting(self):
+        from robot.remote_client import _Heartbeat
+        self.robot.block = True
+        self.client.arm_local()
+        request = self.client.request
+        def disconnected_lease(path, body=None, **kwargs):
+            if path.endswith('/heartbeat'):
+                raise urllib.error.URLError('lease channel unavailable')
+            return request(path, body, **kwargs)
+        self.client.request = disconnected_lease
+        with patch.object(_Heartbeat, 'interval', .01), patch.object(_Heartbeat, 'retry_seconds', .05):
+            result = self.client.robot_go_pose('pose_1', 'R1-1')
+        self.assertFalse(result['ok'])
+        self.assertIn('Heartbeat failed', result['reason'])
+        self.assertTrue(result['stop_confirmed'])
+        self.assertFalse(self.engine.armed)
+        self.assertEqual(len(self.robot.calls), 1)
+        self.assertEqual(len(self.engine.jobs), 1)
+
+    def test_brief_heartbeat_timeout_retries_only_lease(self):
+        from robot.remote_client import _Heartbeat
+        self.robot.block = True
+        self.client.arm_local()
+        request = self.client.request
+        attempts = []
+        def delayed_lease(path, body=None, **kwargs):
+            if path.endswith('/heartbeat'):
+                attempts.append(body.copy())
+                if len(attempts) == 1:
+                    raise TimeoutError('brief delay')
+                result = request(path, body, **kwargs)
+                self.robot.release.set()
+                return result
+            return request(path, body, **kwargs)
+        self.client.request = delayed_lease
+        with patch.object(_Heartbeat, 'interval', .01):
+            result = self.client.robot_go_pose('pose_1', 'R1-1')
+        self.assertTrue(result['ok'], result)
+        self.assertGreaterEqual(len(attempts), 2)
+        self.assertEqual(len(self.engine.jobs), 1)
+
+    def test_stop_still_cancels_during_blocked_status_read(self):
+        self.robot.block = True
+        self.client.arm_local()
+        blocked, release = threading.Event(), threading.Event()
+        request = self.client.request
+        def slow_read(path, body=None, **kwargs):
+            if path.startswith('/v1/jobs/') and not path.endswith('/heartbeat'):
+                blocked.set()
+                release.wait(2)
+            return request(path, body, **kwargs)
+        self.client.request = slow_read
+        results = []
+        thread = threading.Thread(target=lambda: results.append(self.client.robot_go_pose('pose_1', 'R1-1')))
+        thread.start()
+        try:
+            self.assertTrue(blocked.wait(1))
+            self.assertTrue(self.client.robot_stop()['ok'])
+            self.assertTrue(self.robot.cancelled.is_set())
+        finally:
+            release.set()
+            thread.join(3)
+        self.assertFalse(thread.is_alive())
+        self.assertFalse(results[0]['ok'])
+        self.assertEqual(len(self.robot.calls), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -859,7 +859,8 @@ details.more .robot-note{margin-top:0}
   $("btnHome").onclick = () => {
     const b = $("btnHome");
     if (!homeArmed) {
-      b.classList.add("confirm"); b.textContent = "주변 확인했나요? 한 번 더";
+      b.classList.add("confirm"); b.textContent = "빈 집게·주변 확인 후 한 번 더";
+      $("tryMsg").textContent = "집게의 물건을 먼저 빼고 복귀 경로를 확인하세요. 홈 복귀 후 다음 동작은 별도로 선택합니다.";
       homeArmed = setTimeout(() => { homeArmed = null; b.classList.remove("confirm"); b.textContent = "원점 복귀"; }, 4000);
       return;
     }

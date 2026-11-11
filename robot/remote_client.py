@@ -7,8 +7,56 @@ import os
 import threading
 import time
 from urllib.parse import urlsplit
+import urllib.error
 import urllib.request
 import uuid
+
+
+class _Heartbeat:
+    """Renew only this job, independently of status reads and progress callbacks."""
+    interval = .25
+    timeout = 1.
+    retry_seconds = 3.
+
+    def __init__(self, client, instance, job_id):
+        self.client, self.instance, self.job_id = client, instance, job_id
+        self.done = threading.Event()
+        self.error = None
+        self.thread = threading.Thread(target=self._run, daemon=True, name='robot-heartbeat')
+
+    def start(self):
+        self.thread.start()
+
+    def _run(self):
+        last_ok = time.monotonic()
+        while not self.done.wait(self.interval):
+            if self.client.stop_requested.is_set():
+                return
+            try:
+                row = self.client.request(f'/v1/jobs/{self.job_id}/heartbeat',
+                                          {'instance': self.instance}, timeout=self.timeout)
+                if row.get('job_id') != self.job_id:
+                    raise ValueError('Heartbeat returned another job')
+                if row.get('status') in ('completed', 'failed', 'cancelled'):
+                    return
+                last_ok = time.monotonic()
+            except Exception as exc:
+                # Short retries apply only to lease renewal, never movement submission.
+                transient = isinstance(exc, (TimeoutError, OSError)) and not isinstance(exc, urllib.error.HTTPError)
+                if transient and time.monotonic()-last_ok < self.retry_seconds:
+                    continue
+                if not self.done.is_set():
+                    self.error = exc
+                return  # The executor still stops after its unchanged five-second lease.
+
+    def check(self):
+        if self.error is not None:
+            raise RuntimeError(f'Heartbeat failed: {self.error}') from self.error
+
+    def close(self):
+        self.done.set()
+        self.thread.join(self.timeout + .5)
+        # Any late HTTP response remains fenced to the old instance/job ID.
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -38,7 +86,7 @@ class RemoteTowerRobot:
         self.fault_instance = None
         self.stop_generation = 0
 
-    def request(self, path, body=None, *, timeout=2):
+    def request(self, path, body=None, *, timeout=5):
         if self.error:
             raise ValueError(self.error)
         req = urllib.request.Request(self.url + path, headers={
@@ -72,6 +120,8 @@ class RemoteTowerRobot:
             return {'ok': False, 'reason': 'Another remote operation is running'}
         submitted = False
         failed_progress = None
+        heartbeat = None
+        recovery = operation == 'home'
         try:
             with self.lock:
                 generation = self.stop_generation
@@ -79,7 +129,7 @@ class RemoteTowerRobot:
             with self.lock:
                 if generation != self.stop_generation:
                     return {'ok': False, 'reason': 'Stopped during remote preparation'}
-                if self.faulted or self.stop_requested.is_set():
+                if (self.faulted or self.stop_requested.is_set()) and not recovery:
                     if (not state.get('armed') or self.fault_instance is None
                             or state.get('instance') == self.fault_instance):
                         return {'ok': False, 'reason': 'Previous remote failure requires local inspection/rearming'}
@@ -87,7 +137,7 @@ class RemoteTowerRobot:
                     self.stop_requested.clear()
             if state.get('mode') != self.expected_mode:
                 return {'ok': False, 'reason': 'Executor mode differs from configured live/simulation mode'}
-            if not state.get('armed'):
+            if not state.get('armed') and not (recovery and state.get('home_recovery') is True):
                 return {'ok': False, 'reason': 'Robot PC must be armed by its local operator'}
             if operation in ('sequence', 'taught_sequence'):
                 from robot.db_pose_sequence import sequence_for_target
@@ -102,16 +152,25 @@ class RemoteTowerRobot:
                     return {'ok': False, 'reason': 'Sequence plan mismatch before motion: ' + detail}
             instance, job_id = state['instance'], str(uuid.uuid4())
             with self.lock:
-                if self.stop_requested.is_set():
+                if generation != self.stop_generation or (self.stop_requested.is_set() and not recovery):
                     return {'ok': False, 'reason': 'Cancelled before remote submission'}
+                if recovery:
+                    self.stop_requested.clear()  # A new stop increments generation and still cancels HOME.
                 self.active = (instance, job_id)
             submitted = True  # Delivery may precede an HTTP response failure.
             job = self.request('/v1/jobs', {'instance': instance, 'job_id': job_id,
                 'operation': operation, 'arguments': arguments, 'approved': True})
+            if job.get('job_id') != job_id:
+                raise ValueError('Executor returned another job')
+            if job.get('status') not in ('completed', 'failed', 'cancelled'):
+                heartbeat = _Heartbeat(self, instance, job_id)
+                heartbeat.start()
             delivered = 0
             while True:
                 if self.stop_requested.is_set():
                     raise InterruptedError('Remote stop requested')
+                if heartbeat:
+                    heartbeat.check()
                 if job.get('job_id') != job_id:
                     raise ValueError('Executor returned another job')
                 if progress is not None:
@@ -123,6 +182,10 @@ class RemoteTowerRobot:
                         progress(event)
                         failed_progress = None
                         delivered += 1
+                        if self.stop_requested.is_set():
+                            raise InterruptedError('Remote stop requested')
+                        if heartbeat:
+                            heartbeat.check()
                 if job.get('status') in ('completed', 'failed', 'cancelled'):
                     result = job.get('result')
                     if not isinstance(result, dict) or type(result.get('ok')) is not bool:
@@ -130,13 +193,20 @@ class RemoteTowerRobot:
                     if job['status'] != 'completed' or not result['ok']:
                         return {**result, 'ok': False, 'reason': str(result.get('reason') or 'Remote job interrupted')[:240],
                                 'job_id': job_id, 'stop_confirmed': job.get('stop_confirmed')}
+                    if recovery:
+                        with self.lock:
+                            if generation != self.stop_generation:
+                                raise InterruptedError('Stopped during home completion')
+                            self.faulted = False
+                            self.fault_instance = None
                     return {**result, 'job_id': job_id, 'remote_mode': state['mode']}
                 # This is a control lease, not an arrival timeout. Never
                 # resubmit a command with a fresh ID after uncertain delivery.
                 self.sleep(.25)
-                self.request(f'/v1/jobs/{job_id}/heartbeat', {'instance': instance})
                 job = self.request(f'/v1/jobs/{job_id}')
         except (Exception, KeyboardInterrupt) as exc:
+            if heartbeat:
+                heartbeat.close()
             self.faulted = True
             self.fault_instance = self.active[0] if self.active else locals().get('state', {}).get('instance')
             stopped = self.robot_stop() if submitted else {'ok': False}
@@ -153,6 +223,8 @@ class RemoteTowerRobot:
                     ('event', 'index', 'total', 'pose_name', 'command_pose')}
             return result
         finally:
+            if heartbeat:
+                heartbeat.close()
             with self.lock:
                 self.active = None
             self.operation.release()
@@ -179,7 +251,8 @@ class RemoteTowerRobot:
         return self._call('deliver', {})
 
     def robot_home(self):
-        return self._call('home', {})
+        # Called by the staff-confirmed home button; its UI requires empty gripper.
+        return self._call('home', {'empty_gripper_confirmed': True})
 
     def robot_state(self):
         # CompositeBackend must not fall back to simulated joint values for

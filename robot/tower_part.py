@@ -183,8 +183,36 @@ class TowerRobot:
     def robot_deliver(self) -> dict:
         return robot_result(False, '집기·안전 높이 확인과 배출구 경로 검증이 필요합니다')
 
-    def robot_home(self) -> dict:
-        return robot_result(False, '직원 확인 후 Studio에서 검증한 원복 경로를 사용하세요')
+    def robot_home(self, *, empty_gripper_confirmed=False) -> dict:
+        """Explicit operator recovery: empty gripper checked before requesting HOME."""
+        if not self.operation.acquire(blocking=False):
+            return robot_result(False, '다른 로봇 명령이 진행 중입니다')
+        path = []
+        completed = []
+        try:
+            if self.error or self.cancelled.is_set():
+                return robot_result(False, self.error or '정지 상태입니다 — 복귀 전용 새 작업이 필요합니다')
+            from robot.home_recovery import home_path, at_home
+            current = self.motion.snapshot(self.cancelled)
+            if empty_gripper_confirmed is not True:
+                # Legacy clients may acknowledge a physically completed HOME, never move.
+                if at_home(current, self.poses):
+                    return {**robot_result(True), 'already_home': True, 'movement_sent': False}
+                return robot_result(False, '집게의 물건 제거 확인을 지원하는 관제탑 클라이언트 업데이트가 필요합니다')
+            path = home_path(current, self.poses)
+            for pose in path:
+                self.motion.move(pose, self.duration, self.cancelled, include_gripper=(pose == 'home'))
+                if self.cancelled.is_set():
+                    raise InterruptedError('원점 복귀 중 정지 요청')
+                completed.append(pose)
+            self._approach = None
+            return {**robot_result(True), 'home_path': path, 'completed': completed, 'motion_complete': True}
+        except Exception as exc:
+            stopped = self.robot_stop() if completed or path else {'ok': True}
+            return {**robot_result(False, str(exc)[:200]), 'home_path': path, 'completed': completed,
+                    'stop_confirmed': stopped.get('ok') is True}
+        finally:
+            self.operation.release()
 
     def robot_stop(self) -> dict:
         self.cancelled.set()  # Never wait for the movement lock to stop.

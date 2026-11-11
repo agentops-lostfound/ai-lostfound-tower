@@ -141,6 +141,19 @@ class TransportTests(unittest.TestCase):
     def transport(self, pipe):
         return StudioPoseTransport(FOLLOWER, socket_factory=lambda *args: pipe, clock=lambda: pipe.time)
 
+    def test_recovery_snapshot_is_read_only_and_requires_correct_follower(self):
+        pipe = FakePipe()
+        result = self.transport(pipe).snapshot(threading.Event())
+        self.assertEqual(result['positions'], VALUES)
+        self.assertEqual(pipe.sent, [])
+        self.assertTrue(pipe.closed)
+        pipe = FakePipe()
+        pipe.base['saved_pose_robot_id'] = 'another-follower'
+        pipe.events = [pipe.state(), pipe.observation()]
+        with self.assertRaises(ValueError):
+            self.transport(pipe).snapshot(threading.Event())
+        self.assertEqual(pipe.sent, [])
+
     def test_waits_past_profile_time_for_correlated_arrival(self):
         pipe = FakePipe()
         self.transport(pipe).move('pose_1', 3, threading.Event())

@@ -39,6 +39,9 @@ def validate_job(operation, arguments):
         if set(arguments) != {'target'}:
             raise ValueError('A DB target is required')
         sequence_for_target(arguments['target'])
+    elif operation == 'home':
+        if arguments and (set(arguments) != {'empty_gripper_confirmed'} or arguments['empty_gripper_confirmed'] is not True):
+            raise ValueError('Explicit empty-gripper recovery confirmation required')
     elif arguments:
         raise ValueError('This operation takes no arguments')
 
@@ -72,6 +75,7 @@ class Executor:
         with self.lock:
             return {'instance': self.instance, 'mode': 'live' if self.live else 'simulation',
                     'armed': self.armed, 'active_job': self.active,
+                    'home_recovery': True,
                     'stop_uncertain': self.uncertain_stop,
                     'sequence_slots': sorted(self.allowed_slots) if self.live else 'simulation',
                     'sequence_plans': {slot: list(plan) for slot, plan in self.sequence_plans.items()}}
@@ -112,10 +116,19 @@ class Executor:
                 if old['fingerprint'] != fingerprint:
                     raise ValueError('Job ID reused for different work')
                 return self.status(job_id)
-            if not self.armed or self.active is not None or self.closed.is_set():
+            recovery = operation == 'home'
+            if ((not self.armed and not recovery) or self.active is not None or self.closed.is_set()
+                    or (recovery and self.uncertain_stop)):
                 raise ValueError('Executor disarmed or busy')
             if len(self.jobs) + len(self.cancelled_ids) >= 1024:
                 raise ValueError('Job history full; inspect and restart locally')
+            if recovery:
+                # HOME is explicitly requested through the staff-confirmed recovery path.
+                # It does not arm pickup operations or revive the cancelled backend.
+                backend = self.factory()
+                if getattr(backend, 'error', ''):
+                    raise ValueError('Robot pose/configuration check failed')
+                self.backend = backend  # Preserve an existing local arm; HOME never grants a new one.
             job = {'job_id': job_id, 'fingerprint': fingerprint, 'operation': operation,
                    'arguments': json.loads(json.dumps(arguments)), 'status': 'pending',
                    'result': None, 'stop_confirmed': None, 'heartbeat': self.clock(),
