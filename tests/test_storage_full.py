@@ -213,3 +213,52 @@ class ServiceShelfTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OutletFreesSlotTest(unittest.TestCase):
+    """11/11 사용자 보고: 제출보관함에 갖다 둬도 칸이 안 비어 → 새 물건이 2번 칸으로·다음 물건은 칸 대기·대기 물건이 안 올라옴.
+    021: 인계 대기(제출보관함)가 되면 로봇 칸이 바로 빈다 → [물건 받았어요]를 누르기 전에도 대기 물건이 올라온다"""
+
+    def setUp(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        from agents.api import build_app
+        from agents.sim_director import build_sim_service
+        self.svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_AGENT_TALK": "0"})
+        self.c = TestClient(build_app(self.svc))
+        self.w = self.svc.world
+
+    def found(self, text):
+        r = self.c.post("/sim/found", json={"text": text}).json()
+        self.svc.sim.wait_idle(20)
+        return r["item_id"]
+
+    def test_waiting_cream_comes_up_when_other_goes_to_outlet(self):
+        seed = next(iter(self.w.items))
+        self.assertEqual(self.w.slot_id_of(seed), "R3-1")                       # 처음 물건(분홍 핸드크림)은 먼 줄 R3-1
+        white = self.found("초량역 화장실에서 흰색 핸드크림 주웠어요")
+        self.assertEqual(self.w.slot_id_of(white), "R3-2")
+        pink = self.found("중앙역 대합실에서 분홍 핸드크림 주웠어요")
+        self.assertIn(pink, self.w.wait_queue)                                  # 핸드크림 열이 꽉 참 → 칸 대기
+        lost = self.c.post("/sim/lost", json={"text": "흰색 핸드크림 잃어버렸어요 초량역", "visit": "kiosk",
+                                               "name_masked": "홍*동", "id_no_masked": "******-3******"}).json()
+        self.svc.sim.wait_idle(20)
+        r = self.c.post("/api/kiosk/returns", json={"machine_id": "CENTER", "claim_id": lost["claim_id"],
+                                                     "id_no_masked": "******-3******"}).json()
+        self.assertEqual(r["decision"], "returned", r)
+        self.svc.sim.wait_idle(20)
+        self.assertEqual(self.w.items[white]["status"], "인계 대기")             # [물건 받았어요]는 아직 안 누름
+        self.assertNotIn(pink, self.w.wait_queue)
+        self.assertEqual(self.w.slot_id_of(pink), "R3-2")                       # 대기 물건이 바로 그 칸으로
+        lay = {s["slot_id"]: (s.get("item") or {}).get("item_id") for sec in self.svc.storage.layout()["sections"] for s in sec["slots"]}
+        self.assertEqual((lay["R3-1"], lay["R3-2"]), (seed, pink))             # 보관 화면 정답지도 같은 칸
+
+    def test_deleted_seed_frees_far_slot_first(self):
+        seed = next(iter(self.w.items))
+        self.assertTrue(self.c.post(f"/api/admin/items/{seed}/purge").json()["ok"])
+        a = self.found("중앙역 승강장에서 분홍 핸드크림 주웠어요")
+        self.assertEqual(self.w.slot_id_of(a), "R3-1")                          # 지운 뒤 새 물건은 먼 줄(1번)부터
+        b = self.found("중앙역 승강장에서 흰색 모형폰 주웠어요")
+        self.assertEqual(self.w.slot_id_of(b), "R1-1")
