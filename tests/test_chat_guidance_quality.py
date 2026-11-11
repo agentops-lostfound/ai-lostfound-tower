@@ -99,6 +99,20 @@ class GuidanceQualityTest(unittest.TestCase):
             self.assertFalse(contact_optional_clear(q, answer), answer)
         self.assertTrue(contact_optional_clear('물건 사진은 언제 찍어요?', '손을 빼면 찍어요.'))
 
+    def test_general_pickup_cannot_be_replaced_by_staff_exception(self):
+        ev = '직원 보관 선반에 있는 물건은 직원이 가져다 줍니다.'
+        rag = GroundedRag(Guidance(), 'test', request=model(say(ev, ev)))
+        r = rag.ask('본센터에서 물건은 직원한테 받나요?')
+        self.assertNotEqual(r['generation_status'], 'generated')
+        self.assertIn('직접', r['answer'])
+        self.assertIn('물건 받았어요', r['answer'])
+
+    def test_staff_exception_question_does_not_require_self_pickup(self):
+        passages = [{'text': "직접 꺼내고 '물건 받았어요'를 누릅니다. 직원 보관 선반은 직원이 건넵니다."}]
+        self.assertEqual(generation_requirements('직원 보관 선반 물건도 직접 받나요?', passages), [])
+        self.assertEqual(generation_requirements('본센터에서 직원한테 받나요?',
+                                                [{'text': '직원이 확인합니다.'}]), [])
+
 
 if __name__ == '__main__':
     unittest.main()
