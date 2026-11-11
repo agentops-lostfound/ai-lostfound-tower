@@ -35,6 +35,7 @@
 - 11/11 교육원 웹캠은 노출 명령을 받지 않음(-1). 드라이버 설정 창(--dialog)에서 대비 260 → 200 이면 흰 폰이 날아가지 않음
   (clip 13% → 0%, 바닥 밝기 87). 그 값을 카메라를 열 때마다 넣는다(드라이버 값은 웹캠을 다시 꽂으면 풀릴 수 있음, 추정):
     TOWER_KIOSK_CAMPROPS=CONTRAST=200            # 이름: BRIGHTNESS·CONTRAST·SATURATION·GAMMA·GAIN·SHARPNESS·BACKLIGHT·HUE
+    TOWER_KIOSK_MJPG=0                            # 교육원 웹캠은 MJPG 에서 대비가 영상에 안 먹음 → MJPG 없이 열기(추정, --try --no-mjpg 로 확인)
   확인: python tools/camera_exposure.py --try CONTRAST=200 (관제탑 끈 상태, 넣은 값·카메라가 읽은 값·날아간 점 %)
 """
 from __future__ import annotations
@@ -234,11 +235,19 @@ def _backends() -> list:
     return [cv2.CAP_ANY]
 
 
-def _open(src, mjpg: bool = True):
+def mjpg_default() -> bool:
+    """11/11 TOWER_KIOSK_MJPG=0 이면 압축 형식(MJPG)을 쓰지 않고 연다. 교육원 웹캠은 MJPG 에서 대비(CONTRAST) 설정이
+    영상에 반영되지 않았음(읽은 값은 200 인데 날아감 12% 그대로, MJPG 없이 연 드라이버 설정 창에서는 0%)"""
+    return str(os.environ.get("TOWER_KIOSK_MJPG", "1")).strip().lower() not in ("0", "false", "no", "off")
+
+
+def _open(src, mjpg: bool | None = None):
     """카메라 열기. 여러 방식(backend)을 차례로 시도해 처음 열리는 것을 돌려준다(모두 실패하면 닫힌 카메라)"""
     if src == "fake":
         return FakeSource()
     import cv2
+    if mjpg is None:
+        mjpg = mjpg_default()
     cap = None
     backends = _backends()
     for n, backend in enumerate(backends):
@@ -427,7 +436,7 @@ class CameraFeed:
                         reopens += 1
                         cap.release()
                         time.sleep(min(1.0, 0.3 * reopens))        # 방금 놓은 카메라가 풀릴 시간
-                        cap = _open(self.src, mjpg=(reopens % 2 == 0)) if self._opener is _open else self._opener(self.src)
+                        cap = _open(self.src, mjpg=mjpg_default() ^ (reopens % 2 == 1)) if self._opener is _open else self._opener(self.src)
                         with self._lock:
                             self._cap = cap
                         if not cap.isOpened():
@@ -569,6 +578,6 @@ def add_camera_routes(app, cameras: KioskCameras | None = None) -> KioskCameras:
     return cams
 
 
-__all__ = ["KioskCameras", "CameraFeed", "FakeSource", "parse_config", "parse_exposure", "exposure_for", "apply_exposure",
+__all__ = ["mjpg_default", "KioskCameras", "CameraFeed", "FakeSource", "parse_config", "parse_exposure", "exposure_for", "apply_exposure",
            "parse_wb", "apply_wb", "parse_props", "apply_props",
            "add_camera_routes", "is_dark", "valid_size", "fit"]
