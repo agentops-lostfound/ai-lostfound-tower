@@ -762,7 +762,7 @@ function capture() {
 // ?camsetup=1 이면 화면에 카메라 목록이 나와 직원이 고르고, 고른 카메라를 이 태블릿에 기억한다
 const CAM_KEY = 'kioskCamera', CAM_PARAM = new URLSearchParams(location.search).get('cam');
 // 11/9 서버 카메라(?cam=server): 태블릿 크롬이 USB 웹캠을 못 보는 기기(갤럭시탭 A8)용 — 웹캠은 관제탑 PC 에 꽂고
-// PC 가 보내는 영상(/api/kiosk/camera/{기계}.mjpg)을 캔버스에 그려 가상 카메라처럼 <video> 에 흘린다(감지·3초·찍기 코드는 그대로)
+// PC 가 보내는 영상(/api/kiosk/camera/{기계}.jpg 를 한 장씩, 11/11)을 캔버스에 그려 가상 카메라처럼 <video> 에 흘린다(감지·3초·찍기 코드는 그대로)
 const SERVER_CAM = CAM_PARAM === 'server';
 const HD = {width: {ideal: 1920}, height: {ideal: 1080}};
 function camSaved() { try { return localStorage.getItem(CAM_KEY) || ''; } catch (e) { return ''; } }
@@ -860,28 +860,61 @@ function stopCam() {
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = null; $('#cam').srcObject = null; demoStop(); serverStop();
 }
-// ---- 11/9 서버 카메라: PC 영상(MJPEG)을 <img> 로 받아 캔버스에 그리고 captureStream 으로 <video> 에 넣음 ----
-let srvImg = null, srvCanvas = null, srvTimer = null;
+// ---- 11/9 서버 카메라: PC 영상을 받아 캔버스에 그리고 captureStream 으로 <video> 에 넣음 ----
+// 11/11 검은 화면 완전 개선: 끝나지 않는 MJPEG(<img>) 대신 사진 한 장씩(.jpg?after=번호)을 이어 받는다.
+//  · 브라우저는 한 주소에 연결을 6개까지만 연다 — 발표 화면(틀 3개)·다른 탭이 MJPEG 를 붙잡으면 새 영상 연결이 줄을 서다 까맣게 남았다
+//  · 끊기면 MJPEG 은 아무 신호 없이 멈췄다 → 이제 요청마다 성공·실패를 알아, 멈추면 '다시 연결 중'을 띄우고 스스로 다시 받는다
+//  · 사진마다 번호·나이·어두움이 붙어 와서, 같은 사진은 다시 그리지 않고 '멈춤'(관제탑 카메라 읽기)·'까맘'(렌즈·조명)을 구별한다
+const SRV = {gapMs: 80, staleMs: 3000, downMs: 12000};
+let srvCanvas = null, srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '';
 function serverOpen() {
   const machine = encodeURIComponent(Q.get('machine') || 'KIOSK-A');
+  const run = ++srvRun; srvSeq = -1; srvLast = 0; srvNote = '';
   return new Promise((resolve, reject) => {
-    srvImg = new Image();
-    srvImg.onload = () => {                         // MJPEG 는 첫 장이 오면 onload — 그 뒤로는 같은 <img> 가 계속 바뀜
-      srvCanvas = Object.assign(document.createElement('canvas'), {width: srvImg.naturalWidth || 1280, height: srvImg.naturalHeight || 720});
-      if (!srvCanvas.captureStream) { reject(named('NotFoundError')); return; }
-      const g = srvCanvas.getContext('2d');
-      srvTimer = setInterval(() => { try { g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height); } catch (e) {} }, 50);
-      g.drawImage(srvImg, 0, 0, srvCanvas.width, srvCanvas.height);
-      resolve(srvCanvas.captureStream(15));
+    let opened = false;
+    const draw = async (blob) => {
+      const bmp = await createImageBitmap(blob);
+      if (!srvCanvas) srvCanvas = Object.assign(document.createElement('canvas'), {width: bmp.width || 960, height: bmp.height || 720});
+      if (srvCanvas.width !== bmp.width || srvCanvas.height !== bmp.height) { srvCanvas.width = bmp.width; srvCanvas.height = bmp.height; }
+      srvCanvas.getContext('2d').drawImage(bmp, 0, 0); bmp.close && bmp.close();
     };
-    srvImg.onerror = () => reject(named('ServerCamError'));   // 404 = 이 기계에 서버 카메라 설정 없음 · 503 = PC 웹캠이 안 열림
-    srvImg.src = `/api/kiosk/camera/${machine}.mjpg?t=${Date.now()}`;
+    const loop = async () => {
+      const t0 = Date.now();
+      while (run === srvRun) {
+        try {
+          const r = await fetch(`/api/kiosk/camera/${machine}.jpg?after=${srvSeq}&t=${Date.now()}`, {cache: 'no-store'});
+          if (run !== srvRun) return;
+          if (r.status === 404) { if (!opened) reject(named('ServerCamError')); else serverWarn('down'); return; }
+          if (!r.ok) throw new Error(r.status);
+          const seq = Number(r.headers.get('X-Frame-Seq') || 0), age = Number(r.headers.get('X-Frame-Age-Ms') || 0);
+          if (seq !== srvSeq) { await draw(await r.blob()); srvSeq = seq; srvLast = Date.now(); }
+          serverWarn(r.headers.get('X-Frame-Dark') === '1' ? 'dark' : age > SRV.staleMs ? 'stale' : '');
+          if (!opened) {
+            if (!srvCanvas.captureStream) { reject(named('NotFoundError')); return; }
+            opened = true; resolve(srvCanvas.captureStream(15));
+          }
+        } catch (e) {
+          if (run !== srvRun) return;
+          if (!opened && Date.now() - t0 > CAM.openMs) { reject(named('ServerCamError')); return; }
+          if (opened) serverWarn(Date.now() - srvLast > SRV.downMs ? 'down' : 'stale');
+          await wait(500);                                  // 관제탑이 다시 켜지는 중일 수 있음 — 조금 쉬고 다시
+        }
+        await wait(SRV.gapMs);
+      }
+    };
+    loop();
   });
 }
-function serverStop() {
-  clearInterval(srvTimer); srvTimer = null;
-  if (srvImg) { srvImg.onload = srvImg.onerror = null; srvImg.src = ''; srvImg = null; }   // 연결을 끊어야 PC 가 60초 뒤 웹캠을 닫음
+// 연결은 됐지만 영상이 이상할 때 머리말 칩만 바꾼다(감지·찍기는 영상이 다시 흐르면 그대로 이어짐). down 이 계속되면 점검 화면으로
+function serverWarn(kind) {
+  if (kind === srvNote) return;
+  srvNote = kind;
+  if (kind === 'down') { stopCam(); camDown('server'); return; }
+  if (kind === 'dark') camChip('find', 'PC 카메라 영상이 까매요 — 렌즈·조명 확인');
+  else if (kind === 'stale') camChip('find', 'PC 카메라 다시 연결 중');
+  else if ($('#camDown').hidden) camChip('ok', 'PC 카메라 연결됨');
 }
+function serverStop() { srvRun++; srvNote = ''; }      // 이어 받기를 멈춤(관제탑은 60초 동안 아무도 안 보면 웹캠을 닫음)
 // ---- 11/8 직원용 시연 모드(?demo=1): 카메라가 있어도 가상 카메라(캔버스 영상)를 쓴다 ----
 // 캔버스 그림을 진짜 카메라처럼 <video> 에 흘려 보내므로, 물건 감지·3초·찍기·서버 접수는 실제와 같은 코드로 지나간다.
 // 빈 상자 → (1.2초 뒤) 손이 물건을 넣고 빠짐 → 멈춤 → 3초 → 자동 촬영. 물건은 운영 품목 5종 중 무작위, 또는 머리말 "시연 모드" 단추에서 고름
