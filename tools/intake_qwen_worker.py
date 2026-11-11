@@ -19,6 +19,9 @@
   사진마다 모델을 다시 올리는 3~6초가 더 들지만 키오스크 접수 번호는 바로 나가므로 사람이 기다리지 않는다.
   그래픽카드가 넉넉한 PC(8GB 이상)는 QWEN_KEEP_MODEL=1 또는 --keep-model 로 계속 올려 둘 수 있다
 - 관제탑이 아직 안 켜졌으면 끝내지 않고 5초마다 다시 연결한다(--check 는 바로 끝)
+- 11/11 색 측정(agents/color_measure.py): Qwen 이 끝나면 같은 사진을 숫자로 재서(회색 펠트를 기준으로 색 치우침 제거)
+  결과 요약을 함께 보낸다. 측정이 '확실'할 때만 관제탑이 색을 그 값으로 바꾼다. 바닥이 펠트가 아니면 재지 않음.
+  끄기: .env TOWER_COLOR_MEASURE=0. 측정이 실패해도 Qwen 결과는 그대로 보낸다
 """
 from __future__ import annotations
 
@@ -80,8 +83,11 @@ class Tower:
     def pending(self, limit: int = 5) -> list[dict]:
         return self._call("GET", f"/api/admin/intake/pending-photos?limit={limit}") or []
 
-    def send(self, item_id: str, features: dict) -> dict:
-        return self._call("POST", f"/api/kiosk/items/{item_id}/features", {"qwen": features, "confidence": CONFIDENCE})
+    def send(self, item_id: str, features: dict, color_measure: dict | None = None) -> dict:
+        body = {"qwen": features, "confidence": CONFIDENCE}
+        if color_measure:
+            body["color_measure"] = color_measure
+        return self._call("POST", f"/api/kiosk/items/{item_id}/features", body)
 
     def stage(self, item_id: str, stage: str, detail: str = "") -> None:
         """11/10 지금 어느 단계인지 관제탑에 알림(통합 시연 화면의 '사진 분석' 카드). 알림이 안 돼도 분석은 계속한다"""
@@ -147,7 +153,23 @@ def gpu_guarded(analyze, keep_model: bool = False, wait: float = 120.0, lease=No
     return run
 
 
-def process_once(tower, analyze, tries: dict, log=print, root: Path | None = None) -> int:
+def color_measure_on() -> bool:
+    return str(os.environ.get("TOWER_COLOR_MEASURE", "1")).strip().lower() not in ("0", "false", "no", "off")
+
+
+def measure_color(path: Path, feats: dict) -> dict | None:
+    """11/11 같은 사진의 색을 숫자로 잼 → 관제탑에 보낼 요약(실패하면 None — Qwen 결과만 보냄)"""
+    if not color_measure_on():
+        return None
+    try:
+        from agents.color_measure import measure, summary
+        from agents.vision_adapter import CATEGORY
+        return summary(measure(path, CATEGORY.get((feats or {}).get("category"))))
+    except Exception:
+        return None
+
+
+def process_once(tower, analyze, tries: dict, log=print, root: Path | None = None, measurer=None) -> int:
     """대기 물건 한 번 처리 → 보낸 개수. tries: 접수 번호 → 실패 횟수(같은 사진을 끝없이 다시 돌리지 않게)"""
     sent = 0
     for row in tower.pending():
@@ -158,8 +180,13 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
         notify = getattr(tower, "stage", None) or (lambda *a, **k: None)     # 11/10 화면에 단계 알림(없는 연결이면 건너뜀)
         try:
             notify(iid, "analyze")
-            feats = analyze(resolve_photo(row.get("photo_path") or "", root))
-            tower.send(iid, feats)
+            path = resolve_photo(row.get("photo_path") or "", root)
+            feats = analyze(path)
+            cm = (measurer or measure_color)(path, feats)
+            if cm:
+                tower.send(iid, feats, cm)
+            else:
+                tower.send(iid, feats)
         except Exception as e:
             if type(e).__name__ == "GpuBusy":               # 로봇이 GPU 사용 중 → 실패로 세지 않고 다음 차례에
                 log(f"[대기] {iid} {str(e)[:120]}")
@@ -173,7 +200,8 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
             continue
         tries.pop(iid, None)
         sent += 1
-        log(f"[완료] {iid} {feats.get('category')} {feats.get('colors')} ({time.perf_counter() - started:.1f}초)")
+        mtxt = f" · 색 측정 {cm.get('color') or '-'}({'확실' if cm.get('sure') else '애매'})" if cm else ""
+        log(f"[완료] {iid} {feats.get('category')} {feats.get('colors')}{mtxt} ({time.perf_counter() - started:.1f}초)")
     return sent
 
 

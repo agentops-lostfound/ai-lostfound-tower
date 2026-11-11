@@ -64,7 +64,7 @@ python -m unittest discover -s tests
 - 관제탑 메인 AI(매칭이 애매할 때 매칭·보관 칸·비전 에이전트 협업): `.env` TOWER_BRAIN=1, 가상 시연은 분실 메시지 끝에 `#흐린촬영` → `/live` 의 메인 AI 대화 패널 — 안내 docs/design/tower_main_ai.md
 - 에이전트 대화(메인 AI 아래 요청·답·채점·도움·배운 점, 가상 시연은 기본 켜짐·끄기 `TOWER_AGENT_TALK=0`): `/live` 🤖 에이전트 대화 패널 + 디스코드 `DISCORD_WEBHOOK_AGENT`(대화 하나에 한 번) — 안내 docs/design/agent_talk.md
 - 가짜 보관함 시나리오 9개(부품 교체 확인용, 디스코드 요약 `--discord`, 매칭 두 방식 비교 `--compare`): `python tools/mock_scene.py` — 안내 docs/design/swap_guide.md
-- 키오스크 사진 → Qwen 특징 작업자(관제탑과 같은 PC, Qwen 전용 가상환경): `.\.venv-qwen\Scripts\python.exe tools\intake_qwen_worker.py` (연결만 확인 `--check`, 환경이 없는 PC 는 먼저 `tools\setup_qwen.bat`) — 안내 docs/design/virtual_demo.md §4-5
+- 키오스크 사진 → Qwen 특징 작업자(관제탑과 같은 PC, Qwen 전용 가상환경): `.\.venv-qwen\Scripts\python.exe tools\intake_qwen_worker.py` (연결만 확인 `--check`, 환경이 없는 PC 는 먼저 `tools\setup_qwen.bat`) · 11/11 Qwen 다음 같은 사진의 색을 숫자로 재서(회색 펠트 기준, `agents/color_measure.py`) 확실할 때만 색을 바꿈(끄기 `TOWER_COLOR_MEASURE=0`) — 안내 docs/design/virtual_demo.md §4-5
 - 자기 개선 회차 연습: `python evaluation/improve_loop.py --demo --p95-limit 3`
 - 환경 점검: `python tools/check_ai_env.py` (팀 DB 는 실제 접속까지 확인)
 - 시연 물건 상태 되돌리기: `python tools/reset_demo.py` (미리보기) → `--apply`

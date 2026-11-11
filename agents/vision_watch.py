@@ -99,9 +99,10 @@ class VisionWatch:
         self._emit(item_id, stage, detail=_txt(detail, 100), waited=self._waited(item_id))
         return True
 
-    def result(self, item_id: str, qwen: dict | None, feats: dict | None) -> None:
-        """결과가 들어와 저장됨: Qwen 이 읽은 값(원본)과 저장한 값을 나란히"""
-        self._emit(item_id, "result", seconds=self._waited(item_id), raw=raw_view(qwen), saved=saved_view(feats))
+    def result(self, item_id: str, qwen: dict | None, feats: dict | None, measure: dict | None = None) -> None:
+        """결과가 들어와 저장됨: Qwen 이 읽은 값(원본)과 저장한 값을 나란히. measure = 11/11 색 측정(Qwen 색 → 측정 색 → 쓴 색)"""
+        more = {"measure": {k: (_txt(v, 100) if isinstance(v, str) else v) for k, v in measure.items()}} if isinstance(measure, dict) else {}
+        self._emit(item_id, "result", seconds=self._waited(item_id), raw=raw_view(qwen), saved=saved_view(feats), **more)
         with self._lock:
             self._queued.pop(item_id, None)
             self._picked.discard(item_id)
