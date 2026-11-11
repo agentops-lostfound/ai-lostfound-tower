@@ -71,6 +71,7 @@ class RemoteTowerRobot:
         if not self.operation.acquire(blocking=False):
             return {'ok': False, 'reason': 'Another remote operation is running'}
         submitted = False
+        failed_progress = None
         try:
             with self.lock:
                 generation = self.stop_generation
@@ -88,6 +89,17 @@ class RemoteTowerRobot:
                 return {'ok': False, 'reason': 'Executor mode differs from configured live/simulation mode'}
             if not state.get('armed'):
                 return {'ok': False, 'reason': 'Robot PC must be armed by its local operator'}
+            if operation in ('sequence', 'taught_sequence'):
+                from robot.db_pose_sequence import sequence_for_target
+                target = arguments['target']
+                expected = sequence_for_target(target)
+                actual = state.get('sequence_plans', {}).get(target['slot_id'])
+                if actual != expected:
+                    difference = next((index for index, (a, b) in enumerate(zip(expected, actual or []), 1)
+                                       if a != b), None)
+                    detail = (f'stage {difference}: tower={expected[difference-1]}, robot={actual[difference-1]}'
+                              if difference else 'missing or different-length executor plan')
+                    return {'ok': False, 'reason': 'Sequence plan mismatch before motion: ' + detail}
             instance, job_id = state['instance'], str(uuid.uuid4())
             with self.lock:
                 if self.stop_requested.is_set():
@@ -107,7 +119,9 @@ class RemoteTowerRobot:
                     if not isinstance(events, list) or not delivered <= len(events) <= 22:
                         raise ValueError('Invalid sequence event history')
                     for event in events[delivered:]:
+                        failed_progress = event
                         progress(event)
+                        failed_progress = None
                         delivered += 1
                 if job.get('status') in ('completed', 'failed', 'cancelled'):
                     result = job.get('result')
@@ -126,9 +140,18 @@ class RemoteTowerRobot:
             self.faulted = True
             self.fault_instance = self.active[0] if self.active else locals().get('state', {}).get('instance')
             stopped = self.robot_stop() if submitted else {'ok': False}
-            return {'ok': False, 'reason': f'Remote operation failed: {type(exc).__name__}; '
+            detail = str(exc)
+            if self.token:
+                detail = detail.replace(self.token, '[redacted]')
+            result = {'ok': False, 'reason': f'Remote operation failed: {type(exc).__name__}: {detail[:140]}; '
                     + ('stop state confirmed' if stopped['ok'] else 'stop unconfirmed; inspect robot locally'),
                     'stop_confirmed': stopped['ok']}
+            if submitted:
+                result['job_id'] = job_id
+            if isinstance(failed_progress, dict):
+                result['failed_progress'] = {key: failed_progress.get(key) for key in
+                    ('event', 'index', 'total', 'pose_name', 'command_pose')}
+            return result
         finally:
             with self.lock:
                 self.active = None

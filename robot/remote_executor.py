@@ -58,13 +58,21 @@ class Executor:
         self.active = None
         self.closed = threading.Event()
         self.allowed_slots = frozenset(allowed_slots)
+        from agents.storage import SLOT_NUMBERS
+        from robot.db_pose_sequence import sequence_for_target
+        # Snapshot the runner's plan at startup so old/new peers can compare
+        # before a job is submitted, rather than discovering it after a pick.
+        self.sequence_plans = {slot: sequence_for_target({
+            'ok': True, 'slot_id': slot, 'number': number, 'pose_name': f'pose_{number}'})
+            for slot, number in SLOT_NUMBERS.items()}
 
     def health(self):
         with self.lock:
             return {'instance': self.instance, 'mode': 'live' if self.live else 'simulation',
                     'armed': self.armed, 'active_job': self.active,
                     'stop_uncertain': self.uncertain_stop,
-                    'sequence_slots': sorted(self.allowed_slots) if self.live else 'simulation'}
+                    'sequence_slots': sorted(self.allowed_slots) if self.live else 'simulation',
+                    'sequence_plans': {slot: list(plan) for slot, plan in self.sequence_plans.items()}}
 
     def arm(self):
         with self.lock:

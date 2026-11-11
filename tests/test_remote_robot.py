@@ -266,6 +266,63 @@ class RemoteHttpTests(unittest.TestCase):
                 self.assertTrue(result['test_only'])
                 self.assertEqual(target['item_id'], 'TEST')
 
+    def test_old_return_plan_is_rejected_before_any_job_or_motion(self):
+        self.client.arm_local()
+        self.engine.sequence_plans['R4-2'][5] = 'pose_8_return'
+        target = {'ok': True, 'item_id': 'TEST', 'number': 8, 'pose_name': 'pose_8', 'slot_id': 'R4-2'}
+        result = self.client.robot_run_sequence(target)
+        self.assertFalse(result['ok'])
+        self.assertIn('Sequence plan mismatch before motion', result['reason'])
+        self.assertIn('stage 6', result['reason'])
+        self.assertEqual(self.engine.jobs, {})
+        self.assertEqual(self.robot.calls, [])
+        self.assertTrue(self.engine.armed)
+
+    def test_peer_without_plan_advertisement_is_rejected_before_submission(self):
+        self.client.arm_local()
+        real = self.client.request
+        posts = []
+        def older_peer(path, body=None):
+            result = real(path, body)
+            if path == '/v1/health':
+                result.pop('sequence_plans', None)
+            if path == '/v1/jobs':
+                posts.append(body)
+            return result
+        self.client.request = older_peer
+        target = {'ok': True, 'item_id': 'TEST', 'number': 8, 'pose_name': 'pose_8', 'slot_id': 'R4-2'}
+        result = self.client.robot_run_sequence(target)
+        self.assertFalse(result['ok'])
+        self.assertIn('missing', result['reason'])
+        self.assertEqual(posts, [])
+        self.assertEqual(self.engine.jobs, {})
+
+    def test_progress_failure_keeps_detail_job_and_rejected_stage_without_secret(self):
+        from tests.sequence_fixtures import expected_sequence
+        plan = expected_sequence(8)
+        target = {'ok': True, 'item_id': 'TEST', 'number': 8, 'pose_name': 'pose_8', 'slot_id': 'R4-2'}
+        event = {'event': 'stage_started', 'index': 6, 'total': 11,
+                 'pose_name': 'pose_8', 'command_pose': 'pose_8'}
+        def replies(path, body=None):
+            if path == '/v1/health':
+                return {'mode': 'simulation', 'armed': True, 'instance': 'test',
+                        'sequence_plans': {'R4-2': plan}}
+            if path == '/v1/jobs':
+                return {'job_id': body['job_id'], 'events': [event], 'status': 'running'}
+            self.fail(path)
+        self.client.request = replies
+        self.client.robot_stop = Mock(return_value={'ok': True})
+        def reject(_):
+            raise ValueError('expected pose_8_return; credential=' + self.token)
+        result = self.client.robot_run_sequence(target, progress=reject)
+        self.assertFalse(result['ok'])
+        self.assertIn('expected pose_8_return', result['reason'])
+        self.assertNotIn(self.token, json.dumps(result))
+        self.assertEqual(result['failed_progress'], event)
+        uuid.UUID(result['job_id'])
+        self.client.robot_stop.assert_called_once()
+        self.assertTrue(self.client.faulted)
+
     def test_only_new_local_arming_epoch_allows_an_explicit_call_after_uncertain_delivery(self):
         self.client.arm_local()
         real = self.client.request
