@@ -233,8 +233,22 @@ def dialog(cam, tower: bool = False) -> int:
         print("가짜 카메라에는 드라이버 설정 창이 없음")
         return 2
     if tower:
-        from agents.kiosk_camera import _open
+        from agents.kiosk_camera import _open, is_dark, mjpg_default
         cap = _open(cam)
+        # 11/11 교육원: 1280×720 + MJPG 로 열면 영상이 까맘 → 관제탑(CameraFeed)처럼 MJPG 를 바꿔 다시 연다
+        dark = True
+        for _ in range(60):
+            ok, f = cap.read() if cap is not None and cap.isOpened() else (False, None)
+            if ok and f is not None and not is_dark(f):
+                dark = False
+                break
+            time.sleep(0.03)
+        if dark:
+            if cap is not None:
+                cap.release()
+            time.sleep(0.4)
+            cap = _open(cam, mjpg=not mjpg_default())
+            print("처음 영상이 까매 압축 형식(MJPG)을 " + ("끄고" if mjpg_default() else "켜고") + " 다시 열었음(관제탑과 같은 재시도)")
     else:
         cap = cv2.VideoCapture(cam, cv2.CAP_DSHOW if os.name == "nt" else cv2.CAP_ANY)
     if cap is None or not cap.isOpened():
