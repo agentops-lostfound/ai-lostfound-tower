@@ -34,6 +34,7 @@ class GuidanceQualityTest(unittest.TestCase):
         self.assertEqual(grade(68, '연락처는 남겨도 되지만 필수는 아닙니다.'), [])
         self.assertEqual(grade(68, '연락처는 남겨도 되지만 필수는 아니에요.'), [])
         self.assertEqual(grade(138, '요약 확인 후 접수 버튼을 눌러야 합니다.'), [])
+        self.assertEqual(grade(138, '요약을 확인한 후 접수합니다.'), [])
         self.assertTrue(grade(68, '연락처는 반드시 남겨야 합니다.'))
         self.assertTrue(grade(138, '확인 없이 바로 접수가 완료됩니다.'))
 
@@ -117,6 +118,24 @@ class GuidanceQualityTest(unittest.TestCase):
         q = '물건 받았어요 버튼은 언제 눌러요?'
         self.assertIsNone(answer_gap(q, "물건을 직접 꺼낸 뒤 '물건 받았어요'를 누릅니다."))
         self.assertEqual(answer_gap(q, '키오스크 버튼을 누릅니다.'), 'when')
+
+    def test_face_capture_policy_is_not_inferred_from_identity_procedure(self):
+        def no_model(_):
+            self.fail('확정되지 않은 얼굴 촬영 정책을 모델에 넘기면 안 됨')
+        rag = GroundedRag(Guidance(), 'test', request=no_model)
+        for q in ('본인 확인할 때 얼굴 사진도 찍어요?', '셀카 제출해야 해요?',
+                  '얼굴 사진은 저장하나요?', '인증할 때 생체 정보도 수집해요?', '얼굴 사진도 필요해요?'):
+            r = rag.ask(q)
+            self.assertIn(r['status'], ('policy_pending', 'partial'), q)
+            self.assertIn('얼굴 사진 촬영·수집·보관 정책', r['answer'], q)
+            self.assertIn('확정', r['answer'], q)
+            self.assertNotIn('본인인증에 실패하면', r['answer'], q)
+            self.assertFalse(r.get('generation_used', False), q)
+
+    def test_face_feature_and_ordinary_pickup_remain_separate(self):
+        g = Guidance()
+        for q in ('원숭이 얼굴 키링 달린 지갑', '물건 사진은 어떻게 올려요?', '본센터에서 물건 받는 순서 알려줘'):
+            self.assertNotIn('얼굴 사진 촬영·수집·보관 정책', g.ask(q)['answer'], q)
 
 
 if __name__ == '__main__':
