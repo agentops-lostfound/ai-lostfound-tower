@@ -38,6 +38,7 @@ class _ReadOnlyPostgres:
             import psycopg
             connect = self._connect or psycopg.connect
             with connect(self._dsn, connect_timeout=5) as db:
+                db.autocommit = False
                 db.read_only = True
                 db.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
                 with db.cursor() as cur:
