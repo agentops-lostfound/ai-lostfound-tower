@@ -1,12 +1,18 @@
 """에이전트 대화 — 메인 AI 아래에서 에이전트들이 요청·답·확인·채점·도움·되돌아보기를 주고받는다 (LF-14 · 11/9 변재원)
 
 한줄 설명: 키오스크 AI·DB 에이전트·보관 칸 에이전트·로봇팔 에이전트가 메인 AI 를 거쳐 서로 필요한 정보를 묻고 답하며,
-채점 에이전트가 답마다 점수를 매기고 부족하면 그 에이전트를 도와 더 나은 답을 다시 내게 한다. 도움받은 에이전트는
-무엇이 부족했는지 스스로 정리하고(되돌아보기) 배운 점을 기억해 다음 답부터 반영한다.
+채점 에이전트가 그 답을 **다른 기록(보관함 정답지·등록기계 역 표·탑뷰 위치)으로 다시 맞춰 보고**, 어긋나면 무엇이 왜 문제인지
+알려 직원 확인을 부른다.
+
+11/11 사용자 결정(채점 에이전트 존재 의의 검토 → 2번 '실제 검증 위주'): 예전에는 DB 에이전트의 첫 답을 일부러 덜 채워
+'점수 낮음 → 도움 → 되돌아보기 → 배운 점' 을 매번 연출했다(실제로 잡는 것은 개인정보·위치 불일치뿐). 이제 연출을 없애고
+실제로 틀릴 수 있는 것을 검사한다 — 사진 분석이 품목·색을 못 읽음 · 운영하지 않는 품목 · 적은 장소와 등록기계 역이 다름 ·
+보관 칸이 다른 열/이미 찬 칸/먼 줄(-1)을 건너뜀 · 정답지에 빈 칸이 있는데 칸 대기 · 탑뷰 위치가 칸 범위 밖
 
 방식(11/9 사용자 결정 '가'): 말은 정해진 틀, 채점은 규칙 — 그래픽카드(LLM)를 더 쓰지 않아 빠르고 늘 같은 결과.
 - 모든 말은 메인 AI 를 거친다: 에이전트 → 메인 AI → 다른 에이전트 (메인 AI 가 요청을 나누고 답을 확인하고 결정)
-- 채점 기준(grade): 필요한 항목을 다 채웠나(70점) + 코드가 다시 확인한 값과 맞나(30점). 개인정보 모양이 있으면 0점. 80점 미만이면 도움
+- 채점 기준(grade): 필요한 항목을 다 채웠나(70점) + 다른 기록과 맞나(30점). 개인정보 모양이 있으면 0점.
+  빠지거나 어긋난 항목이 하나라도 있으면 도움(무엇이 왜 문제인지) + 직원 확인 경보 — 점수는 보여 주기용
 - 안전 원칙은 그대로: 로봇을 움직일지는 코드가 정한다. 이 대화가 할 수 있는 일은 '멈추고 직원 확인'으로 더 조심하게 만드는 것뿐
 - 보이는 곳: /live '에이전트 대화' 패널(말 하나씩) + 디스코드 🤖에이전트-대화 채널(대화 하나가 끝나면 한 번에, DISCORD_WEBHOOK_AGENT)
 
@@ -17,7 +23,7 @@ from __future__ import annotations
 import os
 import threading
 
-from agents.contracts import NONE, UNKNOWN, category_label, station_name
+from agents.contracts import MACHINE_STATION_NAME, NONE, UNKNOWN, category_label, is_active_category, station_name
 
 PASS = 80                         # 이 점수 미만이면 채점 에이전트가 돕는다
 MAX_LINE = 220                    # 말 하나 최대 글자
@@ -35,9 +41,6 @@ KINDS = {"request": "요청", "reply": "답", "check": "확인", "score": "점�
 MARK = {"request": "📨", "reply": "💬", "check": "🔎", "score": "🧮", "coach": "🤝", "reflect": "💭",
         "retry": "🔁", "decide": "✅", "learn": "📚"}
 
-# 에이전트가 배우는 것(되돌아보기 뒤 기억 → 다음 답부터 반영). 가상 세계 초기화 때 지움
-LESSON_FULL_RECORD = "접수 표만 말고 특징·역 표도 함께 읽기"
-LESSON_SLOT_BOUNDS = "칸 번호와 함께 칸 범위(mm)도 알려 주기"
 
 
 def _known(v) -> bool:
@@ -47,6 +50,38 @@ def _known(v) -> bool:
 def _pii(text: str) -> list[str]:
     from discord_ops.reporter import find_pii
     return find_pii(text)
+
+
+def _station_in(place: str) -> str:
+    """적은 장소 글에 나온 역 이름(등록기계 역 표 기준). 없으면 빈 글자. 예: '초량역 5번 출구' → '초량역'"""
+    place = str(place or "")
+    for name in MACHINE_STATION_NAME.values():
+        short = name.split()[0].removesuffix("역")
+        if short and short in place:
+            return name
+    return ""
+
+
+def _occupant(layout: dict, slot_id: str):
+    for sec in layout.get("sections", []):
+        for sl in sec.get("slots", []):
+            if sl.get("slot_id") == slot_id:
+                return (sl.get("item") or {}).get("item_id")
+    return None
+
+
+def _free_slots(layout: dict, category, item_id: str, held: set | None) -> list:
+    """보관함 정답지에서 이 품목을 받는 로봇 칸 중 빈 칸(이 물건 자신이 있는 칸 포함, 다른 물건이 잡아 둔 칸 제외)"""
+    out = []
+    for sec in layout.get("sections", []):
+        allowed = sec.get("allowed_categories") or []
+        if sec.get("kind") != "shelf" or (allowed and category not in allowed):
+            continue
+        for sl in sec.get("slots", []):
+            who = (sl.get("item") or {}).get("item_id")
+            if who in (None, item_id) and sl.get("slot_id") not in (held or set()):
+                out.append(sl["slot_id"])
+    return out
 
 
 def grade(need: dict, got: dict, verify: dict | None = None) -> dict:
@@ -66,8 +101,8 @@ class AgentTalk:
 
     def __init__(self, reporter, board=None):
         self.rep = reporter
+        self.alerts = reporter      # 직원 확인 경보는 처음 받은 reporter 로(시연 도구가 rep 를 디스코드 전송용으로 바꿔도 경보 채널로는 안 보냄)
         self.board = board if board is not None else getattr(reporter, "board", None)
-        self.lessons: dict[str, set] = {}
         self._lines: dict[str, list] = {}
         self._lock = threading.Lock()
 
@@ -105,36 +140,29 @@ class AgentTalk:
         except Exception:
             pass
 
-    def knows(self, agent: str, lesson: str) -> bool:
-        return lesson in self.lessons.get(agent, set())
-
     def reset(self) -> None:
         with self._lock:
-            self.lessons.clear()
             self._lines.clear()
 
-    # ---------- 채점 → 도움 → 되돌아보기 → 다시 답 ----------
-    def review(self, key: str, agent: str, need: dict, first: dict, verify: dict | None,
-               improve, why_needed: str, lesson: str, cause: str, show=None) -> dict:
-        """agent 의 답(first)을 채점하고, 기준 미만이면 메인 AI 가 채점 에이전트에게 도움을 부탁 → 채점 에이전트가 무엇이 왜 필요한지 알려 줌
-        → agent 가 원인을 되돌아보고 배운 점을 기억 → improve() 로 다시 답 → 다시 채점. 돌려줌: 마지막 답"""
-        g = grade(need, first, verify)
+    # ---------- 채점 → (문제가 있으면) 도움 → 직원 확인 ----------
+    def judge(self, key: str, agent: str, need: dict, got: dict, verify: dict | None, why: dict, case: str | None = None,
+              alert: bool = True) -> dict:
+        """agent 의 답(got)을 채점. verify 는 코드가 **다른 기록(보관함 정답지·등록기계 표 등)** 으로 다시 본 결과.
+        빠진 항목이 있거나 다시 본 값과 다르면: 채점 에이전트가 무엇이 왜 문제인지 알리고(도움) → 메인 AI 가 직원 확인 경보.
+        11/11 사용자 결정(2번): 예전에는 첫 답을 **일부러** 덜 채워 '도움 → 배운 점' 을 매번 연출했다 → 없앰. 이제는 실제로 틀릴 때만 도움.
+        why = {항목 이름: 그 항목이 왜 필요한지/틀리면 무슨 일이 생기는지}. 돌려줌: grade 결과 + "flag"(직원 확인이 필요한가)"""
+        g = grade(need, got, verify)
         self.say(key, GRADER, MAIN, "score", self._score_text(agent, g), g["score"])
-        if g["score"] >= PASS or g["pii"]:
-            return first
-        self.say(key, MAIN, GRADER, "request", f"{agent} 답이 부족해요. 무엇이 왜 필요한지 알려 줘서 더 나은 답을 내게 도와줘")
-        gaps = "·".join(g["missing"] + g["wrong"])
-        self.say(key, GRADER, agent, "coach", f"빠졌거나 맞지 않은 항목: {gaps}. {why_needed}")
-        self.say(key, agent, GRADER, "reflect", f"도움 고마워요. 제가 {cause} 그래서 {gaps} 항목을 놓쳤네요. "
-                                                 f"앞으로는 '{lesson}' — 지금 다시 답할게요")
-        with self._lock:
-            self.lessons.setdefault(agent, set()).add(lesson)
-        second = improve()
-        g2 = grade(need, second, verify)
-        self.say(key, agent, MAIN, "retry", (show or (lambda d: self._fields_text(need, d)))(second))
-        self.say(key, GRADER, MAIN, "score", f"{agent} 다시 답 {g['score']}점 → {g2['score']}점"
-                 + (" · 좋아졌어요" if g2["score"] > g["score"] else " · 그대로예요"), g2["score"])
-        return second
+        gaps = g["missing"] + g["wrong"]
+        g["flag"] = bool(gaps) or bool(g["pii"])
+        if gaps:
+            self.say(key, GRADER, MAIN, "coach", " ".join(f"{name}: {why.get(name, '확인 필요')}." for name in gaps))
+        if gaps and alert:
+            try:
+                self.alerts.alert(case or key, f"{agent} 답 확인 필요 — {'·'.join(gaps)}", "에이전트 대화에서 채점 에이전트가 찾음(/live)")
+            except Exception:
+                pass
+        return g
 
     @staticmethod
     def _score_text(agent: str, g: dict) -> str:
@@ -145,7 +173,7 @@ class AgentTalk:
             parts.append("빠짐 " + "·".join(g["missing"]))
         if g["wrong"]:
             parts.append("불일치 " + "·".join(g["wrong"]))
-        return f"{agent} 답 " + (" / ".join(parts) if parts else "필요한 항목을 모두 채웠고 확인 값과 일치")
+        return f"{agent} 답 " + (" / ".join(parts) if parts else "필요한 항목을 모두 채웠고 다른 기록과도 일치")
 
     @staticmethod
     def _fields_text(need: dict, got: dict) -> str:
@@ -153,10 +181,15 @@ class AgentTalk:
 
     # ================= 습득: 키오스크 AI → 메인 AI → DB 에이전트 =================
     NEED_FOUND = {"item_id": "물건 번호", "station": "역", "category": "품목", "color": "색", "status": "상태"}
+    WHY_FOUND = {"역": "적은 장소가 등록기계 역과 다르면 분실인 검색·확인 질문(장소)이 어긋나요",
+                 "품목": "품목을 모르거나 운영 품목(목업폰·보조배터리·핸드크림·립밤)이 아니면 보관 칸 열을 고를 수 없어요 — 사진을 직원이 봐야 해요",
+                 "색": "색을 모르면 분실인이 색으로 찾거나 확인할 수 없어요",
+                 "물건 번호": "번호가 없으면 기록을 이을 수 없어요", "상태": "상태가 없으면 회수 여부를 정할 수 없어요"}
 
     def found_registered(self, key: str, item: dict, place: str = "") -> dict:
-        """특징 분석까지 끝난 습득물: 키오스크 AI 가 등록 확인을 부탁 → 메인 AI 가 DB 에이전트에게 기록을 물음 → 채점·도움 → 메인 AI 확인.
-        item = DB 기록(db_get_item 모양). 돌려줌: DB 에이전트의 마지막 답"""
+        """특징 분석까지 끝난 습득물: 키오스크 AI 가 등록 확인을 부탁 → 메인 AI 가 DB 에이전트에게 기록을 물음 → 채점.
+        실제 검사(11/11): ① 품목·색이 채워졌나(사진 분석 실패) ② 품목이 운영 품목인가 ③ 적은 장소의 역이 등록기계 역과 같은가.
+        item = DB 기록(db_get_item 모양). 돌려줌: DB 에이전트의 답 + "grade" """
         f = item.get("features") or {}
         machine = item.get("machine_id") or ""
         station = station_name(machine, item.get("item_id")) or ""
@@ -166,40 +199,50 @@ class AgentTalk:
                  f"{station or '역 미상'} 등록기계 접수 · 장소 '{place or '미입력'}' · 사진 분석 {cat or '품목 확인 불가'}"
                  + (f"·{color}" if color else "") + f" — {item.get('item_id')} 물건이 등록됐는지 확인해 주세요")
         self.say(key, MAIN, DB, "request", f"{item.get('item_id')} 기록을 알려 줘(필요: 역·품목·색·상태)")
-        full = {"item_id": item.get("item_id"), "station": station, "category": cat, "color": color or "확인 불가",
-                "status": item.get("status")}
-        if self.knows(DB, LESSON_FULL_RECORD):
-            first = full
-            self.say(key, DB, MAIN, "learn", f"지난번 도움 반영: {LESSON_FULL_RECORD}")
-        else:     # 처음에는 접수 표(물건 번호·등록기계·상태)만 읽는다 — 채점 에이전트 도움으로 특징·역 표까지 읽게 됨
-            first = {"item_id": item.get("item_id"), "machine": machine, "status": item.get("status")}
-        self.say(key, DB, MAIN, "reply", self._fields_text(self.NEED_FOUND, first) + (f", 등록기계 {machine}" if first.get("machine") else ""))
-        verify = {"station": (first.get("station") == station) if _known(first.get("station")) else None,
-                  "category": (first.get("category") == cat) if _known(first.get("category")) else None}
-        last = self.review(key, DB, self.NEED_FOUND, first, verify, lambda: full,
-                           "메인 AI 가 보관 칸을 고르려면 품목이, 분실인이 검색하려면 역·색이 필요해요. 특징 표와 역 표도 함께 읽어 주세요",
-                           LESSON_FULL_RECORD, "접수 표만 읽고 답했어요.")
-        ok = last.get("category") == cat and last.get("station") == station
+        got = {"item_id": item.get("item_id"), "station": station, "category": cat, "color": color, "status": item.get("status")}
+        self.say(key, DB, MAIN, "reply", self._fields_text(self.NEED_FOUND, got))
+        said = _station_in(place)
+        verify = {"category": is_active_category(f.get("category")) if cat else None,
+                  "station": (said == station) if said and station else None}
+        g = self.judge(key, DB, self.NEED_FOUND, got, verify, self.WHY_FOUND, item.get("item_id"))
         self.say(key, MAIN, KIOSK, "check",
-                 f"키오스크 요청과 DB 기록이 맞아요({station} · {cat or '품목 확인 불가'}) — 보관 칸을 잡을게요" if ok
-                 else "키오스크 요청과 DB 기록이 달라요 — 직원 확인을 부를게요")
-        return last
+                 f"키오스크 요청과 DB 기록이 맞아요({station} · {cat}) — 보관 칸을 잡을게요" if not g["flag"]
+                 else "확인이 필요한 항목이 있어요 — 직원에게 알렸어요(접수는 그대로 진행)")
+        return {**got, "grade": g}
 
     # ================= 습득: 메인 AI → 보관 칸 에이전트 =================
+    WHY_SLOT = {"품목 맞는 열": "품목이 다른 열에 넣으면 로봇이 엉뚱한 칸에서 집어요",
+                "빈 칸": "보관함 정답지(DB)에 이미 다른 물건이 있는 칸이에요 — 두 물건이 한 칸에 겹쳐요",
+                "먼 줄 먼저": "같은 열의 먼 줄(-1) 칸이 비어 있어요 — 먼 줄(1·3·5·7)부터 채우는 규칙",
+                "칸 대기 판단": "보관함 정답지(DB)에는 이 품목 열에 빈 칸이 있어요 — 칸 기록이 실물과 어긋났을 수 있어요"}
+
     def slot_reserved(self, key: str, item_id: str, category: str | None, slot: str | None, allowed: list | None,
-                      wait_no: int | None = None) -> None:
+                      wait_no: int | None = None, layout: dict | None = None, held: set | None = None) -> dict:
+        """보관 칸 에이전트(가상 세계의 칸 고르기)의 답을 **보관함 정답지(storage, DB 와 같은 규칙)** 로 다시 본다(11/11).
+        layout = storage.layout(), held = 다른 물건이 회수하려고 잡아 둔 칸(정답지에는 아직 안 보임).
+        검사: ① 품목 맞는 열 ② 정답지에서 빈 칸 ③ 먼 줄(-1) 먼저 ④ 칸 대기인데 정답지에 빈 칸이 있으면 이상. 돌려줌: grade 결과"""
         cat = category_label(category) if _known(category) else "품목 확인 불가"
+        free = _free_slots(layout, category, item_id, held) if layout else None
         self.say(key, MAIN, SLOT, "request", f"{item_id} 물건({cat})이 들어갈 빈 칸을 잡아 줘")
         if slot:
             self.say(key, SLOT, MAIN, "reply", f"{slot} 칸을 잡았어요(이 열: {'·'.join(category_label(c) for c in (allowed or [])) or '모든 품목'})")
-            ok = not allowed or category in allowed
-            g = grade({"slot": "칸 번호", "category_ok": "품목 맞는 열"}, {"slot": slot, "category_ok": ok}, {"category_ok": ok})
-            self.say(key, GRADER, MAIN, "score", self._score_text(SLOT, g), g["score"])
-            self.say(key, MAIN, SLOT, "decide", f"{slot} 칸이 {cat} 열이 맞아요 — 회수해서 그 칸에 둘게요" if ok
-                     else f"{slot} 칸은 {cat} 열이 아니에요 — 직원 확인")
-        else:
-            self.say(key, SLOT, MAIN, "reply", f"{cat} 열에 빈 칸이 없어요" + (f" — 칸 대기 {wait_no}번째" if wait_no else ""))
-            self.say(key, MAIN, SLOT, "decide", "회수하지 않고 등록기계에 둘게요. 칸이 비면 먼저 온 순서대로 회수하고, 직원에게 알렸어요")
+            col_ok = not allowed or category in allowed
+            occupant = _occupant(layout, slot) if layout else None
+            empty_ok = None if not layout else occupant in (None, item_id)
+            near = slot.rsplit("-", 1)[0] + "-1"
+            order_ok = None if free is None else not (slot.endswith("-2") and near in free)
+            need = {"slot": "칸 번호", "column": "품목 맞는 열", "empty": "빈 칸", "order": "먼 줄 먼저"}
+            g = self.judge(key, SLOT, need, {"slot": slot, "column": col_ok, "empty": empty_ok, "order": order_ok},
+                           {"column": col_ok, "empty": empty_ok, "order": order_ok}, self.WHY_SLOT, item_id)
+            self.say(key, MAIN, SLOT, "decide", f"{slot} 칸이 {cat} 열의 알맞은 빈 칸이에요 — 회수해서 그 칸에 둘게요" if not g["flag"]
+                     else f"{slot} 칸에 확인할 점이 있어요 — 직원 확인(보관 화면에서 칸을 다시 보세요)")
+            return g
+        self.say(key, SLOT, MAIN, "reply", f"{cat} 열에 빈 칸이 없어요" + (f" — 칸 대기 {wait_no}번째" if wait_no else ""))
+        wait_ok = None if free is None or not _known(category) else not free
+        g = self.judge(key, SLOT, {"wait": "칸 대기 판단"}, {"wait": "칸 대기"}, {"wait": wait_ok}, self.WHY_SLOT, item_id)
+        self.say(key, MAIN, SLOT, "decide", "회수하지 않고 등록기계에 둘게요. 칸이 비면 먼저 온 순서대로 회수하고, 직원에게 알렸어요"
+                 if not g["flag"] else f"정답지에는 빈 칸({'·'.join(free)})이 있어요 — 직원 확인(보관 화면 칸 기록 확인)")
+        return g
 
     def stored(self, key: str, item_id: str, slot: str) -> None:
         self.say(key, MAIN, KIOSK, "decide", f"{item_id} 물건을 {slot} 칸에 보관했어요 — 분실 신고가 오면 반환할 수 있어요")
@@ -222,17 +265,9 @@ class AgentTalk:
             self.say(key, DB, MAIN, "reply", "이 물건의 보관 칸 기록이 없어요")
             self.say(key, MAIN, ROBOT, "decide", "칸 기록이 없어 위치로는 확인할 수 없어요 — 매칭 결과만으로 진행(원래 기준)")
             return ""
-        if self.knows(DB, LESSON_SLOT_BOUNDS):
-            first = full
-            self.say(key, DB, MAIN, "learn", f"지난번 도움 반영: {LESSON_SLOT_BOUNDS}")
-        else:     # 처음에는 칸 번호만 — 로봇이 위치를 맞춰 보려면 범위가 필요하다는 것을 채점 에이전트 도움으로 배움
-            first = {"slot_id": area.get("slot_id")}
-        self.say(key, DB, MAIN, "reply", self._bounds_text(first))
-        last = self.review(key, DB, self.NEED_SLOT, first, None, lambda: full,
-                           "로봇팔이 탑뷰 좌표와 맞춰 보려면 칸 범위(mm)가 필요해요. 칸 기록과 함께 구역 좌표도 읽어 주세요",
-                           LESSON_SLOT_BOUNDS, "칸 번호만 알려 드렸어요.", show=self._bounds_text)
+        self.say(key, DB, MAIN, "reply", self._bounds_text(full))
+        last = full
         bounds = last.get("bounds")
-        self.say(key, MAIN, ROBOT, "reply", self._bounds_text(last))
         if not bounds:
             self.say(key, ROBOT, MAIN, "check", "칸 범위가 없어 위치로는 확인할 수 없어요")
             self.say(key, MAIN, ROBOT, "decide", "매칭 결과만으로 진행(원래 기준)")
@@ -241,6 +276,9 @@ class AgentTalk:
         inside = x0 <= x <= x1 and y0 <= y <= y1
         self.say(key, ROBOT, MAIN, "check", f"탑뷰 물건 중심 ({x:.0f},{y:.0f})mm → {last['slot_id']} 칸 범위 "
                  + ("안이에요 ✓" if inside else "밖이에요 ✗"))
+        self.judge(key, DB, self.NEED_SLOT, last, {"bounds": inside},
+                   {"칸 범위(mm)": "DB 칸 기록과 탑뷰가 본 물건 위치가 달라요 — 다른 물건을 집을 수 있어요"}, item_id,
+                   alert=False)                                   # 경보는 반환 흐름(supervisor)이 직원 확인으로 한 번 보냄
         if inside:
             self.say(key, MAIN, ROBOT, "decide", "기록 칸과 탑뷰 위치가 맞아요 — 사전 접근 시작해")
             return ""
@@ -278,4 +316,4 @@ def build_talk(reporter, env: dict | None = None, sim: bool = False) -> AgentTal
     return AgentTalk(reporter)
 
 
-__all__ = ["AgentTalk", "grade", "build_talk", "PASS", "KINDS", "LESSON_FULL_RECORD", "LESSON_SLOT_BOUNDS"]
+__all__ = ["AgentTalk", "grade", "build_talk", "PASS", "KINDS"]

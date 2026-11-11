@@ -223,7 +223,10 @@ SEED_FULL = [
     ("보조배터리 스피디 2", "흰색 보조배터리"),
     ("립밤 바세린 레드", "빨간 립밤"),                  # 11/11 카드지갑 → 립밤(실물 바세린 빨강·파랑)
 ]
-SEED_SETS = {"default": SEED_ITEMS, "full": SEED_FULL}
+# 11/11 사용자 결정: 실물 시연이 기본이 되어 **처음에는 보관함을 비워 둔다**(관제탑 TOWER_SIM_SEED 비움 = none).
+#   더미 분홍 핸드크림이 R3-1 을 차지해 새 크림이 R3-2 로 가고, 켤 때마다 다시 생겼다.
+#   분홍 핸드크림 하나는 TOWER_SIM_SEED=cream(챗봇 채점표·찾기 연습용), 예전 5개는 full. "default" 는 SimWorld 를 직접 만드는 시험용(=cream)
+SEED_SETS = {"default": SEED_ITEMS, "cream": SEED_ITEMS, "full": SEED_FULL, "none": []}
 
 
 # ---------- SO-101 로봇팔 관절(11/4, docs/progress/soarm-local-handoff.md 와 같은 번호) ----------

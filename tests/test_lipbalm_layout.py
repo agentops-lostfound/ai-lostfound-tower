@@ -1,6 +1,6 @@
 """11/11 사용자 결정: 운영 품목 카드지갑 → 립밤(포토박스 탑뷰가 카드지갑을 잘 못 알아봄).
 
-1) 처음 보관된 가상 물건은 분홍 핸드크림 하나(예전 5개 묶음은 TOWER_SIM_SEED=full, 그 안의 카드지갑도 빨간 립밤으로)
+1) 처음 보관함은 비어 있음(11/11 오후). 분홍 핸드크림 하나는 TOWER_SIM_SEED=cream, 예전 5개는 full(그 안의 카드지갑도 빨간 립밤으로)
 2) 보관함 열: 왼쪽부터 휴대폰 · 보조배터리 · 핸드크림 · 립밤 (마이그레이션 020)
 3) '지갑'은 운영하지 않는 품목 안내로(11/10 의 '카드지갑' 유도 한 줄은 이제 붙이지 않음). 옛 기록 값 '지갑'은 그대로 읽힘
 """
@@ -16,9 +16,19 @@ ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
 
 
 class SeedTest(unittest.TestCase):
-    def test_default_seed_is_one_pink_hand_cream_in_r3(self):
+    def test_default_seed_is_empty(self):
+        # 11/11 사용자 결정: 실물 시연 기본 → 처음 보관함은 비어 있음(켤 때마다 더미 크림이 다시 생기지 않음)
         from agents.sim_director import build_sim_service
-        svc = build_sim_service(ENV)
+        for env in (ENV, {**ENV, "TOWER_SIM_SEED": "none"}, {**ENV, "TOWER_SIM_SEED": "모름"}):
+            svc = build_sim_service(env)
+            self.assertEqual(svc.world.items, {})
+            self.assertEqual([s for sec in svc.storage.layout()["sections"] for s in sec["slots"] if s.get("item")], [])
+            svc.sim.reset()
+            self.assertEqual(svc.world.items, {})                          # [전체 초기화] 뒤에도 비어 있음
+
+    def test_cream_seed_is_one_pink_hand_cream_in_r3(self):
+        from agents.sim_director import build_sim_service
+        svc = build_sim_service({**ENV, "TOWER_SIM_SEED": "cream"})
         items = list(svc.world.items.values())
         self.assertEqual([(r["category"], r["features"]["color"]) for r in items], [("핸드크림", "분홍")])
         self.assertEqual(svc.world.slot_id_of(items[0]["item_id"]), "R3-1")
@@ -36,7 +46,7 @@ class SeedTest(unittest.TestCase):
         from agents.storage import recommend_slot
         lay = build_sim_service(ENV).storage.layout()
         got = {c: recommend_slot(lay, c)["slot_id"] for c in ("모형폰", "보조배터리", "핸드크림", "립밤")}
-        self.assertEqual(got, {"모형폰": "R1-1", "보조배터리": "R2-1", "핸드크림": "R3-2", "립밤": "R4-1"})
+        self.assertEqual(got, {"모형폰": "R1-1", "보조배터리": "R2-1", "핸드크림": "R3-1", "립밤": "R4-1"})   # 빈 보관함: 먼 줄(-1)부터
         self.assertIsNone(recommend_slot(lay, "지갑"))           # 카드지갑은 받는 열이 없음 → 직원 보관 선반
 
 
