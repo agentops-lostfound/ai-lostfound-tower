@@ -11,7 +11,7 @@
   색·글자는 공통 디자인(/ui/theme.css·theme.js, 11/8 디자인 개편)을 쓴다. 글꼴은 인터넷이 끊기면 시스템 글꼴로 대신 열린다. 로봇팔 모양은 관제탑이 주는 /live/so101_shape.js
   (SO-ARM100 공식 모델에서 tools/so101_shape.py 로 뽑은 부품 점)를 관절 각도로 돌려 그린다.
 -->
-<link rel="stylesheet" href="/ui/theme.css">
+<link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
 <style>
 /* 11/8 디자인 개편: 색은 공통 토큰(/ui/theme.css 의 --ui-*)으로. 아래 짧은 이름은 이 화면 안에서만 쓰는 별명이다.
@@ -235,7 +235,7 @@ details.more .robot-note{margin-top:0}
     </div>
     <div class="card try" id="tryCard" hidden>
       <h2>시험 입력</h2>
-      <textarea id="tryText" placeholder="예) 서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"></textarea>
+      <textarea id="tryText" placeholder="예) 초량역 5번 출구 앞에서 검정 카드지갑 주웠어요"></textarea>
       <div class="btns">
         <button class="primary" data-kind="found">습득 신고</button>
         <button data-kind="lost">분실 신고</button>
@@ -262,7 +262,7 @@ details.more .robot-note{margin-top:0}
         <span><svg viewBox="0 0 22 18" role="img" aria-label="역 배지: 습득 역" class="c-acc"><rect x="1" y="4" width="20" height="10" rx="5" fill="var(--accent-soft)" stroke="currentColor"/></svg>습득 역</span>
         <span><svg viewBox="0 0 18 18" role="img" aria-label="옅은 원: 집게 높이, 클수록 높음"><circle cx="6" cy="10" r="3" fill="var(--arm)" opacity=".25"/><circle cx="12.5" cy="9" r="5" fill="var(--arm)" opacity=".18"/></svg>집게 높이</span>
       </div>
-      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 보조배터리 · R3 = 핸드크림 · R4 = 카드지갑(11/10 열 순서 확정) · 칸 카드 아래 배지 = 습득 역(해운대·서면·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
+      <details class="more"><summary>ⓘ 자세히</summary>실제 규격(mm): 보관판 500×250, 테두리 종이 테이프 15 · 로봇 받침 앞 덧댄 띠 약 66×15(받침이 가운데 오게) · 제출보관함 H-1 200×200은 보관판 위쪽 가운데에 붙음, 로봇은 로봇 쪽 절반에 놓음 · R1 두 칸 = 휴대폰 전용, 45도 사선(상단 오른쪽 위·단자 왼쪽 아래) — 가로로 두면 비전 인식률이 떨어짐, 그래서 간격이 넓음 · R2 = 보조배터리 · R3 = 핸드크림 · R4 = 카드지갑(11/10 열 순서 확정) · 칸 카드 아래 배지 = 습득 역(중앙·초량·본센터), 마우스를 올리거나 누르면 물건 번호 전체·습득 역·품목·색 · 탑뷰 카메라는 높이 약 500mm에서 보관함과 로봇팔을 내려다봄 · 표식(ArUco) 2개 = 보정 기준 · 팔 = SO-101 팔로워 공식 모델을 위에서 본 모습 · 옅은 원이 클수록 집게가 높음<br><span id="scaleNote"></span></details>
       <div class="cap" id="cap" aria-live="polite"></div>
       <div class="places" id="places"></div>
       <details class="purge" id="purgeBox">
@@ -314,10 +314,10 @@ details.more .robot-note{margin-top:0}
   const CAT = {"지갑":"카드지갑","USB":"USB","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리","립밤":"립밤"};
   const CAT_LABEL = {"모형폰":"휴대폰"};   // 품목 값('모형폰')은 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   const catName = (c) => CAT_LABEL[c] || c || "";
-  // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 해운대 · S 서면 · H 본센터, agents/contracts.py station_name 과 같게)
-  const MACHINE_ST = {"KIOSK-A":"해운대역","KIOSK-C":"서면역","CENTER":"부산역 본센터"};
-  const LETTER_ST = {A:"해운대역", S:"서면역", H:"부산역 본센터"};
-  const ST_SHORT = {"해운대역":"해운대","서면역":"서면","부산역 본센터":"본센터"};
+  // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 중앙 · S 초량 · H 본센터, agents/contracts.py station_name 과 같게)
+  const MACHINE_ST = {"KIOSK-A":"중앙역","KIOSK-C":"초량역","CENTER":"부산역 본센터"};
+  const LETTER_ST = {A:"중앙역", S:"초량역", H:"부산역 본센터"};
+  const ST_SHORT = {"중앙역":"중앙","초량역":"초량","부산역 본센터":"본센터"};
   const stationOf = (it) => (it && (it.station || MACHINE_ST[it.machine_id] ||
     (/^[A-Z]-/.test(it.item_id || "") ? LETTER_ST[it.item_id[0]] : ""))) || "";
   const stShort = (it) => { const n = stationOf(it); return ST_SHORT[n] || n; };
@@ -354,7 +354,7 @@ details.more .robot-note{margin-top:0}
     s += `<rect x="${hb[0]+T+6}" y="${(hb[1]+hb[3])/2+4}" width="${hb[2]-hb[0]-2*T-12}" height="${hb[3]-T-((hb[1]+hb[3])/2)-8}" rx="8" class="s-drop"/>`;
     s += `<text x="${bx}" y="${by+5}" text-anchor="middle" font-size="12" font-weight="700" class="s-acc">로봇이 놓는 자리</text>`;
     s += `<text x="${(hb[0]+hb[2])/2}" y="${hb[1]+T+20}" text-anchor="middle" font-size="13" font-weight="700" class="s-acc">H-1 제출보관함 200×200</text>`;
-    s += `<text x="${(hb[0]+hb[2])/2}" y="${hb[1]+T+38}" text-anchor="middle" font-size="11" class="s-sub">직원이 교차 검증 후 건넴</text>`;
+    s += `<text x="${(hb[0]+hb[2])/2}" y="${hb[1]+T+38}" text-anchor="middle" font-size="11" class="s-sub">분실인이 꺼내고 키오스크 [물건 받았어요]</text>`;
     const rowX = {}, half = 40;
     b.slots_mm.forEach(([sx, sy], i) => {
       const id = ids[i], phone = ((b.rows || {})[id.slice(0, 2)] || []).join() === "모형폰";
@@ -412,7 +412,7 @@ details.more .robot-note{margin-top:0}
     const badge = st ? `${st} ${short}` : `${it.item_id.slice(0,1)}…${short}`;
     return `<g transform="translate(${x},${y})" ${attrs}><title>${esc(full)}</title><rect x="-38" y="-24" width="76" height="48" rx="8" fill="${c}" stroke="rgba(0,0,0,.25)"/>`+
       `<text y="-6" text-anchor="middle" font-size="13" font-weight="700" fill="${light?"#222":"#fff"}">${esc(label)}</text>`+
-      `<rect x="-34" y="2" width="68" height="17" rx="8.5" class="s-badge"/>`+                                  // 습득 역 배지(예: "서면 0003")
+      `<rect x="-34" y="2" width="68" height="17" rx="8.5" class="s-badge"/>`+                                  // 습득 역 배지(예: "초량 0003")
       `<text y="14.5" text-anchor="middle" font-size="10.5" font-weight="700" class="s-badge-t">${esc(badge)}</text></g>`;
   }
 
@@ -440,8 +440,8 @@ details.more .robot-note{margin-top:0}
     const held = world.items.find(i => i.loc === "gripper");
     $("held").innerHTML = held ? itemShape(held, 0, 0) : "";
     // 등록기계·이동 중·인계 완료
-    const groups = {"KIOSK-C 서면역 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-C",
-                    "KIOSK-A 해운대 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-A",
+    const groups = {"KIOSK-C 초량역 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-C",
+                    "KIOSK-A 중앙 등록기계": i => i.loc === "kiosk" && i.machine_id === "KIOSK-A",
                     "🚚 본센터로 이동 중": i => i.loc === "transit",
                     "🗄 직원 보관 선반(로봇 안 씀)": i => i.loc === "shelf",
                     "🤝 인계 완료 · 직원 손": i => i.loc === "handed" || i.loc === "staff"};

@@ -39,18 +39,18 @@ class RandomFindingsTest(unittest.TestCase):
 
     def test_lost_variants_are_not_all_the_same_question(self):
         a = GroundedRag(Guidance(), None)
-        r = a.ask("어제 해운대역 화장실에서 검정 반지갑 잃어버렸어요 별 스티커 붙어있어요")
+        r = a.ask("어제 중앙역 화장실에서 검정 반지갑 잃어버렸어요 별 스티커 붙어있어요")
         self.assertIn("지갑 분실로 이해했어요", r["answer"])            # 물건을 말했는데 "어떤 물건?"이라고 되묻지 않음
         self.assertNotIn("어떤 물건을 잃어버리셨나요", a.ask("찾기 번호 잃어버렸어요")["answer"])
         self.assertIn("4가지", a.ask("우산 잃어버렸어요")["answer"])        # 다루는 물건 목록을 알려 줌(11/9 품목 4종)
-        lip = a.ask("어제 서면역에서 립밤 잃어버렸어요")["answer"]          # 11/9 운영하지 않는 품목 → 분실 신고로 안내하지 않음
+        lip = a.ask("어제 초량역에서 립밤 잃어버렸어요")["answer"]          # 11/9 운영하지 않는 품목 → 분실 신고로 안내하지 않음
         self.assertIn("운영하지 않는 품목", lip)
         self.assertNotIn("분실로 이해했어요", lip)
 
     def test_grounding_fixes(self):
         para = ["물건을 실제로 받는 곳(회수)은 본센터 키오스크 한 곳이에요."]
         kept, _ = grounded_sentences([{"evidence": "물건을 실제로 받는 곳(회수)은 본센터 키오스크 한 곳이에요",
-                                        "sentence": "서면역에서는 받을 수 없고 본센터 키오스크 한 곳에서만 받아요."}], para)
+                                        "sentence": "초량역에서는 받을 수 없고 본센터 키오스크 한 곳에서만 받아요."}], para)
         self.assertEqual(len(kept), 1)                                    # '한 곳' 근거는 다른 곳 안 된다는 부정 허용
         para = ["확인이 끝나면 로봇팔이 보관함에서 물건을 꺼내 제출보관함(물건 받는 칸)에 놓는다."]
         ev = "로봇팔이 보관함에서 물건을 꺼내 제출보관함"

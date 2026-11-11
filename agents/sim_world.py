@@ -68,10 +68,10 @@ LOC_KIOSK, LOC_TRANSIT, LOC_BIN, LOC_GRIPPER, LOC_BASKET, LOC_HANDED, LOC_STAFF 
     "kiosk", "transit", "bin", "gripper", "basket", "handed", "staff")
 LOC_SHELF = "shelf"          # 11/9 직원 보관 선반(보관판 밖, 로봇이 집지 않음 — 반환은 직원이 직접 건넴)
 
-STATIONS = {"서면": "KIOSK-C", "해운대": "KIOSK-A"}   # 말에 나오는 역 이름 → 등록기계
+STATIONS = {"초량": "KIOSK-C", "중앙": "KIOSK-A"}   # 말에 나오는 역 이름 → 등록기계
 MACHINE_STATION = {v: k for k, v in STATIONS.items()}
 # 11/10 잃어버린 역으로 말할 수 있는 역: 등록기계가 있는 역 + **부산역(본센터)**. 본센터 키오스크에서도 습득 접수를 받는데(H-번호),
-#   챗봇·채팅 분실 접수는 서면·해운대만 알아들어 본센터에서 주운 물건의 주인이 "부산역"이라고 답할 길이 없었다.
+#   챗봇·채팅 분실 접수는 초량·중앙만 알아들어 본센터에서 주운 물건의 주인이 "부산역"이라고 답할 길이 없었다.
 #   주운 역(습득 신고)은 여전히 등록기계 역(STATIONS)만 — 본센터 습득은 본센터 키오스크에서 한다
 LOST_STATIONS = {**STATIONS, "부산": "CENTER"}
 LOST_MACHINE_STATION = {v: k for k, v in LOST_STATIONS.items()}
@@ -163,12 +163,12 @@ def query_features(text: str) -> dict:
 
 
 def parse_place(text: str) -> tuple[str | None, str | None]:
-    """습득 메시지 → (등록기계, 장소 글). 예: "서면역 5번 출구 앞에서 검정 지갑 주웠어요" → ("KIOSK-C", "서면역 5번 출구 앞")"""
+    """습득 메시지 → (등록기계, 장소 글). 예: "초량역 5번 출구 앞에서 검정 지갑 주웠어요" → ("KIOSK-C", "초량역 5번 출구 앞")"""
     text = text or ""
     machine = next((m for st, m in STATIONS.items() if st in text), None)
     m = re.search(r"(.+?)(?:에서|에 떨어져|에 놓여)", text)
     place = m.group(1).strip() if m else None
-    if place and machine:                          # "어제 서면역 …" 처럼 앞말이 붙으면 역 이름부터
+    if place and machine:                          # "어제 초량역 …" 처럼 앞말이 붙으면 역 이름부터
         st = MACHINE_STATION[machine]
         place = place[place.find(st):] if st in place else place
     if not place and machine:
@@ -177,7 +177,7 @@ def parse_place(text: str) -> tuple[str | None, str | None]:
 
 
 def lost_station(text: str) -> str | None:
-    """분실 신고 말에서 잃어버린 역: 서면 · 해운대 · 부산(부산역). 여러 역을 말하면 등록기계 역이 먼저"""
+    """분실 신고 말에서 잃어버린 역: 초량 · 중앙 · 부산(부산역). 여러 역을 말하면 등록기계 역이 먼저"""
     t = text or ""
     return next((st for st in STATIONS if st in t), None) or ("부산" if _BUSAN.search(t) else None)
 
@@ -194,10 +194,10 @@ def lost_station(text: str) -> str | None:
 #   카드지갑 → R2-1. 빈 칸 = R2-2(카드지갑) · R4-1·R4-2(핸드크림)
 # 11/10 사용자 결정: 처음 보관함에는 **분홍 핸드크림 하나만** 둔다(R3-1). 전에는 5개(휴대폰 2·보조배터리 2·카드지갑 1)라
 #   휴대폰·보조배터리를 새로 접수하면 열이 꽉 차 늘 '칸 대기'가 됐다 — 발표에서 접수 → 보관 칸 배치가 바로 보이게 비워 둔다
-#   11/10(2): 이 핸드크림은 **해운대역 등록기계(KIOSK-A)에서 주워 본센터로 회수된 물건**으로 고정한다(번호 A-…-0001).
-#   전에는 '본센터 직접 접수'라 분실인이 "해운대에서 잃어버렸어요"라고 하면 장소 확인 질문이 늘 틀렸다
+#   11/10(2): 이 핸드크림은 **중앙역 등록기계(KIOSK-A)에서 주워 본센터로 회수된 물건**으로 고정한다(번호 A-…-0001).
+#   전에는 '본센터 직접 접수'라 분실인이 "중앙에서 잃어버렸어요"라고 하면 장소 확인 질문이 늘 틀렸다
 SEED_ITEMS = [
-    ("핸드크림 핑크", "분홍 핸드크림", "KIOSK-A", "해운대역 승강장"),          # → R3-1
+    ("핸드크림 핑크", "분홍 핸드크림", "KIOSK-A", "중앙역 승강장"),          # → R3-1
 ]
 SEED_PLACE = ("CENTER", "본센터 접수(시연)")      # 등록기계·장소를 적지 않은 시연 물건(예전 5개 묶음)
 # 예전 묶음(시험·연습용, TOWER_SIM_SEED=full): 휴대폰 2 · 보조배터리 2(같은 제품 → '닮은 물건 → 직원 확인' 장면) · 카드지갑 1.

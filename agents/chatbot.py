@@ -186,7 +186,7 @@ class Chatbot:
         with node_step('coordinator', as_type='agent', input={'question': state['question']}) as obs:
             intent, routing = 'service', 'rule'
             if state.get('intake_active') or state.get('intake_start') or state.get('intake_action'):
-                # 11/9 접수 대화 중이거나 접수를 시작하는 말 → 모델에 맡기지 않고 접수 길("서면이요" 같은 짧은 답을 주제 밖으로 보지 않게)
+                # 11/9 접수 대화 중이거나 접수를 시작하는 말 → 모델에 맡기지 않고 접수 길("초량이요" 같은 짧은 답을 주제 밖으로 보지 않게)
                 obs.update(output={'intent': 'intake', 'routing': 'rule',
                                    'why': '진행 중인 접수 대화' if state.get('intake_active') else '접수·신고를 시작하는 말'})
                 return {'intent': 'intake', 'routing': 'rule', 'path': ['coordinator']}
@@ -613,7 +613,7 @@ class Chatbot:
         if ops_turn:            # 관제 질문은 앞 대화와 합치지 않고 그대로 분석한다
             resolved = False
         elif intake_active or intake_start or intake_action:
-            resolved = False    # 11/9 접수 대화의 짧은 답("서면이요")을 앞 질문과 합치지 않는다(접수 일꾼이 지금 묻는 칸으로 읽음)
+            resolved = False    # 11/9 접수 대화의 짧은 답("초량이요")을 앞 질문과 합치지 않는다(접수 일꾼이 지금 묻는 칸으로 읽음)
         else:
             question, context, resolved = resolve_turn(question, history, context, self.guidance)
         if resolved is None and self.brain is not None:

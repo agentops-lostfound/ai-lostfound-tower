@@ -61,7 +61,7 @@ class LiveBoard:
     def new_story(self, kind: str, title: str) -> str:
         with self._lock:
             self._story_no += 1
-            sid = f"T{self._story_no:03d}"     # T = 이야기(서면 접수 번호 S-… 와 헷갈리지 않게)
+            sid = f"T{self._story_no:03d}"     # T = 이야기(초량 접수 번호 S-… 와 헷갈리지 않게)
             stages = FOUND_STAGES if kind == "found" else LOST_STAGES
             self.stories[sid] = {"story_id": sid, "kind": kind, "title": title, "result": None, "ids": {},
                                  "stages": [{"key": k, "label": l, "state": "todo", "detail": ""} for k, l in stages],

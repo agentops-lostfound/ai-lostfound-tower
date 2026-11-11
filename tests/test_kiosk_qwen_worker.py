@@ -26,7 +26,7 @@ QWEN_UNKNOWN = {**QWEN_WALLET, "category": "unknown", "colors": []}
 class PendingPhotosTest(unittest.TestCase):
     def test_memory_store_lists_only_unanalyzed_photos(self):
         st = MemoryIntakeStore()
-        a = st.create({"machine_id": "KIOSK-A", "place_id": None, "place_text": "해운대역 승강장", "finder": None,
+        a = st.create({"machine_id": "KIOSK-A", "place_id": None, "place_text": "중앙역 승강장", "finder": None,
                        "photo_path": "photos/KIOSK-A/a.jpg"})
         st.create({"machine_id": "KIOSK-A", "place_id": None, "place_text": "화장실", "finder": None, "photo_path": None})
         self.assertEqual([r["item_id"] for r in st.pending_photos()], [a["item_id"]])   # 사진 없는 물건은 제외
@@ -93,7 +93,7 @@ class SimKioskFlowTest(unittest.TestCase):
         self.c = TestClient(build_app(self.svc))
 
     def intake(self):
-        r = self.c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "해운대역 승강장", "photo": PHOTO})
+        r = self.c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "중앙역 승강장", "photo": PHOTO})
         self.assertEqual(r.status_code, 200, r.text)
         return r.json()["item_id"]
 
@@ -139,7 +139,7 @@ class SimKioskFlowTest(unittest.TestCase):
 
     def test_text_intake_without_photo_does_not_start_story(self):
         before = len(self.svc.board.stories)
-        self.c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "해운대역 승강장"})
+        self.c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "중앙역 승강장"})
         self.assertEqual(len(self.svc.board.stories), before)
 
     def test_reset_stops_waiting_story(self):

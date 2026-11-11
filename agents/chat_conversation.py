@@ -173,7 +173,7 @@ def resolve_turn(question, history, context, guidance):
         if not re.search(NOT_SEARCH, q):
             return question + ' 찾아줘', {**context, **inherited}, True
     if inherited.get('category') and features.get('category') in (None, '확인 불가') and not warnings:
-        # 11/7: "파란 휴대폰 잃어버렸어" 다음 "해운대역에서 어제 잃어버렸어요"처럼 장소·날짜만 덧붙이면 앞 물건으로 이어서 찾는다
+        # 11/7: "파란 휴대폰 잃어버렸어" 다음 "중앙역에서 어제 잃어버렸어요"처럼 장소·날짜만 덧붙이면 앞 물건으로 이어서 찾는다
         extra, _ = search_context(question, {})
         if (extra.get('lost_station') or extra.get('lost_date') or extra.get('lost_line')) \
                 and not re.search(NOT_SEARCH, q):

@@ -127,7 +127,7 @@ class DbWatchTest(unittest.TestCase):
         self.watch = db_watch.attach(self.svc)
         self.board = self.svc.board
 
-    def lost(self, text="검정 카드지갑 잃어버렸어요, 해운대역"):
+    def lost(self, text="검정 카드지갑 잃어버렸어요, 중앙역"):
         r = self.svc.sim.lost(text, {"visit": "kiosk", "name_masked": "변*원", "id_no_masked": ID_MASKED})
         for _ in range(5):
             if not r.get("pending_id"):
@@ -141,7 +141,7 @@ class DbWatchTest(unittest.TestCase):
 
     def test_full_round_events(self):
         start = self.board.last_seq
-        rec = self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "해운대역 승강장",
+        rec = self.svc.create_item({"machine_id": "KIOSK-A", "place_text": "중앙역 승강장",
                                     "finder": {"name": "김습득", "phone": PHONE}})
         iid = rec["item_id"]
         evs = db_events(self.board, start)
@@ -150,7 +150,7 @@ class DbWatchTest(unittest.TestCase):
         self.assertEqual(evs[0]["db"]["key"], iid)
         self.assertEqual(evs[0]["db"]["label"], "습득물")
         cols = {c["name"]: c for c in evs[0]["db"]["cols"]}
-        self.assertEqual(cols["place_text"]["value"], "해운대역 승강장")
+        self.assertEqual(cols["place_text"]["value"], "중앙역 승강장")
         self.assertEqual(cols["place_text"]["label"], "발견 장소")
         self.assertTrue(all(c["hidden"] for c in evs[1]["db"]["cols"] if c["name"] in ("name", "phone")))
 
@@ -168,7 +168,7 @@ class DbWatchTest(unittest.TestCase):
             self.assertNotIn(secret, blob)
 
     def test_lost_claim_and_kiosk_return(self):
-        d = self.svc.sim.found("해운대역 승강장에서 검정 카드지갑 주웠어요")
+        d = self.svc.sim.found("중앙역 승강장에서 검정 카드지갑 주웠어요")
         self.assertTrue(self.svc.sim.wait_idle(20))
         mark = self.board.last_seq
         r = self.lost()
@@ -208,7 +208,7 @@ class DbWatchTest(unittest.TestCase):
         self.assertEqual(d["item_id"], out["matched_object"])
 
     def test_same_status_rewrite_is_skipped_and_select_is_quiet(self):
-        d = self.svc.sim.found("해운대역 승강장에서 검정 카드지갑 주웠어요")
+        d = self.svc.sim.found("중앙역 승강장에서 검정 카드지갑 주웠어요")
         self.svc.sim.wait_idle(20)
         logs = [e["db"] for e in db_events(self.board) if e["db"]["table"] == "item_status_log" and e["db"]["key"] == d["item_id"]]
         moves = [(next(c["value"] for c in x["cols"] if c["name"] == "from_status"),
@@ -259,7 +259,7 @@ class ApiTest(unittest.TestCase):
         observability.set_listener("live-board", None)
 
     def test_state_detail_and_pages(self):
-        r = self.c.post("/sim/found", json={"text": "해운대역 승강장에서 검정 카드지갑 주웠어요"})
+        r = self.c.post("/sim/found", json={"text": "중앙역 승강장에서 검정 카드지갑 주웠어요"})
         self.assertEqual(r.status_code, 200)
         self.svc.sim.wait_idle(20)
         plain = self.c.get("/api/admin/live/state?after=0").json()

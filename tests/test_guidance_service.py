@@ -34,7 +34,7 @@ class ServiceGuideTests(unittest.TestCase):
     def test_facts_in_answers(self):
         self.assertIn("본센터 키오스크", self.topics("분실 확인은 웹에서도 돼?")[2])
         self.assertIn("보조배터리", self.topics("품목 몇 종이에요?")[2])
-        self.assertIn("서면역", self.topics("키오스크 어디 있어요?")[2])
+        self.assertIn("초량역", self.topics("키오스크 어디 있어요?")[2])
         self.assertIn("로봇팔", self.topics("로봇팔이 물건 꺼내줘요?")[2])
 
     def test_demo_policy_values_answered_and_injection_ignored(self):

@@ -79,13 +79,13 @@ class ChatbotTests(unittest.TestCase):
         database.search.assert_not_called()
         database.search.return_value = []
         self.assertEqual(SearchAgent(database, authorize=lambda token: token == 'trusted').ask(
-            '검정 지갑 찾아줘', 'trusted', {'lost_date': '2026-11-01', 'lost_line': '2호선', 'lost_station': '해운대역'})['status'], 'items_not_found')
+            '검정 지갑 찾아줘', 'trusted', {'lost_date': '2026-11-01', 'lost_line': '1호선', 'lost_station': '중앙역'})['status'], 'items_not_found')
 
     def test_db_error_never_falls_back_to_invented_demo_items(self):
         database = MagicMock(mode='postgres')
         database.search.side_effect = RuntimeError('database secret')
         result = SearchAgent(database, authorize=lambda _: True).ask('지갑 찾아줘', 'trusted',
-            {'lost_date': '2026-11-01', 'lost_line': '2호선', 'lost_station': '해운대역'})
+            {'lost_date': '2026-11-01', 'lost_line': '1호선', 'lost_station': '중앙역'})
         self.assertEqual(result['status'], 'search_unavailable')
         self.assertNotIn('secret', str(result))
         self.assertFalse(result['item_search_performed'])

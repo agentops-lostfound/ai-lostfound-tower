@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>분실물 접수 키오스크</title>
-<link rel="stylesheet" href="/ui/theme.css">
+<link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
-<script src="/ui/vkeyboard.js"></script>
+<script src="/ui/vkeyboard.js?v=20261111a"></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
    한줄 설명: 색을 직접 쓰지 않고 "역할 이름(토큰)"으로 쓰면, 다크 모드는 토큰 값만 바뀌어 화면 전체가 함께 바뀐다.
@@ -134,7 +134,7 @@ button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary
 .hint{font-size:19px;color:var(--ui-text-2);margin:-4px 0 0}
 /* 11/10 자동 촬영이 안 될 때의 손잡이: 지금 찍기 · 빈 상자 다시 확인(작게, 눈에 덜 띄게) */
 /* 11/10 보기 전용: 같은 기계 화면을 다른 PC 에서 조작 중일 때 */
-.watch{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:var(--ui-radius);background:var(--ui-warn-soft, #fff4e0);color:var(--ui-text)}
+.watch{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:var(--ui-radius);background:var(--ui-warn-soft, #fdf4de);color:var(--ui-text)}
 .watch[hidden]{display:none}
 .watch p{margin:0;flex:1 1 220px;font-size:18px;line-height:1.45}
 .watch button{flex:0 0 auto;font-size:18px;padding:12px 18px;min-height:52px}
@@ -292,7 +292,7 @@ body.demo-mode #stn{flex:1 1 auto}
     <div class="chips" id="lcat"></div>
     <input type="text" id="lcolor" maxlength="40" placeholder="색상 (예: 검정)" autocomplete="off">
     <textarea id="lfeat" maxlength="200" placeholder="특징 (예: 별 스티커, 키링)"></textarea>
-    <input type="text" id="lplace" maxlength="40" placeholder="장소 (예: 서면역 5번 출구)" autocomplete="off">
+    <input type="text" id="lplace" maxlength="40" placeholder="장소 (예: 초량역 5번 출구)" autocomplete="off">
     <input type="text" id="ldate" maxlength="10" placeholder="때 (예: 어제 저녁)" autocomplete="off">
     <p class="legal ico"><svg class="pic" viewBox="0 0 32 32" role="img"><title>개인정보 쓰지 않기</title><rect x="4" y="7" width="24" height="18" rx="3"/><path d="M9 20c1-3 3-4 4-4s3 1 4 4M18 13h6M18 18h4"/><circle cx="13" cy="12.5" r="2.5"/><path class="p" d="M3 29L29 3"/></svg><span>이름·전화번호·주민번호는 <b>적지 마세요</b></span></p>
     <p class="err" id="lerr" role="alert"></p>
@@ -436,7 +436,7 @@ body.demo-mode #stn{flex:1 1 auto}
 <canvas id="cv" hidden></canvas>
 <script>
 const API = '';
-const KIOSKS = {'KIOSK-A':'해운대','KIOSK-C':'서면','CENTER':'부산'};   // 11/6 본센터 = 부산역, 역 키오스크는 해운대·서면
+const KIOSKS = {'KIOSK-A':'중앙','KIOSK-C':'초량','CENTER':'부산'};   // 11/6 본센터 = 부산역, 역 키오스크는 중앙·초량
 const RESET_SEC = 10;
 const BUSY_MSG = '잠시 후 다시 시도하거나 역무실로 가 주세요.';
 const $ = s => document.querySelector(s);
@@ -1187,14 +1187,14 @@ $('#rgot').onclick = async () => {
 $('#rstop').onclick = () => { fetch(API + '/api/robot/stop', {method:'POST'}).catch(() => {}); };   // 항상 열려 있는 정지
 $('#rhome').onclick = () => { $('#rclaim').value = ''; $('#rid').value = ''; rcheck(); rshow('rform'); tab(isCenter ? 'ret' : 'found'); };   // 11/10 본센터는 회수 탭이 처음 화면
 // 11/10 주소 ?tab=ret(회수)·lost(분실접수): 처음부터 그 탭으로 연다(통합 시연 화면의 회수 장면). 습득 탭이 아니면 카메라를 켜지 않는다
-// — 본센터 키오스크가 웹캠을 잡아 해운대역 키오스크의 PC 카메라와 다투던 문제(11/10)
+// — 본센터 키오스크가 웹캠을 잡아 중앙역 키오스크의 PC 카메라와 다투던 문제(11/10)
 // 11/10 사람 조작 시뮬레이션: 본센터 키오스크(/kiosk?machine=CENTER)를 열면 습득 탭 + '카메라 점검 중'(본센터엔 카메라 없음)이 먼저 떠서
 // 회수하러 온 사람이 탭을 찾아야 했다 → 본센터는 기본이 회수 탭(습득은 ?tab=found 로)
 const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')] || (isCenter && Q.get('tab') !== 'found' ? 'ret' : undefined);
 if (START_TAB) tab(START_TAB); else startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
-<script src="/chat-widget/widget.js?v=20261110d" data-mode="kiosk" defer></script>
+<script src="/chat-widget/widget.js?v=20261111a" data-mode="kiosk" defer></script>
 <script>
 // 11/10 화면 키보드(쿼티): 입력칸을 누르면 아래에 키오스크 키보드 — 터치로 누르거나, PC 키보드로 치면 같은 키가 눌려 보임(발표용)
 // 한글 두벌식·영문·숫자, 전화번호·가린 신분증 칸은 숫자 패드. 공통 부품 /ui/vkeyboard.js

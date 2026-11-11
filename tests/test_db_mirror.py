@@ -100,7 +100,7 @@ def mirror(db=None):
     return dm.DbMirror(DSN, connect=db.connect), db
 
 
-ROW = {"item_id": "A-20261110-0001", "machine_id": "KIOSK-A", "place_text": "해운대역 승강장", "photo_path": "photos/a.jpg",
+ROW = {"item_id": "A-20261110-0001", "machine_id": "KIOSK-A", "place_text": "중앙역 승강장", "photo_path": "photos/a.jpg",
        "status": "등록기계 보관", "category": "확인 불가", "features": {}, "private_features": {}}
 
 
@@ -110,7 +110,7 @@ class WritesTest(unittest.TestCase):
         m.item_new(ROW, {"name": "김습득", "phone": PHONE}, mark=None)
         self.assertTrue(m.wait())
         args = db.sqls("INSERT INTO item (")[0]
-        self.assertEqual(args[:5], ("A-20261110-0001", "KIOSK-A", "해운대역 승강장", "photos/a.jpg", "등록기계 보관"))
+        self.assertEqual(args[:5], ("A-20261110-0001", "KIOSK-A", "중앙역 승강장", "photos/a.jpg", "등록기계 보관"))
         self.assertIsNone(args[8])                                       # 키오스크 사진 접수 = 진짜 접수(가상 표시 없음)
         self.assertEqual(db.sqls("INSERT INTO finder_contact")[0], ("A-20261110-0001", "김습득", PHONE))
         self.assertEqual(db.sqls("INSERT INTO item_status_log")[0], ("A-20261110-0001", None, "등록기계 보관", "kiosk"))
@@ -150,7 +150,7 @@ class WritesTest(unittest.TestCase):
     def test_claim_filters_columns_db_would_reject(self):
         m, db = mirror()
         m.claim_new({"claim_id": "C-20261110-0001", "item_id": "A-1", "name_masked": "변*원", "id_no_masked": ID_MASKED,
-                     "id_verified": True, "description": {"category": "지갑", "color": "검정", "place": "해운대"},
+                     "id_verified": True, "description": {"category": "지갑", "color": "검정", "place": "중앙"},
                      "quiz": [{"field": "place", "passed": True}, {"field": "weird", "passed": True}], "visit_date": "2026-11-10"})
         m.wait()
         claim = db.sqls("INSERT INTO claim (")[0]
@@ -250,7 +250,7 @@ class AttachTest(unittest.TestCase):
         c = TestClient(build_app(svc))
         self.addCleanup(observability.set_listener, "live-board", None)
         jpg = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(64) + b"\xff\xd9").decode()
-        r = c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "해운대역 승강장", "photo": jpg,
+        r = c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "중앙역 승강장", "photo": jpg,
                                              "finder": {"name": "김습득", "phone": PHONE}})
         self.assertEqual(r.status_code, 200, r.text)
         iid = r.json()["item_id"]
@@ -258,7 +258,7 @@ class AttachTest(unittest.TestCase):
                                                                       "material": "leather", "visible_text": "VOVA"}, "confidence": 0.9})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertTrue(svc.sim.wait_idle(20))
-        lost = c.post("/sim/lost", json={"text": "검정 지갑 잃어버렸어요, 해운대역", "visit": "kiosk", "name_masked": "변*원",
+        lost = c.post("/sim/lost", json={"text": "검정 지갑 잃어버렸어요, 중앙역", "visit": "kiosk", "name_masked": "변*원",
                                          "id_no_masked": ID_MASKED}).json()
         for _ in range(5):
             if not lost.get("pending_id"):
@@ -288,7 +288,7 @@ class AttachTest(unittest.TestCase):
         self.assertEqual(out["decision"], "returned")
         self.assertTrue(m.wait())
         item = db.sqls("INSERT INTO item (")[0]
-        self.assertEqual((item[0], item[1], item[2], item[8]), (iid, "KIOSK-A", "해운대역 승강장", None))
+        self.assertEqual((item[0], item[1], item[2], item[8]), (iid, "KIOSK-A", "중앙역 승강장", None))
         self.assertTrue(item[3].startswith("photos/KIOSK-A/"))             # 사진 위치도 함께
         self.assertEqual(db.sqls("INSERT INTO finder_contact")[0][0], iid)
         feats = db.sqls("UPDATE item SET category")[0]
@@ -377,11 +377,11 @@ class WiringTest(unittest.TestCase):
         svc = build_sim_service(ENV)
         m, db = mirror()
         dm.attach(svc, m)
-        m.recent = lambda limit=8: {"items": [{"item_id": "A-1", "station": "해운대"}], "counts": {"item": 1}}
+        m.recent = lambda limit=8: {"items": [{"item_id": "A-1", "station": "중앙"}], "counts": {"item": 1}}
         c = TestClient(build_app(svc))
         try:
             d = c.get("/api/admin/db/recent?limit=3").json()
-            self.assertEqual((d["on"], d["items"][0]["station"], d["counts"]["item"]), (True, "해운대", 1))
+            self.assertEqual((d["on"], d["items"][0]["station"], d["counts"]["item"]), (True, "중앙", 1))
             self.assertTrue(c.get("/api/admin/live/state?detail=1").json()["db_mirror"]["on"])
             m.recent = lambda limit=8: (_ for _ in ()).throw(OperationalError(DSN))
             bad = c.get("/api/admin/db/recent")
@@ -440,7 +440,7 @@ class RealPostgresTest(unittest.TestCase):
         self.assertEqual(self.q("SELECT place_text, status FROM item WHERE item_id = %s", real), [("실제 접수", "인계 완료")])
         self.assertEqual(self.q("SELECT item_id, assigned_by FROM storage_assignment WHERE slot_id = 'R4-1'"), [("A-W01", "staff")])
         row = self.q("SELECT machine_id, place_text, status, category, photo_path IS NOT NULL, object_id FROM item WHERE item_id = %s", iid)
-        self.assertEqual(row, [("KIOSK-A", "해운대역 승강장", "인계 대기", "지갑", True, None)])
+        self.assertEqual(row, [("KIOSK-A", "중앙역 승강장", "인계 대기", "지갑", True, None)])
         self.assertEqual(self.q("SELECT count(*) FROM finder_contact WHERE item_id = %s", iid), [(1,)])
         logs = [r[0] for r in self.q("SELECT to_status FROM item_status_log WHERE item_id = %s ORDER BY id", iid)]
         self.assertEqual(logs[:3], ["등록기계 보관", "회수 중", "본센터 보관"])
@@ -459,7 +459,7 @@ class RealPostgresTest(unittest.TestCase):
         self.assertEqual(seeds, len(svc.world.items) - 1)                  # 키오스크 접수 1개(진짜 접수라 가상 표시 없음) 빼고
         self.assertNotIn(real, svc.world.items)
         d = m.recent(3)
-        self.assertEqual((d["items"][0]["item_id"], d["items"][0]["station"], d["items"][0]["has_photo"]), (iid, "해운대", True))
+        self.assertEqual((d["items"][0]["item_id"], d["items"][0]["station"], d["items"][0]["has_photo"]), (iid, "중앙", True))
         # 다시 켜면: 번호가 이어지고(겹치지 않음) 시연용 물건은 다시 채워진다
         svc2 = build_sim_service(ENV)
         m2 = dm.DbMirror(self.dsn)
@@ -471,7 +471,7 @@ class RealPostgresTest(unittest.TestCase):
         self.assertEqual(self.q("SELECT status FROM item WHERE item_id = %s", iid), [("인계 완료",)])   # 앞선 기록은 그대로 남는다
 
     def test_first_item_number_clash_with_real_intake(self):
-        """11/10 처음 물건(해운대역 A-…-0001)과 그날 먼저 들어온 진짜 키오스크 접수 번호가 겹칠 때:
+        """11/10 처음 물건(중앙역 A-…-0001)과 그날 먼저 들어온 진짜 키오스크 접수 번호가 겹칠 때:
         가상 물건은 새 번호를 받고(진짜 기록은 그대로), 다시 켜면 그 번호를 다시 쓴다(가상 물건이 켤 때마다 늘지 않음)"""
         from datetime import date
         from agents.sim_director import build_sim_service
@@ -488,7 +488,7 @@ class RealPostgresTest(unittest.TestCase):
         self.assertEqual(list(svc.world.items), [seed])
         self.assertEqual(svc.world.slot_id_of(seed), "R3-1")
         self.assertEqual(self.q("SELECT place_text, object_id FROM item WHERE item_id = %s", f"A-{day}-0001"), [("진짜 접수", None)])
-        r = svc.sim.lost("해운대역에서 분홍 핸드크림 잃어버렸어요", {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-1******"})
+        r = svc.sim.lost("중앙역에서 분홍 핸드크림 잃어버렸어요", {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-1******"})
         self.assertTrue(svc.sim.wait_idle())
         self.assertTrue(m.wait(20))
         self.assertEqual(self.q("SELECT item_id FROM reservation WHERE claim_id = %s", r["claim_id"]), [(seed,)])   # 진짜 물건에 걸리지 않음

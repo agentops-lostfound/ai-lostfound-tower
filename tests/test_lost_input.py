@@ -13,8 +13,8 @@ class DescriptionTests(unittest.TestCase):
     def test_explicit_text_fields_and_location(self):
         desc, _ = text_features("검은 가죽 반지갑에 별 모양 스티커가 있어요")
         self.assertEqual(desc, {"category": "지갑", "color": "검정", "shape": "반지갑", "material": "가죽", "mark": "별 모양 스티커"})
-        self.assertEqual(location({}, "어제 2호선 해운대역", date(2026, 11, 4)),
-                         {"lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"})
+        self.assertEqual(location({}, "어제 1호선 중앙역", date(2026, 11, 4)),
+                         {"lost_date": "2026-11-03", "lost_line": "1호선", "lost_station": "중앙역"})
 
     def test_ambiguous_color_and_negation_are_not_guessed(self):
         desc, warnings = text_features("검정 아니고 흰색 지갑")
@@ -64,7 +64,7 @@ class DescriptionTests(unittest.TestCase):
     def test_retired_category_lipbalm_is_not_handed_to_search(self):
         """11/9 립밤은 운영 품목이 아님: 제안은 '확인 불가' + 안내, 직접 립밤으로 확인해도 검색으로 넘기지 않음"""
         service = DescriptionService()
-        meta = {"lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"}
+        meta = {"lost_date": "2026-11-03", "lost_line": "1호선", "lost_station": "중앙역"}
         proposal = service.from_text({"text": "흰색 립밤", **meta})
         self.assertEqual(proposal["description"]["category"], "확인 불가")
         self.assertIn("운영하지 않는 품목", proposal["warnings"][0])
@@ -79,7 +79,7 @@ class DescriptionTests(unittest.TestCase):
 
     def test_preview_then_edited_confirmation_without_identity_bypass(self):
         service = DescriptionService()
-        proposal = service.from_text({"text": "검정 지갑", "lost_date": "2026-11-03", "lost_line": "2호선", "lost_station": "해운대역"})
+        proposal = service.from_text({"text": "검정 지갑", "lost_date": "2026-11-03", "lost_line": "1호선", "lost_station": "중앙역"})
         with self.assertRaises(ValueError):
             service.confirm(proposal["proposal_id"], {})
         handoff = service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "지갑", "color": "갈색"}, "identity_verified": True})
@@ -106,7 +106,7 @@ class DescriptionTests(unittest.TestCase):
     def test_speech_closes_worker_and_requires_review(self):
         worker = MagicMock()
         worker.__enter__.return_value = worker
-        worker.transcribe.return_value = {"status": "transcribed", "text": "어제 2호선 해운대역 검정 지갑"}
+        worker.transcribe.return_value = {"status": "transcribed", "text": "어제 1호선 중앙역 검정 지갑"}
         service = DescriptionService(transcriber=lambda: worker)
         result = service.from_audio("server-owned-temp.wav", {})
         self.assertEqual(result["description"]["category"], "지갑")

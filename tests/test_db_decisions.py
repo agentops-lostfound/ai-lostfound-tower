@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
 
 class BusanCenterTest(unittest.TestCase):
-    """11/6 역 정리: 본센터 = 1호선 부산역, 등록기계는 해운대·서면만(중앙역 삭제)"""
+    """11/6 역 정리: 본센터 = 1호선 부산역, 등록기계는 중앙·초량만(중앙역 삭제)"""
 
     def test_machines_and_places_match_code(self):
         import re
@@ -182,9 +182,11 @@ class BusanCenterTest(unittest.TestCase):
         more = read("center/migrations/012_more_places_1106.sql")             # 11/6 역마다 12개
         self.assertEqual(re.findall(r"\('1호선', '부산', '([^']+)'\)", sql) + re.findall(r"\('1호선', '부산', '([^']+)'\)", more),
                          DEMO_PLACES["CENTER"])
-        for line, st, machine in (("2호선", "해운대", "KIOSK-A"), ("1호선", "서면", "KIOSK-C")):
-            self.assertEqual(re.findall(rf"\('{line}', '{st}', '([^']+)'\)", more), DEMO_PLACES[machine][6:])
+        new = read("center/migrations/019_busan_line1_stations_1111.sql")      # 11/11 중앙역·초량역(부산 1호선)
+        for line, st, machine in (("1호선", "중앙", "KIOSK-A"), ("1호선", "초량", "KIOSK-C")):
+            self.assertEqual(re.findall(rf"\('{line}', '{st}', '([^']+)'\)", new), DEMO_PLACES[machine])
+        self.assertIn("UPDATE machine SET line = '1호선', station = '중앙' WHERE machine_id = 'KIOSK-A'", new)
+        self.assertIn("UPDATE machine SET line = '1호선', station = '초량' WHERE machine_id = 'KIOSK-C'", new)
         for rel in ("center/seed_demo.sql", "center/migrations/003_places_1103.sql", "agents/sim_world.py",
                     "web/kiosk/index.html", "web/live/index.html", "docs/guidance/service-guide.md"):
-            self.assertNotIn("중앙역", read(rel), rel)
-            self.assertNotIn("KIOSK-B", read(rel), rel)
+            self.assertNotIn("KIOSK-B", read(rel), rel)          # 11/6 옛 중앙역 등록기계(B)는 없음 — 11/11 중앙역은 KIOSK-A

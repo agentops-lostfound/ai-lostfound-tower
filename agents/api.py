@@ -675,15 +675,15 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         from fastapi.responses import HTMLResponse
         # 11/10 화면 정리: 발표에 쓰는 화면만 위에, 시험·개발용 주소는 아래 접힌 칸에(주소는 그대로 열린다)
         links = [("★ 통합 시연 — 키오스크 + DB 실시간 기록 + AI 에이전트 흐름", "/showcase"),
-                 ("① 해운대역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
+                 ("① 중앙역 키오스크 — 습득 신고", "/kiosk?machine=KIOSK-A"), ("② 분실인 웹 — 잃어버린 물건 찾기·AI 챗봇", "/lost"),
                  ("②' 분실인 웹 — 폰 화면 시연(폰 키보드)", "/phone"),
                  ("③ 부산역 본센터 키오스크 — 회수", "/kiosk?machine=CENTER"),
                  ("④ 관리자 관제 — 로봇·작업대 / 직원 / 보관함 탭", "/admin"), ("⑤ 본센터 직원 화면 — 교차 검증", "/staff")]
         more = [("보관함 칸 관리(관리자 화면의 보관함 탭과 같음)", "/storage"), ("실시간 작업대(관리자 화면의 관제 탭과 같음)", "/live"),
-                ("서면역 키오스크", "/kiosk?machine=KIOSK-C"),
+                ("초량역 키오스크", "/kiosk?machine=KIOSK-C"),
                 # 11/9 연우님 검토: 카메라 없는 PC 에서는 키오스크가 '카메라 점검 중'만 보임 → 가상 카메라 시연(자동 촬영) 주소도 목록에
-                ("시연 · 해운대역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-A&demo=1"),
-                ("시연 · 서면역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-C&demo=1"),
+                ("시연 · 중앙역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-A&demo=1"),
+                ("시연 · 초량역 키오스크(가상 카메라 자동 촬영)", "/kiosk?machine=KIOSK-C&demo=1"),
                 ("시연 · 부산역 본센터 키오스크(가상 카메라)", "/kiosk?machine=CENTER&demo=1"),
                 ("AI 챗봇 시험 화면", "/chat-widget/demo")]
         from html import escape
@@ -861,12 +861,12 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     @app.post("/sim/found")
     def sim_found(payload: dict = Body(...)) -> dict:
-        """가상 습득 신고: {"text": "서면역 5번 출구 앞에서 검정 카드지갑 주웠어요"} → 접수 번호·이야기 번호(나머지는 뒤에서 진행)"""
+        """가상 습득 신고: {"text": "초량역 5번 출구 앞에서 검정 카드지갑 주웠어요"} → 접수 번호·이야기 번호(나머지는 뒤에서 진행)"""
         return _sim_call(_sim().found, _text(payload))
 
     @app.post("/sim/lost")
     def sim_lost(payload: dict = Body(...)) -> dict:
-        """가상 분실 신고: {"text": "검정 카드지갑 잃어버렸어요, 서면역"} → 찾기 번호 또는 확인 질문(pending_id)
+        """가상 분실 신고: {"text": "검정 카드지갑 잃어버렸어요, 초량역"} → 찾기 번호 또는 확인 질문(pending_id)
         11/7 분실인 웹: + {"visit": "kiosk", "name_masked": "변*원", "id_no_masked": "******-3******"} 이면
         방문을 자동으로 하지 않고 본센터 키오스크 회수 탭(찾기 번호 + 같은 신분 번호)을 기다린다"""
         opts = {}

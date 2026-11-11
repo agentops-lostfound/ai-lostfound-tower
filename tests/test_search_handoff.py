@@ -15,7 +15,7 @@ from agents.lost_api import create_app
 from agents.lost_input import DescriptionService, KST, text_features
 from agents.search_context import search_context
 
-CONTEXT = {'category': '지갑', 'color': '검정', 'lost_date': '2026-11-01', 'lost_line': '2호선', 'lost_station': '해운대역'}
+CONTEXT = {'category': '지갑', 'color': '검정', 'lost_date': '2026-11-01', 'lost_line': '1호선', 'lost_station': '중앙역'}
 
 
 class SearchHandoffTests(unittest.TestCase):
@@ -31,7 +31,7 @@ class SearchHandoffTests(unittest.TestCase):
     def test_confirmed_context_can_search_without_retyping_description(self):
         result = self.agent.ask('확인한 설명으로 찾아줘', context=CONTEXT)
         self.assertEqual(result['status'], 'items_found')
-        self.assertEqual(result['search_filter']['lost_station'], '해운대')
+        self.assertEqual(result['search_filter']['lost_station'], '중앙')
         self.assertEqual(self.agent.resolve_candidate(result['search_result_id'], 1, None), 'DEMO-001')
 
     def test_api_cards_never_expose_receipt_id_station_status_score_or_private_fields(self):
@@ -47,14 +47,14 @@ class SearchHandoffTests(unittest.TestCase):
         self.assertNotIn('station', result['candidates'][0])
 
     def test_station_has_priority_without_filling_cards_from_other_stations(self):
-        self.insert(('DEMO-007','지갑','검정','본센터 보관','2호선','서면','2026-11-04'),
+        self.insert(('DEMO-007','지갑','검정','본센터 보관','1호선','초량','2026-11-04'),
                     ('DEMO-008','지갑','검정','본센터 보관','1호선','부산','2026-11-04'))
         result = self.agent.ask('찾아줘', context=CONTEXT)
         self.assertEqual(len(result['candidates']), 1)
         self.assertEqual(self.agent.resolve_candidate(result['search_result_id'],1,None), 'DEMO-001')
 
     def test_station_without_results_falls_back_only_to_same_line(self):
-        self.insert(('DEMO-007','지갑','검정','본센터 보관','1호선','부산','2026-11-04'))
+        self.insert(('DEMO-007','지갑','검정','본센터 보관','2호선','센텀','2026-11-04'))
         result = self.agent.ask('찾아줘', context={**CONTEXT,'lost_station':'광안역'})
         self.assertEqual(len(result['candidates']), 1)
         self.assertEqual(self.agent.resolve_candidate(result['search_result_id'],1,None), 'DEMO-001')
@@ -73,12 +73,12 @@ class SearchHandoffTests(unittest.TestCase):
     def test_new_explicit_color_overrides_reviewed_color(self):
         context, _ = search_context('파란 지갑 찾아줘', CONTEXT)
         self.assertEqual(context['color'], '파랑')
-        self.assertEqual(context['lost_station'], '해운대')
+        self.assertEqual(context['lost_station'], '중앙')
 
     def test_question_line_without_spacing_and_station_suffix_normalize(self):
-        context, _ = search_context('2026-11-01 2호선해운대역 검정 지갑 찾아줘')
-        self.assertEqual(context['lost_station'], '해운대')
-        self.assertEqual(context['lost_line'], '2호선')
+        context, _ = search_context('2026-11-01 1호선중앙역 검정 지갑 찾아줘')
+        self.assertEqual(context['lost_station'], '중앙')
+        self.assertEqual(context['lost_line'], '1호선')
 
     def test_ambiguous_question_does_not_silently_use_old_context(self):
         self.assertEqual(self.agent.ask('지갑 말고 USB 찾아줘', context=CONTEXT)['status'], 'search_needs_details')
@@ -160,10 +160,10 @@ class PostgresSearchFilterTests(unittest.TestCase):
 
     def test_bound_station_line_and_korean_date_lower_boundary(self):
         db,cursor,connection=self.db([[('A-W01','지갑','검정','본센터 보관')]])
-        db.search('지갑','검정',{**CONTEXT,'lost_station':'해운대'})
+        db.search('지갑','검정',{**CONTEXT,'lost_station':'중앙'})
         sql,params=cursor.execute.call_args.args
         self.assertEqual(sql,SQL_SEARCH)
-        self.assertEqual(params[4:8],('2호선','2호선','해운대','해운대'))
+        self.assertEqual(params[4:8],('1호선','1호선','중앙','중앙'))
         self.assertEqual(params[8],datetime(2026,11,1,tzinfo=KST))
         self.assertTrue(connection.read_only)
 
@@ -175,5 +175,5 @@ class PostgresSearchFilterTests(unittest.TestCase):
         self.assertEqual(queries[0][1][6:8],('광안','광안'))
         self.assertEqual(queries[1][1][6:8],(None,None))
         self.assertEqual(queries[0][1][8:],queries[1][1][8:])
-        self.assertEqual(queries[1][1][4:6],('2호선','2호선'))
+        self.assertEqual(queries[1][1][4:6],('1호선','1호선'))
         self.assertEqual(result[0]['item_id'],'A-W01')

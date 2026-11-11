@@ -39,11 +39,11 @@ PLACES = ["승강장", "5번 출구 앞", "개찰구 옆", "화장실 앞", "", 
 QWEN_CATS = ["wallet", "card_wallet", "phone", "hand_cream", "power_bank", "usb", "lip_balm", "umbrella", ""]
 QWEN_COLORS = [["black"], ["pink"], ["white"], ["green"], ["brown"], ["blue"], [], ["rainbow"]]
 LOST_TEXTS = ["{st}에서 {c} {i} 잃어버렸어요", "{c} {i} 찾아요", "{i} 두고 내렸어요 {st}", "어제 {st} {c} {i} 분실", "{i}"]
-STATIONS = ["해운대역", "서면역", "부산역", "센텀역", "", "모름"]
+STATIONS = ["중앙역", "초량역", "부산역", "센텀역", "", "모름"]
 COLORS = ["분홍", "초록", "검정", "흰색", "갈색", "파랑", ""]
 ITEMS = ["핸드크림", "카드지갑", "지갑", "휴대폰", "보조배터리", "우산", "립밤"]
 CHAT = ["분실 접수하고 싶어요", "주운 물건 신고하고 싶어요", "분홍 핸드크림 잃어버렸어요 접수해 주세요", "모름", "어제", "없어요", "네",
-        "고칠게요", "취소", "해운대", "서면", "부산역", "핸드크림", "카드지갑", "흰색", "분홍", "예약 취소는 어떻게 해요?",
+        "고칠게요", "취소", "중앙", "초량", "부산역", "핸드크림", "카드지갑", "흰색", "분홍", "예약 취소는 어떻게 해요?",
         "찾기 요청 취소하고 싶어요", "아니요", "본센터 몇 시에 열어요?", "초록 핸드크림 있어요?", "", "ㅋㅋ", "010-9999-8888"]
 IDENT = {"type": "identity", "name_masked": "홍*동", "id_no_masked": "******-1******"}
 BAD_IDENT = {"type": "identity", "name_masked": "홍*동", "id_no_masked": "******-2******"}
@@ -122,7 +122,7 @@ class Runner:
         for _ in range(4):
             if not (code == 200 and d and d.get("pending_id")):
                 break
-            code, d = self.call("POST", f"/sim/lost/{d['pending_id']}/answer", {"text": self.pick(["모름", "해운대", "분홍", "초록", "서면", ""])},
+            code, d = self.call("POST", f"/sim/lost/{d['pending_id']}/answer", {"text": self.pick(["모름", "중앙", "분홍", "초록", "초량", ""])},
                                 "/sim/lost/{id}/answer")
         if code == 200 and d and d.get("claim_id"):
             self.claims.append(d["claim_id"])

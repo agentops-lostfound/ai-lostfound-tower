@@ -36,7 +36,7 @@ class PostgresIntegration(unittest.TestCase):
         with self.connect() as conn:
             conn.execute("TRUNCATE machine CASCADE")
             conn.execute("TRUNCATE place CASCADE")
-            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('KIOSK-A','kiosk','2호선','해운대'),('KIOSK-C','kiosk','1호선','서면')")
+            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('KIOSK-A','kiosk','1호선','중앙'),('KIOSK-C','kiosk','1호선','초량')")
             for iid in ("A-W01", "A-W02"):
                 conn.execute("INSERT INTO item(item_id,machine_id,place_text,category,received_at) VALUES(%s,'KIOSK-A','시험 장소','USB','2026-11-04 00:30+09')", (iid,))
         self.store = CollectionStore(self.connect)
@@ -89,9 +89,9 @@ class PostgresIntegration(unittest.TestCase):
     def test_place_upsert_and_paging(self):
         store = Places(self.connect)
         for n in range(7):
-            store.put("2호선", "해운대", f"장소{n}")
-        one = store.put("2호선", "해운대", "장소0")
-        self.assertEqual(one, store.put("2호선", "해운대", "장소0"))
+            store.put("1호선", "중앙", f"장소{n}")
+        one = store.put("1호선", "중앙", "장소0")
+        self.assertEqual(one, store.put("1호선", "중앙", "장소0"))
         page = store.recommend("KIOSK-A")
         self.assertEqual(len(page["places"]), 5)
         self.assertEqual(len(store.recommend("KIOSK-A", page["next_offset"])["places"]), 2)
@@ -107,7 +107,7 @@ class PostgresIntegration(unittest.TestCase):
                 'shape': 'rectangular', 'mark': '합성 비공개 정답'}))
         received = datetime.fromisoformat(row['received_at']).astimezone(KST)
         context = {'lost_date': (received.date()-timedelta(days=1)).isoformat(),
-                   'lost_line': '2호선', 'lost_station': '해운대역'}
+                   'lost_line': '1호선', 'lost_station': '중앙역'}
         agent = SearchAgent(PostgresItemSearch(dsn), authorize=lambda token: token == 'synthetic-verified-session')
         return ids, received, context, agent
 

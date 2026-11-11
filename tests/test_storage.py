@@ -439,7 +439,7 @@ class PostgresStorageTest(unittest.TestCase):
         with psycopg.connect(self.dsn) as conn:
             conn.execute("TRUNCATE storage_assignment, inventory_check")
             conn.execute("UPDATE storage_slot SET pose_name = NULL")
-            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('KIOSK-A','kiosk','2호선','해운대') "
+            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('KIOSK-A','kiosk','1호선','중앙') "
                          "ON CONFLICT DO NOTHING")
             for iid, st, cat in (("A-W01", "본센터 보관", "지갑"), ("A-W02", "본센터 보관", "지갑"),
                                  ("A-W04", "등록기계 보관", "USB")):

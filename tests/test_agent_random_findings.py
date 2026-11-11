@@ -112,11 +112,11 @@ class SimTest(unittest.TestCase):
         d = svc.sim
         d.visit_wait_s = 1
         # 11/9 품목 4종: 시연 보조배터리 2개로 R3 가 참 → 빈 칸이 있는 핸드크림(R4)으로 같은 상황을 만든다
-        d.found("서면역 1번 출구에서 빨간 핸드크림 주웠어요")
+        d.found("초량역 1번 출구에서 빨간 핸드크림 주웠어요")
         d.wait_idle(timeout=20)
-        d.lost("빨간 핸드크림 잃어버렸어요 서면역")
+        d.lost("빨간 핸드크림 잃어버렸어요 초량역")
         with self.assertRaises(RequestError):
-            d.lost("빨간 핸드크림 잃어버렸어요 서면역")
+            d.lost("빨간 핸드크림 잃어버렸어요 초량역")
         d.wait_idle(timeout=20)
         unfinished = [st["title"] for st in svc.board.stories.values() if st.get("result") is None
                       and not any(s["state"] == "active" and "키오스크" in (s.get("detail") or "") for s in st["stages"])]

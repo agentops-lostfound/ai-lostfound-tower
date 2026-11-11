@@ -92,8 +92,8 @@
   "title": "키오스크 위치 — 시연 기준",
   "path": "docs/guidance/service-guide.md",
   "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#키오스크-위치-시연-기준",
-  "evidence": "시연 기준 역 키오스크는 KIOSK-A 해운대역, KIOSK-C 서면역이다. 본센터는 부산역에 있고 본센터 키오스크 번호는 CENTER 이다.",
-  "answer": "역 키오스크는 해운대역(KIOSK-A)과 서면역(KIOSK-C)에 있어요. 물건을 받는 본센터는 부산역에 있어요(본센터 키오스크 CENTER)."
+  "evidence": "시연 기준 역 키오스크는 KIOSK-A 중앙역, KIOSK-C 초량역이다. 본센터는 부산역에 있고 본센터 키오스크 번호는 CENTER 이다.",
+  "answer": "역 키오스크는 중앙역(KIOSK-A)과 초량역(KIOSK-C)에 있어요. 물건을 받는 본센터는 부산역에 있어요(본센터 키오스크 CENTER)."
  },
  {
   "topic": "privacy_input",

@@ -43,14 +43,14 @@ DBeaver · /showcase [팀 DB 조회]
 
 | 단계(트리거) | 표 | 명령 | 값 (11/10 확인) |
 |---|---|---|---|
-| 1 키오스크 등록 | `item` | INSERT | `item_id` A-20261110-0002 · `machine_id` KIOSK-A · `place_text` 해운대역 승강장 · `status` 등록기계 보관 · `category` 확인 불가 · `photo_path` 사진 위치(사진은 DB 밖 파일) |
+| 1 키오스크 등록 | `item` | INSERT | `item_id` A-20261110-0002 · `machine_id` KIOSK-A · `place_text` 중앙역 승강장 · `status` 등록기계 보관 · `category` 확인 불가 · `photo_path` 사진 위치(사진은 DB 밖 파일) |
 | | `finder_contact` | INSERT | 연락처를 입력했을 때만 |
 | | `item_status_log` | INSERT | (없음) → 등록기계 보관, kiosk |
 | 2 Qwen 사진 분석 | `item` | UPDATE | `category` → 핸드크림 · `features` 색 초록·모양 tube · `private_features` 확인 질문 정답(공개 칸과 분리) |
 | 3 회수·보관 | `item` | UPDATE ×2 | 등록기계 보관 → 회수 중 → 본센터 보관 |
 | | `item_status_log` | INSERT ×2 | staff |
 | | `storage_assignment` | INSERT | `slot_id` R3-2 (R3-1 은 시연용 분홍 핸드크림) |
-| 4 분실 접수 | `claim` | INSERT | C-20261110-0001 · `description` 핸드크림·초록 · `lost_station` 해운대 · 가린 이름·가린 신분 번호 |
+| 4 분실 접수 | `claim` | INSERT | C-20261110-0001 · `description` 핸드크림·초록 · `lost_station` 중앙 · 가린 이름·가린 신분 번호 |
 | | `quiz_attempt` | INSERT | `field` place · `passed` true (답은 저장 안 함) |
 | | `reservation` | INSERT | `item_id` A-20261110-0002 · `status` booked |
 | | `item` | 변화 없음 | 여전히 본센터 보관 |

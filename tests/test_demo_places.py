@@ -20,12 +20,12 @@ class DemoPlaceTests(unittest.TestCase):
         self.assertEqual((len(first['places']), first['next_offset'], first['total']), (5, 5, 6))
         second = self.places.recommend('KIOSK-A', first['next_offset'])
         self.assertEqual((len(second['places']), second['next_offset']), (1, None))
-        self.assertTrue(all(p['station'] == '해운대' for p in first['places']))
-        self.assertEqual(self.places.recommend('KIOSK-C')['station'], '서면')
+        self.assertTrue(all(p['station'] == '중앙' for p in first['places']))
+        self.assertEqual(self.places.recommend('KIOSK-C')['station'], '초량')
 
     def test_duplicate_normalization_concurrency_and_correct_page(self):
         def add(_):
-            return self.places.put('2호선', '해운대역', ' 가상 새 장소 ')
+            return self.places.put('1호선', '중앙역', ' 가상 새 장소 ')
         with ThreadPoolExecutor(2) as pool:
             results = list(pool.map(add, range(2)))
         self.assertEqual(results[0]['place_id'], results[1]['place_id'])
@@ -33,7 +33,7 @@ class DemoPlaceTests(unittest.TestCase):
         self.assertIn('가상 새 장소', [p['label'] for p in self.places.recommend('KIOSK-A', results[0]['page_offset'])['places']])
 
     def test_invalid_scope_private_data_and_paging_are_rejected(self):
-        for args in [('2호선', '서면역', '가상 장소'), ('2호선', '해운대', '010-1234-5678'), ('2호선', '해운대', '가' * 65)]:
+        for args in [('2호선', '초량역', '가상 장소'), ('1호선', '중앙', '010-1234-5678'), ('1호선', '중앙', '가' * 65)]:
             with self.assertRaises(ValueError):
                 self.places.put(*args)
         for offset in [-1, True, 10001]:
@@ -42,7 +42,7 @@ class DemoPlaceTests(unittest.TestCase):
 
     def test_api_revision_and_reset_clear_only_synthetic_catalog(self):
         client = TestClient(create_app(collections=self.store, demo=True), base_url='http://127.0.0.1:8110')
-        payload = {'line': '2호선', 'station': '해운대역', 'label': '가상 추가 장소'}
+        payload = {'line': '1호선', 'station': '중앙역', 'label': '가상 추가 장소'}
         self.assertEqual(client.post('/places', json=payload).status_code, 409)
         client.headers['x-demo-revision'] = self.store.dashboard()['revision']
         self.assertEqual(client.post('/places', json=payload).status_code, 200)
@@ -53,6 +53,6 @@ class DemoPlaceTests(unittest.TestCase):
 
     def test_reopening_preserves_places_and_parameterized_label_cannot_write_sql(self):
         label = "가상 장소'; DROP TABLE demo_item;--"
-        self.places.put('2호선', '해운대', label)
+        self.places.put('1호선', '중앙', label)
         self.assertEqual(DemoPlaces(DemoCollections(self.store.path)).recommend('KIOSK-A')['total'], 7)
         self.assertEqual(len(self.store.dashboard()['items']), 6)
