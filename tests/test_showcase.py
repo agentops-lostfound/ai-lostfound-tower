@@ -66,7 +66,7 @@ class ListenerTest(unittest.TestCase):
     def test_steps_reach_listener(self):
         with observability.conversation(session_id="s1", trace_name="lost-found-chatbot"):
             with observability.step("lost-found-chatbot", as_type="chain", input={"question": f"내 번호는 {PHONE}"}) as root:
-                with observability.node_step("planner", as_type="agent", input={"question": "지갑"}) as obs:
+                with observability.node_step("planner", as_type="agent", input={"question": "립밤"}) as obs:
                     with observability.step("planner-llm", as_type="generation", model="midm", input=[{"role": "system", "content": "비밀 프롬프트"}]) as gen:
                         gen.update(output={"plan": ["item_search"]})
                     obs.update(output={"plan": ["item_search"], "routing": "llm"})
@@ -127,7 +127,7 @@ class DbWatchTest(unittest.TestCase):
         self.watch = db_watch.attach(self.svc)
         self.board = self.svc.board
 
-    def lost(self, text="검정 카드지갑 잃어버렸어요, 중앙역"):
+    def lost(self, text="검정 립밤 잃어버렸어요, 중앙역"):
         r = self.svc.sim.lost(text, {"visit": "kiosk", "name_masked": "변*원", "id_no_masked": ID_MASKED})
         for _ in range(5):
             if not r.get("pending_id"):
@@ -155,11 +155,11 @@ class DbWatchTest(unittest.TestCase):
         self.assertTrue(all(c["hidden"] for c in evs[1]["db"]["cols"] if c["name"] in ("name", "phone")))
 
         mark = self.board.last_seq
-        self.svc.intake.set_features(iid, {"category": "지갑", "color": "검정", "mark": "별스티커비밀", "visible_text": "비밀글자"})
+        self.svc.intake.set_features(iid, {"category": "립밤", "color": "검정", "mark": "별스티커비밀", "visible_text": "비밀글자"})
         ev = db_events(self.board, mark)[0]["db"]
         self.assertEqual((ev["table"], ev["op"]), ("item", "UPDATE"))
         cols = {c["name"]: c for c in ev["cols"]}
-        self.assertEqual(cols["category"]["value"], "지갑")
+        self.assertEqual(cols["category"]["value"], "립밤")
         self.assertTrue(cols["private_features"]["hidden"])
         self.assertIn("2개", cols["private_features"]["value"])          # 몇 개 저장됐는지만
 
@@ -168,7 +168,7 @@ class DbWatchTest(unittest.TestCase):
             self.assertNotIn(secret, blob)
 
     def test_lost_claim_and_kiosk_return(self):
-        d = self.svc.sim.found("중앙역 승강장에서 검정 카드지갑 주웠어요")
+        d = self.svc.sim.found("중앙역 승강장에서 검정 립밤 주웠어요")
         self.assertTrue(self.svc.sim.wait_idle(20))
         mark = self.board.last_seq
         r = self.lost()
@@ -208,7 +208,7 @@ class DbWatchTest(unittest.TestCase):
         self.assertEqual(d["item_id"], out["matched_object"])
 
     def test_same_status_rewrite_is_skipped_and_select_is_quiet(self):
-        d = self.svc.sim.found("중앙역 승강장에서 검정 카드지갑 주웠어요")
+        d = self.svc.sim.found("중앙역 승강장에서 검정 립밤 주웠어요")
         self.svc.sim.wait_idle(20)
         logs = [e["db"] for e in db_events(self.board) if e["db"]["table"] == "item_status_log" and e["db"]["key"] == d["item_id"]]
         moves = [(next(c["value"] for c in x["cols"] if c["name"] == "from_status"),
@@ -216,7 +216,7 @@ class DbWatchTest(unittest.TestCase):
         self.assertTrue(all(a != b for a, b in moves), moves)                     # 같은 상태 → 같은 상태 기록은 없다
         mark = self.board.last_seq
         for _ in range(4):
-            self.svc.sim.candidates({"category": "지갑"}, None)
+            self.svc.sim.candidates({"category": "립밤"}, None)
         self.assertEqual(len(db_events(self.board, mark)), 1)                     # 같은 읽기는 잠깐 동안 한 번만
 
     def test_reset_is_one_line(self):
@@ -259,7 +259,7 @@ class ApiTest(unittest.TestCase):
         observability.set_listener("live-board", None)
 
     def test_state_detail_and_pages(self):
-        r = self.c.post("/sim/found", json={"text": "중앙역 승강장에서 검정 카드지갑 주웠어요"})
+        r = self.c.post("/sim/found", json={"text": "중앙역 승강장에서 검정 립밤 주웠어요"})
         self.assertEqual(r.status_code, 200)
         self.svc.sim.wait_idle(20)
         plain = self.c.get("/api/admin/live/state?after=0").json()
@@ -285,7 +285,7 @@ class ApiTest(unittest.TestCase):
 
     def test_chat_question_draws_agent_trace(self):
         mark = self.svc.board.last_seq
-        r = self.c.post("/chat/questions", json={"question": "검정 지갑 잃어버렸어요", "session_id": "s-showcase"})
+        r = self.c.post("/chat/questions", json={"question": "검정 립밤 잃어버렸어요", "session_id": "s-showcase"})
         self.assertEqual(r.status_code, 200)
         evs = self.c.get(f"/api/admin/live/state?after={mark}&detail=1").json()["events"]
         trace = [e["trace"] for e in evs if e["channel"] == "trace"]

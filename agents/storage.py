@@ -10,6 +10,7 @@
 - 11/9 사용자 결정(014): R1 = 휴대폰 전용(폰을 사선으로 둬서 간격이 넓음) · R2~R4 = 휴대폰 밖 5종(행마다 품목 제한 없음)
 - 11/9 사용자 결정(015): 립밤을 운영 품목에서 빼고 열마다 품목 하나
 - 11/9 사용자 결정(016): 품목 4종 고정(목업폰·보조배터리·핸드크림·카드지갑) — R1 휴대폰('/' 45도) · R2 카드지갑 · R3 보조배터리 · R4 핸드크림
+- 11/11 사용자 결정(020): R4 카드지갑 → 립밤(포토박스 탑뷰가 카드지갑을 잘 못 알아봄). 립밤은 세로로 둠
 - 11/10 사용자 결정(018): 열 순서를 다시 정함 — 왼쪽부터 R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑(칸 위치·로봇 자세는 그대로, 품목만)
 - 인계 구역 H-1(제출보관함)은 보관판 위쪽(로봇 반대쪽) 긴 변 가운데에 붙음
 - 직원 보관 선반 S: 맞는 빈 칸이 없을 때 넘치는 물건 자리. 로봇이 집지 않고 비전 내보내기에도 넣지 않는다. 칸은 필요할 때 S-1, S-2 … 로 늘린다
@@ -48,7 +49,8 @@ NOT_PHONE = [c for c in MVP_CATEGORIES if c not in PHONE_ONLY]    # 휴대폰 �
 #   운영 품목(contracts.ACTIVE_CATEGORIES)에서 빠진 품목은 열에서도 자동으로 빠진다. 단 DB 는 마이그레이션으로만 바뀌므로
 #   품목을 빼면 새 마이그레이션도 함께 만든다(LAYOUT 과 DB 가 다르면 tests/test_storage.py 가 실패해서 알려 줌)
 #   11/10 사용자 결정(018): 왼쪽부터 휴대폰 · 보조배터리 · 핸드크림 · 카드지갑 (R2·R3·R4 를 실물 배치대로 다시 정함)
-ROW_CATEGORIES = {"R1": ["모형폰"], "R2": ["보조배터리"], "R3": ["핸드크림"], "R4": ["지갑"]}
+# 11/11 사용자 결정(020): R4 카드지갑 → R4 립밤(세로로 둠). 칸 위치·로봇 자세(pose_7·8 은 김건태님이 다시 티칭)
+ROW_CATEGORIES = {"R1": ["모형폰"], "R2": ["보조배터리"], "R3": ["핸드크림"], "R4": ["립밤"]}
 # 칸 이름표에 쓰는 실물 이름(품목 값·화면 이름과 다를 때만). 016: 지갑 열은 실물대로 '카드지갑'
 ROW_NAME = {"지갑": "카드지갑"}
 # R1 메모: 비전(YOLO·Qwen)이 가로로 놓인 휴대폰을 잘 못 알아봐서 45도 사선으로 둔다.
@@ -207,7 +209,7 @@ def _near_first(pairs: list) -> list:
 
 def recommend_slot(layout: dict, category: str | None) -> dict | None:
     """품목에 맞는 빈 칸 추천(11/9 규칙): 그 품목을 받는 행(또는 품목 제한 없는 행)의 빈 칸 중 1번 칸(먼 줄)부터.
-    11/9: 품목이 다른 열(018: R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 카드지갑)은 섞지 않는다 → 맞는 빈 칸이 없으면 None(직원 보관 선반 추천은 shelf_or_slot).
+    11/9: 품목이 다른 열(020: R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 립밤)은 섞지 않는다 → 맞는 빈 칸이 없으면 None(직원 보관 선반 추천은 shelf_or_slot).
     품목을 모르면(None·확인 불가) 추천하지 않는다(직원이 사진을 보고 고름)"""
     if not category or category == "확인 불가":
         return None
@@ -529,7 +531,7 @@ def _layout_view(sections: list[dict], rows: dict[str, dict]) -> dict:
             elif s["kind"] == STAFF_KIND:
                 staff += r is not None
     view = {"sections": sections}
-    # 11/9 groups = 묶음별 사용(016: 열마다 x/2 — 휴대폰·카드지갑·보조배터리·핸드크림), staff_shelf = 직원 보관 선반 물건 수
+    # 11/9 groups = 묶음별 사용(016: 열마다 x/2 — 휴대폰·보조배터리·핸드크림·립밤), staff_shelf = 직원 보관 선반 물건 수
     return {**view, "summary": {"shelf_slots": total, "used": used, "free": total - used,
                                 "slots_without_pose": missing_pose, "staff_shelf": staff, "groups": slot_groups(view)}}
 

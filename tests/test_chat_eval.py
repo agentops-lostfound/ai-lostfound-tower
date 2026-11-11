@@ -102,7 +102,7 @@ class RunnerTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env):
             os.environ.pop("LF_CHAT_RAG_MODEL", None)
             r = ce.Runner()
-            item = {"no": 9999, "turns": [{"say": "주운 물건 신고하고 싶어요"}, {"say": "초량 5번 출구 앞에서 검정 카드지갑"},
+            item = {"no": 9999, "turns": [{"say": "주운 물건 신고하고 싶어요"}, {"say": "초량 5번 출구 앞에서 검정 립밤"},
                                           {"say": "접수할게요", "expect": {"status": ["intake_done"], "id": r"[A-Z]-\d{8}-\d{4}"}}]}
             x = r.run_item(item)
             self.assertEqual(x["score"], 1, x["why"])

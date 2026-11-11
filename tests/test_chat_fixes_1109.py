@@ -75,10 +75,9 @@ class ChatFixes1109(unittest.TestCase):
                 self.assertNotIn(d["topic"], topic_question(d["topic"]))
 
     def test_search_answer_is_short(self):
-        r = self.bot.ask("검정 지갑 찾아줘")
+        r = self.bot.ask("검정 립밤 찾아줘")                     # 11/11 운영 품목 카드지갑 → 립밤(시연 DB DEMO-001)
         self.assertTrue(r["answer"].startswith("후보"))          # 핵심이 먼저
-        self.assertLessEqual(r["answer"].count("\n"), 4)         # 11/10: '지갑'이라고 하면 끝에 카드지갑 안내 한 줄이 더 붙음
-        self.assertLessEqual(self.bot.ask("검정 카드지갑 찾아줘")["answer"].count("\n"), 3)
+        self.assertLessEqual(r["answer"].count("\n"), 3)
         self.assertIn("실제 습득물이 아닙니다", r["answer"])        # 고지는 한 줄로 남음
 
 

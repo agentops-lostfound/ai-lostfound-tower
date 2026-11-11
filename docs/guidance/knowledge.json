@@ -84,8 +84,8 @@
   "title": "다루는 물건 4종 — 팀 운영 품목",
   "path": "docs/guidance/service-guide.md",
   "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#다루는-물건",
-  "evidence": "지금 다루는 물건은 카드지갑·휴대폰(목업폰)·핸드크림·보조배터리 4종이다.",
-  "answer": "지금 이 서비스가 다루는 물건은 카드지갑, 휴대폰(목업폰), 핸드크림, 보조배터리 4종이에요. 립밤·USB를 포함해 다른 물건은 아직 다루지 않아요."
+  "evidence": "지금 다루는 물건은 휴대폰(목업폰)·보조배터리·핸드크림·립밤 4종이다.",
+  "answer": "지금 이 서비스가 다루는 물건은 휴대폰(목업폰), 보조배터리, 핸드크림, 립밤 4종이에요. 카드지갑·USB를 포함해 다른 물건은 아직 다루지 않아요."
  },
  {
   "topic": "kiosk_places",
@@ -188,8 +188,8 @@
   "title": "키오스크 상자에 물건 놓는 법 — 11/6 기준",
   "path": "docs/guidance/service-guide.md",
   "url": "https://github.com/agentops-lostfound/ai-lostfound-tower/blob/main/docs/guidance/service-guide.md#물건-놓는-법",
-  "evidence": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 한다. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 둔다.",
-  "answer": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 놓아 주세요. 휴대폰은 케이스(뒷면)가 위로, 지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요. 놓은 뒤 손을 빼고 3초 정도 기다리면 자동으로 찍혀요."
+  "evidence": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 한다. 휴대폰은 케이스(뒷면)가 위로, 립밤은 글자가 보이게 눕혀 둔다.",
+  "answer": "한 번에 하나만 상자 가운데에 두고, 세우지 말고 눕혀서 특징이 있는 면이 위로 오게 놓아 주세요. 휴대폰은 케이스(뒷면)가 위로, 립밤은 글자가 보이게 눕혀 두면 돼요. 놓은 뒤 손을 빼고 3초 정도 기다리면 자동으로 찍혀요."
  },
  {
   "topic": "arrival",

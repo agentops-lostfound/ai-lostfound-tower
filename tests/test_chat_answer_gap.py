@@ -61,18 +61,18 @@ class AnswerGapTest(unittest.TestCase):
         self.assertEqual(answer_gap("어디서 받아요?", "신분 확인 후 받으실 수 있어요."), "where")
 
     def test_retry_fixes_answer(self):
-        """11/7 실측: 지갑을 물었는데 휴대폰 이야기 → 고칠 점을 받고 지갑 근거로 다시 씀"""
+        """11/7 실측: 지갑을 물었는데 휴대폰 이야기 → 고칠 점을 받고 지갑 근거로 다시 씀(11/11 운영 품목이 립밤으로 바뀌어 립밤으로)"""
         log = []
-        q = "지갑은 어느 쪽이 위로 가게 놓나요?"
+        q = "립밤은 어느 쪽이 위로 가게 놓나요?"
         req = model(say("휴대폰은 케이스(뒷면)가 위로", "휴대폰은 케이스 뒷면이 위로 가게 놓아야 해요."),
-                    say("지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요", "지갑은 펼치지 말고 앞면이 위로 오게 두면 돼요.", answerable=True), log=log)
+                    say("립밤은 글자가 보이게 눕혀 두면 돼요", "립밤은 글자가 보이게 눕혀 두면 돼요.", answerable=True), log=log)
         r = GroundedRag(Guidance(), "m", request=req).ask(q)
         self.assertEqual(r["generation_status"], "generated")
-        self.assertIn("지갑은", r["answer"])
+        self.assertIn("립밤은", r["answer"])
         self.assertNotIn(GAP_LEAD, r["answer"])
         self.assertTrue(r["generation_note"].startswith("retry:subject"), r)
         self.assertNotIn("feedback", log[0])
-        self.assertIn("지갑", log[1]["feedback"]["problem"])             # 모델에게 무엇이 빠졌는지 알려 줌
+        self.assertIn("립밤", log[1]["feedback"]["problem"])             # 모델에게 무엇이 빠졌는지 알려 줌
         self.assertIn("휴대폰", log[1]["feedback"]["previous_answer"])
 
     def test_retry_cannot_invent_policy(self):

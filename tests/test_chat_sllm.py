@@ -33,7 +33,7 @@ class GuidedTurnWithoutModelTest(unittest.TestCase):
     def test_lost_without_item_asks_what(self):
         r = self.rag.ask("어제 뭐 잃어버렸는데요")
         self.assertEqual((r["status"], r["generation_status"]), ("clarification_needed", "guided_question"))
-        self.assertIn("지갑 잃어버렸어요", r["choices"])
+        self.assertIn("립밤 잃어버렸어요", r["choices"])   # 11/11 운영 품목 카드지갑 → 립밤
         self.assertFalse(r["item_search_performed"])
 
     def test_related_but_unmatched_offers_topics(self):

@@ -27,7 +27,7 @@ KEY_FACTS = ((r'준비물|챙겨|가져가|가져와|필요한게|필요한거|�
              (r'보관기간|며칠|몇일|언제까지보관', ('14일',)),
              (r'수수료|비용|요금|돈', ('무료', '없어요')))
 LOST_RE = re.compile(r"잃어버|분실|두고내렸|놓고내렸|놓고왔|두고왔|없어졌|잃었|번호를?잊")   # 11/9 찾기 번호를 잊음
-LOST_CHOICES = ["지갑 잃어버렸어요", "휴대폰 잃어버렸어요", "보조배터리 잃어버렸어요", "찾을 수 있는 물건 종류"]   # 11/9 품목 4종(USB 뺌)
+LOST_CHOICES = ["립밤 잃어버렸어요", "휴대폰 잃어버렸어요", "보조배터리 잃어버렸어요", "찾을 수 있는 물건 종류"]   # 11/9 품목 4종(USB 뺌)
 # 11/7 규칙 문장 그대로 쓰는 주제: 모델이 바꿔 말하면 뜻이 틀어지는 규칙(실측: 4개 모델 38문항 비교, docs/design/chatbot_sllm_rag.md §9)
 # 예) 습득자 연락처 "인계 완료 뒤 30일"을 "반환 보류 30일"로, "동의 시각"을 "분실 시각"으로, "전화번호 적지 마세요"를 "안 적어도 돼요"로
 FIXED_TEXT_TOPICS = {"finder_contact", "masked_identity", "consent", "arrival", "privacy_input", "candidate_scope"}
@@ -547,7 +547,7 @@ class GroundedRag:
             if retired:                               # 11/9 운영하지 않는 품목(립밤)은 분실 신고로 안내하지 않음
                 return {**base, 'status': 'answered', 'generation_status': 'fixed_policy_text',
                         'answer': f"{inactive_category_message(retired[0])}. 다른 물건이면 종류와 색을 알려 주세요. "
-                                  '예: "검정 카드지갑 잃어버렸어요"',
+                                  '예: "빨간 립밤 잃어버렸어요"',
                         'choices': LOST_CHOICES}
             if named:
                 return {**base, 'status': 'answered', 'generation_status': 'guided_question',

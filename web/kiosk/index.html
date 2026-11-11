@@ -384,7 +384,7 @@ body.demo-mode #stn{flex:1 1 auto}
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>휴대폰: 뒷면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="16" y="40" width="48" height="10" rx="3"/><path class="p" stroke-width="4" d="M19 40h42"/><rect class="p" x="21" y="35" width="10" height="5" rx="1.5"/><path class="p" d="M44 32V10M37 17l7-7 7 7"/></svg><b>휴대폰</b>뒷면(카메라)</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>보조배터리: 케이블 빼고 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="37" width="52" height="13" rx="3"/><path d="M21 44h.5M26 44h.5M31 44h.5"/><path class="p" stroke-width="4" d="M18 37h44"/><path class="p" d="M40 30V8M33 15l7-7 7 7"/></svg><b>보조배터리</b>케이블 빼고 글자</div>
           <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>핸드크림: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="10" y="42" width="11" height="8" rx="2"/><path d="M21 44l7-5h34v11H28l-7-3"/><path d="M62 39h5v11h-5"/><path class="p" stroke-width="4" d="M31 39h28"/><path class="p" d="M45 32V10M38 17l7-7 7 7"/></svg><b>핸드크림</b>눕혀서 글자</div>
-          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>카드지갑: 접은 채 앞면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="14" y="38" width="52" height="12" rx="4"/><path d="M14 44h52" opacity=".45"/><path class="p" stroke-width="4" d="M18 38h44"/><path class="p" d="M40 32V10M33 17l7-7 7 7"/></svg><b>카드지갑</b>접은 채 앞면</div>
+          <div class="card"><svg class="pic" viewBox="0 0 80 56" role="img"><title>립밤: 눕혀서 글자 면이 위로</title><path d="M8 51h64" opacity=".35"/><rect x="18" y="41" width="30" height="9" rx="3"/><rect x="48" y="41" width="14" height="9" rx="2"/><path class="p" stroke-width="4" d="M21 41h24"/><path class="p" d="M34 32V10M27 17l7-7 7 7"/></svg><b>립밤</b>눕혀서 글자 면</div>
         </div>
       </div>
     </div>
@@ -457,8 +457,8 @@ $('#raway').hidden = isCenter; $('#rform').hidden = !isCenter;
 let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬영·자동 초기화가 습득 화면을 다시 켜지 않게
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
 let step = 1;
-const CATS = ['모형폰','보조배터리','핸드크림','지갑'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/9 운영 품목 4종(목업폰·보조배터리·핸드크림·카드지갑)(LF-13)
-const CAT_LABEL = {'모형폰': '휴대폰', '지갑': '카드지갑'};                                 // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
+const CATS = ['모형폰','보조배터리','핸드크림','립밤'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/11 지갑 대신 립밤.
+const CAT_LABEL = {'모형폰': '휴대폰'};                                                   // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
 const catLabel = c => CAT_LABEL[c] || c;
 const Q = new URLSearchParams(location.search);
 const DEMO = Q.get('demo') === '1';      // 11/8 직원용 시연 모드: 실제 카메라 대신 가상 카메라(캔버스)가 물건을 넣은 것처럼 보여 줌
@@ -972,6 +972,7 @@ function demoItem(g, c, x, y, tok) {                        // 운영 품목 5�
   if (c === '지갑') { rr(g, -170, -110, 340, 220, 24, T); g.fillStyle = T2; g.fillRect(-170, -20, 340, 8); rr(g, 110, -40, 40, 50, 8, T3); }
   else if (c === 'USB') { rr(g, -220, -72, 330, 144, 18, tok('--ui-primary')); rr(g, 110, -56, 110, 112, 14, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('USB', -55, 2); }
   else if (c === '모형폰') { rr(g, -115, -190, 230, 380, 34, T2); rr(g, -90, -165, 90, 100, 20, T); g.fillStyle = T3; g.beginPath(); g.arc(-45, -140, 16, 0, 7); g.arc(-45, -92, 16, 0, 7); g.fill(); }
+  else if (c === '립밤') { rr(g, -60, -200, 120, 300, 30, tok('--ui-err')); rr(g, -60, 100, 120, 110, 22, T3); g.fillStyle = S; g.fillText('LIP', 0, -50); }   // 11/11 세로로 둠
   else if (c === '핸드크림') { rr(g, -220, -80, 360, 160, 22, tok('--ui-ok')); rr(g, 140, -50, 80, 100, 12, T2); g.fillStyle = tok('--ui-on-primary'); g.fillText('CREAM', -40, 2); }
   else { rr(g, -185, -115, 370, 230, 26, tok('--ui-warn')); g.fillStyle = S; [-60, -20, 20, 60].forEach(dx => { g.beginPath(); g.arc(dx, 70, 9, 0, 7); g.fill(); }); }
   g.restore();

@@ -470,7 +470,7 @@
     var today = new Date(); today.setDate(today.getDate() + 1);
     var visit = today.toISOString().slice(0, 10);
     var body = { consent: true, name_masked: "홍*동", id_no_masked: "******-*******", id_verified: true,
-                 description: { category: "지갑" }, item_id: $("demoItem").value,
+                 description: { category: "립밤" }, item_id: $("demoItem").value,
                  quiz: [{ field: "mark", passed: $("demoQuiz").checked }], visit_date: visit };
     var r = await api("POST", "/claims", body);
     if (r.status === 200) {

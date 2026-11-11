@@ -240,7 +240,7 @@ details.more .robot-note{margin-top:0}
     </div>
     <div class="card try" id="tryCard" hidden>
       <h2>시험 입력</h2>
-      <textarea id="tryText" placeholder="예) 초량역 5번 출구 앞에서 검정 카드지갑 주웠어요"></textarea>
+      <textarea id="tryText" placeholder="예) 초량역 5번 출구 앞에서 빨간 립밤 주웠어요"></textarea>
       <div class="btns">
         <button class="primary" data-kind="found">습득 신고</button>
         <button data-kind="lost">분실 신고</button>
@@ -318,6 +318,9 @@ details.more .robot-note{margin-top:0}
                   "초록":"#3fa36b","노랑":"#f2c94c","갈색":"#8b5e3c","분홍":"#e9a6b8"};
   // 칸 카드의 품목 글자. 립밤은 11/9 운영 품목에서 뺐지만 옛 기록(이미 보관 중인 물건)이 보이도록 남겨 둠
   const CAT = {"지갑":"카드지갑","USB":"USB","모형폰":"폰","핸드크림":"크림","보조배터리":"배터리","립밤":"립밤"};
+  // 11/11 보관 칸에 두는 모양: rot = 화면에서 돌린 각도(45 = '/' 위쪽이 오른쪽 위), w·h = 크기, cap = 아래쪽(왼쪽 아래 끝) 뚜껑 길이
+  const PUT_SHAPE = {"모형폰": {rot: 45, w: 32, h: 68}, "보조배터리": {rot: 45, w: 34, h: 66},
+                 "핸드크림": {rot: 45, w: 26, h: 72, cap: 16}, "립밤": {rot: 0, w: 22, h: 58, cap: 18}};
   const CAT_LABEL = {"모형폰":"휴대폰"};   // 품목 값('모형폰')은 그대로, 화면 이름만(agents/contracts.py CATEGORY_LABEL 과 같게)
   const catName = (c) => CAT_LABEL[c] || c || "";
   // 11/9 습득 역: /live/state 의 station(가상 시연) → 없으면 등록기계 → 물건 번호 앞글자(A 중앙 · S 초량 · H 본센터, agents/contracts.py station_name 과 같게)
@@ -340,14 +343,14 @@ details.more .robot-note{margin-top:0}
   function drawBench(b) {
     // 11/9 실제 규격(사용자 실측): 보관판 500×250(테두리 종이 테이프 15mm) · 로봇 쪽 덧댄 띠(약 66×15, 가운데) ·
     // 제출보관함 H-1(200×200, 테두리 테이프)은 보관판 위쪽 가운데에 붙음 · 로봇은 H-1 의 로봇 쪽 절반에 놓음 ·
-    // 11/9 열 배정(015·016): R1 휴대폰 전용(45도 '/', 간격 넓음) · R2 보조배터리 · R3 핸드크림 · R4 카드지갑(11/10 018, 왼쪽부터).
+    // 11/9 열 배정(015·016): R1 휴대폰 전용(45도 '/', 간격 넓음) · R2 보조배터리 · R3 핸드크림 · R4 립밤(11/11 020, 왼쪽부터 — 카드지갑에서 바뀜).
     // 열 이름표·품목은 /live/state 의 rows(보관함 정답지 LAYOUT)를 그대로 따른다. 칸 이름 R1-1~R4-2 = 보관함 정답지
     const svg = $("bench");
     const [W, H] = b.size_mm, [x1, y1, x2, y2] = b.bin_mm;
     const ids = b.slot_ids || b.slots_mm.map((_, i) => String(i + 1));
     const hb = b.hbox_mm || [b.basket_mm[0] - 55, b.basket_mm[1] - 45, b.basket_mm[0] + 55, b.basket_mm[1] + 45];
     const T = b.tape_mm || 15, sh = b.shim_mm;
-    const CATS = {"모형폰": "휴대폰 전용", "지갑": "카드지갑", "보조배터리": "보조배터리", "핸드크림": "핸드크림"};   // 11/9 품목 4종
+    const CATS = {"모형폰": "휴대폰 전용", "지갑": "카드지갑", "보조배터리": "보조배터리", "핸드크림": "핸드크림", "립밤": "립밤"};   // 11/11 품목 4종(카드지갑 → 립밤, 옛 이름도 남김)
     const tapeBox = (ax, ay, bx, by, cls) =>                 // 테두리 테이프(바깥 띠) + 안쪽 판
       `<rect x="${ax}" y="${ay}" width="${bx-ax}" height="${by-ay}" class="s-tape"/>` +
       `<rect x="${ax+T}" y="${ay+T}" width="${bx-ax-2*T}" height="${by-ay-2*T}" class="${cls}"/>`;
@@ -363,10 +366,14 @@ details.more .robot-note{margin-top:0}
     s += `<text x="${(hb[0]+hb[2])/2}" y="${hb[1]+T+38}" text-anchor="middle" font-size="11" class="s-sub">분실인이 꺼내고 키오스크 [물건 받았어요]</text>`;
     const rowX = {}, half = 40;
     b.slots_mm.forEach(([sx, sy], i) => {
-      const id = ids[i], phone = ((b.rows || {})[id.slice(0, 2)] || []).join() === "모형폰";
+      const id = ids[i], cat = ((b.rows || {})[id.slice(0, 2)] || []).join(), phone = cat === "모형폰";
       s += `<rect x="${sx-half}" y="${sy-half}" width="${2*half}" height="${2*half}" rx="8" class="s-slot"/>`;
-      // 휴대폰을 45도 사선으로 두는 자리(11/9 사용자 결정: '/' 방향 — 상단(점) 오른쪽 위 · 단자 왼쪽 아래, 가로로 두면 비전 인식률이 떨어짐)
-      if (phone) s += `<g transform="translate(${sx},${sy}) rotate(45)"><rect x="-14" y="-33" width="28" height="66" rx="5" class="s-ghost"/><circle cy="-26" r="2.6" class="s-ghost-dot"/></g>`;
+      // 품목마다 두는 방향(흐린 자리 표시). 11/9 휴대폰 '/' 45도(상단 점 오른쪽 위) · 11/11 보조배터리도 같은 '/' ·
+      // 핸드크림도 '/' 인데 뚜껑이 왼쪽 아래 · 립밤은 세로. 가로로 두면 비전 인식률이 떨어짐
+      const sp = PUT_SHAPE[cat];
+      if (sp) s += `<g transform="translate(${sx},${sy}) rotate(${sp.rot})"><rect x="${-sp.w/2+2}" y="${-sp.h/2+1}" width="${sp.w-4}" height="${sp.h-2}" rx="5" class="s-ghost"/>` +
+        (sp.cap ? `<rect x="${-sp.w/2+2}" y="${sp.h/2-sp.cap}" width="${sp.w-4}" height="${sp.cap-1}" rx="3" class="s-ghost"/>` : "") +
+        (phone ? `<circle cy="-26" r="2.6" class="s-ghost-dot"/>` : "") + `</g>`;
       // 칸 이름: 휴대폰 칸은 사선 휴대폰('/')이 오른쪽 위를 덮으므로 왼쪽 위에(다른 칸과 같은 자리)
       s += phone ? `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`
                  : `<text x="${sx-half+5}" y="${sy-half+13}" font-size="11" font-weight="700" class="s-sub">${esc(id)}</text>`;
@@ -413,6 +420,16 @@ details.more .robot-note{margin-top:0}
         `<rect x="-5" y="29" width="10" height="2.6" rx="1.2" fill="${light?"rgba(0,0,0,.45)":"rgba(255,255,255,.75)"}"/>`+   // 하단: 케이블 꽂는 단자
         `<g transform="rotate(-90)" text-anchor="middle" font-weight="700" fill="${light?"#222":"#fff"}">` +              // 긴 축을 따라 두 줄: 역 · 번호 끝자리('/' 방향이라 왼쪽 아래→오른쪽 위로 읽힘)
         (st ? `<text y="1" font-size="9">${esc(st)}</text><text y="11" font-size="9">${esc(short)}</text>` : `<text y="4" font-size="10">${esc(short)}</text>`) + `</g></g>`;
+    }
+    const sp = PUT_SHAPE[it.category];
+    if (sp && it.loc === "bin") {
+      // 11/11 보조배터리('/')·핸드크림('/', 뚜껑 왼쪽 아래)·립밤(세로) — 긴 축을 따라 두 줄: 역 · 번호 끝자리
+      const fg = light ? "#222" : "#fff";
+      return `<g transform="translate(${x},${y}) rotate(${sp.rot})" ${attrs}><title>${esc(full)}</title>`+
+        `<rect x="${-sp.w/2}" y="${-sp.h/2}" width="${sp.w}" height="${sp.h}" rx="6" fill="${c}" stroke="rgba(0,0,0,.3)"/>`+
+        (sp.cap ? `<rect x="${-sp.w/2}" y="${sp.h/2-sp.cap}" width="${sp.w}" height="${sp.cap}" rx="4" fill="rgba(0,0,0,.28)"/>` : "")+
+        `<g transform="translate(0 ${sp.cap ? -sp.cap/2 : 0}) rotate(-90)" text-anchor="middle" font-weight="700" fill="${fg}">` +
+        (st ? `<text y="1" font-size="8.5">${esc(st)}</text><text y="10" font-size="8.5">${esc(short)}</text>` : `<text y="4" font-size="9">${esc(short)}</text>`) + `</g></g>`;
     }
     const label = CAT[it.category] || "?";
     const badge = st ? `${st} ${short}` : `${it.item_id.slice(0,1)}…${short}`;
@@ -656,7 +673,7 @@ details.more .robot-note{margin-top:0}
     $("reach").innerHTML = reach && r.scale !== 1 ? `<circle cx="${bx}" cy="${by}" r="${reach}" class="s-reach"/>` : "";
   }
 
-  function renderCap(st) {        // 11/9 칸 사용 현황(열 묶음별 x/2 — 휴대폰·카드지갑·보조배터리·핸드크림 · 대기 n · 선반)
+  function renderCap(st) {        // 11/9 칸 사용 현황(열 묶음별 x/2 — 휴대폰·보조배터리·핸드크림·립밤 · 대기 n · 선반)
     const box = $("cap");
     if (!st) { box.innerHTML = ""; return; }
     let h = st.groups.map(g => `<span class="chip${g.used >= g.total ? " full" : ""}">${esc(g.label)} <b>${g.used}/${g.total}</b></span>`).join("");
