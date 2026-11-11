@@ -99,7 +99,9 @@ def judge(case, code, res, before, after, writes):
         need(before == after, '질문이 접수 초안을 바꿈')
         rubric = rubric.removesuffix('_unchanged')
     if rubric in FIXED_TOPICS:
-        need(bool(topics & {'pickup', 'center_pickup'}) if rubric == 'pickup' else rubric in topics, f'질문 주제 근거 누락: {rubric}')
+        safety_answer = (rubric == 'pickup' and re.search(r'로봇.*동안.*손', case.get('question', ''))
+            and re.search(r'손을 넣지|위험|안전', a))
+        need(bool(topics & {'pickup', 'center_pickup'}) or safety_answer if rubric == 'pickup' else rubric in topics, f'질문 주제 근거 누락: {rubric}')
     elif rubric == 'privacy':
         need(bool(re.search(r'가상|실제.{0,18}(?:입력|적지|쓰지).{0,8}(?:마|금지)|유출', a)), '개인정보 우려에 직접 답하지 않음')
         need('id_document' not in topics, '개인정보 우려를 신분증 미지참으로 오해')

@@ -32,7 +32,7 @@ START_LOST = re.compile(r"분실\s*(?:접수|신고)|잃어버린\s*물건\s*(?:
                         r"(?:잃어버|잃었|분실)[^?!]{0,16}(?:접수|신고|등록)")   # 11/9 채점표: "…잃어버렸어요. 신고할게요"처럼 문장이 나뉘어도
 START_FOUND = re.compile(r"습득\s*(?:신고|접수|등록)|주운\s*물건\s*(?:신고|접수|등록|맡기)|"
                          r"(?:주웠|주운|주워|주움|줍음|습득)[^?!]{0,18}(?:신고|접수|등록|맡기|맡길|맡겨)")
-HOW_ASK = re.compile(r"어디|어떻게|방법|절차|나요\s*\??\s*$|까요\s*\??\s*$|[?？]\s*$")
+HOW_ASK = re.compile(r"어디|어떻게|방법|절차|(?:신고|접수|맡기|등록).{0,5}법|나요\s*\??\s*$|까요\s*\??\s*$|[?？]\s*$")
 WANT = re.compile(r"싶|해\s*주|받아\s*주|해\s*줄\s*(?:수|래)|할게|하려고|해줘|해\s*달|부탁|접수하기|신고하기|시작")
 REGISTER = re.compile(r"(?:접수|신고|등록).{0,10}(?:해\s*(?:주|줘|줄|달)|할게|하고\s*싶|부탁|시작|진행|받아)|(?:접수|신고|등록)하기")
 CANCEL = re.compile(r"^(?:취소|그만|접수\s*취소|안\s*할래|처음부터|됐어요?|괜찮아요)\s*[.!]*$")
@@ -222,9 +222,21 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
             out["place"] = re.sub(r"\s+", " ", pm.group(1)).strip()
     if want and UNKNOWN_SAY.match(t.strip()):
         out[want] = "없음" if want == "detail" and re.match(r"^(?:없어요|없음)", t.strip()) else "모름"
-    uncertainty = bool(re.search(r'모르겠|모른|몰라|기억.{0,8}안나|가물가물|언제인지못정', compact(t)))
-    if want in ('when', 'station') and uncertainty:
+    unknown = r'모르겠|모른|모름|몰라|기억.{0,8}안나|가물가물|언제인지못정'
+    short = compact(t)
+    uncertainty = bool(re.search(unknown, short))
+    unknown_targets = set()
+    for field, label in (('station', r'역|초량|중앙|부산'), ('when', r'날짜|언제|잃어버린때'), ('color', r'색')):
+        for mention in re.finditer(label, short):
+            clause = re.split(r'[,.;]|날짜|언제|역|색', short[mention.end():], maxsplit=1)[0]
+            if re.search(unknown, clause):
+                unknown_targets.add(field)
+    if len({st for st in LOST_STATION_NAMES if st in t}) > 1 and uncertainty:
+        unknown_targets.add('station')
+    if want in ('when', 'station') and uncertainty and not unknown_targets:
         out[want] = '모름'
+    if kind == 'lost':
+        out.update({field: '모름' for field in unknown_targets})
     if want == 'detail' and re.search(r'(?:특징|스티커|글자).{0,22}(?:없|안\s*적혀|안\s*붙)', t):
         out['detail'] = '없음'
     elif want == "station" and kind == "lost" and not out and OTHER_STATION.match(t.strip()):

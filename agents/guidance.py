@@ -317,7 +317,7 @@ class Guidance:
         # 11/8 습득자 연락처를 분실인이 알 수 있는지 → 알려 주지 않음(DB 설계: 별도 표, 직원만 열람). 개인정보라 모델 없이 정해진 문장만
         # (무작위 시험: "주운사람 전화번호 좀" 처럼 '알려' 없이 물어도 — 지우는 시기만 묻는 질문은 finder_contact 그대로)
         leave_contact = bool(re.search(r"(?:연락처|전화번호|이름).*(?:남겨|남기|적어야|써야|안남|입력해야)", q))
-        if leave_contact and not re.search(r"알려|알수|공개|가르쳐|볼수|보여", q):
+        if leave_contact and not re.search(r"알려|알수|공개|가르쳐|볼수|보여", q) and (finder or not re.search(r'가린|기록|원문|저장', q)):
             topics.add("found_report")                   # 11/9 채점표: "주운 사람 연락처도 남겨야 하나요?" → 남기지 않아도 됨(습득 신고 안내)
         if (finder and not leave_contact and re.search(r"연락처|연라처|연락|전화|전번|번호|이름|누군지|누구", q) and not privacy_input
                 and (not period or re.search(r"알려|알수|공개|가르쳐|볼수|보여|받을수|연락하|연락해|연락드|감사|만나|누군지|누구", q))):

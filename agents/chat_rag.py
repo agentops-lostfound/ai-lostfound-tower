@@ -597,7 +597,7 @@ class GroundedRag:
                         'choices': LOST_CHOICES}
             return {**base, 'status': 'clarification_needed', 'generation_status': 'guided_question',
                     'answer': f'어떤 물건을 잃어버리셨나요? 이 시연에서는 {active_category_text()} {len(ACTIVE_CATEGORIES)}가지를 찾을 수 있어요. '
-                              '물건 종류와 색을 알려 주세요. 예: "검정 카드지갑 잃어버렸어요"',
+                              '물건 종류와 색을 알려 주세요. 예: "검정 휴대폰 잃어버렸어요"',
                     'choices': LOST_CHOICES}
         if not hits:
             return {**base, 'generation_status': 'conversation_clarification',

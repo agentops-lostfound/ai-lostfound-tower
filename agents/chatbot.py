@@ -689,7 +689,9 @@ class Chatbot:
         ops_turn = bool(staff and self.ops is not None and is_ops_question(question))
         intake_active = bool(not ops_turn and self.intake.wants(session_id, question))
         cancelling = intake_active and cancel_draft_requested(question)
-        reply = None if ops_turn or cancelling else turn_reply(question, history, self.guidance)
+        active = self.intake.active(session_id) if intake_active else None
+        reply = None if ops_turn or cancelling else turn_reply(question, history, self.guidance,
+            identity_pending=bool(active and active.get('asked') == 'identity'))
         intake_start = '' if ops_turn or intake_active or reply else (detect_start(question, history) or '')
         if not ops_turn and not intake_active and not intake_start and not reply and found_statement(question):
             reply = {**self.guidance.ask(question), 'choices': ['습득 신고하기']}
@@ -709,7 +711,7 @@ class Chatbot:
             resolved = False        # 11/7: 무엇을 가리키는지 규칙이 못 정하면 모델(planner·안내 작성)이 앞 대화를 보고 판단
         if resolved is None:
             return {**self.guidance._response('clarification_needed',
-                '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 카드지갑 찾아줘 / 본인인증에 실패하면?', []),
+                '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 휴대폰 찾아줘 / 본인인증에 실패하면?', []),
                 'agent': 'guidance', 'context_used': False}
         # Bearer credentials must never enter graph state, checkpoints or tracing.
         from agents.chat_intake import check_action

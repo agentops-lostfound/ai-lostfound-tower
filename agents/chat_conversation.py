@@ -109,6 +109,8 @@ def search_intent(question):
         return False
     features, _ = text_features(question)
     item = features.get('category') not in (None, '확인 불가', '없음') or bool(split_targets(question))
+    if not item and re.search(r'돈|요금|수수료|비용|개인정보|신분정보|보관료', q) and not re.search(r'찾아(?:줘|주|봐)|검색해', q):
+        return False
     direct = bool(re.search(r'찾아(?:줘|주|줄|봐)|찾고|검색해|후보.*보여', q))
     # 11/9 '지갑 찾아요'도 검색 — 단 "어떻게 찾아요?", "찾는 거 웹으로도 돼요?" 같은 방법 질문은 아님
     direct = direct or bool(re.search(r'찾아(?:요|용)|찾는(?:데|중)|찾습니다', q) and not re.search(r'어떻게|어디서|어디|방법|웹|챗봇|키오스크|되나|돼요|되요', q))
