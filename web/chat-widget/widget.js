@@ -753,10 +753,11 @@
 
   function identityForm() {
     var f = el("form", "idform");
-    var l1 = el("label", null, "이름");
+    f.append(el("div", "note", "교육용 시연입니다. 실제 개인정보를 입력하지 마세요."));
+    var l1 = el("label", null, "가상 이름");
     var nm = el("input"); nm.type = "text"; nm.maxLength = 10; nm.autocomplete = "off"; nm.placeholder = "예: 홍길동";
     l1.append(nm);
-    var l2 = el("label", null, "주민등록번호 뒷자리 첫 숫자");
+    var l2 = el("label", null, "가상 신분증 번호 뒤 첫 숫자");
     var g = el("select");
     ["", "1", "2", "3", "4"].forEach(function (v) { var o = el("option", null, v ? v : "고르세요"); o.value = v; g.append(o); });
     l2.append(g);

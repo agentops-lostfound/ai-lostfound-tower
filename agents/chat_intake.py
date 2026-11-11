@@ -17,6 +17,7 @@ import threading
 import time
 
 from agents.contracts import ACTIVE_CATEGORIES, active_category_text, category_label, is_active_category, inactive_category_message
+from agents.chat_turn import FOUND_SAY, LOST_SAY, theft_report
 
 SESSION_TTL_S = 600
 STATION_NAMES = ("초량", "중앙")                 # 등록기계가 있는 역(sim_world.STATIONS) — 주운 역은 이 둘만
@@ -26,14 +27,13 @@ OTHER_STATION = re.compile(r"^(?:[가-힣A-Za-z0-9 ]{2,12}역|(?:열차|지하�
 MASK_RE = re.compile(r"^[^\s*]{1,8}\*{0,8}[^\s*]?$")
 ID_MASK_RE = re.compile(r"^\*{6}-[1-4]\*{6}$")
 
-START_LOST = re.compile(r"분실\s*(?:접수|신고)|잃어버린\s*물건\s*(?:접수|신고|등록)|찾기\s*(?:접수|신청|요청)|접수\s*해\s*주|신고\s*해\s*주|"
+START_LOST = re.compile(r"분실\s*(?:접수|신고)|잃어버린\s*물건\s*(?:접수|신고|등록)|찾기\s*(?:접수|신청|요청)|"
                         r"(?:잃어버|잃었|분실)[^?!]{0,16}(?:접수|신고|등록)")   # 11/9 채점표: "…잃어버렸어요. 신고할게요"처럼 문장이 나뉘어도
 START_FOUND = re.compile(r"습득\s*(?:신고|접수|등록)|주운\s*물건\s*(?:신고|접수|등록|맡기)|"
-                         r"(?:주웠|주운|주워|습득)[^?!]{0,18}(?:신고|접수|등록|맡기|맡길|맡겨)")
+                         r"(?:주웠|주운|주워|주움|줍음|습득)[^?!]{0,18}(?:신고|접수|등록|맡기|맡길|맡겨)")
 HOW_ASK = re.compile(r"어디|어떻게|방법|절차|나요\s*\??\s*$|까요\s*\??\s*$|[?？]\s*$")
-WANT = re.compile(r"싶|해\s*주|해\s*줄\s*(?:수|래)|할게|하려고|해줘|부탁|접수하기|신고하기|시작")
-LOST_SAY = re.compile(r"잃어버|잃었|잊어버|분실|두고\s*내|놓고\s*내")
-FOUND_SAY = re.compile(r"주웠|주운|주워|습득|발견했|떨어져\s*있|놓여\s*있")
+WANT = re.compile(r"싶|해\s*주|해\s*줄\s*(?:수|래)|할게|하려고|해줘|해\s*달|부탁|접수하기|신고하기|시작")
+REGISTER = re.compile(r"(?:접수|신고|등록).{0,10}(?:해\s*(?:주|줘|달)|할게|하고\s*싶|부탁|시작)|(?:접수|신고|등록)하기")
 CANCEL = re.compile(r"^(?:취소|그만|접수\s*취소|안\s*할래|처음부터|됐어요?|괜찮아요)\s*[.!]*$")
 YES = re.compile(r"^(?:접수할게요|네|예|응|좋아요|맞아요|확인|접수|그래요?|ㅇㅇ|넵)\s*[.!]*$")
 FIX = re.compile(r"^(?:고칠게요|수정|다시|고쳐|틀렸어요)\s*[.!]*$")
@@ -64,7 +64,7 @@ QUESTIONS = {
     "station_found": "어느 역에서 주우셨나요? 등록기계가 있는 역은 초량·중앙예요.",
     "when": "언제쯤 잃어버리셨나요? 예: 어제 저녁 / 오늘 아침 (모르면 '모름')",
     "detail": "물건에 적힌 글자나 붙은 스티커가 있나요? 예: 별 스티커 (없으면 '없어요')",
-    "identity": "마지막으로 본인 확인 정보가 필요해요. 아래 칸에 이름과 주민등록번호 뒷자리 첫 숫자를 넣어 주세요. "
+    "identity": "시연용 가상 정보로 본인 확인을 연습해요. 실제 개인정보는 입력하지 마세요. 아래 칸에 가상 이름과 가상 신분증 번호 뒤 첫 숫자를 넣어 주세요. "
                 "화면에서 가려서(예: 홍*동, ******-1******) 보내고, 원래 값은 저장하지 않아요.",
     "place": "역 안 어디쯤에서 주우셨나요? 예: 5번 출구 앞 / 승강장 (모르면 '모름')",
     "claim_id": "취소할 찾기 번호를 알려 주세요. 접수할 때 받은 번호예요(예: C-20261110-0001).",
@@ -120,10 +120,26 @@ WAIT_RE = re.compile(r"\bL-\d{8}-\d{4}\b")
 OTHER_ITEM = re.compile(r"우산|가방|백팩|배낭|이어폰|에어팟|노트북|태블릿|아이패드|안경|선글라스|교통카드|옷|외투|패딩|모자|목도리|장갑|책|서류|열쇠|키\s|시계|반지|목걸이|인형|텀블러")
 
 
-def detect_start(question: str) -> str | None:
+def intake_history(prior, kind):
+    """취소·반대 신고 이야기 이전의 물건은 새 초안에 섞지 않는다."""
+    relevant = []
+    for said in prior or []:
+        if not isinstance(said, str):
+            continue
+        opposite = FOUND_SAY if kind == 'lost' else LOST_SAY
+        if CANCEL.match(said.strip()) or opposite.search(said) or theft_report(said):
+            relevant = []
+            continue
+        relevant.append(said)
+    return relevant[-4:]
+
+
+def detect_start(question: str, history=None) -> str | None:
     """접수를 시작하려는 말인지: "lost" | "found" | None. 단순 분실 이야기("지갑 잃어버렸어요")는 검색·안내 길이고,
     접수·신고·맡기기 말이 같이 있을 때만 접수 길로 간다(supervisor 가 검색 뒤 '접수할까요?'를 따로 제안)"""
     q = re.sub(r"\s+", " ", question or "")
+    if theft_report(q):
+        return None
     if WAIT_RE.search(q):
         return "status"                       # 11/9 분실 신고 대기 번호 조회
     if re.search(r"취소|철회", q):
@@ -140,6 +156,16 @@ def detect_start(question: str) -> str | None:
         return "found"
     if START_LOST.search(q) and not FOUND_SAY.search(q):
         return "lost"
+    if REGISTER.search(q):
+        for said in [q] + list(reversed(history or [])):
+            if CANCEL.match(said.strip()) or theft_report(said):
+                break
+            found, lost = bool(FOUND_SAY.search(said)), bool(LOST_SAY.search(said))
+            if found != lost:
+                return 'found' if found else 'lost'
+            if found and lost:
+                break
+        return 'clarify'
     if re.fullmatch(r"\s*(?:분실\s*접수(?:\s*시작)?|분실\s*접수하기)\s*", q):
         return "lost"
     if re.fullmatch(r"\s*(?:습득\s*신고(?:\s*시작)?|습득\s*신고하기)\s*", q):
@@ -259,14 +285,26 @@ class IntakeAgent:
             kind = start or detect_start(question)
             if kind is None:
                 return self._out("intake_none", "", None, progress=False)
+            if kind == 'clarify':
+                out = self._out('clarification_needed', '잃어버린 물건을 찾으려는 건가요, 주운 물건을 맡기려는 건가요?', None)
+                out['choices'] = ['분실 접수하기', '습득 신고하기']
+                return out
+            relevant = intake_history(prior, kind) if kind in ('lost', 'found') else []
             m = OTHER_ITEM.search(question or "")
+            if not m and not extract(question, kind).get('category'):
+                for said in reversed(relevant):
+                    if extract(said, kind).get('category'):
+                        break
+                    m = OTHER_ITEM.search(said)
+                    if m:
+                        break
             if m and kind in ("lost", "found") and not extract(question, kind).get("category"):
                 where = "역무실에 맡겨 주세요" if kind == "found" else "역무실에 문의해 주세요"
                 return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — {active_category_text()} "
                                                   f"{len(ACTIVE_CATEGORIES)}가지만 접수해요. {where}.", None, done=True)
             s = {"kind": kind, "slots": {}, "stage": "collect", "asked": None, "pending_id": None, "log": [], "fresh": True,
                  "version": 0}
-            for said in [p for p in (prior or []) if isinstance(p, str) and kind in ("lost", "found")][-3:]:
+            for said in reversed(relevant):
                 if (kind == "lost" and FOUND_SAY.search(said)) or (kind == "found" and LOST_SAY.search(said)):
                     continue                     # 반대 이야기(주운 이야기 → 분실 접수)는 가져오지 않음
                 for k, v in extract(said, kind).items():

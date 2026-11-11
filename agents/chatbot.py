@@ -20,6 +20,7 @@ from agents.chat_search import SearchAgent
 from agents.search_context import checked_context
 from agents.chat_conversation import checked_history, checked_turns, natural_question, resolve_turn, search_intent
 from agents.chat_intake import FOUND_SAY, LOST_SAY, SLOT_KO as SLOT_KO_JUDGE, IntakeAgent, detect_start
+from agents.chat_turn import found_statement, turn_reply
 from langsmith import tracing_context
 
 _search_access = ContextVar('lf_chat_search_access', default=None)
@@ -58,6 +59,7 @@ class ChatState(TypedDict, total=False):
     worker_executions: int  # 결과 종류 수가 아닌 실제 업무 일꾼 호출 횟수(reporter 제외)
     supervisor_checks: list  # 모델 제안 → 코드 수락/거절 → 실제 선택(민감값 제외)
     planner_check: dict     # 검증된 읽기 작업·입력 참조의 계약 판정(모델 원문 없음)
+    turn_reply: dict        # 개인정보 우려·위험 상황·대화 오류 복구(초안 변경 없음)
 
 
 # 계획 이름(planner·supervisor 가 쓰는 짧은 이름) → 그래프 칸(에이전트) 이름. Langfuse 나무의 칸 이름과 같게 보여 준다
@@ -192,6 +194,11 @@ class Chatbot:
         from agents.observability import node_step
         with node_step('coordinator', as_type='agent', input={'question': state['question']}) as obs:
             intent, routing = 'service', 'rule'
+            if state.get('turn_reply'):
+                obs.update(output={'intent': 'conversation_repair', 'routing': 'rule'})
+                return {'intent': 'service', 'routing': 'rule', 'path': ['coordinator'], 'route': 'coordinator',
+                        'result': {**state['turn_reply'], 'generation_used': False,
+                                   'generation_status': 'conversation_reply'}}
             if state.get('intake_active') or state.get('intake_start') or state.get('intake_action'):
                 # 11/9 접수 대화 중이거나 접수를 시작하는 말 → 모델에 맡기지 않고 접수 길("초량이요" 같은 짧은 답을 주제 밖으로 보지 않게)
                 obs.update(output={'intent': 'intake', 'routing': 'rule',
@@ -673,9 +680,18 @@ class Chatbot:
         turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
         history = checked_history(history)
         ops_turn = bool(staff and self.ops is not None and is_ops_question(question))
+        reply = None if ops_turn else turn_reply(question, history, self.guidance)
         intake_active = bool(not ops_turn and self.intake.wants(session_id, question))
-        intake_start = '' if ops_turn or intake_active else (detect_start(question) or '')
-        if ops_turn:            # 관제 질문은 앞 대화와 합치지 않고 그대로 분석한다
+        intake_start = '' if ops_turn or intake_active or reply else (detect_start(question, history) or '')
+        if not ops_turn and not intake_active and not intake_start and not reply and found_statement(question):
+            reply = {**self.guidance.ask(question), 'choices': ['습득 신고하기']}
+            # 운영하지 않는 품목에는 접수 버튼을 제안하지 않는다.
+            from agents.chat_intake import extract
+            from agents.contracts import is_active_category
+            category = extract(question, 'found').get('category')
+            if category and not is_active_category(category):
+                reply['choices'] = []
+        if ops_turn or reply:            # 관제·위험·개인정보 질문은 앞 검색 조건과 합치지 않는다
             resolved = False
         elif intake_active or intake_start or intake_action:
             resolved = False    # 11/9 접수 대화의 짧은 답("초량이요")을 앞 질문과 합치지 않는다(접수 일꾼이 지금 묻는 칸으로 읽음)
@@ -701,7 +717,7 @@ class Chatbot:
                 state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn,
                                            'history': turns if turns else history, 'questions': history,
                                            'session_id': session_id or '', 'intake_action': {'type': 'confirm'} if confirmation else intake_action,
-                                           'intake_start': intake_start, 'intake_active': intake_active},
+                                           'intake_start': intake_start, 'intake_active': intake_active, 'turn_reply': reply or {}},
                                           config={'callbacks': handlers, 'run_name': 'chatbot-graph'})
         finally:
             _search_access.reset(context_token)

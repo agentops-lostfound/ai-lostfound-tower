@@ -32,6 +32,20 @@ function setup(questionFetch,otherFetch){
 }
 const ok=answer=>({ok:true,json:async()=>({answer,agent:'guidance',status:'answered',sources:[]})});
 
+test('identity form warns to use synthetic details and sends only masked values',async()=>{
+ const s=setup((_init,n)=>n===1?Promise.resolve({ok:true,json:async()=>({answer:'가상 정보만 입력해 주세요',agent:'intake',status:'intake_question',form:{kind:'identity'}})}):Promise.resolve(ok('확인')));
+ s.open();await tick();s.send('분실 접수하기');await tick();
+ const f=s.get('.idform');
+ assert.ok(f.querySelectorAll('.note').some(n=>n.textContent.includes('실제 개인정보를 입력하지 마세요')));
+ assert.deepEqual(f.querySelectorAll('label').map(n=>n.textContent),['가상 이름','가상 신분증 번호 뒤 첫 숫자']);
+ const name=f.querySelector('input'),digit=f.querySelector('select');
+ name.value='가나타';digit.value='1';name.dispatchEvent({type:'input'});
+ f.dispatchEvent({type:'submit',preventDefault(){}});await tick();
+ assert.deepEqual(s.calls[1].body.intake_action,{type:'identity',name_masked:'가*타',id_no_masked:'******-1******'});
+ assert.ok(!JSON.stringify(s.calls[1].body).includes('가나타'));
+ assert.equal(name.value,'');
+});
+
 test('unknown write outcome is shown as needing confirmation without a retry or confirm button',async()=>{
  const s=setup(()=>Promise.resolve({ok:true,json:async()=>({answer:'처리 여부를 확인해 주세요',agent:'intake',status:'intake_uncertain',intake:{kind:'found',stage:'uncertain'},choices:[]})}));
  s.open();await tick();s.send('접수할게요');await tick();

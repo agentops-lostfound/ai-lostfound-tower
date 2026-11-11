@@ -96,6 +96,8 @@ LOST_FOUND_RE = re.compile(r"분실|잃어|잃었|놓고|두고|습득|주웠|�
 def off_topic(question: str) -> bool:
     """분실물 서비스 밖 질문인가. question 은 소문자·공백 제거 전후 어느 것이든 된다(공백은 여기서 지움)"""
     q = re.sub(r"\s+", "", (question or "").lower())
+    if re.fullmatch(r"\d+(?:[+*/×÷=-]\d+)+(?:은|는|이|가|얼마|뭐야|몇)?[?？.!]*", q):
+        return True
     if SHOP_RE.search(q) and not LOST_FOUND_RE.search(q):
         return True
     return bool(OFF_TOPIC_RE.search(q)) and not SERVICE_RE.search(q)
@@ -165,6 +167,20 @@ class Guidance:
         # 11/9 채점표: "확인 질문 답 미리 알려주세요"에 받는 순서를 답함 → 정해진 거절
         if re.search(r"확인질문.*(?:답|정답)|(?:답|정답).*(?:미리|먼저)알려|정답(?:알려|가르쳐)", q):
             return self._response('answered', '확인 질문의 답은 미리 알려 드릴 수 없어요. 물건 주인만 아는 특징(글자·스티커 등)으로 본인 물건인지 확인하는 절차예요.', [])
+        from agents.chat_turn import turn_reply, found_statement
+        reply = turn_reply(q, [], self)
+        if reply:
+            return reply
+        if found_statement(q):
+            from agents.chat_intake import extract
+            from agents.contracts import category_label, is_active_category, inactive_category_message
+            category = extract(q, 'found').get('category')
+            if category and not is_active_category(category):
+                docs = [d for d in self.documents if d['topic'] == 'categories']
+                return self._response('answered', f'{category_label(category)}을 주우셨군요. '
+                    + inactive_category_message(category) + ' 주운 물건은 가까운 역무실에 맡겨 주세요. 이 챗봇에서는 접수할 수 없어요.', docs)
+            docs = [d for d in self.documents if d['topic'] == 'found_report']
+            return self._response('answered', '주운 물건을 맡기려는 말씀이군요. ' + '\n\n'.join(d['answer'] for d in docs), docs)
         # 11/8: 영어 질문("How do I find my lost wallet?")에 보관 기간을 답함 → 한국어 안내만 한다고 분명히
         # 11/8 웹 무작위 시험: 'ㅁㄴㅇㄹ;;;DROP TABLE'·'<script>' 같은 장난 입력에도 이 문장이 나와 어색 → 한글 자모·기호 섞인 입력은 일반 되묻기로
         if len(re.findall(r'[a-z]', q)) >= 6 and not re.search(r'[ㄱ-ㅎㅏ-ㅣ가-힣<>{};=]', q):
@@ -259,7 +275,7 @@ class Guidance:
             topics.add("categories")
         if re.search(r"키오스크.*(?:어디|위치|있는역|몇개|어느)|어느역|등록기계.*(?:어디|위치)|(?:초량|중앙)역?.*(?:출구|어느쪽|어디쯤)", q):   # 11/9 초량역 몇 번 출구
             topics.add("kiosk_places")
-        privacy_input = bool(re.search(r"(?:전화번호|주민번호|이메일|연락처|개인정보).*(?:적|써|쓰|입력|넣)", q))
+        privacy_input = bool(re.search(r"(?:전화번호|주민(?:등록)?번호|이메일|연락처|개인정보).*(?:적|써|쓰|입력|넣)", q))
         if privacy_input:
             topics.add("privacy_input")
             if not re.search(r"센터|주소|위치", q):       # 입력 규칙 질문은 센터 연락처 질문이 아니다
