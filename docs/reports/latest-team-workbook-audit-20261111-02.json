@@ -1,0 +1,74 @@
+{
+  "kind": "read_only_xlsx_reconciliation",
+  "source": "evaluation\\chat_eval_scores.xlsx",
+  "sha256": "6d2773c8d75861a10ffe3d740942eb0953925fb5cff1c9cc1dddd9b9f9660d3b",
+  "sheets": [
+    "점수",
+    "분류별",
+    "단계 정보",
+    "실패 이유(최근)",
+    "사람 판정"
+  ],
+  "errors": [],
+  "warnings": [
+    "historical_workbook_questions_differ_from_current_dataset",
+    "formula_cache_missing_not_native_excel_recalculation"
+  ],
+  "stages": [
+    {
+      "stage": "11/9 01",
+      "cases": 500,
+      "passed": 355,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 02",
+      "cases": 500,
+      "passed": 373,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 03",
+      "cases": 500,
+      "passed": 403,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 04",
+      "cases": 500,
+      "passed": 402,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 05",
+      "cases": 500,
+      "passed": 403,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 06",
+      "cases": 500,
+      "passed": 459,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 07",
+      "cases": 500,
+      "passed": 500,
+      "mismatched_score_cells": 0
+    }
+  ],
+  "formula_cached_values_missing": 14,
+  "native_recalculation": false,
+  "run_sha256": {
+    "20261109-161732.json": "ac78a495dae5c219f5cb7ca458fc3418ce9449b4326c7345c6b412e14f4b4815",
+    "20261109-162253.json": "39fbaa5025da690d9ef9645788ac8d19e24a17d4f75b4085ac943510f203541d",
+    "20261109-165205.json": "68cdf8dfaa0d2528ec9468027c3d9f630c268b760281bfd57cdafa502441d5f2",
+    "20261109-170218.json": "c91112c54c28aeae10b12584461d4331cfcfc7725cbd17647c228c572e472ccf",
+    "20261109-171800.json": "869189541f597ea2a07476eb3dd8db5c3b4ff2df4df0665309878cf06a8d41ac",
+    "20261109-172717.json": "4637126dfa1bb4552a2d7196aedc90841e3a4305402f840b4c4929557e09a371",
+    "20261109-183948.json": "063335e8e01de6e5218fcf274ae0552e0543b3fe9f4b4d1e255894aba58ff009"
+  },
+  "question_text_differences_from_current": 85,
+  "source_unchanged": true
+}
