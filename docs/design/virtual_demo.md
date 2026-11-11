@@ -186,6 +186,18 @@ python -m unittest discover -s tests          # 통과 확인
   - 연한 크림을 살리려면 노출·화이트밸런스 고정이 먼저(`TOWER_KIOSK_EXPOSURE`·`TOWER_KIOSK_WB`, web/README.md 키오스크 카메라 5번) — 고정한 뒤 다시 채점(TBD)
 - 시험: `tests/test_kiosk_qwen_worker.py`(모델 대신 정해진 특징을 돌려주는 대역), `tests/test_color_measure.py`(11/11 펠트 사진을 흉내 낸 그림)
 
+## 4-6. 11/11 목업폰 색 결정 — 흰색·검정만 (블루 제외)
+
+한줄 설명: 사 둔 목업폰 3대(화이트·블랙·블루) 중 블루(하늘색)는 프로젝트에서 빼고, 폰은 흰색·검정 두 가지만 쓴다.
+
+- 바꾼 것(11/11): 분실인 웹(`/lost`) 색 고르기에서 휴대폰을 고르면 먼저 보이는 색이 **검정·흰색** 둘(파랑은 [다른 색 ▾] 안으로). 품목 안내(CLAUDE.md·AGENTS.md·items.md)
+- DB: 색을 정해 둔 표가 없어(계약 COLORS 는 모든 품목 공통) 바꿀 값 없음. 예전 가상 시연 기록에 '파랑 모형폰'이 남아 있으면 `python tools/purge_sim_items.py` 로 정리
+- **챗봇을 합친 뒤 함께 정리할 것**(연우님 작업 중이라 이번에는 그대로 둠):
+  - `agents/chat_intake.py` `COLOR_BY_CATEGORY["모형폰"]` 의 `"파랑"` 빼기(대화 접수 색 선택지)
+  - `agents/sim_world.py` `SEED_FULL` 의 `("목업폰 블루", "블루 모형폰")` → 블랙. 이 묶음을 쓰는 챗봇 채점표(`evaluation/chat_eval_500.json`) "파란 폰" 문항 14개(154·155·156·165·169·197·201·210·212·218·235·246·284·410)와 시험(`test_chat_sim_search`·`test_category_label`·`test_sim_demo`·`test_tower_brain`)을 같이 바꿔야 함 — 묶음만 바꾸면 채점표가 500 → 486
+  - `docs/design/tower_main_ai.md` `#흐린촬영` 예시(화이트·블루 구별) → 화이트·블랙
+  - `evaluation/chat_eval_build.py` 의 휴대폰 파랑 예시
+
 ## 5. 알아둘 점
 - **초량역 기계 KIOSK-C 를 새로 추가했다**(공통 약속 `agents/contracts.py` 변경, DB `center/migrations/005`). 접수 번호 앞글자는 **S** — `C` 로 하면 접수 번호가 찾기 번호(`C-날짜-순번`)와 똑같아진다
 - **11/10 바뀜(2) — 찾기 요청 취소 · 장소 '모름' · 직원 확인으로 진행**
