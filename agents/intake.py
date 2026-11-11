@@ -160,14 +160,19 @@ def split_features(feats: dict) -> tuple[str, dict, dict]:
 
 
 def parse_features(payload: object) -> dict:
-    """Qwen 결과 → 계약 특징. 본문: {"qwen": general_items_v1 특징, "confidence": 0~1(선택)}"""
+    """Qwen 결과 → 계약 특징. 본문: {"qwen": general_items_v1 특징, "confidence": 0~1(선택), "color_measure": 색 측정 요약(선택)}
+    11/11 color_measure(agents/color_measure.py, Qwen 작업자가 같은 사진을 숫자로 잼)가 '확실'이면 색만 그 값으로 바꾼다"""
+    from agents.color_measure import apply_to_features
     from agents.vision_adapter import to_features
-    if not isinstance(payload, dict) or set(payload) - {"qwen", "confidence"} or not isinstance(payload.get("qwen"), dict):
-        raise IntakeError('본문: {"qwen": {...Qwen 특징...}, "confidence": 0~1}')
+    if not isinstance(payload, dict) or set(payload) - {"qwen", "confidence", "color_measure"} or not isinstance(payload.get("qwen"), dict):
+        raise IntakeError('본문: {"qwen": {...Qwen 특징...}, "confidence": 0~1, "color_measure": {...}(선택)}')
     conf = payload.get("confidence", 0.9)
     if isinstance(conf, bool) or not isinstance(conf, (int, float)):
         raise IntakeError("confidence: 0~1 숫자")
-    return to_features(payload["qwen"], conf)
+    cm = payload.get("color_measure")
+    if cm is not None and not isinstance(cm, dict):
+        raise IntakeError("color_measure: 객체여야 합니다")
+    return apply_to_features(to_features(payload["qwen"], conf), cm)
 
 
 class IntakeStore(Protocol):

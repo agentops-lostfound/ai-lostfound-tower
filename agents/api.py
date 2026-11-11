@@ -261,8 +261,11 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             out = svc.set_item_features(item_id, payload)
             if vision is not None:          # 11/10 Qwen 이 읽은 값과 저장한 값을 화면에 나란히(비공개 값은 상태만)
                 try:
+                    from agents.color_measure import apply_to_features, view
                     from agents.vision_adapter import to_features
-                    vision.result(item_id, payload.get("qwen"), to_features(payload.get("qwen"), payload.get("confidence", 0.9)))
+                    base = to_features(payload.get("qwen"), payload.get("confidence", 0.9))
+                    cm = payload.get("color_measure")      # 11/11 색 측정: Qwen 색 → 측정 색 → 쓴 색을 화면에
+                    vision.result(item_id, payload.get("qwen"), apply_to_features(base, cm), measure=view(cm, base.get("color")))
                 except Exception:
                     pass
             d = getattr(svc, "sim", None)   # 11/7 가상 시연: Qwen 원본을 기억(가상 탑뷰가 같은 물건을 다시 찍을 때) + 기다리던 이야기 진행
