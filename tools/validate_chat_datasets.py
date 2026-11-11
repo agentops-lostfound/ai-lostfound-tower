@@ -50,6 +50,11 @@ def audit_file(path, root):
                 row['errors'].append('duplicate_csv_header')
             return row
         obj = json.loads(raw.decode('utf-8-sig'))
+        if isinstance(obj, dict) and isinstance(obj.get('meta'), dict):
+            state = obj['meta'].get('state')
+            if state in ('running', 'stopped', 'error'):
+                row['completion_state'] = state
+                row['warnings'] = ['partial_run']
         records = obj if isinstance(obj, list) else obj.get('results') if isinstance(obj, dict) else None
         row.update(kind=type(obj).__name__, records=len(records) if isinstance(records, list) else None)
         if isinstance(records, list):
@@ -109,6 +114,16 @@ def check_guidance(item, result):
     return reasons
 
 
+def guidance_result(guide, question):
+    """안내의 명시적 입력 거절도 평가 결과다. 개인정보 원문/예외 문구는 기록하지 않는다."""
+    try:
+        return guide.ask(question)
+    except ValueError:
+        return {'status': 'rejected', 'sources': [], 'answer': ''}
+    except Exception as error:
+        return {'status': 'error', 'sources': [], 'answer': '', 'error_type': type(error).__name__}
+
+
 def run_rules(root, report, out, stop_file=None):
     from evaluation.chat_eval import Runner
     names = ('chat_eval_500.json', 'chat_integration_1111_cases.json',
@@ -153,7 +168,7 @@ def run_rules(root, report, out, stop_file=None):
                 save_report(out, report)
                 return False
             if name == 'guidance_questions.json':
-                result = guide.ask(item['question'])
+                result = guidance_result(guide, item['question'])
                 reasons = check_guidance(item, result)
             else:
                 bot = bot or build_chatbot_from_env()
@@ -181,9 +196,17 @@ def main(argv=None):
     out.parent.mkdir(parents=True, exist_ok=True)
     report = {'meta': {'mode': args.mode, 'data': 'synthetic_evaluation_assets', 'state': 'running',
         'started': dt.datetime.now(KST).isoformat(), 'langfuse': False}, 'audit': [], 'suites': []}
+    source_names = ('agents/guidance.py', 'agents/chat_rag.py', 'agents/chatbot.py',
+                    'agents/chat_api.py', 'agents/chat_intake.py', 'agents/chat_identity_evidence.py',
+                    'evaluation/chat_eval.py', 'tools/chat_live_check.py', 'tools/validate_chat_datasets.py')
+    report['meta']['source_sha256'] = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                      for name in source_names if (ROOT / name).is_file()}
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}',
             'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        report['meta']['tracked_changes'] = bool(subprocess.check_output(['git', '-c',
+            f'safe.directory={ROOT.as_posix()}', 'status', '--porcelain', '--untracked-files=no'],
+            cwd=ROOT, text=True).strip())
     except Exception:
         report['meta']['commit'] = 'unknown'
     started = time.perf_counter()
@@ -196,6 +219,7 @@ def main(argv=None):
     results = [r for suite in report['suites'] for r in suite['results']]
     report['summary'] = {'audited_files': len(report['audit']),
         'invalid_files': sum(bool(r['errors']) for r in report['audit']),
+        'partial_files': sum(bool(r.get('warnings')) for r in report['audit']),
         'cases': len(results), 'passed': sum(r['score'] for r in results),
         'seconds': round(time.perf_counter() - started, 3)}
     report['meta']['state'] = 'complete' if complete else 'stopped'

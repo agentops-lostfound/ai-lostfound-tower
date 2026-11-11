@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.validate_chat_datasets import audit_file, isolated_env, check_guidance, run_rules, main
+from tools.validate_chat_datasets import audit_file, isolated_env, check_guidance, guidance_result, run_rules, main
 
 
 class DatasetValidationTest(unittest.TestCase):
@@ -71,3 +71,23 @@ class DatasetValidationTest(unittest.TestCase):
         self.assertEqual(check_guidance(expected, {'status': 'answered', 'sources': [{'topic': 'pickup'}]}), [])
         reasons = check_guidance(expected, {'status': 'policy_pending', 'sources': []})
         self.assertEqual(set(reasons), {'expected_status_mismatch', 'expected_topics_missing'})
+
+    def test_expected_input_rejection_is_a_result_and_does_not_abort_the_suite(self):
+        guide = mock.Mock()
+        guide.ask.side_effect = ValueError('synthetic-private-input')
+        result = guidance_result(guide, 'synthetic question')
+        self.assertEqual(check_guidance({'expected_status': 'rejected', 'expected_topics': []}, result), [])
+        self.assertNotIn('synthetic-private-input', str(result))
+
+    def test_unexpected_runtime_error_does_not_masquerade_as_input_rejection(self):
+        guide = mock.Mock()
+        guide.ask.side_effect = RuntimeError('synthetic-private-error')
+        result = guidance_result(guide, 'synthetic question')
+        self.assertEqual(result['status'], 'error')
+        self.assertNotEqual(result['status'], 'rejected')
+        self.assertNotIn('synthetic-private-error', str(result))
+
+    def test_partial_historical_report_is_distinguished_from_a_complete_run(self):
+        result = audit_file(self.write('partial.json', {'meta': {'state': 'running'}, 'results': []}), self.root)
+        self.assertEqual(result['completion_state'], 'running')
+        self.assertEqual(result['warnings'], ['partial_run'])
