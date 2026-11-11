@@ -386,6 +386,9 @@ class Chatbot:
         rec = lambda saw, decide, why: {'after': last, 'saw': saw, 'decide': decide, 'why': why}  # noqa: E731
         if last == 'intake':
             info = res.get('intake') or {}
+            if status == 'intake_uncertain':
+                return {'record': rec('처리 완료 여부 불명', 'finish',
+                                      '재접수·재취소를 실행하지 않고 처리 결과 확인을 요청함'), 'stop': True}
             if status in ('intake_question', 'intake_confirm'):
                 sig = self._signals(state)
                 if not info.get('progress') and sig['guidance'] and 'guidance' not in done:

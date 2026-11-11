@@ -92,7 +92,7 @@ class IntakeSessions:
             return None
         with self._lock:
             s = self._d.get(sid)
-            if s and self.clock() - s["t"] > self.ttl:
+            if s and s.get('stage') != 'uncertain' and self.clock() - s["t"] > self.ttl:
                 self._d.pop(sid, None)
                 return None
             return s
@@ -101,7 +101,7 @@ class IntakeSessions:
         with self._lock:
             s["t"] = self.clock()
             self._d[sid] = s
-            for k in [k for k, v in self._d.items() if self.clock() - v["t"] > self.ttl]:
+            for k in [k for k, v in self._d.items() if v.get('stage') != 'uncertain' and self.clock() - v["t"] > self.ttl]:
                 self._d.pop(k, None)
 
     def drop(self, sid: str | None) -> None:
@@ -240,6 +240,8 @@ class IntakeAgent:
 
     def _step(self, sid, question, start=None, action=None, prior=None) -> dict:
         s = self.sessions.get(sid)
+        if s and s.get('stage') == 'uncertain':
+            return dict(s['last'])
         if action and action['type'] == 'confirm' and (not s or s.get('stage') not in ('confirm', 'done')):
             return self._out('intake_failed', '확인 요청이 만료되었거나 내용이 바뀌었어요. 현재 내용을 다시 확인해 주세요.', None)
         if s is not None and s.get("stage") == "done":
@@ -432,6 +434,25 @@ class IntakeAgent:
                                'version': s.get('version', 0), 'confirmation_token': s.get('confirmation_token')})
         return out
 
+    def _write_error(self, sid, s, error):
+        """명시적 업무 거절과 완료 불명 장애를 분리. 불명 상태는 재실행하지 않는다."""
+        from agents.service import RequestError, NotFound, Conflict
+        what = '취소' if s['kind'] == 'cancel' else '접수'
+        if type(error) in (RequestError, NotFound, Conflict):
+            self.sessions.drop(sid)
+            return self._out('intake_failed', f'{what}하지 못했어요: {error}', s, done=True)
+        # 창구가 이미 저장했을 수 있다. 초안·신분 정보·확인 토큰은 보관하지 않는다.
+        held = {'kind': s['kind'], 'stage': 'uncertain', 'slots': {}, 'log': []}
+        answer = (f'{what} 결과를 확인하지 못했어요. 창구에 이미 반영됐을 수 있어 실패로 단정할 수 없습니다. '
+                  f'중복 처리를 막기 위해 이 대화에서는 {what}를 다시 실행하지 않습니다. '
+                  '새 대화나 다른 화면에서도 같은 요청을 다시 보내지 말고, 받은 번호가 있다면 '
+                  '본센터 직원에게 처리 여부를 확인해 주세요.')
+        out = self._out('intake_uncertain', answer, held, progress=False)
+        out['intake'].update(missing=[], filled=[], retry_allowed=False)
+        held['last'] = out
+        self.sessions.put(sid, held)
+        return out
+
     def _status(self, question: str) -> dict:
         wid = WAIT_RE.search(question or "").group(0)
         st = self.desk.wait_status(wid) if self.desk is not None and hasattr(self.desk, "wait_status") else {"state": "unknown"}
@@ -475,10 +496,8 @@ class IntakeAgent:
                 opts["place_unknown"] = True      # 창구가 장소를 다시 묻지 않고, 확인 질문에서도 뺀다(색으로 확인)
             res = self.desk.lost(text, opts)
             return self._lost_result(sid, s, res)
-        except Exception as e:                 # 창구가 거절한 이유(한국어 문장)는 그대로 보여 준다
-            self.sessions.drop(sid)
-            msg = str(e) if type(e).__name__ in ("RequestError", "NotFound") else f"접수 창구 오류({type(e).__name__})"
-            return self._out("intake_failed", f"접수하지 못했어요: {msg}", s, done=True)
+        except Exception as e:
+            return self._write_error(sid, s, e)
 
     def _commit_cancel(self, sid: str, s: dict) -> dict:
         """11/10 대화로 찾기 요청 취소 — 진짜 입구(SimDirector.cancel_claim → service.cancel_claim)를 그대로 쓴다.
@@ -491,14 +510,11 @@ class IntakeAgent:
         sl = s["slots"]
         try:
             out = cancel(sl["claim_id"], id_no_masked=sl["identity"]["id_no_masked"])
+            return self._finish(sid, s, self._out("intake_done", f"찾기 요청({sl['claim_id']})을 취소했어요. 방문 예약이 없어졌고, 물건은 본센터에 계속 보관돼요. "
+                                 "다시 찾으려면 분실 접수를 새로 해 주세요.", s, done=True,
+                                 ids={"claim_id": sl["claim_id"], "item_id": out.get("item_id")}))
         except Exception as e:
-            self.sessions.drop(sid)
-            name = type(e).__name__
-            msg = str(e) if name in ("RequestError", "NotFound", "Conflict") else f"취소 창구 오류({name})"
-            return self._out("intake_failed", f"취소하지 못했어요: {msg}", s, done=True)
-        return self._finish(sid, s, self._out("intake_done", f"찾기 요청({sl['claim_id']})을 취소했어요. 방문 예약이 없어졌고, 물건은 본센터에 계속 보관돼요. "
-                             "다시 찾으려면 분실 접수를 새로 해 주세요.", s, done=True,
-                             ids={"claim_id": sl["claim_id"], "item_id": out.get("item_id")}))
+            return self._write_error(sid, s, e)
 
     @staticmethod
     def _lost_text(sl: dict) -> str:
@@ -544,11 +560,9 @@ class IntakeAgent:
     def _quiz_answer(self, sid: str, s: dict, q: str) -> dict:
         try:
             res = self.desk.answer(s["pending_id"], q or "모름")
+            return self._lost_result(sid, s, res)
         except Exception as e:
-            self.sessions.drop(sid)
-            msg = str(e) if type(e).__name__ in ("RequestError", "NotFound") else f"접수 창구 오류({type(e).__name__})"
-            return self._out("intake_failed", f"접수하지 못했어요: {msg}", s, done=True)
-        return self._lost_result(sid, s, res)
+            return self._write_error(sid, s, e)
 
     # ---------- 응답 모양 ----------
     def _out(self, status: str, answer: str, s: dict | None, progress: bool = True, done: bool = False,

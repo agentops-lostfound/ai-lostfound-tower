@@ -32,6 +32,14 @@ function setup(questionFetch,otherFetch){
 }
 const ok=answer=>({ok:true,json:async()=>({answer,agent:'guidance',status:'answered',sources:[]})});
 
+test('unknown write outcome is shown as needing confirmation without a retry or confirm button',async()=>{
+ const s=setup(()=>Promise.resolve({ok:true,json:async()=>({answer:'처리 여부를 확인해 주세요',agent:'intake',status:'intake_uncertain',intake:{kind:'found',stage:'uncertain'},choices:[]})}));
+ s.open();await tick();s.send('접수할게요');await tick();
+ assert.ok(s.root.querySelectorAll('span').some(n=>/처리 결과 확인 필요/.test(n.textContent)));
+ assert.equal(s.root.querySelectorAll('.retry').length,0);
+ assert.equal(s.root.querySelectorAll('.choice').length,0);
+});
+
 test('confirmation buttons retain their own draft proof and retry sends the same proof',async()=>{
  const proof={type:'confirm',draft_version:3,confirmation_token:'a'.repeat(43)};
  const s=setup((_init,n)=>n===1?Promise.resolve({ok:true,json:async()=>({answer:'요약',agent:'intake',status:'intake_confirm',choices:['접수할게요','취소'],confirmation:proof})}):Promise.reject(Error('offline')));

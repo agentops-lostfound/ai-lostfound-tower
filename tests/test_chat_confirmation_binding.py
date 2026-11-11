@@ -92,8 +92,8 @@ class ConfirmationBindingTest(unittest.TestCase):
             raise TimeoutError('after write')
         self.desk.found = interrupted
         proof = ready(self.agent, 'one')
-        self.assertEqual(self.agent.step('one', '네', action=proof)['status'], 'intake_failed')
-        self.assertEqual(self.agent.step('one', '네', action=proof)['status'], 'intake_failed')
+        self.assertEqual(self.agent.step('one', '네', action=proof)['status'], 'intake_uncertain')
+        self.assertEqual(self.agent.step('one', '네', action=proof)['status'], 'intake_uncertain')
         self.assertEqual(len(self.desk.calls), 1)
 
 
