@@ -151,6 +151,12 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
 .guide .chain{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .guide .chain span{padding:8px 12px;border-radius:10px;border:1.5px dashed var(--ui-line);font-size:14px;font-weight:600;color:var(--ui-text-2)}
 .guide .chain i{font-style:normal;color:var(--ui-text-3)}
+.newest{margin-left:auto;border:0;border-radius:999px;padding:4px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+  background:var(--ui-primary);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.ev.fresh{box-shadow:0 0 0 2px var(--ui-primary) inset}
+.dbtable td.feat small{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px;color:var(--ui-text-2);font-size:11.5px}
+.dbtable td.feat small b{color:var(--ui-text)} .dbtable td.feat small.pre{color:var(--ui-text-3)}
+.dbtable .sw{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .ev{border-radius:12px;background:var(--ui-surface-2);padding:9px 11px;border-left:4px solid var(--ui-line);animation:drop .28s ease-out;min-width:0}
 @keyframes drop{from{opacity:0;transform:translateY(-8px)}}
 .ev.INSERT{border-left-color:var(--ins)} .ev.UPDATE{border-left-color:var(--upd)} .ev.DELETE{border-left-color:var(--del)} .ev.SELECT{border-left-color:var(--sel)}
@@ -314,6 +320,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
         <button data-v="table" aria-pressed="false">팀 DB 조회</button>
       </div>
       <span class="hint" id="dbHint">새 기록이 위에 쌓여요 · 🔒 값은 서버가 보내지 않음</span>
+      <button class="newest" id="dbNewest" type="button" hidden>새 기록 ↑</button>
     </div>
     <ol class="log" id="dbLog"></ol>
     <div class="guide" id="dbGuide"></div>   <!-- 11/11 기록이 없을 때: 이 장면에서 어떤 표가 바뀌는지 미리 보여 줌 -->
@@ -688,7 +695,24 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     log.prepend(li);
     while (log.children.length > 80) log.lastChild.remove();
     lastDb = {sig, t: e.t, li, keys: d.key ? [d.key] : []};
+    showNewest(log, li);
   }
+  // 11/11 새 기록이 위에 쌓이는데, 아래로 내려 보고 있으면 최신 기록이 화면 밖(위)에 묻혔다.
+  //   → 방금 직접 스크롤하지 않았으면(3초) 바로 맨 위로, 스크롤 중이면 [새 기록 N개 ↑] 단추를 띄워 누르면 맨 위로
+  let logTouched = 0, logNew = 0;
+  function showNewest(log, li) {
+    li.classList.add("fresh"); setTimeout(() => li.classList.remove("fresh"), 1600);
+    if (log.scrollTop < 8) return;
+    if (Date.now() - logTouched > 3000) { log.scrollTo({top: 0, behavior: "smooth"}); return; }
+    logNew += 1;
+    const b = $("dbNewest"); b.hidden = false; b.textContent = `새 기록 ${logNew}개 ↑`;
+  }
+  (function () {
+    const log = $("dbLog"), b = $("dbNewest");
+    ["wheel", "touchmove", "pointerdown"].forEach((t) => log.addEventListener(t, () => { logTouched = Date.now(); }, {passive: true}));
+    log.addEventListener("scroll", () => { if (log.scrollTop < 8) { logNew = 0; b.hidden = true; } }, {passive: true});
+    b.onclick = () => { logNew = 0; b.hidden = true; log.scrollTo({top: 0, behavior: "smooth"}); };
+  })();
   const two = (n) => String(n).padStart(2, "0");
   const clock = (t) => { const d = new Date(t * 1000); return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`; };
 
@@ -720,12 +744,22 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       return `<tr class="${fresh ? "new" : ""}${r.item_id === cur.item ? " cur" : ""}"><td>${photo}</td>` +
         `<td class="id">${esc(r.item_id)}${r.virtual ? `<span class="tag" title="글로 한 가상 신고·시연용 물건">시연</span>` : ""}</td>` +
         `<td class="where"><b>${esc(r.station || "")}${r.kind === "center" ? " 본센터" : "역"}</b><small>${esc(WHERE_KIND[r.kind] || "")} ${esc(r.machine_id)}</small></td>` +
-        `<td>${esc(r.place_text)}</td><td>${catCell(r.category)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
+        `<td>${esc(r.place_text)}</td><td class="feat">${catCell(r.category)}${featCell(r)}</td><td>${esc(r.status)}</td><td>${esc(r.slot_id || "—")}</td>` +
         `<td>${t ? `${two(t.getHours())}:${two(t.getMinutes())}:${two(t.getSeconds())}` : ""}</td></tr>`; }).join("");
     box.innerHTML = `<p class="counts">${counts}</p><table class="dbtable"><thead><tr>` +
       `<th>사진<code>photo_path</code></th><th>접수 번호<code>item_id</code></th><th>접수한 곳<code>machine_id</code></th><th>발견 장소<code>place_text</code></th>` +
-      `<th>품목<code>category</code></th><th>상태<code>status</code></th><th>칸<code>slot_id</code></th><th>접수 시각<code>received_at</code></th></tr></thead>` +
+      `<th>품목·특징<code>category</code></th><th>상태<code>status</code></th><th>칸<code>slot_id</code></th><th>접수 시각<code>received_at</code></th></tr></thead>` +
       `<tbody>${body || `<tr><td colspan="8" class="noph">아직 접수된 물건이 없어요.</td></tr>`}</tbody></table>`;
+  }
+  // 11/11 공개 특징(색·모양·재질)을 표에서 바로 — 색은 작은 색 점과 함께. 비공개 특징(글자·스티커)은 서버가 보내지 않음
+  const SWATCH = {"검정": "#222", "흰색": "#fff", "회색": "#9ca3af", "빨강": "#dc2626", "파랑": "#2563eb", "남색": "#1e3a8a",
+                  "갈색": "#8b5a2b", "초록": "#16a34a", "노랑": "#facc15", "분홍": "#f472b6"};
+  function featCell(r) {
+    const known = (v) => v && v !== "확인 불가" && v !== "unknown";
+    if (!known(r.color) && !known(r.shape) && !known(r.material)) return `<small class="pre">특징 분석 전</small>`;
+    const dot = SWATCH[r.color] ? `<i class="sw" style="background:${SWATCH[r.color]}"></i>` : "";
+    const rest = [r.shape, r.material].filter(known).join(" · ");
+    return `<small class="fx">${dot}<b>${esc(known(r.color) ? r.color : "?")}</b></small>${rest ? `<small class="pre">${esc(rest)}</small>` : ""}`;
   }
   let dbBusy = false;
   async function readDb() {
