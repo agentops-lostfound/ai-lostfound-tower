@@ -171,10 +171,22 @@ class Guidance:
         reply = turn_reply(q, [], self)
         if reply:
             return reply
+        if re.search(r'휠체어|직접.*못집|장애.*수령', q):
+            docs = [d for d in self.documents if d['topic'] == 'center_pickup']
+            return self._response('policy_pending', '제출보관함에서 직접 꺼내기 어려우면 작동 중인 로봇 안에 손을 넣지 말고 '
+                '역무실이나 현장 직원에게 도움을 요청해 주세요. 현장 접근성 지원 방식은 현재 자료에 확정되어 있지 않아 확인이 필요해요.', docs)
+        # 다룬다고 확인되지 않은 운영 정책을 일반 수령·요금 답변으로 대신하지 않는다.
+        if re.search(r'보상|보험|증명서|수리|충전해주|위치추적|주차|재발급|담당자.*(?:실명|직급)|어린이.*혼자.*수령|음성안내.*현장|교통비.*돌려', q):
+            return self._response('policy_pending', '그 내용의 확정 운영 정책은 현재 안내 자료에 없어요. '
+                '가능하다고 약속하거나 실제 처리했다고 답할 수는 없어요. 프로젝트 담당자에게 확인이 필요해요.', [])
         if found_statement(q):
-            from agents.chat_intake import extract
+            from agents.chat_intake import extract, OTHER_ITEM
             from agents.contracts import category_label, is_active_category, inactive_category_message
             category = extract(q, 'found').get('category')
+            unsupported = OTHER_ITEM.search(q)
+            if unsupported and not category:
+                docs = [d for d in self.documents if d['topic'] == 'categories']
+                return self._response('answered', unsupported.group(0) + '은(는) 현재 접수하지 않는 품목이에요. 주운 물건은 가까운 역무실에 맡겨 주세요.', docs)
             if category and not is_active_category(category):
                 docs = [d for d in self.documents if d['topic'] == 'categories']
                 return self._response('answered', f'{category_label(category)}을 주우셨군요. '
@@ -194,6 +206,24 @@ class Guidance:
                 and not re.search(r"방법|절차|안내|운영|보관|수령|어떻게|사용법|이용법|설명확인|버튼", q)):
             return self._response("item_search_not_supported", "이 안내 챗봇에서는 물건을 검색하지 않습니다. 위의 분실물 설명 입력과 기존 찾기 절차를 이용해주세요.", [])
         topics, gaps = set(), []
+        if re.search(r'여는시간|새벽[가-힣]{1,3}시', q):
+            topics.add('hours')
+        if re.search(r'센터번호|부산역.*몇번출구', q):
+            topics.add('center_contact')
+        if re.search(r'물건받은뒤.*키오스크|본센터도착.*눌러|가상신분증숫자|빈손|빈손으로', q):
+            topics.add('center_pickup')
+        if re.search(r'(?:다루는|운영하는|취급하는).*물건|립밤.*지갑.*빠졌|지갑.*립밤.*운영|지갑.*카드지갑.*기록|지금.*몇개|다섯가지.*네가지', q):
+            topics.add('categories')
+        if re.search(r'(?:잃긴|두고온).*(?:어떻게|순서)|(?:휴대폰|물건).*찾으려면.*처음', q):
+            topics.add('flow')
+        if re.search(r'맡긴.*당장|이동중|한시간마다옮|(?:아직|바로).*본센터.*못받', q):
+            topics.add('arrival')
+        if re.search(r'오래안찾아|기한.*넘', q):
+            topics.add('retention')
+        if re.search(r'접수한이름.*(?:누가|언제)|(?:개인정보|분실인정보).*(?:며칠|삭제시점|언제없|언제지워)|다른회사.*정보.*넘', q):
+            topics.add('privacy_policy')
+        if re.search(r'어디에맡겨야|맡기려고왔|습득자.*뭘', q):
+            topics.add('found_report')
         # 11/9 채점표: "퇴근하고 7시쯤 가도", "밤 11시에 맡길 수", "습득 신고는 언제까지" 도 운영시간
         deadline_report = bool(re.search(r"(?:신고|맡기|맡길|등록)\S*언제까지|언제까지\S*(?:신고|맡기|맡길|등록)", q)) and "보관" not in q
         if re.search(r"몇시|운영시간|운영시각|영업|주말|토요일|일요일|평일|공휴일|휴일|open|오픈|문.*(?:열|닫)|센터.*(?:열|닫)|키오스크.*(?:열|닫)|[0-9]+시간|방문.*시간", q) \

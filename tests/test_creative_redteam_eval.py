@@ -37,3 +37,17 @@ class CreativeEvaluationTest(unittest.TestCase):
     def test_unknown_rubric_does_not_pass(self):
         with self.assertRaises(ValueError):
             judge({'rubric': 'typo_unregistered'}, 200, {'answer': '대답'}, None, None, 0)
+
+    def test_rejected_invalid_form_preserves_existing_draft(self):
+        before = {'kind': 'lost', 'stage': 'confirm', 'slots': {'color': '검정'}}
+        self.assertEqual(judge({'rubric': 'http_action'}, 422, {}, before, before, 0), [])
+        self.assertTrue(judge({'rubric': 'http_action'}, 422, {}, before, None, 0))
+
+    def test_real_cancel_write_is_counted(self):
+        from evaluation.creative_redteam_eval import DeskSpy
+        class Desk:
+            def cancel_claim(self, claim_id, **kwargs):
+                return {'item_id': 'S-SYNTHETIC'}
+        spy = DeskSpy(Desk())
+        spy.cancel_claim('C-SYNTHETIC')
+        self.assertEqual(spy.calls, ['cancel_claim'])

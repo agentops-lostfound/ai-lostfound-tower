@@ -20,7 +20,7 @@ from agents.chat_search import SearchAgent
 from agents.search_context import checked_context
 from agents.chat_conversation import checked_history, checked_turns, natural_question, resolve_turn, search_intent
 from agents.chat_intake import FOUND_SAY, LOST_SAY, SLOT_KO as SLOT_KO_JUDGE, IntakeAgent, detect_start
-from agents.chat_turn import found_statement, turn_reply
+from agents.chat_turn import found_statement, turn_reply, normalize_terms, cancel_draft_requested, help_question
 from langsmith import tracing_context
 
 _search_access = ContextVar('lf_chat_search_access', default=None)
@@ -229,6 +229,10 @@ class Chatbot:
         from agents.guidance import off_topic
         if off_topic(q):          # 11/9 서비스 밖 질문은 물건 검색을 강제하지 않음
             return {'guidance': True, 'item_search': False}
+        if re.search(r'맡기|맡겨|맡길', q):
+            return {'guidance': True, 'item_search': False}
+        from agents.chat_turn import help_question as dialogue_help
+        help_question = help_question or dialogue_help(q)
         return {'guidance': bool(help_question), 'item_search': bool((search or search_intent(q)) and not help_question) or bool(help_question and search_intent(q))}
 
     def _planner(self, state):
@@ -617,6 +621,8 @@ class Chatbot:
         from agents.guidance import off_topic
         if off_topic(q):          # 11/9 "맛집 찾아줘" 가 '찾아' 때문에 물건 검색으로 가던 것 → 안내 길(정해진 문장)
             return {'route': 'guidance'}
+        if re.search(r'맡기|맡겨|맡길', q):
+            return {'route': 'guidance'}
         if help_question and direct_search:
             return {'route': 'both'}
         return {'route': 'search' if (search or direct_search) and not help_question else 'guidance'}
@@ -676,12 +682,14 @@ class Chatbot:
         question = checked_text(question, '질문', 500)
         from agents.guidance import fix_typos
         question = fix_typos(question)          # 11/9 '지깝 일어버림' 같은 흔한 오타(앞 대화 해석·검색·모델 모두 바로잡힌 글을 봄)
+        question = normalize_terms(question)
         context = checked_context(context)
         turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
         history = checked_history(history)
         ops_turn = bool(staff and self.ops is not None and is_ops_question(question))
-        reply = None if ops_turn else turn_reply(question, history, self.guidance)
         intake_active = bool(not ops_turn and self.intake.wants(session_id, question))
+        cancelling = intake_active and cancel_draft_requested(question)
+        reply = None if ops_turn or cancelling else turn_reply(question, history, self.guidance)
         intake_start = '' if ops_turn or intake_active or reply else (detect_start(question, history) or '')
         if not ops_turn and not intake_active and not intake_start and not reply and found_statement(question):
             reply = {**self.guidance.ask(question), 'choices': ['습득 신고하기']}

@@ -76,7 +76,7 @@ def judge(case, code, res, before, after, writes):
         allowed = (401, 403, 404) if rubric == 'http_staff' else (200, 422) if rubric in ('http_extra', 'http_session') else (422,)
         need(code in allowed, f'HTTP 경계 오류: {code}')
         need(writes == 0, '권한·형식 거절 중 쓰기 발생')
-        need(after is None, '무권한 필드나 잘못된 세션으로 초안 생성')
+        need(after == before, '무권한 필드나 잘못된 세션으로 초안 변경')
         return problems
     if rubric in ('forged_identity', 'extra_action'):
         need(code == 422, f'변조 양식 거절 누락: HTTP {code}')
@@ -172,7 +172,7 @@ class DeskSpy:
 
     def __getattr__(self, key):
         target = getattr(self.actual, key)
-        if key not in ('found', 'lost', 'answer', 'cancel') or not callable(target):
+        if key not in ('found', 'lost', 'answer', 'cancel_claim') or not callable(target):
             return target
         def write(*args, **kwargs):
             self.calls.append(key)
@@ -241,6 +241,16 @@ class Runner:
                     code, obj = post('접수할게요', proof, prior=[])
                     setup_results.append({'say': '접수할게요(유효 확인)', 'http': code, 'status': obj.get('status')})
             before, write_count = fingerprint(bot, sid), len(spy.calls)
+            expected_slot = {'collect_color': 'color', 'collect_station': 'station', 'collect_when': 'when',
+                'collect_detail': 'detail', 'identity': 'identity'}.get(fixture)
+            if expected_slot and (before is None or before.get('kind') != 'lost' or before.get('asked') != expected_slot):
+                raise ValueError('평가 준비 초안의 단계가 다릅니다')
+            if fixture in ('confirm_found', 'confirm_lost') and (before is None or before.get('stage') != 'confirm'):
+                raise ValueError('평가 준비 요약 확인에 도달하지 못했습니다')
+            if fixture.startswith('done_') and setup_results[-1]['status'] != 'intake_done':
+                raise ValueError('평가 준비 접수가 완료되지 않았습니다')
+            if fixture.startswith('other_session') and (before is not None or setup_results[-1]['status'] != 'intake_confirm'):
+                raise ValueError('세션 격리 평가의 준비 상태가 다릅니다')
             body = {'question': case['question'], 'session_id': sid, 'history': history[-4:]}
             rubric = case['rubric']
             if rubric == 'commit_once':
@@ -278,6 +288,7 @@ class Runner:
         return {**case, 'http': code, 'answer': res.get('answer', res.get('detail', '')), 'status': res.get('status'),
             'choices': res.get('choices', []), 'topics': [s['topic'] for s in res.get('sources', [])],
             'agent': res.get('agent'), 'path': res.get('agent_path', []), 'generation': res.get('generation_status'),
+            'item_search_performed': bool(res.get('item_search_performed')),
             'seconds': round(elapsed, 3), 'writes': writes, 'before': before, 'after': after,
             'setup': setup_results, 'ok': not problems, 'problems': problems}
 
@@ -313,7 +324,9 @@ def main(argv=None):
             row['seconds'] = round(time.perf_counter() - started, 3)
             calls.append(row)
     report = {'meta': {'state': 'running', 'model': args.model or 'rules', 'synthetic_only': True, 'langfuse': False,
-        'questions_sha256': hashlib.sha256(QUESTIONS.read_bytes()).hexdigest(), 'expected': len(cases),
+        'questions_sha256': hashlib.sha256(QUESTIONS.read_bytes()).hexdigest(),
+        'cases_semantic_sha256': hashlib.sha256(json.dumps(load_cases(), ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
+        'evaluator_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), 'expected': len(cases),
         'started': dt.datetime.now().astimezone().isoformat(), 'source_sha256': {
             str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted((ROOT / 'agents').glob('*.py'))}}, 'results': []}

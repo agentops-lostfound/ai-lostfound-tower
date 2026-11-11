@@ -17,7 +17,8 @@ import threading
 import time
 
 from agents.contracts import ACTIVE_CATEGORIES, active_category_text, category_label, is_active_category, inactive_category_message
-from agents.chat_turn import FOUND_SAY, LOST_SAY, theft_report
+from agents.chat_turn import (FOUND_SAY, LOST_SAY, theft_report, normalize_terms, explicit_role,
+    explanation_only, cancel_draft_requested, help_question, compact)
 
 SESSION_TTL_S = 600
 STATION_NAMES = ("초량", "중앙")                 # 등록기계가 있는 역(sim_world.STATIONS) — 주운 역은 이 둘만
@@ -32,8 +33,8 @@ START_LOST = re.compile(r"분실\s*(?:접수|신고)|잃어버린\s*물건\s*(?:
 START_FOUND = re.compile(r"습득\s*(?:신고|접수|등록)|주운\s*물건\s*(?:신고|접수|등록|맡기)|"
                          r"(?:주웠|주운|주워|주움|줍음|습득)[^?!]{0,18}(?:신고|접수|등록|맡기|맡길|맡겨)")
 HOW_ASK = re.compile(r"어디|어떻게|방법|절차|나요\s*\??\s*$|까요\s*\??\s*$|[?？]\s*$")
-WANT = re.compile(r"싶|해\s*주|해\s*줄\s*(?:수|래)|할게|하려고|해줘|해\s*달|부탁|접수하기|신고하기|시작")
-REGISTER = re.compile(r"(?:접수|신고|등록).{0,10}(?:해\s*(?:주|줘|달)|할게|하고\s*싶|부탁|시작)|(?:접수|신고|등록)하기")
+WANT = re.compile(r"싶|해\s*주|받아\s*주|해\s*줄\s*(?:수|래)|할게|하려고|해줘|해\s*달|부탁|접수하기|신고하기|시작")
+REGISTER = re.compile(r"(?:접수|신고|등록).{0,10}(?:해\s*(?:주|줘|줄|달)|할게|하고\s*싶|부탁|시작|진행|받아)|(?:접수|신고|등록)하기")
 CANCEL = re.compile(r"^(?:취소|그만|접수\s*취소|안\s*할래|처음부터|됐어요?|괜찮아요)\s*[.!]*$")
 YES = re.compile(r"^(?:접수할게요|네|예|응|좋아요|맞아요|확인|접수|그래요?|ㅇㅇ|넵)\s*[.!]*$")
 FIX = re.compile(r"^(?:고칠게요|수정|다시|고쳐|틀렸어요)\s*[.!]*$")
@@ -117,7 +118,7 @@ class IntakeSessions:
 
 WAIT_RE = re.compile(r"\bL-\d{8}-\d{4}\b")
 # 11/9 채점표: "우산 분실 신고하고 싶어요"가 접수를 시작해 물건 종류를 다시 물었다 → 운영 4종 밖 물건 이름이면 바로 역무실 안내
-OTHER_ITEM = re.compile(r"우산|가방|백팩|배낭|이어폰|에어팟|노트북|태블릿|아이패드|안경|선글라스|교통카드|옷|외투|패딩|모자|목도리|장갑|책|서류|열쇠|키\s|시계|반지|목걸이|인형|텀블러")
+OTHER_ITEM = re.compile(r"우산|가방|백팩|배낭|이어폰|헤드폰|에어팟|노트북|태블릿|아이패드|안경|선글라스|교통카드|카드\s*한\s*장|전자담배|충전\s*케이블|위험(?:한)?\s*물건|옷|외투|패딩|모자|목도리|장갑|책|서류|열쇠|키\s|시계|반지|목걸이|인형|텀블러")
 
 
 def intake_history(prior, kind):
@@ -137,8 +138,8 @@ def intake_history(prior, kind):
 def detect_start(question: str, history=None) -> str | None:
     """접수를 시작하려는 말인지: "lost" | "found" | None. 단순 분실 이야기("지갑 잃어버렸어요")는 검색·안내 길이고,
     접수·신고·맡기기 말이 같이 있을 때만 접수 길로 간다(supervisor 가 검색 뒤 '접수할까요?'를 따로 제안)"""
-    q = re.sub(r"\s+", " ", question or "")
-    if theft_report(q):
+    q = re.sub(r"\s+", " ", normalize_terms(question or ""))
+    if theft_report(q) or explanation_only(q):
         return None
     if WAIT_RE.search(q):
         return "status"                       # 11/9 분실 신고 대기 번호 조회
@@ -152,19 +153,16 @@ def detect_start(question: str, history=None) -> str | None:
     # "주운 물건은 어디에 맡기나요?"처럼 방법을 묻는 말은 안내로(supervisor 가 '습득 신고하기' 버튼을 제안) — 하고 싶다는 말이 있을 때만 바로 시작
     if HOW_ASK.search(q) and not WANT.search(q):
         return None
-    if START_FOUND.search(q):
-        return "found"
-    if START_LOST.search(q) and not FOUND_SAY.search(q):
-        return "lost"
+    role = explicit_role(q)
+    if (START_FOUND.search(q) or START_LOST.search(q)) and role:
+        return role
     if REGISTER.search(q):
         for said in [q] + list(reversed(history or [])):
             if CANCEL.match(said.strip()) or theft_report(said):
                 break
-            found, lost = bool(FOUND_SAY.search(said)), bool(LOST_SAY.search(said))
-            if found != lost:
-                return 'found' if found else 'lost'
-            if found and lost:
-                break
+            role = explicit_role(said)
+            if role:
+                return role
         return 'clarify'
     if re.fullmatch(r"\s*(?:분실\s*접수(?:\s*시작)?|분실\s*접수하기)\s*", q):
         return "lost"
@@ -176,18 +174,37 @@ def detect_start(question: str, history=None) -> str | None:
 def extract(text: str, kind: str, want: str | None = None) -> dict:
     """말에서 빈칸 값 뽑기(규칙). want = 지금 묻고 있는 칸(짧은 답 "초량이요"·"어제"를 그 칸으로 읽는다)"""
     from agents.sim_world import query_features
-    t = text or ""
+    t = normalize_terms(text or "")
+    # 앞 물건과 별개의 새 요청을 한 문장에 말하면 새 요청의 설명만 채운다.
+    if '별개고' in t:
+        t = t.rsplit('별개고', 1)[-1]
     out: dict = {}
     f = query_features(t)
-    if f.get("category"):
-        out["category"] = f["category"]
-    if f.get("color"):
-        out["color"] = f["color"]
+    from agents.lost_input import text_features, correction_tail
+    denied = r'(?:휴대폰|핸드폰|모형폰|립밤|핸드크림|보조배터리|검정|파랑|흰색)(?:은|는|이|가)?\s*아니(?:에요|예요|라고|고|라|야|다)?'
+    feature_text = re.sub(denied, '', t)
+    desc, _ = text_features(feature_text, corrected=True)
+    if desc.get('category') not in (None, '확인 불가'):
+        out['category'] = desc['category']
+    if desc.get('color'):
+        out['color'] = desc['color']
+    insisted_color = re.search(r'(검정|파랑|흰색|빨강|분홍)(?:이라니까|이라고\s*(?:했|말))', t)
+    if insisted_color:
+        out['color'] = insisted_color.group(1)
+    main_color = re.search(r'(?:물건|전체|본체)(?:은|는|가)?\s*(.{1,24})', t)
+    if main_color:
+        main, _ = text_features(main_color.group(1), corrected=True)
+        if main.get('color'):
+            out['color'] = main['color']
+    station_text = correction_tail(t) or t
+    positive_station = re.search(r'(초량|중앙|부산)(?:역)?(?:이|가)?\s*맞', t)
+    if positive_station:
+        station_text = positive_station.group(1)
     if kind == "lost":
         from agents.sim_world import lost_station
-        st = lost_station(t)                      # 초량 · 중앙 · 부산(부산역·본센터)
+        st = lost_station(station_text)           # 고쳐 말한 역을 먼저 사용
     else:
-        st = next((s for s in STATION_NAMES if s in t), None)
+        st = next((s for s in STATION_NAMES if s in station_text), None)
     if st:
         out["station"] = st
     m = WHEN_RE.search(t)
@@ -205,6 +222,11 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
             out["place"] = re.sub(r"\s+", " ", pm.group(1)).strip()
     if want and UNKNOWN_SAY.match(t.strip()):
         out[want] = "없음" if want == "detail" and re.match(r"^(?:없어요|없음)", t.strip()) else "모름"
+    uncertainty = bool(re.search(r'모르겠|모른|몰라|기억.{0,8}안나|가물가물|언제인지못정', compact(t)))
+    if want in ('when', 'station') and uncertainty:
+        out[want] = '모름'
+    if want == 'detail' and re.search(r'(?:특징|스티커|글자).{0,22}(?:없|안\s*적혀|안\s*붙)', t):
+        out['detail'] = '없음'
     elif want == "station" and kind == "lost" and not out and OTHER_STATION.match(t.strip()):
         # 11/10 목록에 없는 역("센텀시티역이요")을 말하면 같은 질문을 되풀이했다 → 그 역은 장소 확인에 쓸 수 없으니 '모름'과 같게 받고 다음으로
         out["station"] = "모름"
@@ -282,14 +304,23 @@ class IntakeAgent:
         if s is None and (start == "status" or (start is None and detect_start(question) == "status")):
             return self._status(question)
         if s is None:
-            kind = start or detect_start(question)
+            kind = start or detect_start(question, prior)
             if kind is None:
                 return self._out("intake_none", "", None, progress=False)
             if kind == 'clarify':
+                category = extract(question, 'lost').get('category')
+                other = OTHER_ITEM.search(question or '')
+                if other or (category and not is_active_category(category)):
+                    label = other.group(0) if other else category_label(category)
+                    return self._out('intake_failed', f'{label}은(는) 지금 운영하지 않는 물건이에요. '
+                        f'현재 {active_category_text()}만 접수해요. 역무실에 문의해 주세요.', None, done=True)
                 out = self._out('clarification_needed', '잃어버린 물건을 찾으려는 건가요, 주운 물건을 맡기려는 건가요?', None)
                 out['choices'] = ['분실 접수하기', '습득 신고하기']
                 return out
             relevant = intake_history(prior, kind) if kind in ('lost', 'found') else []
+            if kind == 'found' and not any(st in question for st in STATION_NAMES) and re.search(r'부산역|서울역|열차\s*안', question):
+                return self._out('intake_failed', '이 시연의 습득 신고 등록기계는 초량·중앙역에 있어요. '
+                    '다른 역이나 열차 안에서 주운 물건의 접수 장소를 임의로 바꿀 수는 없어요. 가까운 역무실에 맡겨 주세요.', None, done=True)
             m = OTHER_ITEM.search(question or "")
             if not m and not extract(question, kind).get('category'):
                 for said in reversed(relevant):
@@ -298,7 +329,8 @@ class IntakeAgent:
                     m = OTHER_ITEM.search(said)
                     if m:
                         break
-            if m and kind in ("lost", "found") and not extract(question, kind).get("category"):
+            disguised = bool(re.search(r'으로|처럼|이라고|취급|쳐서', question or ''))
+            if m and kind in ("lost", "found") and (not extract(question, kind).get("category") or disguised):
                 where = "역무실에 맡겨 주세요" if kind == "found" else "역무실에 문의해 주세요"
                 return self._out("intake_failed", f"{m.group(0).strip()}은(는) 지금 운영하지 않는 물건이에요 — {active_category_text()} "
                                                   f"{len(ACTIVE_CATEGORIES)}가지만 접수해요. {where}.", None, done=True)
@@ -312,13 +344,16 @@ class IntakeAgent:
                         s["slots"][k] = v
                         s["log"].append({"slot": k, "by": "earlier_message"})
         q = (question or "").strip()
-        if CANCEL.match(q) or (s["kind"] == "cancel" and CANCEL_NO.match(q)):
+        if CANCEL.match(q) or (s['kind'] != 'cancel' and cancel_draft_requested(q)) or (s["kind"] == "cancel" and CANCEL_NO.match(q)):
             self.sessions.drop(sid)
             if s["kind"] == "cancel":
                 return self._out("intake_cancelled", "찾기 요청 취소를 그만뒀어요. 찾기 요청과 방문 예약은 그대로예요.", s, done=True)
             return self._out("intake_cancelled", "접수를 취소했어요. 다른 궁금한 점이 있으면 물어보세요.", s, done=True)
         if not sid:
             return self._out("intake_failed", "대화 번호가 없어 접수를 이어 갈 수 없어요. 챗봇 창에서 다시 시작해 주세요.", s, done=True)
+        if not action and help_question(q):
+            # 절차 질문을 색·특징 값으로 저장하지 않는다. 감독이 안내 일꾼을 추가한다.
+            return self._ask_next(sid, s, progress=False)
         if s["stage"] == "quiz":
             return self._quiz_answer(sid, s, q)
         if s["stage"] == "confirm":
@@ -373,6 +408,10 @@ class IntakeAgent:
             if k in self._order(s) and k != "identity" and s["slots"].get(k) != v:
                 if k in s["slots"] and k != s.get("asked") and v == "모름":
                     continue                      # 다른 칸을 묻는 중의 '모름'으로 이미 채운 값을 지우지 않음
+                if k == 'category' and s['slots'].get(k) not in (None, v):
+                    for dependent in ('color', 'detail'):
+                        if dependent not in rule:
+                            s['slots'].pop(dependent, None)
                 s["slots"][k] = v
                 s["log"].append({"slot": k, "by": "rule"})
         # 11/9 실제 Mi:dm 시험: "분실 접수하기"(내용 없는 말)에 모델이 역을 '초량'으로 지어냄 → 모델은 내용 있는 말에서
