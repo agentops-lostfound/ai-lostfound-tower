@@ -1,0 +1,6 @@
+{
+  "kind": "rules_only_not_real_llm",
+  "passed": 500,
+  "total": 500,
+  "failures": []
+}

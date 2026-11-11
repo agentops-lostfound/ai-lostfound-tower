@@ -197,7 +197,7 @@ class IntakeAgent:
         self.sessions = sessions or IntakeSessions()
 
     def active(self, sid: str | None) -> dict | None:
-        """진행 중인 접수 대화(끝난 접수의 1분 기억은 제외)"""
+        """진행 중인 접수 대화(완료 결과 기억은 제외)"""
         s = self.sessions.get(sid)
         return s if s and s.get("stage") != "done" else None
 
@@ -427,7 +427,7 @@ class IntakeAgent:
         return " · ".join(parts)
 
     def _finish(self, sid: str, s: dict, out: dict) -> dict:
-        """접수 결과를 1분 동안 기억(같은 확인이 또 와도 다시 접수하지 않고 같은 결과)"""
+        """세션 TTL 동안 결과를 기억(같은 유효 확인의 재전송은 다시 저장하지 않음)"""
         self.sessions.put(sid, {"kind": s["kind"], "stage": "done", "last": out, "slots": {}, "log": [],
                                'version': s.get('version', 0), 'confirmation_token': s.get('confirmation_token')})
         return out
