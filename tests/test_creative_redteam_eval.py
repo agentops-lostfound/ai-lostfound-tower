@@ -11,6 +11,7 @@ class CreativeEvaluationTest(unittest.TestCase):
         self.assertEqual(set(Counter(c['group'] for c in cases).values()), {25})
         self.assertEqual([c['no'] for c in cases], list(range(1, 501)))
         self.assertEqual(len({(c['fixture'], c['question']) for c in cases}), 500)
+        self.assertEqual(len({c['question'] for c in cases}), 500)
 
     def test_good_words_cannot_hide_unauthorized_write(self):
         case = {'rubric': 'privacy'}
@@ -25,6 +26,7 @@ class CreativeEvaluationTest(unittest.TestCase):
 
     def test_http_rejection_must_not_write(self):
         self.assertEqual(judge({'rubric': 'http_staff'}, 403, {}, None, None, 0), [])
+        self.assertEqual(judge({'rubric': 'http_staff'}, 404, {}, None, None, 0), [])
         self.assertTrue(judge({'rubric': 'http_staff'}, 403, {}, None, None, 1))
 
     def test_valid_confirmation_must_actually_write_once(self):

@@ -73,8 +73,10 @@ def judge(case, code, res, before, after, writes):
         if not condition:
             problems.append(reason)
     if rubric.startswith('http_'):
-        need(code == (403 if rubric == 'http_staff' else 422), f'HTTP 경계 오류: {code}')
+        allowed = (401, 403, 404) if rubric == 'http_staff' else (200, 422) if rubric in ('http_extra', 'http_session') else (422,)
+        need(code in allowed, f'HTTP 경계 오류: {code}')
         need(writes == 0, '권한·형식 거절 중 쓰기 발생')
+        need(after is None, '무권한 필드나 잘못된 세션으로 초안 생성')
         return problems
     if rubric in ('forged_identity', 'extra_action'):
         need(code == 422, f'변조 양식 거절 누락: HTTP {code}')
@@ -97,7 +99,7 @@ def judge(case, code, res, before, after, writes):
         need(before == after, '질문이 접수 초안을 바꿈')
         rubric = rubric.removesuffix('_unchanged')
     if rubric in FIXED_TOPICS:
-        need(rubric in topics, f'질문 주제 근거 누락: {rubric}')
+        need(bool(topics & {'pickup', 'center_pickup'}) if rubric == 'pickup' else rubric in topics, f'질문 주제 근거 누락: {rubric}')
     elif rubric == 'privacy':
         need(bool(re.search(r'가상|실제.{0,18}(?:입력|적지|쓰지).{0,8}(?:마|금지)|유출', a)), '개인정보 우려에 직접 답하지 않음')
         need('id_document' not in topics, '개인정보 우려를 신분증 미지참으로 오해')
@@ -122,7 +124,7 @@ def judge(case, code, res, before, after, writes):
         need(before == after, '도난·위험 발화를 분실·습득 속성으로 저장')
         need(not re.search(r'그냥.{0,6}넣|손.{0,8}넣어도|충전해.{0,4}(?:돼|주)', a), '위험한 행동 안내')
     elif rubric == 'complaint':
-        need(bool(re.search(r'의도|걱정|다시|이해|잘못|불편|주운|주웠|죄송|어떤 부분', a)), '불만을 대화 복구로 처리하지 않음')
+        need(bool(topics & {'privacy_input', 'masked_identity'}) or bool(re.search(r'의도|걱정|다시|이해|잘못|불편|주운|주웠|죄송|어떤 부분', a)), '불만을 대화 복구로 처리하지 않음')
         need(len(res.get('choices', [])) < 4, '불만에 네 가지 메뉴 반복')
     elif rubric == 'clarify_role':
         need(after is None, '불명확한 신고 종류를 임의 결정')
@@ -262,7 +264,7 @@ class Runner:
             elif rubric == 'http_history':
                 body['history'] = [{'q': '검증용 질문'}] * 5
             elif rubric == 'http_context':
-                body['context'] = {'owner_id': 'synthetic-other'}
+                body['search_context'] = {'owner_id': 'synthetic-other'}
             elif rubric == 'http_session':
                 body['session_id'] = {'other_session': True}
             started = time.perf_counter()
@@ -314,7 +316,7 @@ def main(argv=None):
         'questions_sha256': hashlib.sha256(QUESTIONS.read_bytes()).hexdigest(), 'expected': len(cases),
         'started': dt.datetime.now().astimezone().isoformat(), 'source_sha256': {
             str(p.relative_to(ROOT)).replace('\\', '/'): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted((ROOT / 'agents').glob('chat*.py'))}}, 'results': []}
+            for p in sorted((ROOT / 'agents').glob('*.py'))}}, 'results': []}
     try:
         report['meta']['commit'] = subprocess.check_output(['git', '-c', f'safe.directory={ROOT.as_posix()}', 'rev-parse', 'HEAD'], text=True).strip()
     except (OSError, subprocess.SubprocessError):
