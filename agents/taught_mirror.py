@@ -69,6 +69,7 @@ class TaughtMirror:
         self.item = None
         self._gen = 0
         self._lock = threading.Lock()
+        self.live = None            # 11/11 실물 관절 조회(agents/live_joints.py) — 실시간 관측이 있으면 자리·관절은 그것을 따름
 
     # ---------- 자세 이름 → 작업대 위치 ----------
     def place(self, pose: str) -> dict | None:
@@ -98,7 +99,12 @@ class TaughtMirror:
         return max(0.0, min(100.0, float(v))) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
     # ---------- 단계 기록 ----------
+    def _live(self) -> bool:
+        return self.live is not None and self.live.fresh()
+
     def begin(self, target: dict) -> None:
+        if self.live is not None:
+            self.live.mark_busy()
         self.item = target.get("item_id") if isinstance(target, dict) else None
         with self.w._lock:
             self.w.arm.update(stopped=False, target=self.item)
@@ -143,7 +149,7 @@ class TaughtMirror:
         end = {k: (start[k] if goal.get(k) is None else float(goal[k])) for k in start}
         steps = max(6, int(self.seconds * 8))
         for s in range(1, steps + 1):
-            if self._gen != gen:                      # 다음 기록(도착·다음 단계)이 오면 그만
+            if self._gen != gen or self._live():      # 다음 기록이 오거나 실물 관절이 들어오면 그만
                 return
             t = s / steps
             t = t * t * (3 - 2 * t)
@@ -151,6 +157,8 @@ class TaughtMirror:
             time.sleep(self.seconds / steps * 0.95)    # 실물보다 조금 먼저 닿게(도착 기록에서 맞춤)
 
     def _set(self, goal: dict) -> None:
+        if self._live():                              # 실물 관절이 그리고 있음 — 단계 기록으로 덮지 않음
+            return
         arm = self.w.arm
         for k in ("x", "y", "z", "gripper"):
             if goal.get(k) is not None:
@@ -161,6 +169,8 @@ class TaughtMirror:
 
     def _fold(self) -> None:
         """실물 home 도착 → 접힌 대기 자세(실물 home 저장 값 근사, sim_world.REST_JOINTS)"""
+        if self._live():
+            return
         arm = self.w.arm
         arm.update(gripper=self.sw.REST_JOINTS["gripper"], joints=dict(self.sw.REST_JOINTS), rest=True)
         self.w._touch()
@@ -179,6 +189,8 @@ class TaughtMirror:
         w._touch()
 
     def end(self, result) -> None:
+        if self.live is not None:
+            self.live.mark_idle()
         with self._lock:
             self._gen += 1
         arm = self.w.arm
@@ -213,6 +225,10 @@ def attach(robot, world, env: dict | None = None) -> TaughtMirror | None:
     if not callable(run):
         return None
     m = TaughtMirror(world, env)
+    from agents.live_joints import LiveJoints, enabled
+    if enabled(env) and callable(getattr(robot, "request", None)):   # 11/11 로봇 PC GET /v1/joints(읽기 전용)
+        m.live = LiveJoints(robot, world, env)
+        m.live.start()
 
     def robot_run_sequence(target, progress=None):
         m.begin(target)

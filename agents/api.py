@@ -836,9 +836,16 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                 out["claims_open"] = []
         if getattr(svc, "taught_robot", False):
             out['robot_control'] = {'mode': 'taught_remote', 'verification_required': True}
-            if out['world'] and getattr(svc, 'robot_mirror', None) is not None:
+            mirror_part = getattr(svc, 'robot_mirror', None)
+            live = getattr(mirror_part, 'live', None)
+            if out['world'] and live is not None and live.fresh():
+                # 11/11 로봇 PC GET /v1/joints(읽기 전용)의 실제 팔로워 관절로 가상 팔을 그림(agents/live_joints.py)
+                out['world']['robot']['role'] = '실물 원격 티칭 · 가상 팔 = 실제 팔로워 관절값(로봇 PC 읽기 전용 조회, 초당 최대 5번)'
+                out['world']['robot']['telemetry_available'] = 'live'
+            elif out['world'] and mirror_part is not None:
                 # 11/11 가상 팔이 실물 단계 기록(11단계 시작·도착)을 따라 움직임(agents/taught_mirror.py) — 관절 막대는 가상 계산 값
-                out['world']['robot']['role'] = '실물 원격 티칭 · 가상 팔은 로봇 PC 단계 기록(시작·도착)을 따라 움직임 — 실시간 관절값이 아님'
+                out['world']['robot']['role'] = '실물 원격 티칭 · 가상 팔은 로봇 PC 단계 기록(시작·도착)을 따라 움직임 — 실시간 관절값이 아님' + (
+                    f' · 관절 조회: {live.reason}' if live is not None and live.reason else '')
                 out['world']['robot']['telemetry_available'] = 'stage'
             elif out['world']:
                 out['world']['arm'] = {**out['world']['arm'], 'joints': None,
