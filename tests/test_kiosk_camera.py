@@ -338,7 +338,13 @@ class _ExpCam:
         img = np.zeros((720, 960, 3), np.float32)
         img[:] = 95                                    # 회색 펠트
         img[260:460, 380:580] = 165                     # 흰 폰(기준 노출에서 165)
-        return True, np.clip(img * gain, 0, 255).astype(np.uint8)
+        # 화이트밸런스: 자동이면 연보라로 치우침(11/11 실제 사진처럼), 고정이면 5000K 에서 회색, 멀수록 파랑/빨강 쪽
+        if self.props.get(cv2.CAP_PROP_AUTO_WB) == 0 and not self.ignore:
+            d = (self.props.get(cv2.CAP_PROP_WB_TEMPERATURE, 5000) - 5000) / 5000
+            tint = np.array([1 + d, 1.0, 1 - d], np.float32)            # B,G,R
+        else:
+            tint = np.array([1.12, 1.0, 1.07], np.float32)
+        return True, np.clip(img * gain * tint, 0, 255).astype(np.uint8)
 
     def release(self):
         pass
@@ -429,6 +435,48 @@ class ExposureTest(unittest.TestCase):
             best, why = ce.recommend(rows)
             self.assertIsNone(best)
             self.assertIn("받아들이지 않", why)
+
+    def test_parse_wb_and_feed(self):
+        import cv2
+        from agents.kiosk_camera import FakeSource, parse_wb
+        self.assertEqual(parse_wb("5000"), {"*": 5000.0})
+        self.assertEqual(parse_wb("KIOSK-A=4600,KIOSK-C=auto,X=-6,Y=9000"), {"KIOSK-A": 4600.0, "KIOSK-C": "auto"})
+        made = []
+        cams = KioskCameras({"KIOSK-A": 0}, opener=lambda src: made.append(FakeSource()) or made[-1],
+                            exposure={}, wb={"*": 4600.0})
+        try:
+            cams.feed("KIOSK-A").touch()
+            t0 = time.time()
+            while time.time() - t0 < 3 and not cams.feed("KIOSK-A").latest():
+                time.sleep(0.02)
+            st = cams.status()["KIOSK-A"]
+            self.assertEqual(st["white_balance"]["requested"], 4600.0)
+            self.assertNotIn("exposure", st)
+            self.assertEqual(made[0].props[cv2.CAP_PROP_AUTO_WB], 0)
+            self.assertEqual(made[0].props[cv2.CAP_PROP_WB_TEMPERATURE], 4600.0)
+        finally:
+            cams.stop(2)
+
+    def test_tool_recommends_wb_that_makes_felt_gray(self):
+        import tempfile
+        import cv2
+        from tools import camera_exposure as ce
+        with tempfile.TemporaryDirectory() as d:
+            cams = []
+            rows = ce.run(0, ["auto", 4000, 5000, 6000], Path(d), opener=lambda src: cams.append(_ExpCam()) or cams[-1],
+                          settle=2, kind="wb", exposure=-5)
+            m = {r["value"]: r["m"] for r in rows}
+            self.assertGreater(m["auto"]["cast"], 0.05)                       # 자동: 연보라로 치우침
+            self.assertLess(m[5000]["cast"], 0.02)
+            self.assertEqual(ce.recommend_wb(rows)[0], 5000)
+            self.assertTrue((Path(d) / "wb_5000.jpg").exists())
+            for c in cams:
+                self.assertEqual(c.props[cv2.CAP_PROP_AUTO_WB], 1)            # 끝나면 자동으로 되돌림
+                self.assertEqual(c.props[cv2.CAP_PROP_AUTO_EXPOSURE], 0.75)
+            rows = ce.run(0, [4000, 5000], Path(d), opener=lambda src: _ExpCam(ignore=True), settle=2, kind="wb")
+            self.assertIsNone(ce.recommend_wb(rows)[0])
+        with self.assertRaises(SystemExit):
+            ce.parse_values("4600,9000", "wb")
 
     def test_tool_reports_closed_camera(self):
         import tempfile
