@@ -30,7 +30,7 @@ LOST_STAGES = [("claim", "찾기 요청·확인 질문"), ("approve", "메인 AI
                ("deliver", "제출보관함 전달"), ("handover", "인계 완료")]
 
 # 반환 흐름(supervisor)·서비스가 보내는 단계 이름 → 이야기 단계
-STEP_STAGE = {"메인 AI 승인 · 수령 예약": "approve", "직원 확인 완료": "visit", "탑뷰 촬영": "topview",
+STEP_STAGE = {"메인 AI 승인 · 수령 예약": "approve", "직원 확인 완료": "visit", "본인 확인 완료": "visit", "탑뷰 촬영": "topview",
               "매칭 완료": "match", "GPU 사용권 받음": "approach", "사전 접근 완료": "approach", "집기 성공": "grasp",
               "집기 실패": "grasp", "제출보관함 전달 완료": "deliver", "바구니 전달 완료": "deliver", "인계 완료": "handover",
               "직원 보관 선반 · 로봇 없이 직원 인계": "deliver"}

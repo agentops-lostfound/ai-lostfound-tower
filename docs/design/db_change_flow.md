@@ -58,7 +58,7 @@ DBeaver · /showcase [팀 DB 조회]
 | | `item` | UPDATE ×3 | 본센터 보관 → 승인·수령 예약 → 반환 중 → 인계 대기 |
 | | `item_status_log` | INSERT ×3 | tower |
 | | `return_case` | INSERT | R-C-20261110-0001 · `decision` returned · `reason` 제출보관함 전달 완료 · 인계 대기(분실인이 꺼내고 키오스크 확인, 예외는 직원) — 11/11 문구 |
-| | `return_step` | INSERT ×8 | 메인 AI 승인 · 수령 예약 → 직원 확인 완료 → 탑뷰 촬영 → 매칭 완료 → GPU 사용권 받음 → 사전 접근 완료 → 집기 성공 → 제출보관함 전달 완료 |
+| | `return_step` | INSERT ×8 | 메인 AI 승인 · 수령 예약 → 본인 확인 완료(11/11 전 이름: 직원 확인 완료) → 탑뷰 촬영 → 매칭 완료 → GPU 사용권 받음 → 사전 접근 완료 → 집기 성공 → 제출보관함 전달 완료 |
 | 6 인계 완료 | `item` | UPDATE | 인계 대기 → 인계 완료 (키오스크 [물건 받았어요], 11/11) |
 | | `item_status_log` | INSERT | kiosk (예외 흐름의 직원 교차 검증이면 staff) |
 | | `storage_assignment` | DELETE | R3-2 행 삭제 = **DB 트리거**가 스스로 지움 |

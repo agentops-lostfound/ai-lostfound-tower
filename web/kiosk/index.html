@@ -83,6 +83,7 @@ input[type=text]:focus,input[type=tel]:focus,textarea:focus{border-color:var(--u
 #lost h1,#ret h1{font-size:38px}
 #raway,#rform,#rwork,#rdone{display:flex;flex-direction:column;gap:18px}
 #raway[hidden],#rform[hidden],#rwork[hidden],#rdone[hidden]{display:none}
+.rflow-h{margin:10px 0 -6px;font-size:22px;color:var(--ui-text-2)}
 button.stop,button.stop:hover{background:var(--ui-err);color:var(--ui-on-primary)}
 /* 11/6 자동 촬영 + 보관 가이드 */
 #s1{justify-content:flex-start;gap:20px;overflow:auto}
@@ -318,6 +319,14 @@ body.demo-mode #stn{flex:1 1 auto}
       <input type="text" id="rid" data-vk="id" maxlength="32" inputmode="numeric" placeholder="신분증 번호 뒤 첫 자리 (예: 3)" autocomplete="off">
       <p class="err" id="rerr" role="alert"></p>
       <button id="rsend" disabled>물건 꺼내기</button>
+      <!-- 11/11 다음에 무슨 일이 생기는지(무인 인계): 입력칸 아래 빈 공간에 순서를 보여 줌 -->
+      <h2 class="rflow-h">이렇게 받아요</h2>
+      <ol class="prep rflow" aria-label="물건 받는 순서">
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>번호 확인</title><rect x="12" y="8" width="56" height="40" rx="6"/><path class="p" d="M26 28l9 9 18-18"/></svg>번호 확인<small>찾기 번호 · 뒤 첫 자리</small></li>
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>로봇이 꺼냄</title><path d="M14 50h22M25 50V30l14-14 12 8"/><path class="p" d="M51 24l8-6M51 24l6 8"/><rect class="p" x="54" y="36" width="14" height="12" rx="2"/></svg>로봇이 꺼냄<small>아래 물건 나오는 곳으로</small></li>
+        <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>직접 꺼내기</title><rect x="12" y="26" width="56" height="24" rx="4"/><rect class="p" x="32" y="14" width="16" height="14" rx="2"/><path class="p" d="M40 10V4M34 8l6-6 6 6"/></svg>직접 꺼내기<small>꺼낸 뒤 [물건 받았어요]</small></li>
+      </ol>
+      <p class="legal">번호가 없으면? <b>분실인 웹</b>에서 신고하거나 <b>AI 안내</b>에 물어보세요. 확인이 안 되면 본센터 직원이 도와드려요.</p>
     </div>
     <div id="rwork" hidden>
       <svg class="pic big" viewBox="0 0 56 56" role="img"><title>손 넣지 않기</title><path d="M20 40V22a3 3 0 0 1 6 0v-6a3 3 0 0 1 6 0v3a3 3 0 0 1 6 0v13c0 7-4 11-10 11h-1c-4 0-6-2-9-6l-5-7a3 3 0 0 1 5-3l2 3"/><circle class="p" cx="28" cy="28" r="25"/><path class="p" d="M10 46L46 10"/></svg>
