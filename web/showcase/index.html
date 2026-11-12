@@ -303,6 +303,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     <span class="chip" id="robotMode" hidden>실물 로봇 · 회수 버튼으로 실행 · [물건 받았어요]로 인계</span>
     <span class="chip" id="srcChip" title="왼쪽 DB 칸이 보여 주는 저장소">저장소 <b id="src">-</b></span>
     <span class="chip" id="lfChip" title="같은 단계가 Langfuse 에도 남는지">Langfuse <b id="lf">-</b></span>
+    <button class="ghost" id="btnSeed" hidden title="실물 보관함 배치(R1 검정·흰 휴대폰 · R2 흰·검정 보조배터리 · R3 분홍·파랑 크림 · R4 빨강·파랑 립밤)로 화면·DB 를 채움 — 로봇은 움직이지 않음(두 번 눌러 실행)">📦 보관함 채우기</button>
     <button class="ghost" id="btnReset" hidden title="가상 세계를 처음 상태로(두 번 눌러 실행)">처음으로</button>
     <span data-theme-slot></span>
   </div>
@@ -1093,6 +1094,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       showMirror(d);
       $("lf").textContent = d.langfuse ? "기록 중" : "꺼짐";
       $("btnReset").hidden = !d.sim || !!d.robot_control;
+      $("btnSeed").hidden = !d.sim; robotControl = !!d.robot_control;      // 11/12 실물 모드에서도 화면·DB 만 채움
       $("robotMode").hidden = !d.robot_control;
       const w = d.qwen_worker || {on: false};
       if (w.on !== worker.on) { worker = w; drawVision(false); } else worker = w;
@@ -1119,14 +1121,20 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   }
   function banner(html) { const b = $("banner"); b.hidden = !html; if (html) b.innerHTML = html; }
 
-  // 처음으로(가상 세계 초기화): 실수로 누르지 않게 두 번 눌러야 실행
-  let armed = null;
-  $("btnReset").onclick = async () => {
-    const b = $("btnReset");
-    if (!armed) { b.classList.add("armed"); b.textContent = "한 번 더 누르면 초기화"; armed = setTimeout(() => { armed = null; b.classList.remove("armed"); b.textContent = "처음으로"; }, 4000); return; }
-    clearTimeout(armed); armed = null; b.classList.remove("armed"); b.textContent = "처음으로";
+  // 처음으로(가상 세계 초기화)·보관함 채우기(11/12 실물 배치 8칸): 실수로 누르지 않게 두 번 눌러야 실행
+  let armed = null, robotControl = false;
+  const twoPress = (id, label, ask, body) => async () => {
+    const b = $(id);
+    if (armed !== id) { if (armed) return; armed = id; b.classList.add("armed"); b.textContent = ask;
+      setTimeout(() => { if (armed === id) { armed = null; b.classList.remove("armed"); b.textContent = label; } }, 4000); return; }
+    armed = null; b.classList.remove("armed"); b.textContent = label;
+    await resetWorld(body());
+  };
+  $("btnReset").onclick = twoPress("btnReset", "처음으로", "한 번 더 누르면 초기화", () => ({}));
+  $("btnSeed").onclick = twoPress("btnSeed", "📦 보관함 채우기", "한 번 더 누르면 8칸 채움", () => ({seed: "layout", force_real: robotControl}));
+  async function resetWorld(body) {
     try {
-      const r = await fetch("/sim/reset", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
+      const r = await fetch("/sim/reset", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
       if (!r.ok) { const d = await r.json().catch(() => ({})); banner(esc(typeof d.detail === "string" ? d.detail : "초기화하지 못했어요(반환이 진행 중이면 끝난 뒤 다시)")); return; }
       dbSaved.clear(); dbSeen = null;
       for (const t of ["item", "claim"]) { rows[t] = {}; cur[t] = null; drawCard(t); }
