@@ -6,10 +6,10 @@
 <title>통합 시연</title>
 <!--
   통합 시연 화면 (LF-18 · 11/10 변재원) — 발표용, 1920×1080 한 화면 기준
-  한줄 설명: 왼쪽에 실제 키오스크(세로 화면)와 분실인 휴대폰을 띄우고, 그 옆에서 ① 저장소(DB)에 행이 생기고 칸이 바뀌는 모습과
+  한줄 설명: 가운데에 실제 키오스크(세로 화면)와 분실인 휴대폰을 띄우고, 그 옆에서 ① 저장소(DB)에 행이 생기고 칸이 바뀌는 모습과
             ② AI 에이전트들이 주고받는 흐름을 같은 순서로 보여 준다.
-  - 왼쪽 틀 안은 실제 화면 그대로다: /kiosk?machine=KIOSK-A(습득) · /phone(분실인 웹) · /kiosk?machine=CENTER(회수)
-  - 가운데·오른쪽은 /api/admin/live/state?detail=1 을 0.5초마다 읽어 그린다.
+  - 가운데 틀 안은 실제 화면 그대로다: /kiosk?machine=KIOSK-A(습득) · /phone(분실인 웹) · /kiosk?machine=CENTER(회수)
+  - 왼쪽(DB)·오른쪽(에이전트)은 /api/admin/live/state?detail=1 을 0.5초마다 읽어 그린다.
       db 사건    = 저장소에 쓰고 읽은 일(agents/db_watch.py). 이름·연락처·신분 번호·비공개 특징 값은 서버가 보내지 않는다
       trace 사건 = 챗봇·메인 AI 에이전트 한 칸의 시작/끝(agents/observability.py 리스너 — Langfuse 에 남는 것과 같은 단계)
       agent 사건 = 관제탑 에이전트 대화(agents/agent_talk.py)
@@ -44,28 +44,28 @@ code,.mono{font-family:var(--ui-mono)}
 .bar h1 small{font-weight:600;color:var(--ui-text-3);margin-left:6px;font-size:14px}
 .scenes{display:flex;gap:6px;min-width:0;flex-wrap:wrap}
 .scenes button{border:0;background:var(--ui-fill);border-radius:999px;padding:8px 14px;font-weight:650;cursor:pointer;white-space:nowrap;
-  display:inline-flex;align-items:center;gap:8px;color:var(--ui-text-2)}
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--ui-text-2);min-width:13.5em}   /* 11/12 글자(키오스크 ⇄ 휴대폰 웹)가 바뀌어도 폭 그대로 */
 .scenes button:hover{background:var(--ui-fill-hover)}
 .scenes button[aria-selected="true"]{background:var(--ui-primary);color:var(--ui-on-primary)}
 .scenes button .no{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(127,127,127,.22);font-size:12px;font-weight:700}
 .scenes button[aria-selected="true"] .no{background:rgba(255,255,255,.26)}
 /* 11/11 ① 탭: 켜진 채로 한 번 더 누르면 중앙역 ⇄ 초량역. 켜져 있을 때만 ⇄ 표시 */
-.scenes .swap{display:none;margin-left:6px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.26)}
-.scenes button[aria-selected="true"] .swap{display:inline-block}
+.scenes .swap{display:inline-block;visibility:hidden;margin-left:6px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.26)}
+.scenes button[aria-selected="true"] .swap{visibility:visible}   /* 11/12 자리는 늘 차지 — 탭을 바꿔도 단추 폭이 그대로 */
 .views{display:flex;gap:6px;flex:none}
-.views button{border-radius:999px;padding:8px 14px;font-weight:650;white-space:nowrap}
+.views button{border-radius:999px;padding:8px 14px;font-weight:650;white-space:nowrap;text-align:center}
+#btnView{min-width:12.5em} #btnRobot{min-width:8.5em}   /* 11/12 글자가 바뀌어도 단추 폭이 그대로 */
 .views #btnRobot[aria-pressed="true"]{background:var(--ui-text);color:var(--ui-bg)}
-/* 11/12 키오스크 크게 보기: DB·에이전트 칸을 숨기고 기기를 가운데 크게 */
-body.kview main{grid-template-columns:minmax(0,1fr)}
-body.kview main > .panel{display:none}
-body.kview #steps{display:none}
+/* 11/12 키오스크만 보기: DB·에이전트 칸만 감춘다. 칸 나눔·진행 막대는 그대로 → 키오스크 위치·크기가 두 보기에서 같음(11/12 오후 검토) */
+main > .panel{transition:opacity .2s}
+body.kview main > .panel{visibility:hidden;opacity:0}
 /* 11/12 간단히(기본): 표 이름 줄·두 번째 행 카드를 숨기고 기록은 최근 것만 */
 body.simple #tables{display:none}
 body.simple:not([data-scene="found"]) .rows{grid-template-columns:minmax(0,1fr)}
 body.simple:not([data-scene="found"]) #cardItem{display:none}   /* 분실·회수 장면은 찾기 요청 한 행만 */
 body.simple #dbLog > li:nth-child(n+5),body.simple #agLog > li:nth-child(n+4){display:none}
 .panel .more{margin-left:auto;font-size:12.5px;padding:4px 10px;border-radius:999px}
-.devgo{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.devgo{display:flex;gap:8px;justify-content:center;flex-wrap:nowrap;height:38px;flex:none}   /* 11/12 바로가기 단추가 없는 장면도 자리를 비워 둠 */
 .devgo button{border-radius:999px;padding:8px 16px;font-weight:650}
 #foundStn{display:inline-block;animation:stn .25s ease-out}
 @keyframes stn{from{opacity:0;transform:translateY(-4px)}}
@@ -79,7 +79,7 @@ body.simple #dbLog > li:nth-child(n+5),body.simple #agLog > li:nth-child(n+4){di
 .bar .ghost.armed{background:var(--ui-err);color:#fff}
 
 /* ---------- 이야기 진행 막대 ---------- */
-.steps{display:flex;align-items:center;gap:10px;min-height:44px;padding-block:6px;flex:none;overflow:hidden;
+.steps{display:flex;align-items:center;gap:10px;height:44px;box-sizing:border-box;padding-block:6px;flex:none;overflow:hidden;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .steps .who{font-weight:700;white-space:nowrap}
 .steps .who small{color:var(--ui-text-3);font-weight:600;margin-left:6px}
@@ -94,7 +94,8 @@ body.simple #dbLog > li:nth-child(n+5),body.simple #agLog > li:nth-child(n+4){di
 @keyframes pulse{50%{opacity:.25}}
 
 /* ---------- 본문 3칸 ---------- */
-main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) minmax(0,1fr) minmax(0,1fr);gap:14px;
+/* 11/12 오후: 키오스크는 늘 화면 가운데 — 왼쪽 DB · 가운데 기기 · 오른쪽 에이전트(키오스크만 보기에서도 같은 자리) */
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) var(--devw,400px) minmax(0,1fr);gap:14px;
   padding-block:0 14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .panel{background:var(--ui-surface);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow);min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .panel > header{display:flex;align-items:center;gap:10px;padding:14px 18px 10px;flex:none;flex-wrap:wrap}
@@ -104,10 +105,13 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 .sub{padding:8px 18px 6px;display:flex;align-items:center;gap:8px;flex:none}
 #full{flex:1;min-height:0;border:0;width:100%;background:var(--ui-bg)}
 
-/* ---------- 왼쪽: 기기 ---------- */
+/* ---------- 가운데: 기기(11/12 오후부터, 전에는 왼쪽) ---------- */
+#deviceCol{order:2} #panelDb{order:1} #panelAgent{order:3}
 .device{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px}
 .stage{flex:1;min-height:0;width:100%;display:flex;align-items:flex-start;justify-content:center}
-.cap{flex:none;text-align:center;font-size:12.5px;color:var(--ui-text-3);font-weight:600;line-height:1.45;max-width:100%}
+/* 11/12 설명 글은 장면마다 1~3줄 → 늘 3줄 높이를 차지(줄 수에 따라 키오스크 크기가 바뀌던 것) */
+.cap{flex:none;text-align:center;font-size:12.5px;color:var(--ui-text-3);font-weight:600;line-height:1.45;max-width:100%;
+  height:calc(1.45em * 3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3}
 .cap b{color:var(--ui-text-2)}
 /* 세로 키오스크(스탠드형): 검은 테두리 화면 + 밝은 몸체(촬영 카메라 창 · 접수증 나오는 곳 · 옆 단말기) */
 .stand{display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 18px 28px rgba(0,0,0,.22))}
@@ -129,7 +133,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
 .handset{background:var(--dev-bezel);border-radius:44px;padding:11px;filter:drop-shadow(0 18px 28px rgba(0,0,0,.25));box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
 .handset iframe{display:block;border:0;border-radius:34px;background:#fff}
 
-/* ---------- 가운데: DB ---------- */
+/* ---------- 왼쪽: DB ---------- */
 .tables{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 10px;flex:none}
 .tbl{display:inline-flex;align-items:baseline;gap:5px;padding:3px 8px;border-radius:8px;background:var(--ui-fill);font-size:11.5px;color:var(--ui-text-2);font-weight:600;transition:background .3s}
 .tbl code{font-size:11.5px;color:var(--ui-text)} .tbl b{font-variant-numeric:tabular-nums;color:var(--ui-text);font-size:12.5px}
@@ -275,6 +279,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
 /* 좁은 화면(노트북·세로)에서는 위아래로 쌓는다 — 발표 기준은 1920×1080 */
 @media (max-width:1180px){
   body{overflow:auto;height:auto} main{grid-template-columns:minmax(0,1fr);overflow:visible}
+  #deviceCol{order:0}   /* 좁은 화면은 위에서부터 기기 → DB → 에이전트 */
   .device{min-height:640px} .panel{min-height:520px} .rows{grid-template-columns:minmax(0,1fr)}
   .chips{margin-left:0}
 }
@@ -290,20 +295,20 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   </nav>
   <!-- 11/12 발표 검토: 화면은 두 가지(키오스크 + DB·에이전트 요약 / 키오스크 크게) — 단추 하나로 오감. 로봇 작업대는 작은 단추로 -->
   <div class="views">
-    <button type="button" class="ghost" id="btnView" title="키오스크만 크게 ⇄ DB·에이전트 함께">🖥 키오스크 크게</button>
+    <button type="button" class="ghost" id="btnView" title="키오스크만 ⇄ DB·에이전트 함께(키오스크 자리·크기는 그대로)">🖥 키오스크만 보기</button>
     <button type="button" class="ghost" id="btnRobot" title="로봇 작업대(실시간 관제)를 열고 닫기">🤖 로봇 작업대</button>
   </div>
   <div class="chips">
     <span class="chip"><span class="dot" id="conn"></span><span id="connText">연결 중</span></span>
     <span class="chip" id="robotMode" hidden>실물 로봇 · 회수 버튼으로 실행 · [물건 받았어요]로 인계</span>
-    <span class="chip" id="srcChip" title="가운데 칸이 보여 주는 저장소">저장소 <b id="src">-</b></span>
+    <span class="chip" id="srcChip" title="왼쪽 DB 칸이 보여 주는 저장소">저장소 <b id="src">-</b></span>
     <span class="chip" id="lfChip" title="같은 단계가 Langfuse 에도 남는지">Langfuse <b id="lf">-</b></span>
     <button class="ghost" id="btnReset" hidden title="가상 세계를 처음 상태로(두 번 눌러 실행)">처음으로</button>
     <span data-theme-slot></span>
   </div>
 </header>
 <div class="banner" id="banner" hidden></div>
-<div class="steps" id="steps" aria-live="polite"><span class="empty">아직 진행 중인 건이 없어요 — 왼쪽 화면에서 시작해 보세요.</span></div>
+<div class="steps" id="steps" aria-live="polite"><span class="empty">아직 진행 중인 건이 없어요 — 가운데 키오스크에서 시작해 보세요.</span></div>
 
 <main id="main">
   <section class="device" id="deviceCol" aria-label="사용자 화면">
@@ -326,7 +331,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     <div class="devgo" id="devgo"></div>   <!-- 11/12 장면 사이 바로가기(분실 → 휴대폰 웹 / 키오스크, 역 회수 → 본센터) -->
   </section>
 
-  <section class="panel" aria-label="DB 실시간 기록">
+  <section class="panel" id="panelDb" aria-label="DB 실시간 기록">
     <header><h2>DB 실시간 기록</h2><span class="hint" id="srcHint"></span>
       <button type="button" class="ghost more" id="btnMore" aria-pressed="false" title="표 이름·행 카드·기록을 모두 보기">자세히</button></header>
     <div class="tables" id="tables"></div>
@@ -348,7 +353,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     <div class="dbview" id="dbView" hidden></div>
   </section>
 
-  <section class="panel" aria-label="AI 에이전트 흐름">
+  <section class="panel" id="panelAgent" aria-label="AI 에이전트 흐름">
     <header><h2>AI 에이전트 흐름</h2>
       <div class="seg" id="agSeg" role="group" aria-label="에이전트 묶음">
         <button data-g="tower" aria-pressed="true">관제탑 에이전트</button>
@@ -390,7 +395,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   // 11/11 빈 화면 안내(기록이 생기기 전). 표·명령은 docs/design/db_change_flow.md 2장과 같게
   const op = (o) => `<span class="op ${o}">${o}</span>`;
   const GUIDE_DB = {
-    found: ["왼쪽 상자에 물건을 놓고 손을 빼면 <b>5초 뒤 자동 촬영</b>",
+    found: ["키오스크 상자에 물건을 놓고 손을 빼면 <b>5초 뒤 자동 촬영</b>",
             `${op("INSERT")}<code>item</code> 한 행 — 등록기계·발견 장소·사진`,
             `${op("UPDATE")}Qwen 이 사진을 읽어 <code>category</code>·<code>features</code>(공개)·<code>private_features</code>(확인 질문용)`,
             `${op("INSERT")}본센터로 옮겨 <code>storage_assignment</code> — 보관 칸 <code>slot_id</code>`],
@@ -422,7 +427,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   const FOUND_STN = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역"};
   let foundMachine = qs.get("kiosk") === "C" ? "KIOSK-C" : "KIOSK-A";
   let camMachines = {};
-  const foundCap = () => `<b>${FOUND_STN[foundMachine]} 등록기계 ${foundMachine}</b><br>물건을 놓으면 자동으로 찍고 → 가운데 <code>item</code> 표에 새 행이 생겨요`;
+  const foundCap = () => `<b>${FOUND_STN[foundMachine]} 등록기계 ${foundMachine}</b><br>물건을 놓으면 자동으로 찍고 → 왼쪽 <code>item</code> 표에 새 행이 생겨요`;
   const loaded = {};
 
   function kioskUrl(machine) {
@@ -493,7 +498,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   }
   function setView(kiosk) {                       // 11/12 두 화면: 키오스크 + DB·에이전트(기본) ⇄ 키오스크 크게
     document.body.classList.toggle("kview", kiosk);
-    const b = $("btnView"); b.setAttribute("aria-pressed", String(kiosk)); b.textContent = kiosk ? "📊 DB·에이전트 함께 보기" : "🖥 키오스크 크게";
+    const b = $("btnView"); b.setAttribute("aria-pressed", String(kiosk)); b.textContent = kiosk ? "📊 DB·에이전트 함께 보기" : "🖥 키오스크만 보기";
     setRobot(false); requestAnimationFrame(fit); saveUrl();
   }
   $("btnView").onclick = () => setView(!document.body.classList.contains("kview"));
@@ -543,7 +548,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const body = $("kBody"); body.style.width = Math.round((screenW + 20) * 0.9) + "px"; body.style.height = (bodyH + 14) + "px";
     const pw = 390, ph = Math.min(844, H - 22);
     const lost = $("fLost"); lost.style.width = pw + "px"; lost.style.height = ph + "px";
-    const devw = Math.max(screenW + 20 + 54, scene === "lostweb" ? pw + 22 : 0);    // 옆 단말기 자리까지
+    const devw = Math.max(screenW + 20 + 54, pw + 22);    // 옆 단말기 자리까지. 11/12 휴대폰 장면도 같은 폭(장면마다 칸 폭이 바뀌던 것)
     if (!narrow) $("main").style.setProperty("--devw", Math.round(devw) + "px");
   }
   window.addEventListener("resize", fit);
@@ -1039,7 +1044,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const want = (SCENES[scene] || {}).kind;
     const st = stories.find((s) => s.kind === want);
     const box = $("steps");
-    if (!st) { box.innerHTML = `<span class="empty">${want === "lost" ? "아직 분실 신고·회수 건이 없어요 — ② 분실 신고에서 찾기 번호를 받은 뒤 ③ 회수에서 입력해 보세요." : "아직 진행 중인 건이 없어요 — 왼쪽 화면에서 시작해 보세요."}</span>`; return; }
+    if (!st) { box.innerHTML = `<span class="empty">${want === "lost" ? "아직 분실 신고·회수 건이 없어요 — ② 분실 신고에서 찾기 번호를 받은 뒤 ③ 회수에서 입력해 보세요." : "아직 진행 중인 건이 없어요 — 가운데 키오스크에서 시작해 보세요."}</span>`; return; }
     const ids = Object.values(st.ids || {}).filter(Boolean).join(" · ");
     box.innerHTML = `<span class="who">${st.kind === "found" ? "습득" : "분실·반환"} ${esc(st.story_id)}<small>${esc(ids)}</small></span><ol>` +
       st.stages.map((s) => `<li class="${esc(s.state)}" title="${esc(s.detail || "")}">${esc(s.label)}</li>`).join("") + `</ol>` +

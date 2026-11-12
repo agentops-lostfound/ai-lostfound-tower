@@ -40,7 +40,7 @@ def add_center_integration(app, auth, *, service, services=None):
 
     if not active:
         return
-    from fastapi import Depends, HTTPException, Request
+    from fastapi import Depends, HTTPException, Request, Query
     from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
     from agents.center_api import create_app
 
@@ -106,6 +106,12 @@ def add_center_integration(app, auth, *, service, services=None):
         from center.readiness import check_readiness
         return check_readiness(getattr(stores.get('collections'), 'connect', None),
                                getattr(stores.get('statistics'), 'connect', None))
+
+    @child.get('/audit', dependencies=[Depends(authorize)])
+    def audit(sample_limit: int = Query(default=50, ge=1, le=200)):
+        from center.collection_audit import audit_collections
+        result = audit_collections(getattr(stores.get('collections'), 'connect', None), sample_limit)
+        return JSONResponse(result, status_code=200 if result['completed'] else 503)
 
     app.mount(PREFIX, child)
 

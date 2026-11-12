@@ -14,6 +14,7 @@
     $('pending').textContent = value ? '회수 결과 확인 중입니다. 새 요청을 만들지 말고 같은 요청으로 확인하세요.' : '';
   }
   async function api(path, body) {
+    if (body !== undefined && path.startsWith('/collections')) clearAudit('변경 요청을 보냈습니다. 결과 확인 후 기록 점검을 다시 실행해주세요.');
     const options = {cache: 'no-store', credentials: 'same-origin'};
     if (body !== undefined) Object.assign(options, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     const r = await fetch(root + path, options);
@@ -24,6 +25,7 @@
   function controls() {
     document.querySelectorAll('button,input,select').forEach(e => { e.disabled = busy || !board; });
     $('refresh').disabled = busy; $('readiness').disabled = busy;
+    $('auditRun').disabled = busy;
     $('pickup').disabled = busy || !!pending || !$('items').querySelector('input:checked');
     $('machine').disabled = busy || !!pending || !board;
     $('retry').disabled = busy || !pending;
@@ -56,6 +58,7 @@
     target.append(section);
   }
   async function load() {
+    clearAudit('목록을 새로 불러옵니다. 기록 점검을 다시 실행해주세요.');
     // Hide stale state before requesting a fresh snapshot.
     board = null; $('items').replaceChildren(); $('batches').replaceChildren(); $('alerts').replaceChildren(); $('answer').textContent = ''; $('lookupResult').replaceChildren(); controls();
     board = await api('/dashboard');
@@ -95,6 +98,29 @@
   $('readiness').onclick = () => action(async () => { const d = await api('/readiness'); message(`연결 점검: ${d.ready ? '준비됨' : '확인 필요'} · 회수 ${d.collection} · 통계 ${d.statistics} · 같은 DB ${d.same_database ? '확인' : '미확인'}`); });
   $('stats').onsubmit = e => { e.preventDefault(); action(async () => { $('answer').textContent = ''; const d = await api('/statistics/questions', {question: $('question').value}); $('answer').textContent = d.answer; }); };
   $('question').oninput = () => { $('answer').textContent = ''; };
+  function clearAudit(status) {
+    $('auditResult').hidden = true;
+    for (const id of ['auditSummary', 'auditTime', 'auditCoverage']) $(id).textContent = '';
+    $('auditIssues').replaceChildren(); $('auditLimits').replaceChildren();
+    $('auditStatus').textContent = status;
+  }
+  $('auditRun').onclick = () => action(async () => {
+    clearAudit('기록을 점검하고 있습니다.');
+    try {
+      const d = await api('/audit');
+      if (!d.completed) throw Error('점검을 완료하지 못했습니다.');
+      $('auditStatus').textContent = d.status === 'ok' ? '검사 범위에서 기록 불일치가 발견되지 않았습니다.' : '확인이 필요한 기록이 있습니다.';
+      $('auditSummary').textContent = `불일치 항목 ${d.error_count}건 · 담당자 확인 ${d.review_count}건 · 표시 ${d.issues.length}/${d.issue_count}건${d.truncated ? ' (표시 한도 초과)' : ''}`;
+      $('auditTime').textContent = `점검 시각: ${new Date(d.checked_at).toLocaleString('ko-KR')} · ${d.scope}`;
+      $('auditCoverage').textContent = `회수 묶음 ${d.counts.collections}건 · 회수 항목 ${d.counts.members}건 · 도착 검토 전 ${d.counts.unreviewed_collections}건 · 이력 귀속 미판정 항목 ${d.counts.history_members_unchecked}건`;
+      for (const issue of d.issues) $('auditIssues').append(text('p', `${issue.severity === 'error' ? '불일치' : '담당자 확인'} · ${issue.collection_id ? '회수 '+issue.collection_id+' · ' : ''}${issue.item_id || ''} ${issue.message}`));
+      for (const limit of d.limitations) $('auditLimits').append(text('li', limit));
+      $('auditResult').hidden = false;
+    } catch (error) {
+      clearAudit('점검을 완료하지 못했습니다. 연결·스키마·권한을 확인한 뒤 다시 실행해주세요.');
+      throw error;
+    }
+  });
   $('lookup').onsubmit = e => { e.preventDefault(); action(async () => { $('lookupResult').replaceChildren(); renderBatch(await api('/collections/' + Number($('collectionId').value)), $('lookupResult')); }); };
   remember(pending); action(load);
 })();

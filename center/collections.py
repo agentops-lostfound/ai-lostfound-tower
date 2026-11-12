@@ -34,6 +34,10 @@ class CollectionStore:
         with self.connect() as conn, conn.cursor() as cur:
             return self._view(cur, cid)
 
+    def audit(self, sample_limit=50):
+        from center.collection_audit import audit_collections
+        return audit_collections(self.connect, sample_limit)
+
     def dashboard(self):
         """Bounded public operational fields from one read-only snapshot."""
         with self.connect() as conn, conn.cursor() as cur:
