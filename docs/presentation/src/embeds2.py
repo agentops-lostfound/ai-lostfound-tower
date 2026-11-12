@@ -174,14 +174,14 @@ def system():
     css += f".hd{{position:absolute;top:60px;width:165px;text-align:center;margin:0}}.hd b{{display:block;font-size:30px;color:{INK}}}.hd span{{font-size:20px;color:{SUB}}}"
     css += f".rw{{position:absolute;left:840px;width:96px;margin:0;font-size:20px;color:{SUB};line-height:1.25;font-weight:700}}"
     css += f".lb{{position:absolute;margin:0;font-size:22px;font-weight:800;color:{INK};text-align:center}}"
-    css += ".dot{position:absolute;left:0;top:0;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);offset-rotate:0deg;opacity:0}"
+    css += ".dot{position:absolute;left:0;top:0;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);offset-rotate:0deg;opacity:0}"
     css += "@keyframes mv{from{offset-distance:0%}to{offset-distance:100%}}@keyframes fl{to{stroke-dashoffset:-16}}"
     base = css
     # 왼쪽: 역 키오스크 · 분실인 휴대폰
     body = f'<svg width="{W}" height="{H}" style="position:absolute;left:0;top:0">'
     paths = ["M300 170 C340 170 340 250 380 250", "M300 500 C340 500 340 400 380 400", "M720 330 C760 330 760 520 800 520"]
     for d in paths:  # 점선이 흐르는 방향 = 정보가 가는 방향(역·분실인 → 관제탑 → 본센터)
-        body += f'<path d="{d}" fill="none" stroke="#C9C1B3" stroke-width="4" stroke-dasharray="8 8" style="animation:fl 1s linear infinite"/>'
+        body += f'<path d="{d}" fill="none" stroke="#C9C1B3" stroke-width="4" stroke-dasharray="8 8" style="animation:fl 3.5s linear infinite;opacity:.8"/>'
     body += "</svg>"
     body += (f'<div class="bx" style="left:0;top:20px;width:300px;height:300px;background:{CARD};border:2px solid {LINE}"><h4>역 2곳</h4><h3>습득물 등록기계</h3></div>'
              f'<div class="kio" style="left:40px;top:140px"></div><div class="kio" style="left:170px;top:140px"></div>'
@@ -191,20 +191,20 @@ def system():
              f'<div style="margin:16px 8px;height:20px;border-radius:8px;background:{ACCL}"></div><div style="margin:0 8px 8px;height:14px;border-radius:6px;background:#4B5568"></div><div style="margin:0 8px;height:14px;width:40px;border-radius:6px;background:#4B5568"></div></div>')
     # 가운데: 관제탑 PC
     chips = [("관제탑 서버", "포트 8100"), ("팀 DB", "PostgreSQL"), ("sLLM", "Mi:dm 2.0 mini"), ("VLM", "Qwen3-VL"), ("기록 · 알림", "Langfuse·디스코드")]
-    body += (f'<div class="bx" style="left:380px;top:20px;width:340px;height:620px;background:{INK};display:flex;flex-direction:column;gap:12px;animation:tp 2.6s infinite">'
+    body += (f'<div class="bx" style="left:380px;top:20px;width:340px;height:620px;background:{INK};display:flex;flex-direction:column;gap:12px;animation:tp 5s ease-in-out infinite">'
              f'<h4 style="color:{ACCL}">관제탑 PC</h4><h3 style="color:#F7F5F1;margin-bottom:10px">AI 관제탑</h3>'
              + "".join(f'<div class="ch">{a}<small>{b}</small></div>' for a, b in chips) + "</div>")
-    css += kf("tp", [(0, "box-shadow:0 0 0 0 rgba(240,106,0,.45)"), (70, "box-shadow:0 0 0 18px rgba(240,106,0,0)"), (100, "box-shadow:0 0 0 0 rgba(240,106,0,0)")])
+    css += kf("tp", [(0, "box-shadow:0 0 0 0 rgba(240,106,0,.22)"), (60, "box-shadow:0 0 0 12px rgba(240,106,0,0)"), (100, "box-shadow:0 0 0 0 rgba(240,106,0,0)")])
     # 관계: 역 키오스크 → 관제탑(접수·사진 보고, 주황) / 분실인 ⇄ 관제탑(찾기 요청 주황 ↑, 안내·찾기 번호 초록 ↓)
     #       관제탑 ⇄ 본센터(반환 지시 초록 →, 완료 보고 주황 ←)
     flows = [(paths[0], "#F06A00", "go", 0), (paths[0], "#F06A00", "go", -1.5),
              (paths[1], "#F06A00", "go", 0), (paths[1], "#2E9E5B", "bk", 0),
              (paths[2], "#2E9E5B", "go", -1.5), (paths[2], "#F06A00", "bk", -1.5)]
-    css += ("@keyframes go{0%{offset-distance:0%;opacity:0}6%{opacity:1}44%{offset-distance:100%;opacity:1}50%{offset-distance:100%;opacity:0}100%{offset-distance:100%;opacity:0}}"
-            "@keyframes bk{0%{offset-distance:100%;opacity:0}50%{offset-distance:100%;opacity:0}56%{opacity:1}94%{offset-distance:0%;opacity:1}100%{offset-distance:0%;opacity:0}}")
+    css += ("@keyframes go{0%{offset-distance:0%;opacity:0}8%{opacity:.85}42%{offset-distance:100%;opacity:.85}50%{offset-distance:100%;opacity:0}100%{offset-distance:100%;opacity:0}}"
+            "@keyframes bk{0%{offset-distance:100%;opacity:0}50%{offset-distance:100%;opacity:0}58%{opacity:.85}92%{offset-distance:0%;opacity:.85}100%{offset-distance:0%;opacity:0}}")
     for d, col, kf_, dl in flows:
-        body += (f'<div class="dot" style="offset-path:path(\'{d}\');background:{col};box-shadow:0 0 0 6px {col}40;'
-                 f'animation:{kf_} 3s ease-in-out infinite;animation-delay:{dl}s"></div>')
+        body += (f'<div class="dot" style="offset-path:path(\'{d}\');background:{col};box-shadow:0 0 0 4px {col}26;opacity:0;'
+                 f'animation:{kf_} 6s ease-in-out infinite;animation-delay:{dl * 2}s"></div>')
     body += ('<div style="position:absolute;left:0;bottom:-2px;width:800px;display:none"></div>')
     _bl, _cl = body, css
     body, css = "", base
