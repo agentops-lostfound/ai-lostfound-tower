@@ -84,6 +84,12 @@ def found_statement(question):
         return False
     if re.search(r'(?:밤|새벽|[0-9]+시).*(?:맡길수|맡겨도|신고할수|가도)', q):
         return False
+    # 11/12 방법·위치를 묻거나("습득물 신고는 어떻게", "어느 역", "하나씩 넣어야") 습득된 물건을 찾는 말("휴대폰 습득된 거 있어요?")은
+    #   맡기려는 말이 아니다 → 안내(researcher)·검색(item_search) 길로(main 채점표 #61·64~67·113·125·133·154·162)
+    if re.search(r'어떻게|어디|어느|방법|절차|위치|하나씩|한번에|헷갈|해야하는지|위로|뒷면|화면이', q):
+        return False
+    if re.search(r'(?:습득|주운|주워|발견)(?:된|한|해둔|해놓은|돼)?(?:거|것|물건|게|폰|휴대폰).{0,6}(?:있|들어왔|보관)|있는지|있나요|있어요\?|찾아|검색|후보', q):
+        return False
     return bool(FOUND_SAY.search(question) and explicit_role(question) == 'found' and not explanation_only(question))
 
 

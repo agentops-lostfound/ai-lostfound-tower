@@ -13,7 +13,8 @@ def compact(text):
 def question_goal(question):
     q = compact(question)
     # 복합 요청은 기존 주제 분리기가 각 부분을 처리한다. 한 답으로 덮지 않는다.
-    if (re.search(r'찾아줘|검색해줘|후보보여', q) and re.search(r'그리고|[.。]|절차도|시간도', q)
+    # 11/12 "빨간색 립밤 있는지 보고 운영시간도", "파란 휴대폰 찾고 받는 순서도"도 복합(main 채점표 #223·#272)
+    if (re.search(r'찾아줘|검색해줘|후보보여|있는지|찾고|찾아서', q) and re.search(r'그리고|[.。]|절차도|시간도|순서도|보고|하고|찾고', q)
             or re.search(r'운영시간|몇시에열|몇시에닫', q) and re.search(r'절차|순서|어디로|위치', q)
             or re.search(r'연락처|보관기간|파기|삭제|지우', q) and re.search(r'수령|받는순서', q)):
         return None

@@ -154,6 +154,9 @@ def detect_start(question: str, history=None) -> str | None:
     if HOW_ASK.search(q) and not WANT.search(q):
         return None
     role = explicit_role(q)
+    # 11/12 "찾기 신청할게요"·"찾기 요청할게요": 분실/습득 단어가 없어도 찾기 = 분실 접수(main 채점표 #296·#380)
+    if not role and re.search(r"찾기\s*(?:접수|신청|요청)", q) and not FOUND_SAY.search(q):
+        role = "lost"
     if (START_FOUND.search(q) or START_LOST.search(q)) and role:
         return role
     if REGISTER.search(q):

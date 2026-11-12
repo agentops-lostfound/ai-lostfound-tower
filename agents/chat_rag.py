@@ -626,7 +626,7 @@ class GroundedRag:
                     'choices': LOST_CHOICES}
         if not hits:
             return {**base, 'generation_status': 'conversation_clarification',
-                    'answer': '말씀하신 뜻을 잘 모르겠어요. 이어서 도움이 필요한 내용을 한 문장으로 알려 주세요.',
+                    'answer': '말씀하신 뜻을 잘 모르겠어요. 분실물 찾기·주운 물건 신고·물건 받는 방법 중 궁금한 질문을 한 문장으로 알려 주세요.',
                     'choices': []}
         tried = False
         if self.model and self._lock.acquire(blocking=False):
