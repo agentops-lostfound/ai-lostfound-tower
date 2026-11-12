@@ -4,14 +4,14 @@
 
 ## 1. 덱 위치
 - Claude Slides 아티팩트 "AI 분실물 관제탑 발표" (31장) — 링크는 재원에게 받기(공유: 링크가 있는 모든 사용자, 수정은 재원 계정)
-- 최신 발행본 = 버전 56. 이 폴더 `deck/project/`가 그 사본(슬라이드 HTML + deck.json)
+- 최신 발행본 = 버전 57. 이 폴더 `deck/project/`가 그 사본(슬라이드 HTML + deck.json)
 - 발표 PC에서는 claude.ai 에 로그인한 상태로 열 것(로그인 안 하면 움직이는 그림이 안 나왔음)
 
 ## 2. 장 순서 (deck.json order)
 cover, problem, solution, system(4쪽), flow, v0(전체 흐름 영상), part2, found, vision, v1, lost, chatbot, v2, ret(14쪽), v3, v7, v8, arch, life, v4(20쪽, 영상 4 넣음), agents, talk, brain, v5, except, v6, proof, scope, learn, team, end
 
 ## 3. 남은 일 (우선순위)
-1. ~~20쪽 영상 4~~ 완료(11/12, 덱 버전 56: 이름·신분 번호 입력칸과 DB name_masked 칸만 모자이크, 1.6배속 94초)
+1. ~~20쪽 영상 4~~ 완료(11/12, 덱 버전 57: 이름·신분 번호 입력칸과 DB name_masked 칸만 모자이크, 1.6배속 94초)
 2. 남은 촬영: [물건 받았어요] 수령 장면, 챗봇 대화로 찾고 신청하는 장면 (팀원 담당)
 3. 영상이 오면 해당 장의 `<img ... data-video>` 자리에 넣기 (아래 4절)
 4. 순필님 자료(Field Vision, 사전 녹화) 오면 "확장: 카메라로 위치를 계산해 집기" 장 추가('실험 단계 · 사전 녹화' 표시), 팀 소개 장 순필님 역할 문구 수정
@@ -57,3 +57,4 @@ cover, problem, solution, system(4쪽), flow, v0(전체 흐름 영상), part2, f
 
 ## 8. 오늘 덱 변경 기록 (버전)
 - 50: 4·14쪽 로봇팔 옆모습 · 51~53: 4쪽 탑뷰 → 비스듬히 위에서 본 3차원 로봇팔(관절 계산) · 54: 20쪽 영상 4 넣기 · 55: 20쪽 개인정보 칸 단위 모자이크
+- 57: 2·8·14·19쪽 그림, 23쪽 연결선에 등장 순서(data-build-in) 추가 · 27쪽 카드 4장을 같은 틀로(숫자 높이·가운데 맞춤). x-embed·x-connector 를 새로 넣을 때는 카드와 같은 단계 번호의 data-build-in 을 꼭 붙일 것
