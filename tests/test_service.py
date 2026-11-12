@@ -298,7 +298,8 @@ class ApiRoutesTest(unittest.TestCase):
                                      ("POST", "/items/{item_id}/features"), ("POST", "/returns"),
                                      ("POST", "/returns/{case_id}/handover"), ("POST", "/returns/{case_id}/hold"),
                                      ("POST", "/robot/home"), ("POST", "/robot/stop"), ("POST", "/sim/found"),
-                                 ("POST", "/sim/lost"), ("POST", "/sim/lost/{pending_id}/answer"), ("POST", "/sim/reset")]))
+                                 ("POST", "/sim/lost"), ("POST", "/sim/lost/{pending_id}/answer"), ("POST", "/sim/reset"),
+                                 ("GET", "/sim/lost/wait/{wait_id}"), ("POST", "/sim/lost/wait/{wait_id}/notify")]))
         self.assertEqual(r[("POST", "/returns")](ok_payload())["decision"], DECISION_RETURNED)
         for payload, code in ((ok_payload(), 409), (ok_payload(case="R2", phone="010"), 422)):
             with self.assertRaises(self.HTTPException) as cm:

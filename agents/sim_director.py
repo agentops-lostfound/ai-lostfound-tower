@@ -742,7 +742,7 @@ class SimDirector:
     # ----- 11/12 대기 분실 신고 → 문자 알림 신청(시연) -----
     def _wait_by_key(self, wid: str, key: str) -> dict:
         w = self.waiting_lost.get(wid)
-        if w is None or not isinstance(key, str) or not hmac.compare_digest(str(w.get("key") or ""), key):
+        if w is None or not isinstance(key, str) or not hmac.compare_digest(str(w.get("key") or "").encode(), key.encode("utf-8", "replace")):
             raise NotFound("없는 분실 신고예요(시간이 지났거나 관제탑이 다시 켜짐)")
         return w
 

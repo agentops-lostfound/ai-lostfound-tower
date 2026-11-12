@@ -52,6 +52,21 @@ code,.mono{font-family:var(--ui-mono)}
 /* 11/11 ① 탭: 켜진 채로 한 번 더 누르면 중앙역 ⇄ 초량역. 켜져 있을 때만 ⇄ 표시 */
 .scenes .swap{display:none;margin-left:6px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.26)}
 .scenes button[aria-selected="true"] .swap{display:inline-block}
+.views{display:flex;gap:6px;flex:none}
+.views button{border-radius:999px;padding:8px 14px;font-weight:650;white-space:nowrap}
+.views #btnRobot[aria-pressed="true"]{background:var(--ui-text);color:var(--ui-bg)}
+/* 11/12 키오스크 크게 보기: DB·에이전트 칸을 숨기고 기기를 가운데 크게 */
+body.kview main{grid-template-columns:minmax(0,1fr)}
+body.kview main > .panel{display:none}
+body.kview #steps{display:none}
+/* 11/12 간단히(기본): 표 이름 줄·두 번째 행 카드를 숨기고 기록은 최근 것만 */
+body.simple #tables{display:none}
+body.simple:not([data-scene="found"]) .rows{grid-template-columns:minmax(0,1fr)}
+body.simple:not([data-scene="found"]) #cardItem{display:none}   /* 분실·회수 장면은 찾기 요청 한 행만 */
+body.simple #dbLog > li:nth-child(n+5),body.simple #agLog > li:nth-child(n+4){display:none}
+.panel .more{margin-left:auto;font-size:12.5px;padding:4px 10px;border-radius:999px}
+.devgo{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.devgo button{border-radius:999px;padding:8px 16px;font-weight:650}
 #foundStn{display:inline-block;animation:stn .25s ease-out}
 @keyframes stn{from{opacity:0;transform:translateY(-4px)}}
 .chips{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -270,10 +285,14 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   <h1>AI 분실물 관제탑<small>통합 시연</small></h1>
   <nav class="scenes" role="tablist" aria-label="시연 장면">
     <button role="tab" data-scene="found" aria-selected="true" title="켜진 채로 한 번 더 누르면 중앙역 ⇄ 초량역"><span class="no">1</span>습득 · <span id="foundStn">중앙역</span> 키오스크<span class="swap" aria-hidden="true">⇄</span></button>
-    <button role="tab" data-scene="lost" aria-selected="false"><span class="no">2</span>분실 신고 · 분실인 휴대폰</button>
+    <button role="tab" data-scene="lost" aria-selected="false" title="역 키오스크 분실 접수 · 켜진 채로 한 번 더 누르면 키오스크 ⇄ 휴대폰 웹"><span class="no">2</span>분실 · <span id="lostWhere">키오스크</span><span class="swap" aria-hidden="true">⇄</span></button>
     <button role="tab" data-scene="pickup" aria-selected="false"><span class="no">3</span>회수 · 본센터 키오스크</button>
-    <button role="tab" data-scene="robot" aria-selected="false"><span class="no">4</span>로봇 작업대</button>
   </nav>
+  <!-- 11/12 발표 검토: 화면은 두 가지(키오스크 + DB·에이전트 요약 / 키오스크 크게) — 단추 하나로 오감. 로봇 작업대는 작은 단추로 -->
+  <div class="views">
+    <button type="button" class="ghost" id="btnView" title="키오스크만 크게 ⇄ DB·에이전트 함께">🖥 키오스크 크게</button>
+    <button type="button" class="ghost" id="btnRobot" title="로봇 작업대(실시간 관제)를 열고 닫기">🤖 로봇 작업대</button>
+  </div>
   <div class="chips">
     <span class="chip"><span class="dot" id="conn"></span><span id="connText">연결 중</span></span>
     <span class="chip" id="robotMode" hidden>실물 로봇 · 회수 버튼으로 실행 · [물건 받았어요]로 인계</span>
@@ -304,10 +323,12 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       <div class="handset" id="standPhone" hidden><iframe id="fLost" title="분실인 휴대폰(분실인 웹)"></iframe></div>
     </div>
     <p class="cap" id="cap"></p>
+    <div class="devgo" id="devgo"></div>   <!-- 11/12 장면 사이 바로가기(분실 → 휴대폰 웹 / 키오스크, 역 회수 → 본센터) -->
   </section>
 
   <section class="panel" aria-label="DB 실시간 기록">
-    <header><h2>DB 실시간 기록</h2><span class="hint" id="srcHint"></span></header>
+    <header><h2>DB 실시간 기록</h2><span class="hint" id="srcHint"></span>
+      <button type="button" class="ghost more" id="btnMore" aria-pressed="false" title="표 이름·행 카드·기록을 모두 보기">자세히</button></header>
     <div class="tables" id="tables"></div>
     <div class="rows">
       <article class="rowcard" id="cardItem"></article>
@@ -352,14 +373,20 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ================= 장면 =================
+  // 11/12 장면: found(역 키오스크 습득) · lost(역 키오스크 분실 접수) · lostweb(분실인 휴대폰 웹) · stationret(역 키오스크 회수 탭 = 본센터 안내)
+  //   · pickup(본센터 키오스크). 머리말 단추는 습득/분실/회수 3개 — lost·lostweb 는 ②, stationret·pickup 은 ③ 이 켜짐
   const SCENES = {
-    found:  {frame: "fFound",  kind: "found", label: "촬영 카메라 · 접수증", cap: ""},   // cap 은 foundCap()(역이 바뀜)
-    lost:   {frame: "fLost",   kind: "lost",
-             cap: "<b>분실인 휴대폰 · 분실인 웹</b><br>신고하면 닮은 습득물을 찾고 → <code>claim</code> 표에 찾기 요청이 저장돼요"},
-    pickup: {frame: "fPickup", kind: "lost", label: "물건 나오는 곳",
+    found:  {frame: "fFound",  kind: "found", tab: "found", head: "found", label: "촬영 카메라 · 접수증", cap: ""},   // cap 은 foundCap()(역이 바뀜)
+    lost:   {frame: "fFound",  kind: "lost",  tab: "lost",  head: "lost", label: "역 키오스크",
+             cap: "<b>역 키오스크 · 분실 접수</b><br>품목·색·역을 고르면 닮은 습득물을 찾고 → <code>claim</code> 표에 찾기 요청 · 아직 없으면 문자 알림 신청"},
+    lostweb:{frame: "fLost",   kind: "lost",  head: "lost",
+             cap: "<b>분실인 휴대폰 · 분실인 웹</b><br>키오스크와 같은 신고를 휴대폰으로 · 물건이 들어오면 이 휴대폰에 문자 알림(시연)"},
+    stationret: {frame: "fFound", kind: "lost", tab: "ret", head: "pickup", label: "역 키오스크",
+             cap: "<b>역 키오스크 · 회수 탭</b><br>물건은 부산역 본센터에서 받아요 → 아래 단추로 본센터 키오스크로"},
+    pickup: {frame: "fPickup", kind: "lost", head: "pickup", label: "물건 나오는 곳",
              cap: "<b>부산역 본센터 키오스크 CENTER</b><br>찾기 번호로 <code>claim</code> 을 읽어 본인 확인 → 로봇이 꺼내고 반환 기록 저장"},
-    robot:  {kind: "lost"},
   };
+  const guideKey = (sc) => ({lostweb: "lost", stationret: "pickup"}[sc] || sc);
   // 11/11 빈 화면 안내(기록이 생기기 전). 표·명령은 docs/design/db_change_flow.md 2장과 같게
   const op = (o) => `<span class="op ${o}">${o}</span>`;
   const GUIDE_DB = {
@@ -381,7 +408,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     chat:  {chain: ["질문", "coordinator 말 분류", "planner 일 순서", "supervisor ⇄ 일꾼", "reporter 답 정리"], note: "일꾼 = researcher(안내 문서) · item_search(물건 검색) · intake(대화 접수)"},
   };
   function renderGuides() {
-    const g = GUIDE_DB[scene] || GUIDE_DB.lost;
+    const g = GUIDE_DB[guideKey(scene)] || GUIDE_DB.lost;
     $("dbGuide").innerHTML = `<div class="gh">이 장면에서 바뀌는 표 — 첫 기록이 생기면 이 안내는 사라져요</div><ol>${g.map((x) => `<li><span>${x}</span></li>`).join("")}</ol>`;
     const a = GUIDE_AG[graph] || GUIDE_AG.tower;
     $("agGuide").innerHTML = `<div class="gh">아직 대화가 없어요 — 일이 생기면 이 순서로 말이 오가요</div>` +
@@ -389,6 +416,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       `<div class="gf">${a.note} · 위 그림에서 지금 일하는 에이전트가 진하게 켜져요</div>`;
   }
   let scene = SCENES[qs.get("scene")] ? qs.get("scene") : "found";
+  let robotOpen = qs.get("scene") === "robot" || qs.get("robot") === "1";   // 11/12 로봇 작업대는 장면이 아니라 열고 닫는 창
   let camMode = ["server", "demo", "browser"].includes(qs.get("cam")) ? qs.get("cam") : null;   // null = 서버 설정을 보고 정함
   // 11/11 ① 습득 키오스크: 중앙역(KIOSK-A) ⇄ 초량역(KIOSK-C). ?kiosk=C 로 초량역부터. 서버 카메라가 없는 기계는 다른 기계 카메라를 빌림(camsrc)
   const FOUND_STN = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역"};
@@ -403,7 +431,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       const src = Object.keys(camMachines).find((m) => m !== "CENTER");
       if (src) cam += `&camsrc=${encodeURIComponent(src)}`;
     }
-    return `/kiosk?machine=${machine}${cam}`;
+    return `/kiosk?machine=${machine}${cam}&in=showcase`;   // in=showcase: 키오스크 탭 ⇄ 발표 화면 장면을 맞춤(11/12)
   }
   function bare(frame) {                         // 기기 틀 안 화면에서는 스크롤 막대를 숨긴다(스크롤은 그대로 됨)
     frame.addEventListener("load", () => {
@@ -417,28 +445,72 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     if (sc === "found") $("fFound").src = kioskUrl(foundMachine);
     // 본센터 키오스크는 회수 탭으로 바로 연다(?tab=ret → 카메라를 켜지 않음). &demo=1: 습득 탭으로 넘어가도 실제 웹캠을 잡지 않게
     // — 중앙역 키오스크가 쓰는 PC 웹캠과 다투면 영상이 깨진다(11/10)
-    else if (sc === "pickup") $("fPickup").src = "/kiosk?machine=CENTER&tab=ret&demo=1";
-    else if (sc === "lost") $("fLost").src = "/phone";
+    else if (sc === "pickup") $("fPickup").src = "/kiosk?machine=CENTER&tab=ret&demo=1&in=showcase";
+    else if (sc === "lostweb") $("fLost").src = "/phone";
     else if (sc === "robot") $("full").src = "/live?embed=1";   // 11/11 작업대가 한 화면에 들어오는 모양
   }
-  function setScene(sc) {
-    scene = sc;
-    document.querySelectorAll(".scenes button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.scene === sc)));
-    const robot = sc === "robot";
-    $("main").hidden = robot; $("full").hidden = !robot; $("steps").hidden = robot;
-    load(sc);
-    if (!robot) {
-      const phone = sc === "lost";
-      $("standKiosk").hidden = phone; $("standPhone").hidden = !phone;
-      $("fFound").hidden = sc !== "found"; $("fPickup").hidden = sc !== "pickup";
-      $("cardVision").hidden = sc !== "found"; $("cardClaim").hidden = sc === "found";     // 습득 장면: 찾기 요청 대신 사진 분석(Qwen)
-      $("cap").innerHTML = sc === "found" ? foundCap() : SCENES[sc].cap;
-      if (SCENES[sc].label) $("kLabel").textContent = SCENES[sc].label;
-      fit();
-    }
-    renderSteps(); renderGuides();
-    try { history.replaceState(null, "", location.pathname + "?scene=" + sc + (qs.get("cam") ? "&cam=" + qs.get("cam") : "")); } catch (_) {}
+  function kioskTab(frameId, tab) {               // 11/12 키오스크 틀 안 탭 바꾸기(키오스크가 다 뜬 뒤면 바로, 아니면 뜬 뒤)
+    const f = $(frameId), send = () => { try { f.contentWindow.postMessage({type: "kiosk-set-tab", tab}, location.origin); } catch (_) {} };
+    f.dataset.wantTab = tab; send();
+    if (!f.dataset.tabHook) { f.dataset.tabHook = "1"; f.addEventListener("load", () => setTimeout(() => { if (f.dataset.wantTab) { try { f.contentWindow.postMessage({type: "kiosk-set-tab", tab: f.dataset.wantTab}, location.origin); } catch (_) {} } }, 300)); }
   }
+  function setScene(sc, fromKiosk) {
+    if (!SCENES[sc]) sc = "found";
+    scene = sc;
+    const S = SCENES[sc];
+    document.querySelectorAll(".scenes button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.scene === S.head)));
+    $("lostWhere").textContent = sc === "lostweb" ? "휴대폰 웹" : "키오스크";
+    load(S.frame === "fFound" ? "found" : sc);
+    const phone = sc === "lostweb";
+    $("standKiosk").hidden = phone; $("standPhone").hidden = !phone;
+    $("fFound").hidden = S.frame !== "fFound"; $("fPickup").hidden = S.frame !== "fPickup";
+    if (S.frame === "fFound" && S.tab && !fromKiosk) kioskTab("fFound", S.tab);
+    $("cardVision").hidden = sc !== "found"; $("cardClaim").hidden = sc === "found";     // 습득 장면: 찾기 요청 대신 사진 분석(Qwen)
+    $("cap").innerHTML = sc === "found" ? foundCap() : S.cap;
+    if (S.label) $("kLabel").textContent = S.label;
+    // 키오스크 안에도 같은 단추가 있음(분실 탭 [휴대폰 웹으로] · 회수 탭 [본센터 키오스크로]) → 여기는 휴대폰에서 돌아오는 단추만
+    const go = {lostweb: [["lost", "🏧 역 키오스크로 신고하기"]]}[sc] || [];
+    document.body.dataset.scene = sc;
+    $("devgo").innerHTML = go.map(([to, t]) => `<button type="button" class="ghost" data-go="${to}">${t}</button>`).join("");
+    setRobot(false);
+    fit();
+    renderSteps(); renderGuides();
+    saveUrl();
+  }
+  function saveUrl() {
+    try { const u = new URL(location.href); u.searchParams.set("scene", scene);
+      if (document.body.classList.contains("kview")) u.searchParams.set("view", "kiosk"); else u.searchParams.delete("view");
+      if (robotOpen) u.searchParams.set("robot", "1"); else u.searchParams.delete("robot");
+      history.replaceState(null, "", u); } catch (_) {}
+  }
+  function setRobot(open) {                       // 11/12 로봇 작업대: 머리말 작은 단추로 열고 닫기(장면은 그대로)
+    robotOpen = open;
+    if (open) load("robot");
+    $("main").hidden = open; $("full").hidden = !open; $("steps").hidden = open;
+    const b = $("btnRobot"); b.setAttribute("aria-pressed", String(open)); b.textContent = open ? "← 키오스크로" : "🤖 로봇 작업대";
+    if (!open) fit();
+    saveUrl();
+  }
+  function setView(kiosk) {                       // 11/12 두 화면: 키오스크 + DB·에이전트(기본) ⇄ 키오스크 크게
+    document.body.classList.toggle("kview", kiosk);
+    const b = $("btnView"); b.setAttribute("aria-pressed", String(kiosk)); b.textContent = kiosk ? "📊 DB·에이전트 함께 보기" : "🖥 키오스크 크게";
+    setRobot(false); requestAnimationFrame(fit); saveUrl();
+  }
+  $("btnView").onclick = () => setView(!document.body.classList.contains("kview"));
+  $("btnRobot").onclick = () => setRobot(!robotOpen);
+  document.body.classList.add("simple");
+  $("btnMore").onclick = () => { const on = document.body.classList.toggle("simple"); $("btnMore").setAttribute("aria-pressed", String(!on)); $("btnMore").textContent = on ? "자세히" : "간단히"; };
+  $("devgo").addEventListener("click", (e) => { const b = e.target.closest("button[data-go]"); if (b) setScene(b.dataset.go); });
+  // 키오스크 틀에서 온 말: 탭을 눌렀음(kiosk-tab) · 다른 장면으로 가기(showcase-go)
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin || !e.data || typeof e.data !== "object") return;
+    const d = e.data, center = d.machine === "CENTER";
+    if (d.type === "showcase-go" && SCENES[d.scene]) setScene(d.scene);
+    else if (d.type === "kiosk-tab") {
+      if (center) { if (d.tab !== "ret") { kioskTab("fPickup", "ret"); setScene(d.tab); } }   // 본센터 키오스크의 습득·분실 탭 → 역 키오스크로
+      else setScene({found: "found", lost: "lost", ret: "stationret"}[d.tab] || "found", true);
+    }
+  });
   function swapFound() {                          // 11/11 켜진 ① 탭을 다시 누르면 역 바꾸기
     foundMachine = foundMachine === "KIOSK-A" ? "KIOSK-C" : "KIOSK-A";
     const s = $("foundStn"); s.textContent = FOUND_STN[foundMachine]; s.style.animation = "none"; void s.offsetWidth; s.style.animation = "";
@@ -448,7 +520,12 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     try { const u = new URL(location.href); if (foundMachine === "KIOSK-C") u.searchParams.set("kiosk", "C"); else u.searchParams.delete("kiosk"); history.replaceState(null, "", u); } catch (_) {}
   }
   document.querySelectorAll(".scenes button").forEach((b) => b.onclick = () => {
-    if (b.dataset.scene === "found" && scene === "found") swapFound(); else setScene(b.dataset.scene);
+    const sc = b.dataset.scene;
+    if (robotOpen && SCENES[scene].head === sc) { setRobot(false); return; }
+    if (sc === "found" && scene === "found") swapFound();
+    else if (sc === "lost" && (scene === "lost" || scene === "lostweb")) setScene(scene === "lost" ? "lostweb" : "lost");   // ② 다시 누르면 키오스크 ⇄ 휴대폰
+    else if (sc === "pickup" && scene === "stationret") setScene("pickup");
+    else setScene(sc);
   });
 
   // 기기 크기: 왼쪽 칸 높이에 맞춰 세로 키오스크(화면 9:16)와 휴대폰을 줄여 그린다. 안쪽 화면은 460×818 로 그린 뒤 축소(글자 비율 유지)
@@ -466,7 +543,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const body = $("kBody"); body.style.width = Math.round((screenW + 20) * 0.9) + "px"; body.style.height = (bodyH + 14) + "px";
     const pw = 390, ph = Math.min(844, H - 22);
     const lost = $("fLost"); lost.style.width = pw + "px"; lost.style.height = ph + "px";
-    const devw = Math.max(screenW + 20 + 54, scene === "lost" ? pw + 22 : 0);    // 옆 단말기 자리까지
+    const devw = Math.max(screenW + 20 + 54, scene === "lostweb" ? pw + 22 : 0);    // 옆 단말기 자리까지
     if (!narrow) $("main").style.setProperty("--devw", Math.round(devw) + "px");
   }
   window.addEventListener("resize", fit);
@@ -1065,7 +1142,10 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     }
     $("foundStn").textContent = FOUND_STN[foundMachine];
     drawCard("item"); drawCard("claim"); drawVision(false); drawGraph();
+    if (qs.get("view") === "kiosk") document.body.classList.add("kview"), $("btnView").setAttribute("aria-pressed", "true"), $("btnView").textContent = "📊 DB·에이전트 함께 보기";
+    const openRobot = robotOpen;
     setScene(scene);
+    if (openRobot) setRobot(true);
     poll(); pump();
   }
   start();

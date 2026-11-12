@@ -83,6 +83,7 @@ input[type=text]:focus,input[type=tel]:focus,textarea:focus{border-color:var(--u
 #lost,#ret{overflow:auto;justify-content:flex-start;gap:18px}
 #lost{padding:0;overflow:hidden}
 #lostFrame{display:block;width:100%;height:100%;min-height:0;flex:1;border:0;border-radius:inherit;background:var(--ui-surface)}
+#lost .scgo{flex:none;margin:0 16px 14px;min-height:56px;font-size:20px}
 #lost h1,#ret h1{font-size:38px}
 #raway,#rform,#rwork,#rdone{display:flex;flex-direction:column;gap:18px}
 #raway[hidden],#rform[hidden],#rwork[hidden],#rdone[hidden]{display:none}
@@ -296,6 +297,8 @@ body.demo-mode #stn{flex:1 1 auto}
     <!-- 11/11 분실 접수: 휴대폰 분실인 웹(/lost)과 같은 화면·같은 접수(찾기 번호 또는 대기 번호)를 키오스크 안에 띄운다.
          예전에는 저장하지 않고 역무실 안내만 하는 입력칸이었다. 주소 ?embed=kiosk&station=이 키오스크 역 -->
     <iframe id="lostFrame" title="분실 접수(분실인 웹과 같은 화면)"></iframe>
+    <!-- 11/12 발표 화면 안에서만: 같은 신고를 분실인 휴대폰 웹으로 해 보기 -->
+    <button type="button" class="ghost scgo" id="goWeb" hidden>📱 휴대폰 웹으로 신고하기</button>
   </section>
   <section id="ret" class="lostsec" data-scroll-hint>
     <div id="raway" hidden>
@@ -307,6 +310,7 @@ body.demo-mode #stn{flex:1 1 auto}
         <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>방문 시간</title><circle cx="40" cy="28" r="21"/><path class="p" d="M40 15v13l9 6"/></svg>평일 9~18시<small>시연 기준</small></li>
       </ul>
       <p class="legal">번호가 없으면? <b>분실인 웹</b>에서 신고하거나 <b>AI 안내</b>에 물어보세요.</p>
+      <button type="button" id="goCenter" hidden>부산역 본센터 키오스크로 가기 →</button>   <!-- 11/12 발표 화면 안에서만 -->
       <button class="ghost" id="rawayHome">처음으로</button>
     </div>
     <div id="rform">
@@ -488,9 +492,22 @@ function tab(which) {
   if (lost || ret) { stopCam(); sections.forEach(s => s.classList.remove('on')); }
   else { go(step); if (step === 1) startCam(); }
 }
-$('#tabFound').onclick = () => tab('found');
-$('#tabLost').onclick = () => tab('lost');
-$('#tabRet').onclick = () => tab('ret');
+$('#tabFound').onclick = () => { tab('found'); tellShowcase('kiosk-tab', {tab: 'found'}); };
+$('#tabLost').onclick = () => { tab('lost'); tellShowcase('kiosk-tab', {tab: 'lost'}); };
+$('#tabRet').onclick = () => { tab('ret'); tellShowcase('kiosk-tab', {tab: 'ret'}); };
+// 11/12 발표 화면(/showcase) 안: 키오스크 탭을 누르면 발표 화면 장면도 함께 바뀌고, 발표 화면 장면 단추가 키오스크 탭을 바꾼다.
+//   역 키오스크 회수 탭 → [부산역 본센터 키오스크로 가기], 분실 탭 → [휴대폰 웹으로 신고하기]
+const IN_SHOWCASE = Q.get('in') === 'showcase' && window.parent !== window;
+function tellShowcase(type, more) { if (IN_SHOWCASE) try { window.parent.postMessage(Object.assign({type, machine: Q.get('machine') || 'KIOSK-A'}, more), location.origin); } catch (_) {} }
+if (IN_SHOWCASE) {
+  $('#goWeb').hidden = false; $('#goCenter').hidden = false;
+  $('#goWeb').onclick = () => tellShowcase('showcase-go', {scene: 'lostweb'});
+  $('#goCenter').onclick = () => tellShowcase('showcase-go', {scene: 'pickup'});
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'kiosk-set-tab') return;
+    if (['found', 'lost', 'ret'].includes(e.data.tab) && e.data.tab !== curTab) tab(e.data.tab);
+  });
+}
 // 11/11 분실 접수 탭 = 분실인 웹(/lost)을 틀로. 화면 키보드는 바깥(키오스크) 아래에 뜨고 글자는 틀 안 칸에 들어간다
 let lostKb = null;
 function openLost() {
