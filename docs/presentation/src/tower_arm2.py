@@ -6,13 +6,16 @@ import tower_arm as TA          # 자세(P), 시간표(way), at(t) 재사용
 import embeds
 K=9
 # 실물 티칭 순서(11단계, 단계마다 움직임 50% + 멈춤 50%, 실물 44초의 약 80% 속도): 원점 → pose_7 칸 위 → 열기 → 내려감 → 닫기 → 들기 → 제출보관함 위 → 내림 → 열기 → 들기 → 원점
-SEQ=[('home',15),('r4h',15),('r4h',35),('r4p',35),('r4p',2),('r4h',2),('bxh',2),('bxp',2),('bxp',35),('bxh',35),('home',15)]
+SEQ=[('home',-5),('r4h',15),('r4h',35),('r4p',35),('r4p',2),('r4h',2),('bxh',2),('bxp',2),('bxp',35),('bxh',35),('home',-5)]
 D=100/11
-TA.P['home']=np.array([0,-100,96,40.])  # 원점: 사선이 아니라 세로(정면) 방향
-TA.way=[(0,'home',15)]
+# 원점 = 실물 home(접힌 대기 자세): robot/config/home_pose.json · outputs/robot_panel_live/poses.json 'home'
+# (Studio normalized 값을 각도로 보고 관절 한계로 자름 — 관제탑 agents/sim_world.py REST_JOINTS 와 같은 방식)
+TA.P['home']=np.array([-3.8,-99.4,96.8,-95.0])
+REST_ROLL,REST_GRIP=9.9,-5.0
+TA.way=[(0,'home',-5)]
 for i in range(1,11):
     TA.way+=[(round(i*D,2),)+SEQ[i-1],(round(i*D+0.5*D,2),)+SEQ[i]]
-TA.way+=[(100,'home',15)]
+TA.way+=[(100,'home',-5)]
 TS=sorted(set([0,100]+[round(i*D,2) for i in range(1,11)]+[round(i*D+0.5*D,2) for i in range(1,11)]+[round(i*D+0.25*D,2) for i in (1,6,10)]))
 T_PICK=round(4*D+0.5*D,2); T_REL=round(8*D+0.25*D,2)
 GR={}
@@ -32,7 +35,7 @@ def build(proj,pan0=False,skip_base=True):
     """proj(W3)->(x,y,depth). 반환: [(kind, [(t,'M..Z')...], 평균깊이)], tip 경로"""
     pieces={k:[] for k in GR if not (skip_base and k[0]==0)}; depth={k:0 for k in pieces}; tips=[]
     for t in TS:
-        q,gr=TA.at(t); qd=dict(zip(J,q)); qd['gripper']=gr
+        q,gr=TA.at(t); qd=dict(zip(J,q)); qd['gripper']=gr; qd['wrist_roll']=REST_ROLL
         if pan0: qd['shoulder_pan']=0
         tf=fk(qd)
         for k in pieces:
