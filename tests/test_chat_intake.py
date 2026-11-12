@@ -4,6 +4,7 @@
 """
 import os
 import unittest
+from chat_confirmation_helpers import ui_step, ui_ask
 
 os.environ.setdefault("LF_LANGFUSE", "0")
 
@@ -76,18 +77,18 @@ class AgentTest(unittest.TestCase):
     def test_lost_full_flow_needs_confirm(self):
         desk = FakeDesk()
         a = IntakeAgent(desk=desk)
-        r = a.step("s1", "검정 립밤 초량에서 잃어버렸는데 접수해 주세요")
+        r = ui_step(a, "s1", "검정 립밤 초량에서 잃어버렸는데 접수해 주세요")
         self.assertEqual((r["status"], r["intake"]["asked"]), ("intake_question", "when"))       # 품목·색·역은 한 번에 채움
-        r = a.step("s1", "어제")
-        r = a.step("s1", "없어요")
+        r = ui_step(a, "s1", "어제")
+        r = ui_step(a, "s1", "없어요")
         self.assertEqual(r.get("form"), {"kind": "identity"})
-        r = a.step("s1", "본인 확인 정보를 입력했어요", action=ID)
+        r = ui_step(a, "s1", "본인 확인 정보를 입력했어요", action=ID)
         self.assertEqual(r["status"], "intake_confirm")
         self.assertEqual(desk.calls, [])                       # 확인 전에는 접수하지 않음
-        r = a.step("s1", "음 잠깐만요")                         # 확인이 아닌 말 → 다시 확인 요청, 여전히 접수 안 함
+        r = ui_step(a, "s1", "음 잠깐만요")                         # 확인이 아닌 말 → 다시 확인 요청, 여전히 접수 안 함
         self.assertEqual(r["status"], "intake_confirm")
         self.assertEqual(desk.calls, [])
-        r = a.step("s1", "접수할게요")
+        r = ui_step(a, "s1", "접수할게요")
         self.assertEqual(r["status"], "intake_done")
         self.assertIn("C-20261109-0003", r["answer"])
         kind, text, opts = desk.calls[0]
@@ -98,49 +99,49 @@ class AgentTest(unittest.TestCase):
     def test_lost_quiz_question_from_desk(self):
         desk = FakeDesk(ask_first=True)
         a = IntakeAgent(desk=desk)
-        a.step("s2", "분실 접수하기", prior=["갈색 립밤 잃어버렸어요"])      # 앞 대화의 품목·색을 다시 묻지 않음
+        ui_step(a, "s2", "분실 접수하기", prior=["갈색 립밤 잃어버렸어요"])      # 앞 대화의 품목·색을 다시 묻지 않음
         self.assertEqual(a.active("s2")["slots"], {"category": "립밤", "color": "갈색"})
         for q in ("중앙", "오늘", "없어요"):
-            a.step("s2", q)
-        a.step("s2", "확인", action=ID)
-        r = a.step("s2", "네")
+            ui_step(a, "s2", q)
+        ui_step(a, "s2", "확인", action=ID)
+        r = ui_step(a, "s2", "네")
         self.assertEqual((r["status"], r["choices"][0]), ("intake_question", "모름"))
-        r = a.step("s2", "별 스티커")
+        r = ui_step(a, "s2", "별 스티커")
         self.assertEqual(desk.calls[-1], ("answer", "p1", "별 스티커"))
         self.assertIn("직원이 직접 확인", r["answer"])        # 11/10 키오스크 대신 직원 대면 확인으로 안내
 
     def test_found_flow_and_inactive_item(self):
         desk = FakeDesk()
         a = IntakeAgent(desk=desk)
-        a.step("s3", "주운 물건 신고하고 싶어요")
-        a.step("s3", "흰색 보조배터리")
-        a.step("s3", "중앙")
-        r = a.step("s3", "승강장")
+        ui_step(a, "s3", "주운 물건 신고하고 싶어요")
+        ui_step(a, "s3", "흰색 보조배터리")
+        ui_step(a, "s3", "중앙")
+        r = ui_step(a, "s3", "승강장")
         self.assertEqual(r["status"], "intake_confirm")
-        r = a.step("s3", "접수할게요")
+        r = ui_step(a, "s3", "접수할게요")
         self.assertEqual(desk.calls[0], ("found", "중앙역 승강장에서 흰색 보조배터리 주웠어요"))
         self.assertIn("S-20261109-0007", r["answer"])
-        a.step("s4", "습득 신고하기")
-        r = a.step("s4", "빨간 카드지갑")
+        ui_step(a, "s4", "습득 신고하기")
+        r = ui_step(a, "s4", "빨간 카드지갑")
         self.assertEqual(r["status"], "intake_failed")         # 운영하지 않는 품목은 접수하지 않음
         self.assertEqual(desk.calls[1:], [])
 
     def test_cancel_fix_and_no_desk(self):
         a = IntakeAgent(desk=None)
-        a.step("s5", "분실 접수하기")
-        self.assertEqual(a.step("s5", "취소")["status"], "intake_cancelled")
+        ui_step(a, "s5", "분실 접수하기")
+        self.assertEqual(ui_step(a, "s5", "취소")["status"], "intake_cancelled")
         self.assertIsNone(a.active("s5"))
-        a.step("s6", "검정 립밤 초량에서 잃어버린 거 접수해 주세요")
+        ui_step(a, "s6", "검정 립밤 초량에서 잃어버린 거 접수해 주세요")
         for q in ("어제", "없어요"):
-            a.step("s6", q)
-        a.step("s6", "확인", action=ID)
-        r = a.step("s6", "고칠게요")                            # 고치기 → 물건 종류만 남기고 다시
+            ui_step(a, "s6", q)
+        ui_step(a, "s6", "확인", action=ID)
+        r = ui_step(a, "s6", "고칠게요")                            # 고치기 → 물건 종류만 남기고 다시
         self.assertEqual(a.active("s6")["slots"], {"category": "립밤"})
         self.assertEqual(r["intake"]["asked"], "color")
         for q in ("검정", "초량", "어제", "없어요"):
-            a.step("s6", q)
-        a.step("s6", "확인", action=ID)
-        r = a.step("s6", "접수할게요")
+            ui_step(a, "s6", q)
+        ui_step(a, "s6", "확인", action=ID)
+        r = ui_step(a, "s6", "접수할게요")
         self.assertEqual(r["status"], "intake_unavailable")    # 창구 없는 모드: 정리한 내용으로 키오스크·웹 안내
         self.assertIn("분실인 웹", r["answer"])
 
@@ -149,8 +150,8 @@ class AgentTest(unittest.TestCase):
             def extract_slots(self, q, kind, schema):
                 return {"category": "립밤", "color": "보라보라", "station": "부산"}   # 값 목록 밖 → 버림
         a = IntakeAgent(desk=FakeDesk(), brain=Brain())
-        a.step("s7", "분실 접수하기")
-        a.step("s7", "어제 지하상가 쪽에서 반으로 접는 그거")
+        ui_step(a, "s7", "분실 접수하기")
+        ui_step(a, "s7", "어제 지하상가 쪽에서 반으로 접는 그거")
         self.assertEqual(a.active("s7")["slots"].get("category"), "립밤")
         self.assertNotIn("color", a.active("s7")["slots"])
 
@@ -202,16 +203,16 @@ class SimEndToEndTest(unittest.TestCase):
         svc = build_sim_service({"TOWER_SIM_SEED": "full", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_SEND": "0", "TOWER_AGENT_TALK": "0"})
         bot = build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim)
         for q in ("주운 물건 신고하고 싶어요", "초량 5번 출구 앞에서 검정 립밤", "접수할게요"):
-            r = bot.ask(q, session_id="e2e-found")
+            r = ui_ask(bot, q, session_id="e2e-found")
         self.assertEqual(r["status"], "intake_done")
         item = r["intake"]["item_id"]
         self.assertTrue(item.startswith("S-"))
         svc.sim.wait_idle(60)
         for q, act in (("초량에서 검정 립밤 잃어버린 거 접수해 주세요", None), ("오늘", None), ("없어요", None),
                        ("본인 확인 정보를 입력했어요", ID), ("접수할게요", None)):
-            r = bot.ask(q, session_id="e2e-lost", intake_action=act)
+            r = ui_ask(bot, q, session_id="e2e-lost", intake_action=act)
             if r["status"] == "intake_question" and r["intake"]["stage"] == "quiz":
-                r = bot.ask("모름", session_id="e2e-lost")
+                r = ui_ask(bot, "모름", session_id="e2e-lost")
         self.assertEqual(r["status"], "intake_done", r["answer"])
         self.assertTrue(r["intake"]["claim_id"].startswith("C-"))
         self.assertEqual(r["intake"]["item_id"], item)          # 방금 습득 신고한 그 물건으로 찾기 요청
@@ -251,9 +252,9 @@ class ReviewFixesTest(unittest.TestCase):
         desk = FakeDesk()
         a = IntakeAgent(desk=desk)
         for q in ("주운 물건 신고하고 싶어요", "흰색 보조배터리", "중앙", "승강장"):
-            a.step("d1", q)
-        first = a.step("d1", "접수할게요")
-        again = a.step("d1", "접수할게요")                   # 두 번째 클릭
+            ui_step(a, "d1", q)
+        first = ui_step(a, "d1", "접수할게요")
+        again = ui_step(a, "d1", "접수할게요")                   # 두 번째 클릭
         self.assertEqual([c[0] for c in desk.calls], ["found"])
         self.assertIn("이미 접수했어요", again["answer"])
         self.assertIn(first["intake"]["item_id"], again["answer"])
@@ -272,8 +273,8 @@ class ReviewFixesTest(unittest.TestCase):
         desk = SlowDesk()
         a = IntakeAgent(desk=desk)
         for q in ("주운 물건 신고하고 싶어요", "흰색 보조배터리", "중앙", "승강장"):
-            a.step("d2", q)
-        ts = [threading.Thread(target=a.step, args=("d2", "접수할게요")) for _ in range(3)]
+            ui_step(a, "d2", q)
+        ts = [threading.Thread(target=ui_step, args=(a, "d2", "접수할게요")) for _ in range(3)]
         for t in ts:
             t.start()
         for t in ts:
@@ -284,9 +285,9 @@ class ReviewFixesTest(unittest.TestCase):
         desk = FakeDesk()
         a = IntakeAgent(desk=desk)
         for q in ("주운 물건 신고하고 싶어요", "흰색 보조배터리", "중앙", "승강장"):
-            r = a.step("d3", q)
+            r = ui_step(a, "d3", q)
         v1 = r["intake"]["draft_version"]
-        r = a.step("d3", "아 초량이었어요")                     # 확인 대기 중 값이 바뀜
+        r = ui_step(a, "d3", "아 초량이었어요")                     # 확인 대기 중 값이 바뀜
         self.assertEqual(r["status"], "intake_confirm")
         self.assertGreater(r["intake"]["draft_version"], v1)
         self.assertIn("역 초량", r["answer"])
@@ -302,20 +303,20 @@ class ReviewFixesTest(unittest.TestCase):
         bot = build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim)
         for q, act in (("초량에서 빨간 핸드크림 잃어버린 거 접수해 주세요", None), ("오늘", None), ("없어요", None),
                        ("본인 확인 정보를 입력했어요", ID), ("접수할게요", None)):
-            r = bot.ask(q, session_id="lf-wait", intake_action=act)
+            r = ui_ask(bot, q, session_id="lf-wait", intake_action=act)
         self.assertEqual(r["status"], "intake_done", r["answer"])
         wid = r["intake"]["wait_id"]
         self.assertRegex(wid, r"^L-\d{8}-\d{4}$")
-        r = bot.ask(f"{wid} 어떻게 됐어요?", session_id="lf-other")
+        r = ui_ask(bot, f"{wid} 어떻게 됐어요?", session_id="lf-other")
         self.assertIn("아직", r["answer"])
         for q in ("주운 물건 신고하고 싶어요", "초량 5번 출구 앞에서 빨간 핸드크림", "접수할게요"):
-            f = bot.ask(q, session_id="lf-found")
+            f = ui_ask(bot, q, session_id="lf-found")
         self.assertEqual(f["status"], "intake_done", f["answer"])
         svc.sim.wait_idle(60)
         st = svc.sim.wait_status(wid)
         self.assertEqual(st["state"], "matched", st)
         self.assertEqual(st["item_id"], f["intake"]["item_id"])
-        r = bot.ask(f"{wid} 어떻게 됐어요?", session_id="lf-other2")
+        r = ui_ask(bot, f"{wid} 어떻게 됐어요?", session_id="lf-other2")
         self.assertIn(st["claim_id"], r["answer"])
 
     def test_web_lost_without_identity_still_rejects(self):

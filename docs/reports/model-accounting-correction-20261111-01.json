@@ -1,0 +1,16 @@
+{
+  "kind": "model_call_accounting_correction",
+  "affected_reports": [
+    "planner-midm-500-20261111-01.json",
+    "planner-midm-500-20261111-02.json",
+    "planner-midm-staff-20261111-01.json"
+  ],
+  "affected_fields": ["model_calls", "results[].model_calls"],
+  "cause": "preimported_chat_agents_transport_alias_not_wrapped",
+  "interpretation": "These fields contain observed calls only and must not be used as complete transport totals. Original reports are preserved.",
+  "unaffected": ["case_scores", "response_text", "completion_state", "case_duration", "planner_proposal_checks", "supervisor_proposal_checks"],
+  "complete_transport_totals_for_affected_runs": null,
+  "fix": "Wrap both agents.local_model.ask_local_model and the imported agents.chat_agents.ask_local_model alias.",
+  "verification": "test_validate_chat_midm_stop.ModelValidationControlTest.test_preimported_agent_calls_are_included_in_actual_transport_counts",
+  "baseline_report_not_affected": "latest-team-midm-500-20261111-01.json"
+}

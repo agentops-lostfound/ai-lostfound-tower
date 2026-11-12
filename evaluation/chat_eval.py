@@ -127,6 +127,7 @@ class Runner:
         svc, client = self.fresh()
         sid = f"eval-{item['no']:04d}-{int(time.time() * 1000) % 100000:05d}"
         histories, turns, t0, wait_id = {}, [], time.perf_counter(), ""
+        confirmations = {}
         for k, turn in enumerate(item["turns"]):
             if turn.get("wait"):                                   # 가상 세계의 뒤 작업(자동 연결 등)이 끝나길 기다림
                 try:
@@ -147,10 +148,17 @@ class Runner:
                 body["intake_action"] = ID_MASKED
             elif turn.get("action") == "identity_raw":
                 body["intake_action"] = ID_RAW
+            elif re.fullmatch(r'접수할게요|네|예|응|좋아요|맞아요|확인|접수|그래요?|ㅇㅇ|넵', body['question'].strip()):
+                if body['session_id'] in confirmations and not turn.get('omit_confirmation'):
+                    body['intake_action'] = dict(confirmations[body['session_id']])
             ts = time.perf_counter()
             try:
                 r = client.post("/chat/questions", json=body)
                 code, res = r.status_code, (r.json() if r.headers.get("content-type", "").startswith("application/json") else {})
+                if isinstance(res, dict) and res.get('confirmation'):
+                    confirmations[body['session_id']] = dict(res['confirmation'])
+                elif isinstance(res, dict) and res.get('status') != 'intake_done':
+                    confirmations.pop(body['session_id'], None)
             except Exception as e:                                   # 한 문항이 예외여도 나머지는 돈다
                 code, res = 599, {"answer": "", "generation_status": f"예외 {type(e).__name__}: {str(e)[:120]}"}
             why = check_turn(turn, code, res if isinstance(res, dict) else {})
@@ -190,12 +198,14 @@ def model_info(rules: bool) -> dict:
     """어떤 모델·프롬프트로 돌렸는지(비밀값은 이름만 보고 값은 안 씀)"""
     if rules:
         return {"model": "규칙만(--rules)"}
-    info = {k: v for k, v in sorted(os.environ.items()) if k.startswith("LF_CHAT") and "MODEL" in k and v}
+    info = {k: os.environ[k] for k in ('LF_CHAT_RAG_MODEL', 'LF_CHAT_AGENT_MODEL', 'LF_CHAT_MODEL', 'OPS_ANALYST_MODEL')
+            if os.environ.get(k)}
     try:
         from agents import prompts
         vers = getattr(prompts, "loaded_versions", None)
         if callable(vers):
             info["prompts"] = vers()
+            info['prompt_provenance'] = prompts.usage_summary()
     except Exception:
         pass
     return info or {"model": "TBD"}
@@ -389,6 +399,7 @@ def pick(items: list[dict], only: str, group: str, lf: bool) -> list[dict]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="챗봇 질문 500개 채점표")
     ap.add_argument("--rules", action="store_true", help="모델 없이 규칙만")
+    ap.add_argument("--prompt-label", choices=["production", "staging"], default=None, help="Langfuse 프롬프트 라벨(기본은 기존 설정)")
     ap.add_argument("--model", default=None, help="Ollama 모델 이름(없으면 .env 의 LF_CHAT_RAG_MODEL)")
     ap.add_argument("--only", default="", help="문항 번호(예: 1-50,201)")
     ap.add_argument("--group", default="", help="분류·수준 이름 일부")
@@ -405,6 +416,10 @@ def main(argv=None) -> int:
     except Exception:
         pass
     items = json.loads(Path(args.questions).read_text(encoding="utf-8"))
+    if args.prompt_label:
+        os.environ['LF_PROMPT_LABEL'] = args.prompt_label
+        if not (os.environ.get('LF_PROMPT_FETCH') or '').strip():
+            os.environ['LF_PROMPT_FETCH'] = '1'    # 읽기만 켜고 trace 전송 여부는 --trace 그대로
     added = pull_overrides_from_excel()
     if added:
         print(f"엑셀 '사람 판정' {added}줄을 반영했어요")

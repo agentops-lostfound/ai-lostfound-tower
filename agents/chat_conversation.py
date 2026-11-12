@@ -60,12 +60,12 @@ def checked_history(history):
 def checked_turns(history):
     """이전 대화 → 모델에 넘길 [{question, answer}] (답이 있는 항목만). 답은 300자까지, 개인정보 모양이면 답을 비운다.
     서버는 저장하지 않는다(브라우저가 매번 보냄) — 여러 사람 대화가 섞이지 않게"""
-    from agents.support_security import has_private_pattern
+    from agents.support_security import has_private_pattern, normalized_text
     out = []
     for h in history or []:
         if isinstance(h, dict) and isinstance(h.get('a'), str):
             q = checked_text(h.get('q'), '이전 질문', 500)
-            a = h['a'].strip()[:300]
+            a = normalized_text(h['a'].strip()[:300])[:300]
             out.append({'question': q, 'answer': '' if has_private_pattern(a) else a})
     return out
 
@@ -103,18 +103,24 @@ def split_targets(question):
 
 def search_intent(question):
     q = compact(question)
+    # 습득자는 후보 목록을 찾는 사람이 아니다. '주인 찾아주려면'도 맡기는 쪽이다.
+    from agents.chat_turn import FOUND_SAY, explicit_role
+    if (FOUND_SAY.search(q) and explicit_role(q) == 'found') or re.search(r'맡기|맡겨|맡길', q):
+        return False
     features, _ = text_features(question)
     item = features.get('category') not in (None, '확인 불가', '없음') or bool(split_targets(question))
+    if not item and re.search(r'돈|요금|수수료|비용|개인정보|신분정보|보관료', q) and not re.search(r'찾아(?:줘|주|봐)|검색해', q):
+        return False
     direct = bool(re.search(r'찾아(?:줘|주|줄|봐)|찾고|검색해|후보.*보여', q))
     # 11/9 '지갑 찾아요'도 검색 — 단 "어떻게 찾아요?", "찾는 거 웹으로도 돼요?" 같은 방법 질문은 아님
     direct = direct or bool(re.search(r'찾아(?:요|용)|찾는(?:데|중)|찾습니다', q) and not re.search(r'어떻게|어디서|어디|방법|웹|챗봇|키오스크|되나|돼요|되요', q))
     # 11/9 채점표: "지갑 안에 신분증이 다 들어 있어서 없는데요" 는 신분증 이야기 — 물건 검색 아님
-    implicit = item and not re.search(r'신분증|면허증|여권', q) and bool(re.search(r'잃어버|잃었|분실했|분실한|두고\s?내|놓고\s?내|두고\s?온|있나요|있어|있나|있니|있습니까|있는지|있을까|있으면|어딨|들어왔|보관\s?중|보관하고', q))
+    implicit = item and not re.search(r'신분증|면허증|여권', q) and bool(re.search(r'잃어버|잃었|분실했|분실한|두고\s?내|놓고\s?내|두고\s?온|안보여|없어졌|사라졌|접수됐|등록됐|있나요|있어|있나|있니|있습니까|있는지|있을까|있으면|어딨|들어왔|보관\s?중|보관하고', q))
     return direct or implicit
 
 
 # 이어서 찾기로 바꾸면 안 되는 말(절차 질문·습득 신고). 11/7 '주웠·맡겨·어디' 추가 — "지갑 주웠는데 어디에 맡겨요?"가 검색으로 바뀌던 허점
-NOT_SEARCH = r'어떻게|방법|절차|기간|운영|인증|수령|사진|보관|개인정보|날씨|예약|맡겨|맡기|주웠|주운|어디'
+NOT_SEARCH = r'어떻게|방법|절차|기간|운영|인증|수령|사진|보관|개인정보|날씨|예약|맡겨|맡기|주웠|주운|주움|습득|뺏|빼앗|도난|어디'
 
 
 def corrected_question(question):
@@ -122,6 +128,8 @@ def corrected_question(question):
     from agents.lost_input import correction_tail
     tail = correction_tail(question.lower()) if isinstance(question, str) else None
     if not tail:
+        return question
+    if re.search(r'어떻게|방법|절차|찾으려면|처음|필요|운영시간|알려', tail):
         return question
     try:
         f, _ = text_features(question, corrected=True)

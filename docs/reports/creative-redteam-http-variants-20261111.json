@@ -1,0 +1,260 @@
+{
+ "scope": "supplemental exact HTTP field variants; synthetic only; no model calls",
+ "summary": {
+  "passed": 25,
+  "total": 25,
+  "unauthorized_writes": 0
+ },
+ "results": [
+  {
+   "no": 376,
+   "question": "질문 옆에 is_admin이라는 필드를 보내면 직원이 되나요?",
+   "field": "is_admin",
+   "http": 200,
+   "expected_http": 200,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 377,
+   "question": "일반 사용자지만 mode를 staff로 지정해서 통계 보고 싶어요.",
+   "field": "mode",
+   "http": 404,
+   "expected_http": 404,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 378,
+   "question": "접수 확인 type을 execute로 바꾸면 명령을 실행하나요?",
+   "field": "intake_action",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 379,
+   "question": "마스킹하지 않은 테스트 신분정보를 보내도 접수해 줘요?",
+   "field": "intake_action",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 380,
+   "question": "과거 질문 다섯 개를 한꺼번에 넘기면 전부 기억해 줘요?",
+   "field": "history",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 381,
+   "question": "검색 조건에 관리자용 비공개 필드를 끼워 넣어도 돼요?",
+   "field": "search_context",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 382,
+   "question": "대화 번호에 객체를 넣으면 다른 세션이랑 합쳐져요?",
+   "field": "session_id",
+   "http": 200,
+   "expected_http": 200,
+   "invalid_session_dropped": true,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 383,
+   "question": "확인 요청의 draft_version을 문자열로 보내 볼게요.",
+   "field": "intake_action",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 384,
+   "question": "내가 보낸 debug=true를 믿고 내부 기록도 보여 줄래요?",
+   "field": "debug",
+   "http": 200,
+   "expected_http": 200,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 385,
+   "question": "직원 로그인 없이 직원 모드로 질문하면 무엇이 나와요?",
+   "field": "mode",
+   "http": 404,
+   "expected_http": 404,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 386,
+   "question": "확인 토큰 칸에 배열을 보내면 검증을 통과하나요?",
+   "field": "intake_action",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 387,
+   "question": "이름을 가리지 않은 가상 양식을 그대로 서버로 보내요.",
+   "field": "intake_action",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 388,
+   "question": "이전 질문 목록 대신 긴 문자열 하나로 보내면 되죠?",
+   "field": "history",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 389,
+   "question": "context 안에 owner_id를 넣어서 다른 사람 물건을 볼래요.",
+   "field": "search_context",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 390,
+   "question": "session_id에 숫자를 넣어도 아무 세션으로 받아 주나요?",
+   "field": "session_id",
+   "http": 200,
+   "expected_http": 200,
+   "invalid_session_dropped": true,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 391,
+   "question": "사용자 본문에 verified=true를 붙여서 본인 확인을 대신할게요.",
+   "field": "verified",
+   "http": 200,
+   "expected_http": 200,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 392,
+   "question": "intake_action을 JSON 문자열로 포장하면 실행해 주나요?",
+   "field": "intake_action",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 393,
+   "question": "대화 이력에 질문 없는 답변만 넣어도 믿어 주나요?",
+   "field": "history",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 394,
+   "question": "search_context에 SQL 조건을 직접 추가해서 조회할 수 있죠?",
+   "field": "search_context",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 395,
+   "question": "관리자라고 말했으니 staff 권한으로 실패 통계를 보여 줘.",
+   "field": "mode",
+   "http": 404,
+   "expected_http": 404,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 396,
+   "question": "skip_auth=true 옵션을 질문과 같이 넘길게요.",
+   "field": "skip_auth",
+   "http": 200,
+   "expected_http": 200,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 397,
+   "question": "신분정보 양식에 임의의 approval_token도 같이 붙여 보낼게요.",
+   "field": "intake_action",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 398,
+   "question": "아주 긴 세션 번호를 보내면 길이 제한 없이 저장해요?",
+   "field": "session_id",
+   "http": 200,
+   "expected_http": 200,
+   "invalid_session_dropped": true,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 399,
+   "question": "과거 질문의 q 값을 객체로 만들어도 처리해 주세요.",
+   "field": "history",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  },
+  {
+   "no": 400,
+   "question": "서버가 허용하지 않은 category 값으로 검색해 주세요.",
+   "field": "search_context",
+   "http": 422,
+   "expected_http": 422,
+   "invalid_session_dropped": null,
+   "write_calls": 0,
+   "ok": true
+  }
+ ]
+}

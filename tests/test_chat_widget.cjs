@@ -32,6 +32,46 @@ function setup(questionFetch,otherFetch){
 }
 const ok=answer=>({ok:true,json:async()=>({answer,agent:'guidance',status:'answered',sources:[]})});
 
+test('identity form warns to use synthetic details and sends only masked values',async()=>{
+ const s=setup((_init,n)=>n===1?Promise.resolve({ok:true,json:async()=>({answer:'가상 정보만 입력해 주세요',agent:'intake',status:'intake_question',form:{kind:'identity'}})}):Promise.resolve(ok('확인')));
+ s.open();await tick();s.send('분실 접수하기');await tick();
+ const f=s.get('.idform');
+ assert.ok(f.querySelectorAll('.note').some(n=>n.textContent.includes('실제 개인정보를 입력하지 마세요')));
+ assert.deepEqual(f.querySelectorAll('label').map(n=>n.textContent),['가상 이름','가상 신분증 번호 뒤 첫 숫자']);
+ const name=f.querySelector('input'),digit=f.querySelector('select');
+ name.value='가나타';digit.value='1';name.dispatchEvent({type:'input'});
+ f.dispatchEvent({type:'submit',preventDefault(){}});await tick();
+ assert.deepEqual(s.calls[1].body.intake_action,{type:'identity',name_masked:'가*타',id_no_masked:'******-1******'});
+ assert.ok(!JSON.stringify(s.calls[1].body).includes('가나타'));
+ assert.equal(name.value,'');
+});
+
+test('unknown write outcome is shown as needing confirmation without a retry or confirm button',async()=>{
+ const s=setup(()=>Promise.resolve({ok:true,json:async()=>({answer:'처리 여부를 확인해 주세요',agent:'intake',status:'intake_uncertain',intake:{kind:'found',stage:'uncertain'},choices:[]})}));
+ s.open();await tick();s.send('접수할게요');await tick();
+ assert.ok(s.root.querySelectorAll('span').some(n=>/처리 결과 확인 필요/.test(n.textContent)));
+ assert.equal(s.root.querySelectorAll('.retry').length,0);
+ assert.equal(s.root.querySelectorAll('.choice').length,0);
+});
+
+test('confirmation buttons retain their own draft proof and retry sends the same proof',async()=>{
+ const proof={type:'confirm',draft_version:3,confirmation_token:'a'.repeat(43)};
+ const s=setup((_init,n)=>n===1?Promise.resolve({ok:true,json:async()=>({answer:'요약',agent:'intake',status:'intake_confirm',choices:['접수할게요','취소'],confirmation:proof})}):Promise.reject(Error('offline')));
+ s.open();await tick();s.send('습득 신고');await tick();
+ s.root.querySelectorAll('.choice').find(n=>n.textContent==='접수할게요').dispatchEvent({type:'click'});await tick();
+ assert.deepEqual(s.calls[1].body.intake_action,proof);
+ s.get('.retry').dispatchEvent({type:'click'});await tick();
+ assert.deepEqual(s.calls[2].body.intake_action,proof);
+});
+
+test('confirmation choice without proof is disabled',async()=>{
+ const s=setup(()=>Promise.resolve({ok:true,json:async()=>({answer:'요약',agent:'intake',status:'intake_confirm',choices:['접수할게요','취소']})}));
+ s.open();await tick();s.send('습득 신고');await tick();
+ const choices=s.root.querySelectorAll('.choice');
+ assert.equal(choices.find(n=>n.textContent==='접수할게요').disabled,true);
+ assert.equal(choices.find(n=>n.textContent==='취소').disabled,false);
+});
+
 test('closing while waiting never restores focus to the hidden input',async()=>{
  let resolve;const s=setup(()=>new Promise(r=>{resolve=r;}));const external={focus(){s.doc.activeElement=this;}};external.focus();s.open();await tick();
  s.send('사진 입력 방법');s.window.LostFoundChat.close();assert.equal(s.doc.activeElement,external);

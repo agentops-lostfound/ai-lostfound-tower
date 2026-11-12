@@ -1,0 +1,47 @@
+{
+  "kind": "completed_model_report_reconciliation",
+  "source": "planner-midm-500-20261111-03.json",
+  "report_sha256": "0e81daa9dd6e8eba0790ea3d4f495e1350c8d3e361f6f076ff9e759cba7d72fe",
+  "checks": {
+    "completed_500": true,
+    "exact_case_coverage": true,
+    "summary_total_matches": true,
+    "summary_passed_matches": true,
+    "all_cases_passed": true,
+    "sources_unchanged": true,
+    "questions_unchanged": true,
+    "per_case_calls_plus_probe_matches": true,
+    "prompt_usage_plus_probe_matches": true,
+    "only_structured_planner_accepted": true,
+    "no_transport_errors": true
+  },
+  "summary": {
+    "passed": 500,
+    "total": 500,
+    "seconds": 1985.58,
+    "median_seconds": 2.5949999999999998,
+    "p95_seconds": 8.84
+  },
+  "model_call_records": 3662,
+  "model_roles": {
+    "researcher_or_ops": 147,
+    "planner": 393,
+    "supervisor": 3037,
+    "coordinator": 85
+  },
+  "planner_checks": {
+    "accepted:structured_v2": 393
+  },
+  "supervisor_checks": {
+    "accepted:accepted": 3037
+  },
+  "source_hash_mismatches": [],
+  "prompt_provenance": {
+    "label": "staging",
+    "attempts": 3661,
+    "code_fallback_calls": 3661,
+    "mixed_agents": [],
+    "truncated": false,
+    "staging_provenance_complete": false
+  }
+}

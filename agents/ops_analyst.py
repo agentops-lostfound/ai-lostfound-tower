@@ -24,6 +24,7 @@ from agents import prompts
 
 FOCUSES = ("overall", "failures", "robot", "speed", "chatbot")
 FOCUS_LABEL = {"overall": "전체 현황", "failures": "실패·보류 원인", "robot": "로봇팔 동작", "speed": "처리 시간", "chatbot": "AI 챗봇 운영(LLMOps)"}
+CHAT_FOCUS_RE = re.compile(r"챗봇|답변|LLMOps|질문\s*처리")
 DECISION_LABEL = {"returned": "반환 완료", "rejected": "반환 거절(안전 규칙)", "staff_check": "확인 필요로 넘김",
                   "stopped": "로봇 정지"}
 STAGE_LABEL = {"claim": "찾기 요청·확인 질문", "approve": "메인 AI 승인", "visit": "방문·신분 확인", "topview": "탑뷰 촬영",
@@ -160,7 +161,18 @@ def findings(f: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------- 보고자(reporter)
+def _chat_observed(chat):
+    return isinstance(chat, dict) and type(chat.get('questions')) is int and chat['questions'] > 0
+
+
 def template_report(f: dict, question: str) -> str:
+    if f.get('focus') == 'chatbot' and not _chat_observed(f.get('chat')):
+        chat = f.get('chat')
+        message = ('챗봇 운영 지표를 조회하지 못했습니다.' if chat is None else
+                   '챗봇 질문 관측 기록이 아직 없습니다.' if type(chat.get('questions')) is int and chat['questions'] == 0
+                   else '챗봇 질문 관측 수를 확인하지 못했습니다.')
+        return '\n'.join(['# 관제 분석 보고 — AI 챗봇 운영(LLMOps)', '', f'요청: {question}', '',
+            message, '관측 자료가 없어 응답 품질·오류율·응답 시간을 판단할 수 없습니다.'])
     lines = [f"# 관제 분석 보고 — {FOCUS_LABEL.get(f['focus'], '전체 현황')}", "", f"요청: {question}", "", "## 핵심"]
     lines += [f"- {x}" for x in f["findings"]]
     lines += ["", "## 숫자", f"- 반환 기록 {f['returns_total']}건: " +
@@ -223,8 +235,26 @@ class OpsAnalyst:
 
     def _cfg(self, agent: str, temperature: float):
         """11/9 칸별 모델 설정(prompts.settings: Langfuse config → 환경값 → 코드). 모델을 쓰지 않는 칸이면 None"""
-        cfg = prompts.settings(agent, model=self.model, temperature=temperature)
+        system, obj, cfg = prompts.resolve(agent, model=self.model, temperature=temperature)
+        cfg['_system'], cfg['_prompt_obj'] = system, obj
         return cfg if (self.llm and self.model and cfg["use_llm"] and cfg["model"]) else None
+
+    def _call(self, agent, cfg, user, *, schema=None, tokens=32, context=None):
+        """실제 호출마다 선택한 프롬프트/모델 출처를 기록. 원질문/사실 원문은 추가 기록하지 않는다."""
+        from agents.observability import step
+        options = {'temperature': cfg['temperature'], 'num_predict': tokens}
+        if context is not None:
+            options['num_ctx'] = context
+        payload = {'model': cfg['model'], 'stream': False, 'keep_alive': '5m', 'options': options,
+                   'messages': [{'role': 'system', 'content': cfg['_system']}, {'role': 'user', 'content': user}]}
+        if schema is not None:
+            payload['format'] = schema
+        usage = prompts.record_usage(agent, cfg, cfg['_prompt_obj'])
+        with step(f'{agent}-llm', as_type='generation', model=cfg['model'], prompt=cfg['_prompt_obj'],
+                  input={'agent': agent}, metadata={'prompt_usage': usage}, model_parameters=options) as obs:
+            out = self.llm(payload)
+            obs.update(output={'received': isinstance(out, dict) and 'message' in out})
+            return out
 
     def _pick(self, agent: str, key: str, allowed: list, user: dict):
         """규칙 칸 보조(use_llm 기본 끔): allowed 안의 값 하나만 고르게 한다. 목록 밖·실패면 None(규칙 결과 그대로)"""
@@ -232,12 +262,9 @@ class OpsAnalyst:
         if not cfg:
             return None
         try:
-            out = self.llm({"model": cfg["model"], "stream": False, "keep_alive": "5m",
-                            "format": {"type": "object", "required": [key], "additionalProperties": False,
-                                       "properties": {key: {"type": "integer" if isinstance(allowed[0], int) else "string", "enum": allowed}}},
-                            "options": {"temperature": cfg["temperature"], "num_predict": 32},
-                            "messages": [{"role": "system", "content": prompts.for_agent(agent)[0]},
-                                         {"role": "user", "content": json.dumps(user, ensure_ascii=False)}]})
+            out = self._call(agent, cfg, json.dumps(user, ensure_ascii=False), schema={
+                'type': 'object', 'required': [key], 'additionalProperties': False,
+                'properties': {key: {'type': 'integer' if isinstance(allowed[0], int) else 'string', 'enum': allowed}}})
             v = json.loads(out["message"]["content"]).get(key)
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return None
@@ -258,20 +285,18 @@ class OpsAnalyst:
 
     def planner(self, s: OpsState) -> OpsState:
         q = s["question"]
-        focus = ("chatbot" if re.search(r"챗봇|답변|LLMOps|질문\s*처리", q) else "robot" if re.search(r"로봇|집기|정지|팔", q) else "failures" if re.search(r"실패|보류|원인|거절|막", q)
+        focus = ("chatbot" if CHAT_FOCUS_RE.search(q) else "robot" if re.search(r"로봇|집기|정지|팔", q) else "failures" if re.search(r"실패|보류|원인|거절|막", q)
                  else "speed" if re.search(r"시간|속도|느려|오래|p95", q) else "overall")
         used = list(s.get("used_llm", []))
         cfg = self._cfg("ops-planner", 0)
         if cfg:
             try:
-                out = self.llm({"model": cfg["model"], "stream": False, "keep_alive": "5m",
-                                "format": {"type": "object", "required": ["focus"], "additionalProperties": False,
-                                           "properties": {"focus": {"type": "string", "enum": list(FOCUSES)}}},
-                                "options": {"temperature": cfg["temperature"], "num_predict": 32},
-                                "messages": [{"role": "system", "content": prompts.for_agent("ops-planner")[0]},
-                                             {"role": "user", "content": q}]})
+                allowed_focus = ('chatbot',) if focus == 'chatbot' else FOCUSES
+                out = self._call('ops-planner', cfg, q, schema={
+                    'type': 'object', 'required': ['focus'], 'additionalProperties': False,
+                    'properties': {'focus': {'type': 'string', 'enum': list(allowed_focus)}}})
                 f = json.loads(out["message"]["content"]).get("focus")
-                if f in FOCUSES:
+                if f in allowed_focus:
                     focus = f
                     used.append("planner")
             except (OSError, ValueError, KeyError, TypeError):
@@ -320,14 +345,15 @@ class OpsAnalyst:
         facts, q = s["facts"], s["question"]
         report = template_report(facts, q)
         used = list(s.get("used_llm", []))
+        if not _chat_observed(facts.get('chat')) and (facts.get('focus') == 'chatbot' or CHAT_FOCUS_RE.search(q)):
+            return {'report': template_report({**facts, 'focus': 'chatbot'}, q), 'used_llm': used}
+        if not (facts['returns_total'] or facts['stories_total'] or facts['alerts_total'] or _chat_observed(facts.get('chat'))):
+            return {'report': report, 'used_llm': used}
         cfg = self._cfg("ops-reporter", 0.2)
         if cfg:
             try:
-                out = self.llm({"model": cfg["model"], "stream": False, "keep_alive": "5m",
-                                "options": {"temperature": cfg["temperature"], "num_predict": 600, "num_ctx": 4096},
-                                "messages": [{"role": "system", "content": prompts.for_agent("ops-reporter")[0]},
-                                             {"role": "user", "content": json.dumps({"question": q, "facts": facts},
-                                                                                    ensure_ascii=False)}]})
+                out = self._call('ops-reporter', cfg, json.dumps({'question': q, 'facts': facts}, ensure_ascii=False),
+                                 tokens=600, context=4096)
                 text = out["message"]["content"]
                 if isinstance(text, str) and 20 <= len(text) <= 4000 and numbers_ok(text, facts):
                     report = text.strip() + "\n\n_숫자 검증 통과 · 원자료: 관제탑 /returns, /live/state_"

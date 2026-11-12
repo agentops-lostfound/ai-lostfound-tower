@@ -254,4 +254,3 @@ def logo_tokens(text) -> set[str]:
         hit = _ALIAS_OF.get(w) or next((k for a, k in _ALIAS_OF.items() if len(a) >= 2 and not a.isascii() and w.startswith(a)), None)
         out.add(hit or w)                          # "사과로고"·"애플이요"처럼 조사가 붙어도 앞부분으로 찾는다
     return out
-

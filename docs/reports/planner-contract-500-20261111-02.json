@@ -1,0 +1,53 @@
+{
+  "kind": "simulated_planner_not_real_llm",
+  "runs": [
+    {
+      "mode": "structured_guidance",
+      "passed": 500,
+      "total": 500,
+      "planner_checks": {
+        "accepted:structured_v2": 400
+      },
+      "failures": []
+    },
+    {
+      "mode": "structured_both",
+      "passed": 500,
+      "total": 500,
+      "planner_checks": {
+        "accepted:structured_v2": 400
+      },
+      "failures": []
+    },
+    {
+      "mode": "bounded_legacy",
+      "passed": 500,
+      "total": 500,
+      "planner_checks": {
+        "accepted:bounded_legacy_v1": 400
+      },
+      "failures": []
+    },
+    {
+      "mode": "hostile",
+      "passed": 500,
+      "total": 500,
+      "planner_checks": {
+        "rejected:invalid_instruction_combination": 400
+      },
+      "failures": []
+    }
+  ],
+  "meta": {
+    "state": "complete",
+    "source_sha256": {
+      "agents/chat_planner.py": "304c967973650392b3ffdeff791903fc857281cdd07421cabca6ad482f91b85d",
+      "agents/chat_agents.py": "fead4c5c9cd108df2200d87da5d8c78ac5434118444dd363ab5e2cc692479bae",
+      "agents/chatbot.py": "d54bf3c85deca1b96f06cf0179689cbc737bbd7fca5bbb51ad8d2d50002a214c",
+      "agents/prompts.py": "3d7018ea6f34077c349077d325e0bdabcbe2e4c0f8287bc08aa6263f35e3d545",
+      "evaluation/chat_eval.py": "91ba13aedcf0bf57ccd11cdb2042a1752b8c9d383c477ce10fb722c4acedc1b0",
+      "tools/check_chat_planner.py": "c806c2621deac8fdddbda19e34e70d357d909469f03a58d1c06e8d49015dd961"
+    }
+  },
+  "questions_sha256": "4c255d3cc81445273e9e22ad96a927d25486014e74f3909b78208ec4f72f7d79"
+}
