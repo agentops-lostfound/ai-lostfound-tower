@@ -53,9 +53,10 @@ class LayoutSeedTest(unittest.TestCase):
 
     def test_button_on_showcase(self):
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        html = open(os.path.join(root, "web", "showcase", "index.html"), encoding="utf-8").read()
-        for needle in ('id="btnSeed"', '{seed: "layout", force_real: robotControl}', '$("btnSeed").hidden = !d.sim;'):
+        html = open(os.path.join(root, "web", "live", "index.html"), encoding="utf-8").read()     # 11/12 기록 삭제 상자 안
+        for needle in ('id="seedLayout"', '{seed: "layout", force_real: realRobot}', '$("seedRow").hidden = !d.sim;'):
             self.assertIn(needle, html)
+        self.assertNotIn('id="btnSeed"', open(os.path.join(root, "web", "showcase", "index.html"), encoding="utf-8").read())
 
 
 if __name__ == "__main__":
