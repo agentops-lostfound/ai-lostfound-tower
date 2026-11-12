@@ -14,7 +14,7 @@ def question_goal(question):
     q = compact(question)
     # 복합 요청은 기존 주제 분리기가 각 부분을 처리한다. 한 답으로 덮지 않는다.
     # 11/12 "빨간색 립밤 있는지 보고 운영시간도", "파란 휴대폰 찾고 받는 순서도"도 복합(main 채점표 #223·#272)
-    if (re.search(r'찾아줘|검색해줘|후보보여|있는지|찾고|찾아서', q) and re.search(r'그리고|[.。]|절차도|시간도|순서도|보고|하고|찾고', q)
+    if (re.search(r'찾아줘|검색해줘|후보보여|있는지|있으면|찾고|찾아서', q) and re.search(r'그리고|[.。]|절차도|시간도|순서도|보고|하고|찾고|랑|같이|함께', q)
             or re.search(r'운영시간|몇시에열|몇시에닫', q) and re.search(r'절차|순서|어디로|위치', q)
             or re.search(r'연락처|보관기간|파기|삭제|지우', q) and re.search(r'수령|받는순서', q)):
         return None
@@ -36,8 +36,11 @@ def question_goal(question):
     if re.search(r'한손|손을못|글씨.{0,6}(?:안보|못보)|글을.{0,4}못읽|시각장애|잘안보', q) and re.search(
             r'도와|도움|말로|음성|천천히|하나씩', q):
         return 'accessible_help'
-    if re.search(r'받|수령', q) and re.search(r'순서|준비.*절차', q) and not re.search(
-            r'취소|대리|택배|배송|거절|실패|잃어버린척|신분증없', q):
+    if '센터' in q and re.search(r'위치|어디', q) and not re.search(
+            r'받|수령|절차|운영시간|몇시|보관|도착|택배|맡기|습득신고', q):
+        return 'center_location'
+    if re.search(r'받|수령', q) and re.search(r'순서|준비.*절차|방법|어떻게|받으려면', q) and not re.search(
+            r'취소|대리|택배|배송|거절|실패|잃어버린척|신분증.{0,3}없|주운|주웠|맡기|번호.{0,3}받|언제|몇시|시간', q):
         return 'pickup_steps'
     if re.search(r'운영시간|영업시간', q) and not re.search(r'순서|절차', q):
         return 'hours'
@@ -83,14 +86,19 @@ def goal_reply(question, guidance):
             '분실물 찾기·습득 신고·물건 받는 방법을 도와드릴 수 있어요.', ()),
         'light_chat': ('저는 분실물 안내 도우미예요. 찾거나 맡길 물건이 있으면 알려 주세요.', ()),
     }
-    if goal == 'hours':
-        docs = [d for d in guidance.documents if d['topic'] == 'hours']
-        return {**guidance._response('answered', '\n\n'.join(d['answer'] for d in docs), docs),
+    if goal in ('hours', 'center_location'):
+        topic = 'hours' if goal == 'hours' else 'center_contact'
+        docs = [d for d in guidance.documents if d['topic'] in ({'center_pickup', topic} if goal == 'center_location' else {topic})]
+        # 근거 목록의 기존 계약은 유지하고, 본문은 질문한 위치부터 답한다.
+        return {**guidance._response('answered', '\n\n'.join(d['answer'] for d in docs if d['topic'] == topic), docs),
                 'method': 'question_goal_guidance'}
     answer, topics = answers[goal]
+    short_pickup = goal == 'pickup_steps' and not re.search(r'순서|준비.*절차', compact(question))
+    if short_pickup:
+        topics = ('pickup', 'center_pickup')
     docs = [d for d in guidance.documents if d['topic'] in topics]
     result = guidance._response('not_found' if goal == 'outside_programming' else 'answered', answer, docs)
-    result['method'] = 'question_goal_guidance'
+    result['method'] = 'question_goal_checked_generation' if short_pickup else 'question_goal_guidance'
     if goal == 'chat_registration':
         result['choices'] = ['분실 접수하기', '습득 신고하기']
     return result
@@ -108,6 +116,7 @@ def covers_goal(goal, answer):
         'accessible_help': r'음성|말한내용.{0,12}글|하나씩|한번에하나',
         'pickup_steps': r'제출보관함.*(?:꺼낸|꺼내|꺼내고).*물건받았어요',
         'hours': r'\d{1,2}:\d{2}|운영시간.{0,12}(?:미정|확인)',
+        'center_location': r'부산역',
         'outside_programming': r'범위밖|분실물.{0,15}(?:안내|도와)',
         'light_chat': r'분실물|물건',
     }
@@ -115,4 +124,7 @@ def covers_goal(goal, answer):
         return bool(re.search(patterns[goal], a) and '접수할게요' in a
                     and re.search(r'요약.{0,12}확인|확인.{0,12}요약', a)
                     and '안내자료에서이질문에바로답할내용은찾지못' not in a)
+    if goal == 'center_location':
+        first = re.split(r'[.!?\n]', answer, maxsplit=1)[0]
+        return bool(re.search(patterns[goal], compact(first)))
     return bool(re.search(patterns[goal], a)) if goal in patterns else True
