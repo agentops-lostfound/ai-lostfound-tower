@@ -181,3 +181,118 @@ def _side14():
         lab=(f'<p style="position:absolute;right:4px;top:0;margin:0;font-size:13px;font-weight:800;color:#B5500A;white-space:nowrap">R4-1 → pose_7</p>') if j==len(ch)-1 else ''
         out.append(embeds.wrap(260,150,c,h+lab))
     return out
+
+
+def top_rigid():
+    """4쪽 탑뷰: 부품 모양은 기준 자세(팔을 수평으로 편 자세)에서 한 번 그리고,
+    시간마다 '관절 위치로 이동 + 회전 + 팔 방향 축소(위에서 본 원근)'만 키프레임(3%마다)"""
+    S_,PX,BX,BY=TA.S_,TA.PX,TA.BX,TA.BY
+    P2=lambda W:np.c_[BX-S_*W[...,1]-800,BY-S_*(W[...,0]-PX)]
+    A_of=lambda R:S_*np.array([-R[1],-R[0]])
+    def tfs(t):
+        q,gr=TA.at(t); qd=dict(zip(J,q)); qd['gripper']=gr; qd['wrist_roll']=REST_ROLL; return fk(qd)
+    tref=fk({'wrist_roll':REST_ROLL,'gripper':20})
+    TT=sorted(set([round(x,2) for x in TS]+list(range(0,101,4))))
+    bodies=sorted(set(k[0] for k in GR)); keys={b:[] for b in bodies}; last={}
+    for t in TT:
+        tf=tfs(t)
+        for b in bodies:
+            if b==0: continue
+            Rr,pr=tref[b]; R,p=tf[b]
+            M=A_of(R)@np.linalg.pinv(A_of(Rr))
+            Q,U=np.linalg.qr(M)
+            for i in range(2):
+                if U[i,i]<0: U[i,:]*=-1; Q[:,i]*=-1
+            th=math.degrees(math.atan2(Q[1,0],Q[0,0]))
+            if b in last:
+                while th-last[b]>180: th-=360
+                while th-last[b]<-180: th+=360
+            last[b]=th; c=P2(p)[0] if p.ndim>1 else P2(p[None])[0]
+            keys[b].append((t,"transform:translate(%.1fpx,%.1fpx) rotate(%.1fdeg) matrix(%.3f,0,%.3f,%.3f,0,0)"%(c[0],c[1],th,U[0,0],U[0,1],U[1,1])))
+    tf0=tfs(0); parts=[]
+    for b in bodies:
+        R0,p0=(tf0 if b==0 else tref)[b]; c0=P2(p0[None])[0]; paths=""
+        for (bb,k),pts in GR.items():
+            if bb!=b: continue
+            W=(R0@pts.T).T+p0; xy=P2(W)-(c0 if b else 0)
+            h=TA.simp(hull([tuple(v) for v in np.round(xy).astype(int)]),4)
+            cl={'motor':'m','camera':'c'}.get(k,'p')
+            paths+=f'<path class="{cl}" d="M'+'L'.join(f'{x} {y}' for x,y in h)+'Z"/>'
+        if b==0: parts.append(("",paths)); continue
+        parts.append(("@keyframes tr%d{%s}"%(b,"".join("%s%%{%s}"%(t,v) for t,v in keys[b])),
+                      f'<g style="transform-box:view-box;transform-origin:0 0;animation:tr{b} {CYC}s linear infinite">{paths}</g>'))
+    base=".p{fill:#fff;stroke:#6b7684;stroke-width:1.6;stroke-linejoin:round}.m{fill:#23262d;stroke:#0d0f12;stroke-width:1}.c{fill:#3d4450;stroke:#0d0f12}"
+    out=[];cur=[];n=0
+    for a2,b2 in parts:
+        z=len(a2)+len(b2)
+        if n+z>15000 and cur: out.append(cur);cur=[];n=0
+        cur.append((a2,b2));n+=z
+    out.append(cur)
+    return [embeds.wrap(864,650,base+"".join(a for a,_ in ch),'<svg width="864" height="650" style="position:absolute;left:0;top:0;overflow:visible;filter:drop-shadow(5px 8px 5px rgba(22,32,46,.25))">'+"".join(b for _,b in ch)+'</svg>') for ch in out]
+
+
+def top_rigid2():
+    """탑뷰: 부품마다 '수평으로 눕힌 기준 모양' 하나 + translate(관절) rotate(어깨 회전) scale(1, cos 기울기)"""
+    from scipy.optimize import minimize
+    S_,PX,BX,BY=TA.S_,TA.PX,TA.BX,TA.BY
+    nb=len(S['bodies'])
+    child={}
+    for i,b in enumerate(S['bodies']):
+        if b['parent']>=0 and b['parent'] not in child and b['joint']: child[b['parent']]=i
+    tipb=S['tip']['body']
+    def dirs(tf):
+        out={}
+        for b in range(1,nb):
+            R,p=tf[b]
+            if b in child: q=tf[child[b]][1]
+            elif b==tipb: q=tip(tf)
+            else: continue
+            out[b]=q-p
+        return out
+    # 기준 자세: 위팔·아래팔·손목이 모두 수평, 어깨 회전 0
+    def cost(v):
+        q=dict(zip(['shoulder_lift','elbow_flex','wrist_flex'],v)); q['wrist_roll']=REST_ROLL; q['gripper']=20
+        d=dirs(fk(q)); return sum((d[b][2]/np.linalg.norm(d[b]))**2 for b in d)
+    r=minimize(cost,[0,0,0],method='Nelder-Mead'); qref=dict(zip(['shoulder_lift','elbow_flex','wrist_flex'],r.x)); qref.update(wrist_roll=REST_ROLL,gripper=20)
+    tref=fk(qref)
+    def tfs(t):
+        q,gr=TA.at(t); qd=dict(zip(J,q)); qd['gripper']=gr; qd['wrist_roll']=REST_ROLL; return fk(qd),qd['shoulder_pan']
+    TT=sorted(set([round(x,2) for x in TS]+list(range(0,101,3))))
+    bodies=sorted(set(k[0] for k in GR)); keys={b:[] for b in bodies}
+    own=lambda b: b if (b in child or b==tipb) else S['bodies'][b]['parent']
+    dref=dirs(tref)
+    for t in TT:
+        tf,pan=tfs(t); d=dirs(tf)
+        for b in bodies:
+            if b==0: continue
+            ob=own(b)
+            while ob not in d and ob>0: ob=S['bodies'][ob]['parent']
+            v=d.get(ob); vr=dref.get(ob)
+            if v is None: sc=1
+            else:
+                fwd=np.array([math.cos(math.radians(pan)),-math.sin(math.radians(pan)),0])
+                Rs=tf[1][0]; ax=Rs@np.array([1.0,0,0]); ax[2]=0
+                if np.linalg.norm(ax)>1e-6: pass
+                sc=np.dot(v,fwd)/max(1e-6,np.linalg.norm(vr[:2]))
+            p=tf[b][1]; c=(BX-S_*p[1]-800,BY-S_*(p[0]-PX))
+            keys[b].append((t,"transform:translate(%.1fpx,%.1fpx) rotate(%.1fdeg) scale(1,%.3f)"%(c[0],c[1],pan,sc)))
+    parts=[]
+    for b in bodies:
+        R0,p0=(fk({})[0] if b==0 else tref[b]); c0=np.array([BX-S_*p0[1]-800,BY-S_*(p0[0]-PX)]); paths=""
+        for (bb,k),pts in GR.items():
+            if bb!=b: continue
+            W=(R0@pts.T).T+p0; xy=np.c_[BX-S_*W[:,1]-800,BY-S_*(W[:,0]-PX)]-(c0 if b else 0)
+            h=TA.simp(hull([tuple(v) for v in np.round(xy).astype(int)]),4)
+            cl={'motor':'m','camera':'c'}.get(k,'p')
+            paths+=f'<path class="{cl}" d="M'+'L'.join(f'{x} {y}' for x,y in h)+'Z"/>'
+        if b==0: parts.append(("",paths)); continue
+        parts.append(("@keyframes tr%d{%s}"%(b,"".join("%s%%{%s}"%(t,v) for t,v in keys[b])),
+                      f'<g style="transform-box:view-box;transform-origin:0 0;animation:tr{b} {CYC}s linear infinite">{paths}</g>'))
+    base=".p{fill:#fff;stroke:#6b7684;stroke-width:1.6;stroke-linejoin:round;vector-effect:non-scaling-stroke}.m{fill:#23262d;stroke:#0d0f12;stroke-width:1}.c{fill:#3d4450;stroke:#0d0f12}"
+    out=[];cur=[];n=0
+    for a2,b2 in parts:
+        z=len(a2)+len(b2)
+        if n+z>15000 and cur: out.append(cur);cur=[];n=0
+        cur.append((a2,b2));n+=z
+    out.append(cur)
+    return [embeds.wrap(864,650,base+"".join(a for a,_ in ch),'<svg width="864" height="650" style="position:absolute;left:0;top:0;overflow:visible;filter:drop-shadow(5px 8px 5px rgba(22,32,46,.25))">'+"".join(b for _,b in ch)+'</svg>') for ch in out]
