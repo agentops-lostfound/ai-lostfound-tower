@@ -1,0 +1,1 @@
+요청실제수정: working_calibration.json opening_axis_local=[0,1,0] revision2. bbb517 ARM프레임실측83.4도불일치와기존모델X축정렬통과관측을근거로한경험적축교정. URDF로확정했다고했던이전설명부정확. 구버전파일archives보관. Model벌림축설정가능,접근경로FK/IK/도착검사/하강joints_for에동일설정전달. 하향Z/encoder영점불변. 우측고정목표계산roll1609,하향3.35도/짧은축3.68도; 중앙roll2002하향0도/짧은축0도. 기준검사10개통과. 실물재시험전이므로성공미확정.
