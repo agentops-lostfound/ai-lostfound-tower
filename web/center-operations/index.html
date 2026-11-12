@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>본센터 회수·통계</title><link rel="stylesheet" href="/ui/theme.css"><link rel="stylesheet" href="/api/admin/center/desk.css"></head>
+<body><main>
+<header><div><h1>본센터 회수·도착 관리</h1><p>실제로 꺼낸 물건과 도착한 물건을 확인하고 기록하세요.</p></div><a href="/admin" target="_top">관리자 화면</a></header>
+<p id="message" role="status" aria-live="polite">연결을 확인하고 있습니다.</p>
+<div class="toolbar"><button id="refresh" type="button">새로고침</button><button id="readiness" type="button">연결 점검</button><a href="#audit">기록 점검 ↓</a><span id="updated"></span></div>
+<section class="panel"><h2>등록기계에서 회수</h2><label for="machine">등록기계</label><select id="machine"></select><div id="items" class="item-list"></div><button id="pickup" type="button" disabled>선택한 물건 회수 기록</button><button id="retry" type="button" hidden>같은 요청으로 결과 확인</button><p id="pending" role="status"></p></section>
+<section class="panel"><h2>본센터 도착 확인</h2><p>실제로 도착한 물건만 체크하세요. 전체가 도착해야 묶음이 완료됩니다.</p><div id="batches"></div></section>
+<section class="panel"><h2>미도착 알림 상태</h2><p>아래는 기록된 미도착 내역입니다. 이 화면에서 외부 알림을 보내지는 않습니다.</p><div id="alerts"></div></section>
+<section class="panel"><h2>접수 통계</h2><form id="stats"><label for="question">날짜·등록기계·품목별 접수 건수</label><input id="question" maxlength="300" required placeholder="예: 오늘 전체 물건 접수 몇 건?"><button type="submit">통계 조회</button></form><p id="answer" role="status"></p></section>
+<footer>목록은 최근 물건 200개·회수 묶음 50개·미도착 100개까지 표시합니다. 목록에 없는 기록은 회수 번호로 조회할 수 있습니다.</footer>
+<section class="panel"><h2>회수 번호로 조회</h2><form id="lookup"><label for="collectionId">회수 번호</label><input id="collectionId" type="number" min="1" max="2147483647" required><button type="submit">조회</button></form><div id="lookupResult"></div></section>
+<section id="audit" class="panel"><h2>회수 기록 정합성 점검</h2><p>물건 상태·회수 원장·도착 체크·미도착 알림을 읽기 전용으로 대조합니다.</p><button id="auditRun" type="button">기록 점검</button><p id="auditStatus" role="status" aria-live="polite">점검 버튼을 눌러주세요.</p><div id="auditResult" hidden><p id="auditSummary"></p><p id="auditTime"></p><p id="auditCoverage"></p><div id="auditIssues"></div><ul id="auditLimits"></ul></div></section>
+</main><script src="/api/admin/center/desk.js" defer></script></body></html>

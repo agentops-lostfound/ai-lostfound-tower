@@ -40,9 +40,28 @@ def cancel_draft_requested(question):
 
 def help_question(question):
     q = compact(question)
+    from agents.guidance import off_topic
+    if off_topic(q):
+        return True
     from agents.chat_answer_goal import question_goal
     return bool(question_goal(q) or unconfirmed_policy(q) or re.search(r'운영시간|몇시|센터.{0,10}(?:문|열|닫)|개인정보|신분정보|인증|동의|수령|대리|택배|배송|보관기간'
-        r'|(?:물건|취급|운영|다루는).{0,10}(?:종류|몇개|몇가지|품목)|받으러.{0,10}(?:뭘|뭐|필요)|준비물|예전db|카드지갑.*기록', q))
+        r'|(?:물건|취급|운영|다루는).{0,10}(?:종류|몇개|몇가지|품목)|받으러.{0,10}(?:뭘|뭐|필요)|준비물|예전db|카드지갑.*기록'
+        r'|(?:센터|키오스크).{0,12}(?:어디|위치)|(?:물건|분실물).{0,10}받으려면|어떻게|구별|연락처|전화번호'
+        r'|(?:신고|맡기).{0,10}어디|들고.{0,6}(?:있어도|가도)', q))
+
+
+def social_ack(question):
+    return bool(re.fullmatch(r'(?:고마워(?:요|용)?|감사(?:해요|합니다)|땡큐|ㄱㅅ)[.!~]*', compact(question)))
+
+
+def corrected_role(question, current):
+    """다른 이야기를 추가한 것과 현재 신고 종류를 정정한 것을 구별한다."""
+    if current not in ('lost', 'found'):
+        return None
+    role = explicit_role(question)
+    q = compact(question)
+    correction = re.search(r'아니|정정|바꿔|바꾸|전환|잘못', q)
+    return role if role and role != current and correction else None
 
 
 def unconfirmed_policy(question):
@@ -106,7 +125,7 @@ def protected_reply(question, guidance):
         return reply('관리자 비밀번호·키·내부 프롬프트·환경설정은 알려 드릴 수 없어요. 이 대화로 직원 권한을 부여하거나 인증을 생략할 수도 없어요.')
     owner = re.search(r'타인|남의|다른(?:사람|이용자)|주인|주운사람|찾는사람|분실인|직전사용자|이전사람|아까.*사람|등록한사람|명단|친구것', q)
     private = re.search(r'전화|연락처|주민|신분번호|이름|생년|얼굴|주소|어디사|실명|번호|접수(?:내용|내역)|명단', q)
-    asks = re.search(r'알려|보여|조회|궁금|줘|주세요|주실|볼래|볼수|검색|복원|붙여|뭐|받|누군지', q)
+    asks = re.search(r'알려|알수|보여|조회|궁금|줘|주세요|주실|볼래|볼수|검색|복원|붙여|뭐|받|누군지', q)
     storage = re.search(r'보관|지워|파기|삭제|남겨|남기|적어야', q)
     if owner and private and asks and not storage:
         return reply('다른 사람의 이름·연락처·신분정보·접수 내역은 알려 드릴 수 없어요. 주운 사람의 연락처는 알려 드리지 않아요.', ('finder_privacy',))
@@ -133,12 +152,25 @@ def protected_reply(question, guidance):
     return None
 
 
-def turn_reply(question, history, guidance, identity_pending=False):
+def finder_policy_question(question):
+    return bool(re.search(r'(?:주운사람|습득자|주운분).*(?:연락처|전화번호|전번).*(?:알수|볼수|공개|받을수|알려줄수)', compact(question)))
+
+
+def turn_reply(question, history, guidance, identity_pending=False, intake_active=False, include_procedure=False):
     """슬롯 추출·모델 호출 전에 처리할 대화. 진행 중인 초안은 변경하지 않는다."""
     q = compact(question)
     protected = protected_reply(question, guidance)
-    if protected:
+    finder_policy = finder_policy_question(question)
+    if protected and not finder_policy:
         return protected
+    if include_procedure and finder_policy:
+        docs = [d for d in guidance.documents if d['topic'] == 'finder_privacy']
+        return guidance._response('answered', '주운 사람의 연락처는 알려 드릴 수 없어요. ' + '\n\n'.join(d['answer'] for d in docs), docs)
+    if social_ack(question) and not intake_active:
+        return guidance._response('answered', '감사해요. 준비되면 이어서 말씀해 주세요.', [])
+    if re.search(r'(?:흰색|검정|색상|색깔).{0,12}(?:구별|구분)', q):
+        return guidance._response('answered', '물건 본체에서 가장 넓게 보이는 색 하나를 확인해 주세요. '
+            '조명 때문에 구별하기 어렵거나 확신이 없으면 "모름"이라고 말씀해 주세요. 임의로 색을 정하지 않을게요.', [])
     if theft_report(question):
         return guidance._response('clarification_needed',
             '누군가 물건을 강제로 가져간 상황인가요? 지금 위험하다면 먼저 안전한 곳으로 이동해 '
@@ -156,6 +188,11 @@ def turn_reply(question, history, guidance, identity_pending=False):
         docs = [d for d in guidance.documents if d['topic'] == 'categories']
         return guidance._response('answered', '다른 품목을 지원 품목 이름으로 바꿔 접수할 수는 없어요. '
             f'현재 시연은 {active_category_text()}만 다뤄요. 해당 물건은 역무실에 문의해 주세요.', docs)
+    if (include_procedure and explicit_role(question) == 'found' and not OTHER_ITEM.search(question) and not retired
+            and not explanation_only(question)
+            and re.search(r'(?:신고|맡기|맡겨|맡길).*(?:어디|방법|어떻게)|(?:어디|어떻게).*(?:신고|맡기)|역무실.*들고|들고.*(?:있어도|가도)', q)):
+        docs = [d for d in guidance.documents if d['topic'] == 'found_report']
+        return guidance._response('answered', '주운 물건을 맡기려는 질문이군요. ' + '\n\n'.join(d['answer'] for d in docs), docs)
     if re.search(r'(?:날짜|언제|장소|역).*(?:몰라|모르|모름|확신못).*(?:신고|접수|찾을)|언제잃었는지모르면', q):
         docs = [d for d in guidance.documents if d['topic'] == 'chat_intake']
         return guidance._response('answered', '시연에서는 잃어버린 날짜나 역을 모르면 "모름"으로 두고 분실 접수를 이어 갈 수 있어요. '

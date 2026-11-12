@@ -168,7 +168,7 @@ class Guidance:
         if re.search(r"확인질문.*(?:답|정답)|(?:답|정답).*(?:미리|먼저)알려|정답(?:알려|가르쳐)", q):
             return self._response('answered', '확인 질문의 답은 미리 알려 드릴 수 없어요. 물건 주인만 아는 특징(글자·스티커 등)으로 본인 물건인지 확인하는 절차예요.', [])
         from agents.chat_turn import turn_reply, found_statement
-        reply = turn_reply(q, [], self)
+        reply = turn_reply(q, [], self, include_procedure=True)
         if reply:
             return reply
         if re.search(r'휠체어|직접.*못집|장애.*수령', q):

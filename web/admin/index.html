@@ -45,6 +45,7 @@ input[type=password]:focus{border-color:var(--accent);background:var(--ui-surfac
 iframe{flex:1;width:100%;border:0;background:var(--bg)}
 /* 11/8 그림 안내: 탭 아이콘·로그인 자물쇠(선 그림, currentColor) */
 button.tab{display:inline-flex;align-items:center;gap:6px}
+button.tab[hidden]{display:none}
 button.tab svg,button[data-chatbot-open] svg{width:18px;height:18px;flex:none}
 button[data-chatbot-open]{display:inline-flex;align-items:center;gap:6px}
 #login .lock{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--ui-primary-soft);color:var(--accent);margin-bottom:14px}
@@ -62,6 +63,7 @@ button[data-chatbot-open]{display:inline-flex;align-items:center;gap:6px}
     <button class="tab ghost" data-tab="staff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.8-3.3 3-5 5.5-5s4.7 1.7 5.5 5"/><path d="m15 11 2 2 4-4"/></svg>반환·직원</button>
     <button class="tab ghost" data-tab="storage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18M12 4v16"/></svg>보관함</button>
     <button class="ghost" type="button" data-chatbot-open aria-label="AI 도우미 열기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01"/></svg>AI</button>
+    <button class="tab ghost" id="centerTab" data-tab="center" hidden>회수·통계</button>
     <button class="ghost" id="logout">로그아웃</button>
   </span>
   <span data-theme-slot></span>
@@ -80,7 +82,7 @@ button[data-chatbot-open]{display:inline-flex;align-items:center;gap:6px}
 
 <script>
 const $ = s => document.querySelector(s);
-const SRC = {live: '/live', staff: '/staff', storage: '/storage'};   // 11/6 보관함 탭(11/10 주소 정리: /storage-desk → /storage)
+const SRC = {live: '/live', staff: '/staff', center: '/center', storage: '/storage'};
 function showApp(tab) {
   $('#login').style.display = 'none';
   $('#who').hidden = false; $('#app').classList.add('on');
@@ -96,7 +98,13 @@ function showLogin(msg) {
 async function check() {
   try {
     const d = await (await fetch('/api/admin/me', {cache: 'no-store'})).json();
-    if (d.logged_in) showApp('live'); else showLogin();
+    if (d.logged_in) {
+      try {
+        const r = await fetch('/api/admin/center-enabled', {cache: 'no-store'});
+        $('#centerTab').hidden = !r.ok || !(await r.json()).enabled;
+      } catch (_) { $('#centerTab').hidden = true; }
+      showApp('live');
+    } else showLogin();
   } catch (e) { showLogin('관제탑에 연결할 수 없어요'); }
 }
 $('#login').onsubmit = async e => {

@@ -231,6 +231,22 @@
   var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 1 3.3 6.5L4 19.5l1-3.4A7.9 7.9 0 0 1 4 12z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>';
   var busy = false, history = [], suggestions = [], lastFocus = null, loadedOnce = false;
   var activeRequest = null, conversationVersion = 0, statusLoading = false;
+  var latestConfirmation = null, latestConfirmationKind = null;
+
+  function typedConfirmation(q) {
+    var value = String(q || '').normalize('NFKC').replace(/\s+/g, '').replace(/[,.!~，。！]/g, '');
+    if (latestConfirmationKind === 'cancel' && /접수|신고|등록/.test(value)) return null;
+    var affirmative = new RegExp(/^(?:(?:네|예|응|넵|좋아요|맞아요|맞습니다|확인했어요|확인했습니다|오케이|ㅇㅇ|ㅇㅋ))?(?:(?:이대로|이내용으로|이내용대로|그대로|그렇게|내용그대로)?(?:접수|신고|등록)(?:할게요|하겠습니다|해줘요?|해주세[요용]|부탁해요|부탁드려요|부탁드립니다)|(?:이대로|이내용으로|이내용대로|그대로|그렇게)?진행(?:해줘요?|해주세[요용])|(?:이대로|이내용으로|그대로|그렇게)(?:해주세요|해줘요?)|네|예|응|넵|좋아요|맞아요|맞습니다|오케이|ㅇㅇ|ㅇㅋ|확인|접수|그래요?)$/.source.normalize('NFKC'));
+    return affirmative.test(value) && latestConfirmation ? Object.assign({}, latestConfirmation) : null;
+  }
+
+  function rememberConfirmation(res) {
+    var proof = res.status === 'intake_confirm' && res.confirmation;
+    latestConfirmation = proof && proof.type === 'confirm' && Number.isInteger(proof.draft_version) &&
+      proof.draft_version >= 0 && proof.draft_version <= 1000000 && typeof proof.confirmation_token === 'string' &&
+      /^[A-Za-z0-9_-]{43}$/.test(proof.confirmation_token) ? Object.assign({}, proof) : null;
+    latestConfirmationKind = latestConfirmation && res.intake ? res.intake.kind : null;
+  }
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -359,7 +375,7 @@
     document.body.appendChild(host);
     watchTheme();
 
-    form.addEventListener("submit", function (e) { e.preventDefault(); send(input.value); });
+    form.addEventListener("submit", function (e) { e.preventDefault(); send(input.value, null, null, typedConfirmation(input.value)); });
     input.addEventListener("input", function () {
       countEl.textContent = input.value.length + "/" + MAX_LEN;
       input.style.height = "auto";
@@ -367,7 +383,7 @@
     });
     input.addEventListener("keydown", function (e) {
       if (e.isComposing || e.keyCode === 229) return; // 한글 조합 중 Enter 는 글자 확정용
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input.value); }
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input.value, null, null, typedConfirmation(input.value)); }
     });
     // Esc = 닫기: 창 안에 초점이 없어도(창 밖을 본 뒤) 닫히도록 문서 전체에서 받는다
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && panel && !panel.hidden) closePanel(); });
@@ -785,6 +801,8 @@
     var q = (text || "").trim();
     if (busy || !q) return;
     if (q.length > MAX_LEN) { statusEl.textContent = "질문을 500자 이하로 줄여 주세요. 입력한 내용은 그대로 남겨 뒀어요."; return; }
+    latestConfirmation = null;
+    latestConfirmationKind = null;
     var welcome = root.querySelector(".welcome");
     if (welcome) welcome.remove();
     var userLine = line("user", q);
@@ -822,6 +840,7 @@
       saved.sid = getSessionId();
       saved.msgs = saved.msgs.concat([{ r: "user", t: q }, { r: "bot", t: answerText }]).slice(-MAX_MESSAGES);
       storeSet(saved);
+      rememberConfirmation(res);
       addExtras(m, res);
       statusEl.textContent = res.status === "intake_uncertain" ? "처리 결과 확인 필요 · 같은 요청을 다시 보내지 마세요" : res.agent === "intake" && res.intake && res.intake.kind === "cancel"
         ? (res.status === "intake_done" ? "찾기 요청 취소됨 · 물건은 계속 보관돼요" : "찾기 요청 취소 중 · '아니요'로 그만둘 수 있어요") :
@@ -863,6 +882,8 @@
     var previous = activeRequest;
     activeRequest = null;
     conversationVersion++;
+    latestConfirmation = null;
+    latestConfirmationKind = null;
     if (previous) { previous.controller.abort(); if (previous.progress) previous.progress.stop(); }
     setBusy(false);
     history = [];

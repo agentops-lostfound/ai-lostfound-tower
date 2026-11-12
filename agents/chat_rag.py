@@ -548,6 +548,12 @@ class GroundedRag:
         # 11/8 질문-답 맞물림: 첫 답이 물어본 것을 빠뜨리면 고칠 점을 주고 한 번 더 쓰게 함. 다시 쓴 답도 빠뜨리거나
         # 모델이 "근거에 답이 없다"(answerable=false)고 하면, 관련 근거 문장 앞에 "자료에 없다"를 붙여 솔직히 답함
         gap = answer_gap(question, answer)
+        if gap == 'intent':
+            from agents.chat_answer_goal import question_goal
+            if question_goal(question) in ('pickup_steps', 'center_location'):
+                # 필수 단계/결론을 빠뜨리면 알려진 완전한 안내문으로 돌아간다.
+                # 같은 불완전한 답을 재작성해 붙이며 원래 질문을 잃지 않는다.
+                raise ValueError('required_answer_structure_missing')
         note = None
         if feedback is None and gap:
             try:

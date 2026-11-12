@@ -702,7 +702,7 @@ class Chatbot:
         cancelling = intake_active and cancel_draft_requested(question)
         active = self.intake.active(session_id) if intake_active else None
         reply = None if ops_turn or cancelling else turn_reply(question, history, self.guidance,
-            identity_pending=bool(active and active.get('asked') == 'identity'))
+            identity_pending=bool(active and active.get('asked') == 'identity'), intake_active=bool(active))
         from agents.chat_answer_goal import question_goal
         intake_start = '' if ops_turn or intake_active or reply or question_goal(question) else (detect_start(question, history) or '')
         if not ops_turn and not intake_active and not intake_start and not reply and found_statement(question):
