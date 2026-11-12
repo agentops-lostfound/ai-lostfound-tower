@@ -20,6 +20,7 @@ main `9e2f827`에서 분리한 뒤 작업 중 병합된 챗봇 개선본을 포�
 |---|---|
 | GET `/dashboard` | 최근 물건 200·묶음 50·미도착 100개, 초과 여부. 공개 운영 필드만 단일 읽기 전용 스냅샷으로 조회 |
 | GET `/readiness` | 필수 표·request_id·통계 역할·두 연결의 동일 서버/DB 여부 점검. 실제 쓰기 성공 검증이나 스키마 설치는 하지 않음 |
+| GET `/audit` | 회수 원장 읽기 전용 정합성 점검. 불일치와 담당자 확인을 구분. [판정 계약](collection_audit.md) |
 | POST `/collections` | 기존 `machine_id`, `item_ids`, `request_id` 계약으로 회수 |
 | GET `/collections/{id}` | 표시 한도 밖의 묶음도 번호로 조회 |
 | POST `/collections/{id}/arrivals` | 실제 도착한 항목만 기록. 전량 도착 전에는 미도착 유지 |
