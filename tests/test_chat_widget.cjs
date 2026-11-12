@@ -72,6 +72,47 @@ test('confirmation choice without proof is disabled',async()=>{
  assert.equal(choices.find(n=>n.textContent==='취소').disabled,false);
 });
 
+const languageCases=JSON.parse(fs.readFileSync(path.join(__dirname,'confirmation_language_cases.json'),'utf8'));
+test('registration text never borrows the pending cancellation proof',async()=>{
+ const proof={type:'confirm',draft_version:3,confirmation_token:'a'.repeat(43)};
+ for(const q of ['접수할게요','네 이대로 접수해주세요','네']){
+  const s=setup(()=>Promise.resolve({ok:true,json:async()=>({answer:'취소 요약',status:'intake_confirm',intake:{kind:'cancel'},confirmation:proof})}));
+  s.open();await tick();s.send('찾기 요청 취소');await tick();s.send(q);await tick();
+  assert.deepEqual(s.calls[1].body.intake_action,q==='네'?proof:undefined,q);
+ }
+});
+test('composer binds clear natural confirmations only to the visible latest summary',async()=>{
+ const proof={type:'confirm',draft_version:3,confirmation_token:'a'.repeat(43)};
+ for(const q of [...languageCases.affirmative,...languageCases.not_affirmative]){
+  const s=setup((_init,n)=>Promise.resolve(n===1?{ok:true,json:async()=>({answer:'요약',agent:'intake',status:'intake_confirm',confirmation:proof})}:ok('안내')));
+  s.open();await tick();s.send('습득 신고');await tick();s.send(q);await tick();
+  assert.deepEqual(s.calls[1].body.intake_action,languageCases.affirmative.includes(q)?proof:undefined,q);
+ }
+});
+
+test('composer proof is cleared by new reply, reset and done; retry freezes the original proof',async()=>{
+ const proof={type:'confirm',draft_version:3,confirmation_token:'a'.repeat(43)};
+ for(const reply of [ok('안내'),{ok:true,json:async()=>({answer:'완료',status:'intake_done',agent:'intake'})}]){
+  const s=setup((_init,n)=>Promise.resolve(n===1?{ok:true,json:async()=>({answer:'요약',status:'intake_confirm',confirmation:proof})}:reply));
+  s.open();await tick();s.send('습득 신고');await tick();s.send('운영시간 알려줘');await tick();s.send('접수할게요');await tick();
+  assert.equal(s.calls[2].body.intake_action,undefined);
+ }
+ const s=setup((_init,n)=>n===1?Promise.resolve({ok:true,json:async()=>({answer:'요약',status:'intake_confirm',confirmation:proof})}):Promise.reject(Error('offline')));
+ s.open();await tick();s.send('습득 신고');await tick();s.send('접수할게요');await tick();
+ assert.deepEqual(s.calls[1].body.intake_action,proof);
+ s.get('.retry').dispatchEvent({type:'click'});await tick();assert.deepEqual(s.calls[2].body.intake_action,proof);
+ s.clear();s.send('접수할게요');await tick();assert.equal(s.calls[3].body.intake_action,undefined);
+});
+
+test('old choice retains old proof while typed confirmation uses latest corrected proof',async()=>{
+ const old={type:'confirm',draft_version:3,confirmation_token:'a'.repeat(43)},current={type:'confirm',draft_version:4,confirmation_token:'b'.repeat(43)};
+ const s=setup((_init,n)=>Promise.resolve({ok:true,json:async()=>({answer:'요약',status:'intake_confirm',choices:['접수할게요'],confirmation:n===1?old:current})}));
+ s.open();await tick();s.send('습득 신고');await tick();const button=s.get('.choice');
+ s.send('검정으로 바꿔줘');await tick();button.dispatchEvent({type:'click'});await tick();
+ assert.deepEqual(s.calls[2].body.intake_action,old);
+ s.send('이대로 접수해주세요');await tick();assert.deepEqual(s.calls[3].body.intake_action,current);
+});
+
 test('closing while waiting never restores focus to the hidden input',async()=>{
  let resolve;const s=setup(()=>new Promise(r=>{resolve=r;}));const external={focus(){s.doc.activeElement=this;}};external.focus();s.open();await tick();
  s.send('사진 입력 방법');s.window.LostFoundChat.close();assert.equal(s.doc.activeElement,external);

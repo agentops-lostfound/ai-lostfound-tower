@@ -79,7 +79,7 @@ class PostgresIntegration(unittest.TestCase):
         result = Statistics(self.connect).ask("오늘 등록기계 A에 들어온 USB 몇 개?", datetime(2026, 11, 4, 3, tzinfo=timezone.utc))
         self.assertEqual(result["count"], 2)
         import psycopg
-        for query in ("SELECT * FROM claim", "SELECT * FROM finder_contact", "UPDATE item SET category='지갑'"):
+        for query in ("SELECT * FROM claim", "SELECT * FROM finder_contact", "UPDATE item SET category='립밤'"):
             with self.connect() as conn:
                 conn.execute("SET TRANSACTION READ ONLY")
                 conn.execute("SET LOCAL ROLE lf_stats_reader")
@@ -96,14 +96,14 @@ class PostgresIntegration(unittest.TestCase):
         self.assertEqual(len(page["places"]), 5)
         self.assertEqual(len(store.recommend("KIOSK-A", page["next_offset"])["places"]), 2)
 
-    def receive_wallets(self):
+    def receive_lipbalms(self):
         dsn = os.environ['LF_SUPPORT_TEST_DSN']
         intake = PostgresIntakeStore(dsn)
         ids = []
         for _ in range(2):
             row = intake.create(parse_intake({'machine_id': 'KIOSK-A', 'place_text': '가상 통합 시험 장소'}))
             ids.append(row['item_id'])
-            self.assertTrue(intake.set_features(row['item_id'], {'category': '지갑', 'color': '검정',
+            self.assertTrue(intake.set_features(row['item_id'], {'category': '립밤', 'color': '검정',
                 'shape': 'rectangular', 'mark': '합성 비공개 정답'}))
         received = datetime.fromisoformat(row['received_at']).astimezone(KST)
         context = {'lost_date': (received.date()-timedelta(days=1)).isoformat(),
@@ -113,7 +113,7 @@ class PostgresIntegration(unittest.TestCase):
 
     def assert_search_and_count(self, agent, context, expected_ids, received):
         token = 'synthetic-verified-session'
-        result = agent.ask('검정 지갑 찾아줘', token, context)
+        result = agent.ask('검정 립밤 찾아줘', token, context)
         self.assertEqual(result['status'], 'items_found' if expected_ids else 'items_not_found')
         actual = {agent.resolve_candidate(result['search_result_id'], number, token)
                   for number in range(1, len(result['candidates'])+1)}
@@ -121,11 +121,11 @@ class PostgresIntegration(unittest.TestCase):
         self.assertNotIn('합성 비공개 정답', str(result))
         for item_id in expected_ids:
             self.assertNotIn(item_id, str(result))
-        count = Statistics(self.connect).ask(f'{received.date()} 등록기계 A에 들어온 지갑 몇 개?', received)
+        count = Statistics(self.connect).ask(f'{received.date()} 등록기계 A에 들어온 립밤 몇 개?', received)
         self.assertEqual(count['count'], 2)
 
     def test_intake_pickup_partial_arrival_search_and_statistics_share_one_database(self):
-        ids, received, context, agent = self.receive_wallets()
+        ids, received, context, agent = self.receive_lipbalms()
         self.assert_search_and_count(agent, context, ids, received)
         first = self.store.pickup('KIOSK-A', ids, 'integrated-retry-001')
         retry = self.store.pickup('KIOSK-A', ids, 'integrated-retry-001')
@@ -144,7 +144,7 @@ class PostgresIntegration(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT count(*) FROM collection_alert WHERE resolved_at IS NULL').fetchone()[0], 0)
 
     def test_failed_collection_keeps_search_and_statistics_and_does_not_grant_identity(self):
-        ids, received, context, agent = self.receive_wallets()
+        ids, received, context, agent = self.receive_lipbalms()
         with self.assertRaises(CollectionError):
             self.store.pickup('KIOSK-C', ids, 'integrated-wrong-machine')
         with self.assertRaises(CollectionError):
@@ -153,7 +153,7 @@ class PostgresIntegration(unittest.TestCase):
         from unittest.mock import patch
         with patch.object(agent.database, 'search', wraps=agent.database.search) as query:
             for token in (None, 'synthetic-forged-session'):
-                result = agent.ask('검정 지갑 찾아줘', token, context)
+                result = agent.ask('검정 립밤 찾아줘', token, context)
                 self.assertEqual(result['status'], 'authentication_required')
                 self.assertFalse(result['item_search_performed'])
             query.assert_not_called()
@@ -169,11 +169,11 @@ class PostgresIntegration(unittest.TestCase):
         from agents.chat_search import SEARCH_STATUSES
         from agents.scene_bindings import bind_scene, scene_digest
         from tools.check_chat_matching import synthetic_scene
-        ids, received, context, agent = self.receive_wallets()
+        ids, received, context, agent = self.receive_lipbalms()
         guide = Guidance()
         bot = Chatbot(guide, search=agent)
         with TestClient(create_app(DescriptionService(), guide, bot), base_url='http://127.0.0.1') as client:
-            proposal = client.post('/descriptions/text', json={'text': '검정 지갑', **context}).json()
+            proposal = client.post('/descriptions/text', json={'text': '검정 립밤', **context}).json()
             confirmed = client.post('/descriptions/'+proposal['proposal_id']+'/confirm', json={'confirmed': True})
             self.assertEqual(confirmed.status_code, 200, confirmed.text)
             self.assertFalse(confirmed.json()['identity_verified'])
@@ -193,7 +193,7 @@ class PostgresIntegration(unittest.TestCase):
                 report = synthetic_scene()
                 report['objects'] = report['objects'][:2]
                 for obj in report['objects']:
-                    obj['qwen']['features'].update(category='wallet', colors=['black'])
+                    obj['qwen']['features'].update(category='lip_balm', colors=['black'])
                 manifest = {'capture_id': 'synthetic-phase-'+phase, 'captured_at': datetime.now(timezone.utc).isoformat(),
                     'report_sha256': scene_digest(report), 'bindings': [
                         {'vision_id': obj['id'], 'item_id': iid} for obj, iid in zip(report['objects'], ids)]}
@@ -202,7 +202,7 @@ class PostgresIntegration(unittest.TestCase):
                         conn.read_only = True
                         row = conn.execute('SELECT status FROM item WHERE item_id=%s', (iid,)).fetchone()
                         return bool(row and row[0] in SEARCH_STATUSES)
-                result = bot.inspect_inventory_matching('검정 지갑', bind_scene(report, manifest), inventory_check)
+                result = bot.inspect_inventory_matching('검정 립밤', bind_scene(report, manifest), inventory_check)
                 self.assertIs(result['inventory_link_checked'], expected)
                 self.assertFalse(result['robot_authorized'])
                 self.assertFalse(result['identity_verified'])
@@ -225,3 +225,38 @@ class PostgresIntegration(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT count(*) FROM collection').fetchone()[0], 1)
             self.assertEqual(conn.execute('SELECT count(*) FROM item_status_log WHERE item_id=ANY(%s)', (ids,)).fetchone()[0], 6)
             self.assertEqual(conn.execute('SELECT count(*) FROM collection_alert WHERE resolved_at IS NULL').fetchone()[0], 0)
+
+    def test_tower_admin_session_collection_dashboard_readiness_and_statistics(self):
+        from fastapi.testclient import TestClient
+        from agents.api import build_app
+        from agents.admin_auth import AdminAuth
+        from agents.service import TowerService, demo_backend_factory
+        from center.readiness import check_readiness
+        svc = TowerService(demo_backend_factory(), Reporter(dry_run=True))
+        stores = {'collections': self.store, 'statistics': Statistics(self.connect), 'places': Places(self.connect)}
+        app = build_app(svc, admin_auth=AdminAuth('synthetic-password', 'synthetic-secret'), center_services=stores)
+        with TestClient(app, base_url='http://127.0.0.1') as client:
+            self.assertEqual(client.get('/api/admin/center/dashboard').status_code, 401)
+            self.assertEqual(client.post('/api/admin/login', json={'password': 'synthetic-password'}).status_code, 200)
+            self.assertTrue(client.get('/api/admin/center/readiness').json()['ready'])
+            self.assertEqual(client.get('/api/admin/center/dashboard').json()['mode'], 'postgres')
+            payload = {'machine_id': 'KIOSK-A', 'item_ids': ['A-W01', 'A-W02'], 'request_id': 'tower-pickup-001'}
+            cross = client.post('/api/admin/center/collections', json=payload, headers={'origin': 'https://example.com'})
+            self.assertEqual(cross.status_code, 403)
+            one = client.post('/api/admin/center/collections', json=payload)
+            self.assertEqual(one.status_code, 200, one.text)
+            cid = one.json()['collection_id']
+            self.assertEqual(client.post('/api/admin/center/collections', json=payload).json()['collection_id'], cid)
+            partial = client.post(f'/api/admin/center/collections/{cid}/arrivals', json={'item_ids': ['A-W01']}).json()
+            self.assertEqual(partial['missing_item_ids'], ['A-W02'])
+            self.assertEqual(len(client.get('/api/admin/center/dashboard').json()['alerts']), 1)
+            done = client.post(f'/api/admin/center/collections/{cid}/arrivals', json={'item_ids': ['A-W02']}).json()
+            self.assertTrue(done['arrived_at'])
+            board = client.get('/api/admin/center/dashboard').json()
+            self.assertEqual(board['alerts'], [])
+            self.assertTrue(all(i['status'] == '본센터 보관' for i in board['items']))
+            self.assertFalse(any(k in str(board) for k in ('name_masked', 'private_features', 'finder_contact')))
+            count = client.post('/api/admin/center/statistics/questions', json={'question': '2026-11-04 전체 물건 접수 몇 건?'}).json()
+            self.assertEqual(count['count'], 2)
+            client.post('/api/admin/logout')
+            self.assertEqual(client.get('/api/admin/center/dashboard').status_code, 401)

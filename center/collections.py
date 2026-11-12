@@ -34,6 +34,34 @@ class CollectionStore:
         with self.connect() as conn, conn.cursor() as cur:
             return self._view(cur, cid)
 
+    def audit(self, sample_limit=50):
+        from center.collection_audit import audit_collections
+        return audit_collections(self.connect, sample_limit)
+
+    def dashboard(self):
+        """Bounded public operational fields from one read-only snapshot."""
+        with self.connect() as conn, conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            cur.execute("SET LOCAL statement_timeout = '3s'")
+            cur.execute("SELECT machine_id,line,station FROM machine WHERE kind='kiosk' ORDER BY machine_id")
+            machines = [dict(zip(('machine_id', 'line', 'station'), r)) for r in cur.fetchall()]
+            cur.execute("SELECT item_id,machine_id,status,category,received_at FROM item ORDER BY received_at DESC,item_id DESC LIMIT 201")
+            raw_items = cur.fetchall()
+            items = [dict(zip(('item_id', 'machine_id', 'status', 'category', 'received_at'), r)) for r in raw_items[:200]]
+            cur.execute("SELECT collection_id,machine_id,picked_at,arrived_at FROM collection ORDER BY collection_id DESC LIMIT 51")
+            raw_batches = cur.fetchall()
+            batches = [dict(zip(('collection_id', 'machine_id', 'picked_at', 'arrived_at'), r)) for r in raw_batches[:50]]
+            cur.execute("SELECT collection_id,item_id,arrived FROM collection_item WHERE collection_id=ANY(%s) ORDER BY collection_id,item_id", ([b['collection_id'] for b in batches],))
+            members = cur.fetchall()
+            for batch in batches:
+                batch['items'] = [{'item_id': iid, 'arrived': a} for cid, iid, a in members if cid == batch['collection_id']]
+            cur.execute("SELECT collection_id,item_id,created_at,sent_at FROM collection_alert WHERE resolved_at IS NULL ORDER BY created_at,collection_id,item_id LIMIT 101")
+            raw_alerts = cur.fetchall()
+            alerts = [dict(zip(('collection_id', 'item_id', 'created_at', 'sent_at'), r)) for r in raw_alerts[:100]]
+            return {'mode': 'postgres', 'machines': machines, 'items': items, 'collections': batches, 'alerts': alerts,
+                    'limits': {'items': 200, 'collections': 50, 'alerts': 100},
+                    'truncated': {'items': len(raw_items) > 200, 'collections': len(raw_batches) > 50, 'alerts': len(raw_alerts) > 100}}
+
     def pickup(self, machine_id, ids, request_id):
         ids = item_ids(ids)
         if not isinstance(request_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", request_id):
