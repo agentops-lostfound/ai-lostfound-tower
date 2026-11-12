@@ -12,7 +12,7 @@ class DemoPlaces:
 
     def recommend(self, machine_id, offset=0):
         if not isinstance(machine_id, str) or machine_id not in MACHINES:
-            raise ValueError('가상 등록기계 A·B·C 중에서 선택해주세요')
+            raise ValueError('가상 등록기계 중앙역 A·초량역 C 중에서 선택해주세요')
         if type(offset) is not int or not 0 <= offset <= 10000:
             raise ValueError('목록 위치는 0~10000 정수여야 합니다')
         line, station = MACHINES[machine_id]

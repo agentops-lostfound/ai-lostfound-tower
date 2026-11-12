@@ -96,6 +96,62 @@ class PostgresIntegration(unittest.TestCase):
         self.assertEqual(len(page["places"]), 5)
         self.assertEqual(len(store.recommend("KIOSK-A", page["next_offset"])["places"]), 2)
 
+    def test_place_station_aliases_and_concurrent_duplicates_share_a_single_id(self):
+        store = Places(self.connect)
+        def put(index):
+            return store.put('１호선', ' 중앙역 ' if index % 2 else '중앙', ' 합성 새 장소 ')
+        with ThreadPoolExecutor(4) as executor:
+            ids = list(executor.map(put, range(8)))
+        self.assertTrue(all(row == ids[0] for row in ids))
+        self.assertEqual(store.recommend('KIOSK-A')['places'][0]['place_id'], ids[0]['place_id'])
+        with self.connect() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM place').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT station FROM place').fetchone()[0], '중앙')
+
+    def test_place_recommendations_scope_order_paging_and_empty_results(self):
+        store = Places(self.connect)
+        ids = [store.put('1호선', '중앙', f'합성 장소{i}')['place_id'] for i in range(11)]
+        other = store.put('1호선', '초량', '다른 역 장소')['place_id']
+        with self.connect() as conn:
+            conn.execute('UPDATE place SET use_count=10 WHERE place_id=%s', (ids[-1],))
+        pages = [store.recommend('KIOSK-A', offset) for offset in (0, 5, 10)]
+        all_ids = [p['place_id'] for page in pages for p in page['places']]
+        self.assertEqual((len(all_ids), len(set(all_ids))), (11, 11))
+        self.assertEqual(all_ids[0], ids[-1])
+        self.assertNotIn(other, all_ids)
+        self.assertEqual([page['next_offset'] for page in pages], [5, 10, None])
+        self.assertEqual(store.recommend('KIOSK-A', 10000), {'places': [], 'next_offset': None})
+        with self.connect() as conn:
+            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('EMPTY','kiosk','2호선','합성빈역')")
+        self.assertEqual(store.recommend('EMPTY'), {'places': [], 'next_offset': None})
+        for machine in ('MISSING', 'CENTER'):
+            with self.assertRaises(ValueError):
+                store.recommend(machine)
+
+    def test_places_reject_unmapped_scopes_and_ambiguous_machine_spellings_without_writes(self):
+        store = Places(self.connect)
+        with self.assertRaises(ValueError):
+            store.put('2호선', '중앙', '등록기계 없는 역')
+        with self.connect() as conn:
+            conn.execute("INSERT INTO machine(machine_id,kind,line,station) VALUES('ALIAS','kiosk','1호선','중앙역'),('NO-SCOPE','kiosk',NULL,NULL)")
+        with self.assertRaises(ValueError):
+            store.put('1호선', '중앙', '모호한 역')
+        with self.assertRaises(ValueError):
+            store.recommend('NO-SCOPE')
+        with self.connect() as conn:
+            self.assertEqual(conn.execute('SELECT count(*) FROM place').fetchone()[0], 0)
+
+    def test_place_recommendation_is_usable_by_existing_intake(self):
+        store = Places(self.connect)
+        added = store.put('1호선', '초량역', '합성 승강장')
+        place = store.recommend('KIOSK-C')['places'][0]
+        self.assertEqual(place['place_id'], added['place_id'])
+        intake = PostgresIntakeStore(os.environ['LF_SUPPORT_TEST_DSN'])
+        item = intake.create(parse_intake({'machine_id': 'KIOSK-C', 'place_id': place['place_id'], 'place_text': place['label']}))
+        with self.connect() as conn:
+            self.assertEqual(conn.execute('SELECT place_id FROM item WHERE item_id=%s', (item['item_id'],)).fetchone()[0], place['place_id'])
+        self.assertEqual(store.recommend('KIOSK-A')['places'], [])
+
     def receive_lipbalms(self):
         dsn = os.environ['LF_SUPPORT_TEST_DSN']
         intake = PostgresIntakeStore(dsn)

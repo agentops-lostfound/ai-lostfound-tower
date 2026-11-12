@@ -11,6 +11,12 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
     app = FastAPI(title="본센터 회수·통계", version="0.1")
     key = staff_key if staff_key is not None else os.environ.get("LF_STAFF_API_KEY", "")
     from fastapi.responses import JSONResponse
+    from fastapi.exceptions import RequestValidationError
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request, error):
+        # Validation responses must not echo rejected body values or credentials.
+        return JSONResponse({'detail': '입력 형식을 확인해주세요'}, status_code=422)
 
     def collection_failure(error, status=409):
         detail = {'code': 'stale_demo', 'message': str(error)} if getattr(error, 'code', None) == 'stale_demo' else str(error)
@@ -28,7 +34,6 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         from agents.support_security import LocalRequestGuard
         from fastapi.responses import FileResponse, JSONResponse
         from fastapi.staticfiles import StaticFiles
-        from fastapi.exceptions import RequestValidationError
         from pathlib import Path
         app.add_middleware(LocalRequestGuard)
         import sqlite3
@@ -38,10 +43,6 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
             return JSONResponse({'detail': '시연 저장소를 사용할 수 없습니다. 잠시 후 새로고침해주세요'}, status_code=503)
         root = Path(__file__).resolve().parents[1] / 'web/collection-desk'
         app.mount('/collection-assets', StaticFiles(directory=root / 'assets'), name='collection-assets')
-
-        @app.exception_handler(RequestValidationError)
-        async def invalid_request(request, error):
-            return JSONResponse({'detail': '입력 형식을 확인해주세요'}, status_code=422)
 
         @app.get('/collection-desk')
         def collection_desk():
@@ -140,19 +141,27 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
             return backend(places).recommend(machine_id, offset)
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, '장소 목록을 조회하지 못했습니다. DB 연결·권한을 확인한 뒤 다시 시도해주세요') from None
 
     @app.post("/places", dependencies=[Depends(guard)])
     def put_place(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
+            if set(body) - {'line', 'station', 'label'}:
+                raise ValueError('호선·역·장소만 전달해주세요')
             if demo:
-                if set(body) - {'line', 'station', 'label'}:
-                    raise ValueError('호선·역·장소만 전달해주세요')
                 return places.put(body.get('line'), body.get('station'), body.get('label'), revision=x_demo_revision or '')
             return backend(places).put(body.get("line"), body.get("station"), body.get("label"))
         except CollectionError as e:
             raise collection_failure(e) from None
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, '장소 저장 결과를 확인하지 못했습니다. 목록을 새로고침해 확인한 뒤 같은 내용으로 다시 시도해주세요') from None
 
     return app
 
