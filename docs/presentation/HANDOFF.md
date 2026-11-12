@@ -4,14 +4,14 @@
 
 ## 1. 덱 위치
 - Claude Slides 아티팩트 "AI 분실물 관제탑 발표" (31장) — 링크는 재원에게 받기(공유: 링크가 있는 모든 사용자, 수정은 재원 계정)
-- 최신 발행본 = 버전 67. 이 폴더 `deck/project/`가 그 사본(슬라이드 HTML + deck.json)
+- 최신 발행본 = 버전 68. 이 폴더 `deck/project/`가 그 사본(슬라이드 HTML + deck.json)
 - 발표 PC에서는 claude.ai 에 로그인한 상태로 열 것(로그인 안 하면 움직이는 그림이 안 나왔음)
 
 ## 2. 장 순서 (deck.json order)
 cover, problem, solution, system(4쪽), flow, v0(전체 흐름 영상), part2, found, vision, v1, lost, chatbot, v2, ret(14쪽), v3, v7, v8, arch, life, v4(20쪽, 영상 4 넣음), agents, talk, brain, v5, except, v6, proof, scope, learn, team, end
 
 ## 3. 남은 일 (우선순위)
-1. ~~20쪽 영상 4~~ 완료(11/12, 덱 버전 67: 이름·신분 번호 입력칸과 DB name_masked 칸만 모자이크, 1.6배속 94초)
+1. ~~20쪽 영상 4~~ 완료(11/12, 덱 버전 68: 이름·신분 번호 입력칸과 DB name_masked 칸만 모자이크, 1.6배속 94초)
 2. 남은 촬영: [물건 받았어요] 수령 장면, 챗봇 대화로 찾고 신청하는 장면 (팀원 담당)
 3. 영상이 오면 해당 장의 `<img ... data-video>` 자리에 넣기 (아래 4절)
 4. 순필님 자료(Field Vision, 사전 녹화) 오면 "확장: 카메라로 위치를 계산해 집기" 장 추가('실험 단계 · 사전 녹화' 표시), 팀 소개 장 순필님 역할 문구 수정
@@ -68,3 +68,4 @@ cover, problem, solution, system(4쪽), flow, v0(전체 흐름 영상), part2, f
 - 65: 14쪽 03 카드를 다른 카드와 같은 밝은 카드로, 옆모습 립밤을 눕힘(가로), 칸·제출함 표시를 실제 집게 끝 위치에 맞춤, 옆모습 축척 0.5로 키워 집기·놓기 간격을 넓힘(4·14쪽)
 - 66: 14쪽 'R4-1 → pose_7' 글을 바닥선 아래로(팔을 가리지 않게), 14쪽 옆모습만 보관칸 190mm·제출칸 330mm로 벌려 옮기는 거리가 잘 보이게(side14 안에서만 자세를 다시 계산)
 - 67: 원점 자세를 실물 home(접힌 대기 자세) 값으로 — robot/config/home_pose.json / outputs/robot_panel_live/poses.json 'home'(pan -3.8, lift -99.4, elbow 99.5→96.8, wrist -98.7→-95, roll 9.9, 집게 4.5%), 관제탑 sim_world.REST_JOINTS 와 같은 방식(normalized 를 각도로 보고 관절 한계로 자름). 칸·제출칸 자세는 관제탑처럼 위치 기준(IK) 유지
+- 68: 옆모습(4쪽 카드·14쪽 카드)을 부품별 '모양 고정 + 회전·이동(matrix 키프레임)'으로 — 윤곽 점 보간 때문에 커졌다 작아졌다 하던 문제 해결(rigid_side). 탑뷰는 위에서 보면 길이가 실제로 변하므로 기존 방식 유지

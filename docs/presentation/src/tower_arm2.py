@@ -88,10 +88,49 @@ def top_embed():
         last=(j==len(split(pcs,11000))-1)
         out.append(embeds.wrap(864,650,css+(hc if last else ''),f'<svg width="864" height="650" style="position:absolute;left:0;top:0;filter:drop-shadow(5px 8px 5px rgba(22,32,46,.25))">{bs if j==0 else ""}{body}</svg>{hh if last else ""}'))
     return out
+def rigid_side(s,ox,gy,pfx,cyc,dark):
+    """옆모습: 관절이 화면과 수직인 축으로 돌므로 부품마다 '모양 고정 + 회전·이동'으로 그림(크기 변화 없음)"""
+    PX=TA.PX
+    A_of=lambda R: s*np.array([R[0],-R[2]])          # 2x3: 몸체 좌표 → 화면
+    def tfs(t):
+        q,gr=TA.at(t); qd=dict(zip(J,q)); qd['gripper']=gr; qd['wrist_roll']=REST_ROLL; qd['shoulder_pan']=0
+        return fk(qd)
+    tf0=tfs(0)
+    bodies=sorted(set(k[0] for k in GR))
+    css=""; body=""; depth={}; parts=[]
+    keys={b:[] for b in bodies}
+    for t in TS:
+        tf=tfs(t)
+        for b in bodies:
+            R0,p0=tf0[b]; R,p=tf[b]
+            A0,A=A_of(R0),A_of(R)
+            M=A@np.linalg.pinv(A0)
+            c0=np.array([ox+s*(p0[0]-PX),gy-s*p0[2]]); c=np.array([ox+s*(p[0]-PX),gy-s*p[2]])
+            e=c-M@c0
+            keys[b].append((t,"transform:matrix(%.3f,%.3f,%.3f,%.3f,%.1f,%.1f)"%(M[0,0],M[1,0],M[0,1],M[1,1],e[0],e[1])))
+    for b in bodies:
+        R0,p0=tf0[b]; paths=""
+        for (bb,k),pts in GR.items():
+            if bb!=b: continue
+            W=(R0@pts.T).T+p0; xy=np.c_[ox+s*(W[:,0]-PX),gy-s*W[:,2]]
+            h=TA.simp(hull([tuple(v) for v in np.round(xy).astype(int)]),3)
+            cl={'motor':'m','camera':'c'}.get(k,'p')
+            paths+=f'<path class="{cl}" d="M'+'L'.join(f'{a} {c}' for a,c in h)+'Z"/>'
+            depth[b]=-W[:,1].mean()
+        if b==0: parts.append(("",paths)); continue
+        parts.append(("@keyframes %sr%d{%s}"%(pfx,b,"".join("%s%%{%s}"%(t,v) for t,v in keys[b])),
+                      f'<g style="transform-box:view-box;transform-origin:0 0;animation:{pfx}r{b} {cyc}s linear infinite">{paths}</g>'))
+    pc="#e9edf3" if dark else "#fff"
+    base=(f".p{{fill:{pc};stroke:#6b7684;stroke-width:1.2;stroke-linejoin:round}}.m{{fill:#23262d;stroke:#0d0f12;stroke-width:1}}.c{{fill:#3d4450;stroke:#0d0f12}}")
+    half=[[],[]]; n=sum(len(a)+len(b) for a,b in parts); acc=0
+    for a,b in parts:
+        half[0 if acc<n/2 else 1].append((a,b)); acc+=len(a)+len(b)
+    return [(base+"".join(a for a,_ in h),"".join(b for _,b in h)) for h in half]
 def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc,show_held=True):
     PX=TA.PX
     proj=lambda W:np.c_[ox+s*(W[:,0]-PX),gy-s*W[:,2],-W[:,1]]
-    pcs,tips=build(proj,pan0=True,skip_base=False)
+    _,tips=build(proj,pan0=True,skip_base=False) if False else (None,None)
+    tips=[(t,proj(tip(fk(dict(list(zip(J,TA.at(t)[0]))+[('gripper',TA.at(t)[1]),('wrist_roll',REST_ROLL),('shoulder_pan',0)])))[None])[0]) for t in TS]
     hc,hh=held(tips,cyc,pfx+'h',22,8,lie=True) if show_held else ('','')
     # 칸·제출보관함 위치(옆에서 본 거리)
     def tipx(n):
@@ -108,11 +147,9 @@ def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc,show_held=True):
     if labels:
         pre+=(f'<p style="position:absolute;left:{sx-58:.0f}px;top:{gy+5}px;width:52px;margin:0;text-align:right;font-size:12px;font-weight:800;color:{lc}">R4-1</p>'
               f'<p style="position:absolute;left:{bxx-14:.0f}px;top:{gy+5}px;width:60px;margin:0;text-align:left;font-size:12px;font-weight:800;color:#B5500A">제출함</p>')
-    chs=split(pcs,10000); out=[]
-    for j,ch in enumerate(chs):
-        c2,b2=svg_css(ch,cyc,pfx+str(j),dark)
-        first,last=j==0,j==len(chs)-1
-        out.append(((css if first else '')+c2+(hc if last else ''), (pre if first else '')+f'<svg width="{W_}" height="{H_}" style="position:absolute;left:0;top:0">{b2}</svg>'+(hh if last else '')))
+    (c1,b1),(c2,b2)=rigid_side(s,ox,gy,pfx,cyc,dark)
+    out=[(css+c1, pre+f'<svg width="{W_}" height="{H_}" style="position:absolute;left:0;top:0">{b1}</svg>'),
+         (c2+hc, f'<svg width="{W_}" height="{H_}" style="position:absolute;left:0;top:0">{b2}</svg>'+hh)]
     return out
 
 def side4():
