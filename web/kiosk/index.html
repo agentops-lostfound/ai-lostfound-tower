@@ -963,6 +963,7 @@ async function startCam() {
     }
     s.getVideoTracks().forEach(t => t.addEventListener('ended', () => { if (gen === camGen) { stopCam(); camDown('lost'); } }));
     camUp(); camChip('ok', DEMO ? '가상 카메라 연결됨' : SERVER_CAM ? 'PC 카메라 연결됨' : '카메라 연결됨');
+    if (SERVER_CAM && srvNote) { const k = srvNote; srvNote = ''; serverWarn(k); }   // 11/12 첫 사진부터 까맸으면 '연결됨'으로 덮지 않고 그대로 알림
     lastSmall = null; stillSince = 0; emptySince = 0; againUntil = 0;
     setPhase(empty ? 'place' : 'wait'); camSay(empty ? '물건을 가운데에 놓아 주세요' : '상자를 확인하는 중…', 'wait');
     autoTimer = setInterval(tick, AUTO.every);
@@ -1034,7 +1035,7 @@ function serverWarn(kind) {
   if (kind === srvNote) return;
   srvNote = kind;
   if (kind === 'down') { const b = srvBusy; srvBusy = ''; stopCam(); camDown(b ? 'serverbusy' : 'server', b); return; }
-  if (kind === 'dark') camChip('find', 'PC 카메라 영상이 까매요 — 렌즈·조명 확인');
+  if (kind === 'dark') camChip('find', 'PC 카메라 영상이 까매요 — 렌즈·조명·다른 프로그램 사용 확인');
   else if (kind === 'stale') camChip('find', 'PC 카메라 다시 연결 중');
   else if ($('#camDown').hidden) camChip('ok', 'PC 카메라 연결됨');
 }
