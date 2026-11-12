@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SOARM · 실시간 수동 제어</title><link rel="stylesheet" href="/static/manual.css"></head><body>
+<header><div><b>SOARM · 실시간 수동 제어</b><small>팔로워 팔로워 일련번호 · 실제 장비 조작</small></div><button id="stop" class="danger">■ 정지 · SPACE / ESC</button></header>
+<main><section class="toolbar"><button id="connect" class="primary">수동 연결 · 읽기부터</button><button id="resume">정지 해제</button><button id="enableAll" disabled>전체 토크 켜기</button><button id="disableAll" disabled>전체 토크 해제</button><button id="disconnect">연결 종료</button><a href="/static/prototype.html" target="_blank">집기 프로토타입 · STOP / HOME ↗</a><a href="/">관측 콘솔로</a><a href="/static/reproduction.html" target="_blank">현재 자세 모델 재현 ↗</a><a href="/static/grasp-review.html" target="_blank">집기 시험 기록 ↗</a><label>속도 <select id="speed"><option value="1">1도/초</option><option value="5">5도/초</option><option value="10" selected>10도/초</option><option value="15">15도/초</option></select></label></section>
+<p id="status" role="status">연결 전 · 연결 버튼만으로는 토크를 켜지 않습니다.</p>
+<p class="help">① 수동 연결 → ② 조작할 관절의 <b>토크 켜기</b> → ③ <b>− / ＋ 버튼을 누르는 동안 이동</b>, 놓으면 정지. 숫자 1~6으로 관절 선택 후 ← / →도 사용 가능합니다.</p>
+<p class="help">표시된 도수는 모터 엔코더 기준 상대 회전량이며 모델 관절각이 아닙니다. 한 번에 관절 하나만 이동합니다. 정지는 토크를 유지하는 소프트웨어 정지입니다.</p>
+<div class="layout"><section><div class="table-wrap"><table><thead><tr><th>관절</th><th>현재 ticks / normalized</th><th>연결 후 변화</th><th>토크·범위</th><th>직접 조작 · 누르고 유지</th></tr></thead><tbody id="joints"></tbody></table></div>
+<section class="save"><h2>자세·관절값·카메라 저장</h2><div><input id="label" placeholder="예: 중앙 위 / 손목을 아래로 / 기준 자세" maxlength="200"><button id="snapshot" class="primary">현재 자세 기록</button></div><p id="saved" role="status">수동 세션의 관절 피드백과 명령은 자동 기록됩니다. 이 버튼은 두 카메라 사진도 함께 저장합니다.</p></section>
+<section><h2>조작 로그</h2><div id="messages" aria-live="polite"></div></section>
+</section><aside><h2>탑뷰</h2><img data-live-camera="top" alt="탑뷰 실시간 영상"><h2>ARM 카메라</h2><img data-live-camera="arm" alt="집게 카메라 실시간 영상"><p>토크 끄기를 누르면 해당 축이 자유로워집니다. 어깨·팔꿈치 등을 끌 때는 팔을 받쳐주세요. 연결 종료는 켜져 있던 토크를 자동으로 끄지 않습니다.</p></aside></div>
+</main><script src="/static/network.js?v=multiwindow1"></script>
+<script src="/static/manual.js?v=torque-all1"></script></body></html>
