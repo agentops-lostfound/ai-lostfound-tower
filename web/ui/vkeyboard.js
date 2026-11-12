@@ -316,9 +316,16 @@
       render(); kb.classList.add("vk-on");
       setTimeout(() => { if (st.el === el) { const [a, b] = sel(); st.pos = b; if (a === b) drawCaret(); else caret.hidden = true; } }, 0);
       if (!opt.mount) {                                             // 키오스크: 키보드에 칸이 가리지 않게
+        // 11/12 교육원: 화면 전체(body)와 단계 카드(section) 둘 다에 키보드 높이만큼 여백을 넣어, 카드가 키보드 밑까지 길어지고
+        //   [보내기]를 보이려 카드를 올리다 전화번호 칸이 카드 위로 잘렸다. 또 칸을 옮기면 '원래 여백' 기록이 늘어난 값으로 덮여
+        //   키보드를 닫아도 카드 아래 흰 빈칸이 남았다 → body 만 띄우고, 그래도 카드가 키보드 밑으로 이어질 때만 그 넘친 만큼 카드에 여백
+        restorePads();
         host.body.style.paddingBottom = kb.offsetHeight + "px";
-        const box = scrollBox(el);
-        if (box && box !== host.body && box !== host.documentElement) { box.dataset.vkPad = box.style.paddingBottom || "-"; box.style.paddingBottom = kb.offsetHeight + "px"; }
+        const box = scrollBox(el, true);
+        if (box && box !== host.body && box !== host.documentElement) {
+          const over = box.getBoundingClientRect().bottom - kbTop();
+          if (over > 0) { box.dataset.vkPad = box.style.paddingBottom || "-"; box.style.paddingBottom = Math.ceil(over) + "px"; }
+        }
         setTimeout(() => keepVisible(el), 50);
       } else {                                                      // 폰 화면: iframe 안 페이지 아래를 키보드만큼 띄움
         doc.body.style.paddingBottom = kb.offsetHeight + "px";
@@ -339,30 +346,45 @@
     }
     // 11/10 사람 조작 시뮬레이션: 본센터 키오스크에서 번호를 넣고 [물건 꺼내기]를 누르면 키보드가 단추를 덮고 있어
     // 첫 번째 누름이 키보드만 닫고 두 번째에야 눌렸다 → 칸 바로 뒤의 주 단추까지 키보드 위로 보이게 올린다
-    function scrollBox(el) {
+    function scrollBox(el, any) {                                  // any: 아직 넘치지 않아도 스크롤 가능한 상자(여백을 넣기 전)
       for (let n = el.parentElement; n; n = n.parentElement) {
         const cs = (n.ownerDocument.defaultView || window).getComputedStyle(n);
-        if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight) return n;
+        if (/(auto|scroll)/.test(cs.overflowY) && (any || n.scrollHeight > n.clientHeight)) return n;
       }
       return null;
+    }
+    function kbTop() {                                              // 다 올라온 키보드의 위쪽(움직이는 중이어도)
+      const view = doc.defaultView || window;
+      return view.innerHeight - kb.offsetHeight;
+    }
+    function restorePads() {
+      host.querySelectorAll("[data-vk-pad]").forEach((b) => { b.style.paddingBottom = b.dataset.vkPad === "-" ? "" : b.dataset.vkPad; delete b.dataset.vkPad; });
     }
     function nextAction(el) {
       const area = el.closest("form, section, [id]") || el.parentElement;
       const all = [...area.querySelectorAll("button")].filter((b) => b.offsetParent && !kb.contains(b));
       return all.find((b) => el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
     }
+    // 11/12: 보이는 칸 = 스크롤 상자(단계 카드) 안 ∩ 키보드 위. 칸은 늘 그 안에, 다음 단추까지 함께 들어가면 단추도
     function keepVisible(el) {
-      const btn = nextAction(el);
+      if (st.el !== el) return;
       const view = (el.ownerDocument.defaultView || window);
-      const room = view.innerHeight - kb.offsetHeight - 12;
-      const goal = btn && btn.getBoundingClientRect().bottom - el.getBoundingClientRect().top < room * 0.9 ? btn : el;
-      goal.scrollIntoView({ block: goal === el ? "center" : "end", behavior: "auto" });
-      const over = goal.getBoundingClientRect().bottom - room;        // 아직 키보드 밑이면 그만큼 더 올림
-      if (over > 0) { const box = scrollBox(el); if (box) box.scrollTop += over; else view.scrollBy(0, over); }
+      const box = scrollBox(el);
+      const br = box ? box.getBoundingClientRect() : { top: 0, bottom: view.innerHeight };
+      const top = Math.max(0, br.top) + 8, bottom = Math.min(br.bottom, kbTop()) - 8;
+      if (bottom - top < 40) return;
+      const r = el.getBoundingClientRect(), btn = nextAction(el);
+      const b = btn && btn.getBoundingClientRect();
+      let delta;
+      if (b && b.bottom - r.top <= bottom - top) delta = Math.max(b.bottom - bottom, Math.min(0, r.top - top));   // 칸~단추가 다 들어감
+      else delta = r.top + r.height / 2 - (top + bottom) / 2;                                                   // 칸만 가운데로
+      if (r.top - delta < top) delta = r.top - top;                   // 칸 위가 잘리지 않게
+      if (Math.abs(delta) < 1) return;
+      if (box) box.scrollTop += delta; else view.scrollBy(0, delta);
     }
     function hide() {
       kb.classList.remove("vk-on"); caret.hidden = true;
-      host.querySelectorAll("[data-vk-pad]").forEach((b) => { b.style.paddingBottom = b.dataset.vkPad === "-" ? "" : b.dataset.vkPad; delete b.dataset.vkPad; });
+      restorePads();
       if (st.el) st.el.classList.remove("vk-target-on");
       st.el = null; st.comp = false;
       host.body.style.paddingBottom = ""; if (doc !== host) doc.body.style.paddingBottom = "";
@@ -398,6 +420,12 @@
     }, true);
 
     // PC 키보드 → 같은 화면 키를 눌러 보이며 입력
+    // 11/12 Esc = 키보드 닫기(입력한 글자는 그대로). 화면 글쇠를 누른 뒤나 바깥 틀(통합 화면)에 초점이 있어도 닫히게
+    //   칸이 든 문서·키보드가 그려진 문서·그 바깥 틀 문서(같은 주소일 때만) 모두에서 듣는다
+    const onEsc = (e) => { if (e.key === "Escape" && st.el && e.isTrusted) { e.preventDefault(); e.stopPropagation(); done(); } };
+    const escDocs = new Set([doc, host]);
+    [doc, host].forEach((d) => { try { const w = d.defaultView; if (w && w.parent && w.parent !== w && w.parent.document) escDocs.add(w.parent.document); } catch (_) { /* 다른 주소 틀 */ } });
+    escDocs.forEach((d) => d.addEventListener("keydown", onEsc, true));
     doc.addEventListener("keydown", (e) => {
       if (!e.isTrusted || !st.el || e.ctrlKey || e.metaKey || (e.altKey && e.code !== "AltRight")) return;
       if (target(e) !== st.el && !st.el.contains(target(e))) return;
@@ -411,8 +439,8 @@
       else if (code === "ArrowLeft" || code === "ArrowRight") move(code === "ArrowLeft" ? -1 : 1);
       else if (code === "Home" || code === "End") { st.comp = false; setCaret(code === "Home" ? 0 : st.el.value.length); }
       else if (code === "Delete") { const [a, b] = sel(), v = st.el.value; if (a < v.length || a !== b) { st.comp = false; setValue(v.slice(0, a) + v.slice(a === b ? a + 1 : b), a); } }
-      else if (code === "ShiftLeft" || code === "ShiftRight" || code === "CapsLock" || code === "Tab" || code.startsWith("Arrow") || code === "Escape") {
-        handled = code !== "Tab"; if (code === "Escape") done();
+      else if (code === "ShiftLeft" || code === "ShiftRight" || code === "CapsLock" || code === "Tab" || code.startsWith("Arrow")) {
+        handled = code !== "Tab";
       } else if (st.kind !== "text") {
         const c = (e.key === "*" || code === "NumpadMultiply") ? "*"                 // Shift+8 = * (숫자 8 보다 먼저)
           : e.shiftKey ? "" : /^Digit\d$|^Numpad\d$/.test(code) ? code.slice(-1) : (code === "Minus" || code === "NumpadSubtract") ? "-" : "";
