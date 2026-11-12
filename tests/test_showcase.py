@@ -404,13 +404,27 @@ class UiFixes1111Test(unittest.TestCase):
         html = self.read("web/showcase/index.html")
         self.assertEqual(html.count('role="tab" data-scene='), 3)
         self.assertNotIn('data-scene="robot"', html)
-        for needle in ('id="btnView"', 'id="btnRobot"', 'id="btnMore"', 'body.kview main > .panel{display:none}',
+        for needle in ('id="btnView"', 'id="btnRobot"', 'id="btnMore"', 'body.kview main > .panel{visibility:hidden;opacity:0}',
                        'document.body.classList.add("simple")', '"kiosk-set-tab"', 'd.type === "showcase-go"',
                        'stationret', 'lostweb', '&in=showcase'):
             self.assertIn(needle, html)
         k = self.read("web/kiosk/index.html")
         for needle in ('id="goWeb"', 'id="goCenter"', "IN_SHOWCASE", "e.origin !== location.origin", "tellShowcase('kiosk-tab'"):
             self.assertIn(needle, k)
+
+    def test_stable_layout_1112(self):
+        """11/12 오후: 장면·보기를 바꿔도 키오스크 자리·크기가 같게 — 칸 나눔은 그대로 두고 패널만 감춤, 설명 3줄·바로가기 칸 자리 고정,
+        휴대폰 장면도 같은 왼쪽 칸 폭, 탭·보기 단추 폭 고정"""
+        html = self.read("web/showcase/index.html")
+        self.assertNotIn("body.kview main{grid-template-columns", html)
+        self.assertNotIn("body.kview #steps{display:none}", html)
+        for needle in ("height:calc(1.45em * 3)", ".devgo{display:flex;gap:8px;justify-content:center;flex-wrap:nowrap;height:38px",
+                       "const devw = Math.max(screenW + 20 + 54, pw + 22);", "height:44px;box-sizing:border-box",
+                       ".scenes button[aria-selected=\"true\"] .swap{visibility:visible}", "#btnView{min-width:12.5em}"):
+            self.assertIn(needle, html)
+        vk = self.read("web/ui/vkeyboard.js")
+        self.assertIn("b.tabIndex = -1;", vk)                                   # 화면 글쇠는 Tab 순서 밖
+        self.assertIn("else if (st.el && !kb.contains(el)) hide();", vk)        # Tab 으로 칸을 벗어나면 키보드·여백 닫기
 
 if __name__ == "__main__":
     unittest.main()

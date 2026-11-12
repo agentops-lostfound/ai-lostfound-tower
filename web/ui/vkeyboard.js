@@ -154,6 +154,7 @@
 
     function btn(label, cls, onPress, code) {
       const b = host.createElement("button");
+      b.tabIndex = -1;                                               // 11/12 화면 글쇠는 Tab 순서에 넣지 않음(손가락용)
       b.type = "button"; b.textContent = label; if (cls) b.className = cls;
       b.addEventListener("pointerdown", (e) => { e.preventDefault(); press(b, onPress, true); });
       b.addEventListener("mousedown", (e) => e.preventDefault());           // 입력칸 초점 유지
@@ -368,7 +369,8 @@
     }
 
     const target = (e) => (e.composedPath ? e.composedPath()[0] : e.target);
-    doc.addEventListener("focusin", (e) => { const el = target(e); if (usable(el)) show(el); }, true);
+    // 11/12 Tab 으로 칸을 벗어나면(다른 단추로 초점) 키보드와 아래 여백을 닫는다 — 전에는 그대로 남아 화면 아래가 비어 보였다
+    doc.addEventListener("focusin", (e) => { const el = target(e); if (usable(el)) show(el); else if (st.el && !kb.contains(el)) hide(); }, true);
     doc.addEventListener("pointerdown", (e) => {                    // 다른 곳을 누르면 닫기
       const el = target(e); if (st.el && !usable(el) && !kb.contains(el)) hide();
     }, true);
