@@ -5,15 +5,15 @@ from ik import *
 import tower_arm as TA          # 자세(P), 시간표(way), at(t) 재사용
 import embeds
 K=9
-# 실물 티칭 순서(11단계, 단계마다 움직임 60% + 멈춤 40%): 원점 → pose_7 칸 위 → 열기 → 내려감 → 닫기 → 들기 → 제출보관함 위 → 내림 → 열기 → 들기 → 원점
+# 실물 티칭 순서(11단계, 단계마다 움직임 50% + 멈춤 50%, 실물 44초의 약 80% 속도): 원점 → pose_7 칸 위 → 열기 → 내려감 → 닫기 → 들기 → 제출보관함 위 → 내림 → 열기 → 들기 → 원점
 SEQ=[('home',15),('r4h',15),('r4h',35),('r4p',35),('r4p',2),('r4h',2),('bxh',2),('bxp',2),('bxp',35),('bxh',35),('home',15)]
 D=100/11
 TA.way=[(0,'home',15)]
 for i in range(1,11):
-    TA.way+=[(round(i*D,2),)+SEQ[i-1],(round(i*D+0.6*D,2),)+SEQ[i]]
+    TA.way+=[(round(i*D,2),)+SEQ[i-1],(round(i*D+0.5*D,2),)+SEQ[i]]
 TA.way+=[(100,'home',15)]
-TS=sorted(set([0,100]+[round(i*D,2) for i in range(1,11)]+[round(i*D+0.6*D,2) for i in range(1,11)]+[round(i*D+0.3*D,2) for i in (1,6,10)]))
-T_PICK=round(4*D+0.6*D,2); T_REL=round(8*D+0.3*D,2)
+TS=sorted(set([0,100]+[round(i*D,2) for i in range(1,11)]+[round(i*D+0.5*D,2) for i in range(1,11)]+[round(i*D+0.25*D,2) for i in (1,6,10)]))
+T_PICK=round(4*D+0.5*D,2); T_REL=round(8*D+0.25*D,2)
 GR={}
 for g in S['geoms']: GR.setdefault((g['body'],g['kind']),[]).extend(g['pts'])
 GR={k:np.array(v) for k,v in GR.items()}
@@ -55,7 +55,7 @@ def svg_css(pieces,cyc,pfx,dark=False):
 def held(tips,cyc,name,w,h):
     css="@keyframes %s{%s}"%(name,"".join("%s%%{transform:translate(%dpx,%dpx);opacity:%d}"%(t,x-w/2,y-h/2,1 if T_PICK<=t<T_REL else 0) for t,(x,y,_) in tips))
     return css,f'<div style="position:absolute;left:0;top:0;width:{w}px;height:{h}px;border-radius:2px;background:linear-gradient(#E3264E 0 62%,#fff 62%);box-shadow:0 0 0 1px rgba(0,0,0,.25);opacity:0;animation:{name} {cyc}s linear infinite"></div>'
-CYC=14
+CYC=36
 def split(pcs,lim):
     out=[[]];n=0
     for p in pcs:
@@ -118,7 +118,7 @@ def side4():
     return out
 def side14():
     from embeds import ACCL
-    ch=side_embed(260,150,0.36,40,128,True,False,'r',12); out=[]
+    ch=side_embed(260,150,0.36,40,128,True,False,'r',36); out=[]
     for j,(c,h) in enumerate(ch):
         lab=(f'<div style="position:absolute;left:10px;top:10px;padding:5px 10px;border-radius:10px;background:#24324A;color:{ACCL};font-size:17px;font-weight:800;white-space:nowrap">R4-1 → pose_7</div>') if j==len(ch)-1 else ''
         out.append(embeds.wrap(260,150,c,h+lab))

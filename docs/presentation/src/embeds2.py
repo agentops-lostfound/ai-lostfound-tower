@@ -166,7 +166,7 @@ def solution():
 
 # ───────── 전체 구성: 역 · 관제탑 · 본센터(보관함 R 줄 설명) ─────────
 def system():
-    W, H, CYC = 1664, 650, 14
+    W, H, CYC = 1664, 650, 36
     css = ICSS + KIOSK
     css += f".bx{{position:absolute;border-radius:26px;padding:22px 26px}}.bx h4{{margin:0;font-size:24px;font-weight:800;color:#B5500A}}.bx h3{{margin:2px 0 0;font-size:28px;color:{INK};white-space:nowrap}}"
     css += f".ch{{background:#24324A;color:#F7F5F1;border-radius:12px;padding:9px 12px;font-size:21px;font-weight:700;white-space:nowrap}}.ch small{{display:block;color:{ACCL};font-weight:600;font-size:17px}}"
@@ -210,7 +210,7 @@ def system():
     for i, (r, nm) in enumerate(cols):
         body += f'<p class="hd" style="left:{gx[i]}px;top:136px"><b style="{"color:" + ACC if r == "R4" else ""}">{r}</b><span>{nm}</span></p>'
         for j in range(2):
-            body += f'<div class="cell" style="left:{gx[i]}px;top:{210 + j * 102}px;{"animation:c41 14s infinite" if (i, j) == (3, 0) else ""}"></div>'
+            body += f'<div class="cell" style="left:{gx[i]}px;top:{210 + j * 102}px;{"animation:c41 36s infinite" if (i, j) == (3, 0) else ""}"></div>'
     body += '<p class="rw" style="top:232px">-1<br>먼 칸</p><p class="rw" style="top:334px">-2<br>로봇 쪽</p>'
     fill = {(0, 0): "phone", (0, 1): "white", (1, 0): "batt", (2, 0): "cream"}
     for (i, j), k in fill.items():
@@ -221,8 +221,8 @@ def system():
     body += (f'<div style="position:absolute;left:1452px;top:388px;padding:6px 10px;border-radius:12px;background:{INK};color:#F7F5F1;font-size:17px;font-weight:700;white-space:nowrap;animation:tip {CYC}s infinite;opacity:0;z-index:3">'
              f'<b style="color:{ACCL}">R4-1</b> = 4번 줄 · 먼 칸</div>')
     # 칸에 있는 립밤(집기 전) · 제출보관함의 립밤(놓은 뒤)
-    css += kf("b0", [(0, "opacity:1"), (41.3, "opacity:1"), (41.8, "opacity:0"), (97, "opacity:0"), (100, "opacity:1")])
-    css += kf("b2", [(0, "opacity:0"), (75, "opacity:0"), (75.5, "opacity:1"), (93, "opacity:1"), (97, "opacity:0"), (100, "opacity:0")])
+    css += kf("b0", [(0, "opacity:1"), (40.4, "opacity:1"), (40.9, "opacity:0"), (97, "opacity:0"), (100, "opacity:1")])
+    css += kf("b2", [(0, "opacity:0"), (74.5, "opacity:0"), (75.0, "opacity:1"), (93, "opacity:1"), (97, "opacity:0"), (100, "opacity:0")])
     body += f'<div style="position:absolute;left:0;top:0;animation:b0 {CYC}s infinite">{item("balm", 1547, 256)}</div>'
     body += f'<div style="position:absolute;left:0;top:0;animation:b2 {CYC}s infinite">{item("balm", 1290, 78)}</div>'
     # SO-101 로봇팔: 위에서는 ① 어깨 회전(방향)만, 옆에서는 ②③④ 굽힘(마디 길이 고정)
