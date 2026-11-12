@@ -582,7 +582,7 @@ slide("solution", 0, "해결", "네 단계를 잇는 AI 관제탑 하나", so,
       note="물건이 ① → ④ 정거장을 지날 때마다 그 단계가 관제탑에 보고하고(주황 점), 관제탑이 기록·확인해서 돌려줍니다(초록 점). 관제탑 상자 안에 그때 남긴 기록이 한 줄씩 바뀝니다. 확인되지 않은 단계가 있으면 로봇을 멈추고 직원에게 넘깁니다.")
 
 # 전체 구성: 그림 지도 + 보관함 R 설명
-slide("system", 0, "전체 구성", "역 · 관제탑 · 본센터를 하나로 연결", em(lambda: embeds2.system()[0], 128, 290) + em(lambda: embeds2.system()[1], 928, 290) + em(lambda: embeds2.system()[2], 1496, 722) + ''.join(em(lambda h=h: h, 928, 290) for h in __import__('tower_arm').embeds_out()),
+slide("system", 0, "전체 구성", "역 · 관제탑 · 본센터를 하나로 연결", em(lambda: embeds2.system()[0], 128, 290) + em(lambda: embeds2.system()[1], 928, 290) + ''.join(em(lambda h=h: h, 1496, 722) for h in __import__('tower_arm2').side4()) + ''.join(em(lambda h=h: h, 928, 290) for h in __import__('tower_arm2').top_embed()),
       note="왼쪽은 물건을 맡기는 역 키오스크와 분실인 휴대폰, 가운데는 모든 연결이 지나가는 관제탑 PC, 오른쪽은 부산역 본센터입니다. 보관함은 4줄 × 2칸이고, R은 보관함 줄(Row) 번호입니다. 줄마다 품목 하나(R1 휴대폰 · R2 보조배터리 · R3 핸드크림 · R4 립밤), -1은 먼 칸, -2는 로봇 쪽 칸입니다. 그래서 R4-1은 '립밤 줄의 먼 칸'입니다. 로봇팔은 칸 번호에 맞춰 미리 가르친 자세로 집어 제출보관함에 놓습니다.")
 
 # 한 바퀴: 검은 휴대폰이 나타나 지나가고 사라진다
@@ -663,7 +663,10 @@ rt = row_cards([("01", "본인 확인", "찾기 번호 + 신분 번호 뒤 첫 �
                 ("04", "제출보관함", "물건 도착, 로봇은 원점으로", "light"),
                 ("05", "물건 받았어요", "꺼내고 누르면 인계 완료", "light")], 300, 440, ts=38)
 for i in range(5):
-    rt += em(lambda i=i: embeds3.ret(i), 128 + i * 336 + 28, 376)
+    if i == 2:
+        rt += ''.join(em(lambda h=h: h, 128 + i * 336 + 28, 376) for h in __import__('tower_arm2').side14())
+    else:
+        rt += em(lambda i=i: embeds3.ret(i), 128 + i * 336 + 28, 376)
 rt += box(128, 790, 1664, None,
           f'<p style="flex:2;font-size:36px;font-weight:800;background:{INK};color:#F7F5F1;border-radius:18px;padding:26px 34px">정상 흐름은 직원 없이 · 직원은 예외만</p>'
           f'<p style="flex:1;font-size:30px;color:#2B3545;background:{CARD};border:2px solid {LINE};border-radius:18px;padding:28px 30px">실물 로봇 한 바퀴 약 44초(11단계)</p>',

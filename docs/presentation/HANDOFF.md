@@ -4,14 +4,14 @@
 
 ## 1. 덱 위치
 - Claude Slides 아티팩트 "AI 분실물 관제탑 발표" (31장) — 링크는 재원에게 받기(공유: 링크가 있는 모든 사용자, 수정은 재원 계정)
-- 최신 발행본 = 버전 60. 이 폴더 `deck/project/`가 그 사본(슬라이드 HTML + deck.json)
+- 최신 발행본 = 버전 61. 이 폴더 `deck/project/`가 그 사본(슬라이드 HTML + deck.json)
 - 발표 PC에서는 claude.ai 에 로그인한 상태로 열 것(로그인 안 하면 움직이는 그림이 안 나왔음)
 
 ## 2. 장 순서 (deck.json order)
 cover, problem, solution, system(4쪽), flow, v0(전체 흐름 영상), part2, found, vision, v1, lost, chatbot, v2, ret(14쪽), v3, v7, v8, arch, life, v4(20쪽, 영상 4 넣음), agents, talk, brain, v5, except, v6, proof, scope, learn, team, end
 
 ## 3. 남은 일 (우선순위)
-1. ~~20쪽 영상 4~~ 완료(11/12, 덱 버전 60: 이름·신분 번호 입력칸과 DB name_masked 칸만 모자이크, 1.6배속 94초)
+1. ~~20쪽 영상 4~~ 완료(11/12, 덱 버전 61: 이름·신분 번호 입력칸과 DB name_masked 칸만 모자이크, 1.6배속 94초)
 2. 남은 촬영: [물건 받았어요] 수령 장면, 챗봇 대화로 찾고 신청하는 장면 (팀원 담당)
 3. 영상이 오면 해당 장의 `<img ... data-video>` 자리에 넣기 (아래 4절)
 4. 순필님 자료(Field Vision, 사전 녹화) 오면 "확장: 카메라로 위치를 계산해 집기" 장 추가('실험 단계 · 사전 녹화' 표시), 팀 소개 장 순필님 역할 문구 수정
@@ -61,3 +61,4 @@ cover, problem, solution, system(4쪽), flow, v0(전체 흐름 영상), part2, f
 - 58: 19쪽 아이콘 그림을 카드별 7개 x-embed 로 나눔(카드가 올라올 때 그 카드 아이콘이 함께 나옴, 슬라이드당 8개 한도 꽉 참)
 - 59: 모든 장의 그림(x-embed)이 감싼 칸과 같은 효과(rise)·같은 순서로 올라옴. 칸 밖 큰 그림(3·4·5·12·18·22쪽)은 첫 순서로 올라오고 나머지 순서를 하나씩 미룸
 - 60: 4쪽 탑뷰 로봇팔을 관제탑 /live 가상 팔과 같은 공식 SO-101 모양(web/live/so101_shape.js)으로 교체. src/tower_arm.py 가 관절 계산(ik.py, scipy)으로 자세 36장을 미리 그려 그림 5개에 나눠 넣음(슬라이드당 그림 8개 한도 꽉 참). shape.json 은 so101_shape.js 에서 다시 뽑으면 됨
+- 61: 4쪽 탑뷰를 부품 윤곽 d:path() 키프레임 보간으로 부드럽게(src/tower_arm2.py, 크롬 계열에서 동작), 4쪽 옆모습 카드·14쪽 로봇팔 카드도 같은 공식 SO-101 모양 옆모습으로 교체

@@ -2,9 +2,9 @@ import sys;sys.path.insert(0,'.')
 from ik import *
 S_,PX,BX,BY=1.45,38.84,1290,560
 def tgt(sx,sy,z): return [PX+(BY-sy)/S_,(BX-sx)/S_,z]
-x=np.array([0,0,0,60.]); P={}
+x=np.array([0,0,0,60.]); P={}; P_t={}
 for n,t in [('r4h',tgt(1547,256,75)),('r4p',tgt(1547,256,18)),('bxh',tgt(1290,78,72)),('bxp',tgt(1290,78,28))]:
-    x,e=solve(t,x); P[n]=x
+    x,e=solve(t,x); P[n]=x; P_t[n]=t
 P["home"]=np.array([-40,-100,96,40.])
 OPEN,CLOSE=35.0,2.0
 way=[(0,'home',OPEN),(8,'home',OPEN),(22,'r4h',OPEN),(30,'r4p',OPEN),(35,'r4p',CLOSE),(44,'r4h',CLOSE),(60,'bxh',CLOSE),(66,'bxp',CLOSE),(72,'bxp',CLOSE),(73,'bxp',OPEN),(78,'bxh',OPEN),(92,'home',OPEN),(100,'home',OPEN)]
