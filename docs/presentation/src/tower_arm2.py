@@ -296,3 +296,27 @@ def top_rigid2():
         cur.append((a2,b2));n+=z
     out.append(cur)
     return [embeds.wrap(864,650,base+"".join(a for a,_ in ch),'<svg width="864" height="650" style="position:absolute;left:0;top:0;overflow:visible;filter:drop-shadow(5px 8px 5px rgba(22,32,46,.25))">'+"".join(b for _,b in ch)+'</svg>') for ch in out]
+
+
+def top_embed2():
+    """탑뷰: 어깨 회전(①)은 그룹 전체를 받침 축 중심으로 회전(CSS rotate, 각도 보간이라 모양 유지),
+    부품 윤곽은 어깨 회전 0°로 계산(②③④ 굽힘에 따른 원근만 변함)"""
+    S_,PX,BX,BY=TA.S_,TA.PX,TA.BX,TA.BY
+    proj=lambda W:np.c_[BX-S_*W[:,1]-800,BY-S_*(W[:,0]-PX),W[:,2]]
+    pcs,_=build(proj,pan0=True)
+    pw={t:TA.at(t)[0][0] for t in sorted(set(TS+list(range(0,101,2))))}
+    cx,cy=BX-800,BY+S_*PX
+    css="@keyframes tpan{%s}"%"".join("%s%%{transform:rotate(%.1fdeg)}"%(t,a) for t,a in sorted(pw.items()))
+    q,_=TA.at(0); tf=fk(dict(zip(J,q))); bs=""
+    for k in GR:
+        if k[0]!=0: continue
+        R,p=tf[0]; W=(R@GR[k].T).T+p; xy=proj(W)
+        h=hull([tuple(v) for v in np.round(xy[:,:2]).astype(int)])
+        bs+=f'<path class="{ {"motor":"m"}.get(k[1],"p") }" d="M'+'L'.join(f'{a} {b}' for a,b in h)+'Z"/>'
+    out=[]
+    chs=split(pcs,10500)
+    for j,ch in enumerate(chs):
+        c2,body=svg_css(ch,CYC,'a%d'%j)
+        g=f'<g style="transform-box:view-box;transform-origin:{cx:.0f}px {cy:.0f}px;animation:tpan {CYC}s linear infinite">{body}</g>'
+        out.append(embeds.wrap(864,650,css+c2,f'<svg width="864" height="650" style="position:absolute;left:0;top:0;overflow:visible;filter:drop-shadow(5px 8px 5px rgba(22,32,46,.25))">{bs if j==0 else ""}{g}</svg>'))
+    return out
