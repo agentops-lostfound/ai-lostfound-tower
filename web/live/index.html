@@ -425,7 +425,8 @@ details.more .robot-note{margin-top:0}
     // 11/9 마우스를 올리면 title, 누르거나 Tab+Enter 면 아래 줄(#pick)에 전체 정보: 칸 · 물건 번호 · 습득 역 · 품목 · 색 · 상태
     const attrs = `data-id="${esc(it.item_id)}" data-tip="${esc(full)}" tabindex="0" role="img" aria-label="${esc(full)}"`;
     const light = ["흰색","노랑"].includes(it.color);
-    if (it.category === "모형폰" && it.loc === "bin") {
+    const placed = it.loc === "bin" || it.loc === "gripper";   // 11/12 집은 뒤에도 놓여 있던 방향 그대로(전에는 집는 순간 세로로 '딱' 섬)
+    if (it.category === "모형폰" && placed) {
       // 11/9 휴대폰은 45도 사선으로 놓음(R1): 화면에서 '/' — 상단(카메라 점) 오른쪽 위 · 단자 왼쪽 아래. 가로로 두면 비전(YOLO·Qwen) 인식률이 떨어짐
       return `<g transform="translate(${x},${y}) rotate(45)" ${attrs}><title>${esc(full)}</title>`+
         `<rect x="-16" y="-34" width="32" height="68" rx="6" fill="${c}" stroke="rgba(0,0,0,.3)"/>`+
@@ -435,7 +436,7 @@ details.more .robot-note{margin-top:0}
         (st ? `<text y="1" font-size="9">${esc(st)}</text><text y="11" font-size="9">${esc(short)}</text>` : `<text y="4" font-size="10">${esc(short)}</text>`) + `</g></g>`;
     }
     const sp = PUT_SHAPE[it.category];
-    if (sp && it.loc === "bin") {
+    if (sp && placed) {
       // 11/11 보조배터리('/')·핸드크림('/', 뚜껑 왼쪽 아래)·립밤(세로) — 긴 축을 따라 두 줄: 역 · 번호 끝자리
       const fg = light ? "#222" : "#fff";
       return `<g transform="translate(${x},${y}) rotate(${sp.rot})" ${attrs}><title>${esc(full)}</title>`+
