@@ -40,7 +40,7 @@ class HangulTest(unittest.TestCase):
 class WiringTest(unittest.TestCase):
     def test_kiosk_uses_keyboard(self):
         html = (ROOT / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('<script src="/ui/vkeyboard.js?v=20261112a"></script>', html)
+        self.assertIn('<script src="/ui/vkeyboard.js?v=20261112b"></script>', html)
         self.assertIn('<script src="/ui/phonefield.js?v=20261112a" defer></script>', html)
         self.assertIn('id="cphone"', html)
         self.assertIn('data-phone>', html)                          # 11/12 전화번호 세 칸

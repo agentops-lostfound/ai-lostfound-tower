@@ -44,28 +44,28 @@ code,.mono{font-family:var(--ui-mono)}
 .bar h1 small{font-weight:600;color:var(--ui-text-3);margin-left:6px;font-size:14px}
 .scenes{display:flex;gap:6px;min-width:0;flex-wrap:wrap}
 .scenes button{border:0;background:var(--ui-fill);border-radius:999px;padding:8px 14px;font-weight:650;cursor:pointer;white-space:nowrap;
-  display:inline-flex;align-items:center;gap:8px;color:var(--ui-text-2)}
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--ui-text-2);min-width:13.5em}   /* 11/12 글자(키오스크 ⇄ 휴대폰 웹)가 바뀌어도 폭 그대로 */
 .scenes button:hover{background:var(--ui-fill-hover)}
 .scenes button[aria-selected="true"]{background:var(--ui-primary);color:var(--ui-on-primary)}
 .scenes button .no{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(127,127,127,.22);font-size:12px;font-weight:700}
 .scenes button[aria-selected="true"] .no{background:rgba(255,255,255,.26)}
 /* 11/11 ① 탭: 켜진 채로 한 번 더 누르면 중앙역 ⇄ 초량역. 켜져 있을 때만 ⇄ 표시 */
-.scenes .swap{display:none;margin-left:6px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.26)}
-.scenes button[aria-selected="true"] .swap{display:inline-block}
+.scenes .swap{display:inline-block;visibility:hidden;margin-left:6px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.26)}
+.scenes button[aria-selected="true"] .swap{visibility:visible}   /* 11/12 자리는 늘 차지 — 탭을 바꿔도 단추 폭이 그대로 */
 .views{display:flex;gap:6px;flex:none}
-.views button{border-radius:999px;padding:8px 14px;font-weight:650;white-space:nowrap}
+.views button{border-radius:999px;padding:8px 14px;font-weight:650;white-space:nowrap;text-align:center}
+#btnView{min-width:12.5em} #btnRobot{min-width:8.5em}   /* 11/12 글자가 바뀌어도 단추 폭이 그대로 */
 .views #btnRobot[aria-pressed="true"]{background:var(--ui-text);color:var(--ui-bg)}
-/* 11/12 키오스크 크게 보기: DB·에이전트 칸을 숨기고 기기를 가운데 크게 */
-body.kview main{grid-template-columns:minmax(0,1fr)}
-body.kview main > .panel{display:none}
-body.kview #steps{display:none}
+/* 11/12 키오스크만 보기: DB·에이전트 칸만 감춘다. 칸 나눔·진행 막대는 그대로 → 키오스크 위치·크기가 두 보기에서 같음(11/12 오후 검토) */
+main > .panel{transition:opacity .2s}
+body.kview main > .panel{visibility:hidden;opacity:0}
 /* 11/12 간단히(기본): 표 이름 줄·두 번째 행 카드를 숨기고 기록은 최근 것만 */
 body.simple #tables{display:none}
 body.simple:not([data-scene="found"]) .rows{grid-template-columns:minmax(0,1fr)}
 body.simple:not([data-scene="found"]) #cardItem{display:none}   /* 분실·회수 장면은 찾기 요청 한 행만 */
 body.simple #dbLog > li:nth-child(n+5),body.simple #agLog > li:nth-child(n+4){display:none}
 .panel .more{margin-left:auto;font-size:12.5px;padding:4px 10px;border-radius:999px}
-.devgo{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.devgo{display:flex;gap:8px;justify-content:center;flex-wrap:nowrap;height:38px;flex:none}   /* 11/12 바로가기 단추가 없는 장면도 자리를 비워 둠 */
 .devgo button{border-radius:999px;padding:8px 16px;font-weight:650}
 #foundStn{display:inline-block;animation:stn .25s ease-out}
 @keyframes stn{from{opacity:0;transform:translateY(-4px)}}
@@ -79,7 +79,7 @@ body.simple #dbLog > li:nth-child(n+5),body.simple #agLog > li:nth-child(n+4){di
 .bar .ghost.armed{background:var(--ui-err);color:#fff}
 
 /* ---------- 이야기 진행 막대 ---------- */
-.steps{display:flex;align-items:center;gap:10px;min-height:44px;padding-block:6px;flex:none;overflow:hidden;
+.steps{display:flex;align-items:center;gap:10px;height:44px;box-sizing:border-box;padding-block:6px;flex:none;overflow:hidden;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .steps .who{font-weight:700;white-space:nowrap}
 .steps .who small{color:var(--ui-text-3);font-weight:600;margin-left:6px}
@@ -107,7 +107,9 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:var(--devw,400px) mi
 /* ---------- 왼쪽: 기기 ---------- */
 .device{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px}
 .stage{flex:1;min-height:0;width:100%;display:flex;align-items:flex-start;justify-content:center}
-.cap{flex:none;text-align:center;font-size:12.5px;color:var(--ui-text-3);font-weight:600;line-height:1.45;max-width:100%}
+/* 11/12 설명 글은 장면마다 1~3줄 → 늘 3줄 높이를 차지(줄 수에 따라 키오스크 크기가 바뀌던 것) */
+.cap{flex:none;text-align:center;font-size:12.5px;color:var(--ui-text-3);font-weight:600;line-height:1.45;max-width:100%;
+  height:calc(1.45em * 3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3}
 .cap b{color:var(--ui-text-2)}
 /* 세로 키오스크(스탠드형): 검은 테두리 화면 + 밝은 몸체(촬영 카메라 창 · 접수증 나오는 곳 · 옆 단말기) */
 .stand{display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 18px 28px rgba(0,0,0,.22))}
@@ -290,7 +292,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   </nav>
   <!-- 11/12 발표 검토: 화면은 두 가지(키오스크 + DB·에이전트 요약 / 키오스크 크게) — 단추 하나로 오감. 로봇 작업대는 작은 단추로 -->
   <div class="views">
-    <button type="button" class="ghost" id="btnView" title="키오스크만 크게 ⇄ DB·에이전트 함께">🖥 키오스크 크게</button>
+    <button type="button" class="ghost" id="btnView" title="키오스크만 ⇄ DB·에이전트 함께(키오스크 자리·크기는 그대로)">🖥 키오스크만 보기</button>
     <button type="button" class="ghost" id="btnRobot" title="로봇 작업대(실시간 관제)를 열고 닫기">🤖 로봇 작업대</button>
   </div>
   <div class="chips">
@@ -493,7 +495,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   }
   function setView(kiosk) {                       // 11/12 두 화면: 키오스크 + DB·에이전트(기본) ⇄ 키오스크 크게
     document.body.classList.toggle("kview", kiosk);
-    const b = $("btnView"); b.setAttribute("aria-pressed", String(kiosk)); b.textContent = kiosk ? "📊 DB·에이전트 함께 보기" : "🖥 키오스크 크게";
+    const b = $("btnView"); b.setAttribute("aria-pressed", String(kiosk)); b.textContent = kiosk ? "📊 DB·에이전트 함께 보기" : "🖥 키오스크만 보기";
     setRobot(false); requestAnimationFrame(fit); saveUrl();
   }
   $("btnView").onclick = () => setView(!document.body.classList.contains("kview"));
@@ -543,7 +545,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const body = $("kBody"); body.style.width = Math.round((screenW + 20) * 0.9) + "px"; body.style.height = (bodyH + 14) + "px";
     const pw = 390, ph = Math.min(844, H - 22);
     const lost = $("fLost"); lost.style.width = pw + "px"; lost.style.height = ph + "px";
-    const devw = Math.max(screenW + 20 + 54, scene === "lostweb" ? pw + 22 : 0);    // 옆 단말기 자리까지
+    const devw = Math.max(screenW + 20 + 54, pw + 22);    // 옆 단말기 자리까지. 11/12 휴대폰 장면도 같은 폭(장면마다 칸 폭이 바뀌던 것)
     if (!narrow) $("main").style.setProperty("--devw", Math.round(devw) + "px");
   }
   window.addEventListener("resize", fit);
