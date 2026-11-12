@@ -967,6 +967,24 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
             raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
         return _sim_call(d.staff_visit, claim_id)
 
+    @app.get("/sim/lost/wait/{wait_id}")
+    def sim_wait(wait_id: str, key: str = "") -> dict:
+        """11/12 대기 분실 신고 결과(분실인 화면이 1.5초마다): waiting | matched(찾기 번호). key = 신고 때 받은 wait_key"""
+        d = _sim()
+        if not callable(getattr(d, "wait_poll", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.wait_poll, wait_id, key)
+
+    @app.post("/sim/lost/wait/{wait_id}/notify")
+    def sim_wait_notify(wait_id: str, payload: dict = Body(...)) -> dict:
+        """11/12 문자 알림 신청(시연): {"key": wait_key, "last4": "1234"} — 전화번호 끝 4자리만 받음, 실제 문자는 보내지 않음"""
+        if not isinstance(payload, dict) or set(payload) != {"key", "last4"}:
+            raise HTTPException(status_code=422, detail="본문은 key·last4 두 개만 보냅니다")
+        d = _sim()
+        if not callable(getattr(d, "notify_wait", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.notify_wait, wait_id, payload["key"], payload["last4"])
+
     @app.post("/sim/lost/{pending_id}/answer")
     def sim_answer(pending_id: str, payload: dict = Body(...)) -> dict:
         """확인 질문 답: {"text": "VOVA"} (모르면 "모름")"""

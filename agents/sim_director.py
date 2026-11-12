@@ -19,8 +19,10 @@
 """
 from __future__ import annotations
 
+import hmac
 import os
 import re
+import secrets
 import threading
 import time
 import uuid
@@ -97,6 +99,12 @@ def _show(v: str) -> str:
 def _summary(feats: dict) -> str:
     pub = public_card({k: v for k, v in feats.items() if k != "confidence"})
     return " · ".join(_show(pub[k]) for k in PUBLIC_COMPARE if _known(pub.get(k))) or "특징 없음"
+
+
+def _short(desc: dict) -> str:
+    """문자 알림용 짧은 이름: '분홍 핸드크림'(색·품목, 모르면 있는 것만)"""
+    parts = [desc.get(k) for k in ("color", "category")]
+    return " ".join(_show(v) for v in parts if _known(v)) or "찾는 물건"
 
 
 class SimDirector:
@@ -723,11 +731,42 @@ class SimDirector:
         with self.board.bind(sid):
             self.board.stage("claim", "active", "닮은 습득물이 아직 없음 — 들어오면 찾기 요청으로 자동 연결")
             self.rep.progress(wid, "분실 신고 대기", f"{_summary(desc)}{' · ' + station + '역' if station else ''} · 습득물을 기다림")
+        key = secrets.token_hex(8)            # 11/12 화면이 결과를 물을 때 쓰는 열쇠(번호만 알아서는 남의 찾기 번호를 볼 수 없게)
         with self._wait_lock:
             self.waiting_lost[wid] = {"desc": dict(desc), "station": station, "tags": set(tags), "opts": dict(opts),
-                                      "story_id": sid, "t": time.time(), "claim_id": None, "item_id": None}
-        return {"waiting": True, "wait_id": wid, "story_id": sid, "candidates": [],
-                "visit": "kiosk", "message": "닮은 습득물이 아직 없어 분실 신고를 대기로 받아 두었어요"}
+                                      "story_id": sid, "t": time.time(), "claim_id": None, "item_id": None,
+                                      "key": key, "notify": None, "claim_story": None, "quiz_passed": None}
+        return {"waiting": True, "wait_id": wid, "wait_key": key, "story_id": sid, "candidates": [],
+                "summary": _short(desc), "visit": "kiosk", "message": "닮은 습득물이 아직 없어 분실 신고를 대기로 받아 두었어요"}
+
+    # ----- 11/12 대기 분실 신고 → 문자 알림 신청(시연) -----
+    def _wait_by_key(self, wid: str, key: str) -> dict:
+        w = self.waiting_lost.get(wid)
+        if w is None or not isinstance(key, str) or not hmac.compare_digest(str(w.get("key") or ""), key):
+            raise NotFound("없는 분실 신고예요(시간이 지났거나 관제탑이 다시 켜짐)")
+        return w
+
+    def notify_wait(self, wid: str, key: str, last4: str) -> dict:
+        """문자 알림 신청: 번호 끝 4자리만 받는다(전체 번호는 관제탑에 오지 않음, DB 에도 저장 안 함). 실제 문자는 보내지 않는 시연"""
+        if not isinstance(last4, str) or not re.fullmatch(r"\d{4}", last4):
+            raise RequestError("last4: 전화번호 끝 4자리 숫자")
+        with self._wait_lock:
+            w = self._wait_by_key(wid, key)
+            w["notify"] = last4
+            sid = w["story_id"]
+        with self.board.bind(sid):
+            self.board.stage("claim", "active", "문자 알림 신청 — 닮은 습득물이 들어오면 알림(시연, 실제 문자 없음)")
+            self.rep.progress(wid, "문자 알림 신청", "찾는 물건이 들어오면 알림(시연)")
+        return {"ok": True, "wait_id": wid, "notify": "****-" + last4}
+
+    def wait_poll(self, wid: str, key: str) -> dict:
+        """분실인 화면이 결과를 묻기: waiting | matched(찾기 번호·진행 이야기·문자 알림 여부)"""
+        with self._wait_lock:
+            w = self._wait_by_key(wid, key)
+            if w["claim_id"] and w["claim_id"] != "연결 중":
+                return {"wait_id": wid, "state": "matched", "claim_id": w["claim_id"], "story_id": w["claim_story"] or w["story_id"],
+                        "quiz_passed": w["quiz_passed"], "notify": bool(w["notify"]), "summary": _short(w["desc"])}
+            return {"wait_id": wid, "state": "waiting", "notify": bool(w["notify"])}
 
     def _match_waiting(self, item_id: str) -> None:
         """새 습득물(특징 분석 끝)과 닮은 대기 분실 신고를 먼저 들어온 순서로 하나만 찾기 요청으로 잇는다.
@@ -751,9 +790,12 @@ class SimDirector:
                 continue
             with self._wait_lock:
                 w["claim_id"], w["item_id"] = res["claim_id"], item_id
+                w["claim_story"], w["quiz_passed"] = res.get("story_id"), res.get("quiz_passed")
             with self.board.bind(w["story_id"]):
                 self.board.stage("claim", "done", f"습득물 {item_id} 들어옴 → 찾기 번호 {res['claim_id']}")
                 self.rep.progress(wid, "대기 분실 신고 연결", f"습득물 {item_id} → 찾기 번호 {res['claim_id']}")
+                if w.get("notify"):
+                    self.board.stage("claim", "done", "문자 알림 보냄(시연 — 분실인 화면에 알림, 실제 문자 없음)")
                 self.board.finish(w["story_id"], f"찾기 번호 {res['claim_id']} 로 이어짐(진행은 새 이야기 {res['story_id']})", True)
             return
 
