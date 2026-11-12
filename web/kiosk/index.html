@@ -915,7 +915,8 @@ const CAM = {openMs: 8000, frameMs: 4000, retryMs: 15000};
 const CAM_CODE = {insecure: '주소 보안 설정(https·localhost 아님) — web/README.md 카메라 설정', denied: '카메라 권한 거부 — 브라우저 사이트 설정에서 허용',
                   nodevice: '카메라 장치 없음 — USB 연결 확인', busy: '다른 프로그램이 카메라 사용 중', timeout: '8초 안에 카메라가 열리지 않음',
                   noframe: '카메라 영상이 들어오지 않음', lost: '카메라 연결이 끊김',
-                  server: 'PC 카메라 연결 안 됨 — 관제탑 .env TOWER_KIOSK_CAMERAS·웹캠 USB 확인(/api/kiosk/cameras)'};
+                  server: 'PC 카메라 연결 안 됨 — 관제탑 .env TOWER_KIOSK_CAMERAS·웹캠 USB 확인(/api/kiosk/cameras)',
+                  serverbusy: 'PC 웹캠 영상 못 받음'};   // 11/12 관제탑이 알려 준 프로그램 이름을 뒤에 붙임
 let camGen = 0, retryTimer = null;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const named = n => Object.assign(new Error(n), {name: n});
@@ -924,15 +925,16 @@ function camKind(e) {
   const n = (e && e.name) || '';
   if (n === 'InsecureError') return 'insecure';
   if (n === 'ServerCamError') return 'server';
+  if (n === 'ServerBusyError') return 'serverbusy';
   if (/NotAllowed|Security|PermissionDenied/.test(n)) return 'denied';
   if (/NotReadable|TrackStart|Abort/.test(n)) return 'busy';
   if (n === 'TimeoutError') return 'timeout';
   if (n === 'NoFrameError') return 'noframe';
   return 'nodevice';                              // NotFoundError·OverconstrainedError·mediaDevices 없음
 }
-function camDown(kind) {
+function camDown(kind, detail) {
   $('.camwrap').classList.add('down'); $('#camDown').hidden = false; $('#cam').hidden = true; $('#camCanvas').hidden = true;
-  $('#camCode').textContent = '점검 코드: ' + (CAM_CODE[kind] || kind);
+  $('#camCode').textContent = '점검 코드: ' + (CAM_CODE[kind] || kind) + (detail ? ' · ' + String(detail).slice(0, 140) : '');
   camChip('down', '카메라 점검 중'); setPhase('down');
   if (kind !== 'insecure' && kind !== 'denied') retryTimer = setTimeout(startCam, CAM.retryMs);
 }
@@ -947,7 +949,8 @@ async function startCam() {
     if (!DEMO && !SERVER_CAM && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw named('NotFoundError');
     const opening = DEMO ? demoOpen() : SERVER_CAM ? serverOpen() : camOpen();
     opening.then(s => { if (gen !== camGen) s.getTracks().forEach(t => t.stop()); }, () => {});   // 늦게 열린 카메라는 바로 끔
-    const s = await Promise.race([opening, wait(CAM.openMs).then(() => { throw named('TimeoutError'); })]);
+    // 11/12 서버 카메라는 관제탑이 8초까지 기다렸다 원인을 알려 주므로 조금 더 기다림(먼저 끊으면 '8초 시간 초과'만 보였음)
+    const s = await Promise.race([opening, wait(SERVER_CAM ? CAM.openMs + 4000 : CAM.openMs).then(() => { throw named('TimeoutError'); })]);
     if (gen !== camGen) return;
     stream = s; const v = $('#cam');
     if (SERVER_CAM) { v.hidden = true; $('#camCanvas').hidden = false; }       // 11/11 사진이 오면 바로 보임(영상 요소·자동 재생에 기대지 않음)
@@ -965,7 +968,7 @@ async function startCam() {
     autoTimer = setInterval(tick, AUTO.every);
   } catch (e) {
     if (gen !== camGen) return;
-    stopCam(); camDown(camKind(e));
+    stopCam(); camDown(camKind(e), e && e.detail);
   }
 }
 function stopCam() {
@@ -983,7 +986,7 @@ function stopCam() {
 //  · 사진마다 번호·나이·어두움이 붙어 와서, 같은 사진은 다시 그리지 않고 '멈춤'(관제탑 카메라 읽기)·'까맘'(렌즈·조명)을 구별한다
 const SRV = {gapMs: 80, staleMs: 3000, downMs: 12000};
 const SRV_STREAM = {getTracks: () => [], getVideoTracks: () => []};
-let srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '';
+let srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '', srvBusy = '';
 function serverOpen() {
   const machine = encodeURIComponent(Q.get('camsrc') || Q.get('machine') || 'KIOSK-A');   // 11/11 camsrc: 다른 기계의 서버 카메라를 빌려 씀(발표 화면 초량역)
   const run = ++srvRun; srvSeq = -1; srvLast = 0; srvNote = '';
@@ -1002,6 +1005,13 @@ function serverOpen() {
           const r = await fetch(`/api/kiosk/camera/${machine}.jpg?after=${srvSeq}&t=${Date.now()}`, {cache: 'no-store'});
           if (run !== srvRun) return;
           if (r.status === 404) { if (!opened) reject(named('ServerCamError')); else serverWarn('down'); return; }
+          if (r.status === 503) {                           // 11/12 관제탑이 원인을 알려 줌 — 웹캠을 다른 프로그램이 잡았으면 바로 점검 화면에 그 이름
+            const detail = await r.json().then(j => String(j.detail || ''), () => '');
+            if (/사용 중|열 수 없음/.test(detail)) {
+              if (!opened) { reject(Object.assign(named('ServerBusyError'), {detail})); return; }
+              srvBusy = detail; serverWarn('down'); return;
+            }
+          }
           if (!r.ok) throw new Error(r.status);
           const seq = Number(r.headers.get('X-Frame-Seq') || 0), age = Number(r.headers.get('X-Frame-Age-Ms') || 0);
           if (seq !== srvSeq) { await draw(await r.blob()); srvSeq = seq; srvLast = Date.now(); }
@@ -1023,7 +1033,7 @@ function serverOpen() {
 function serverWarn(kind) {
   if (kind === srvNote) return;
   srvNote = kind;
-  if (kind === 'down') { stopCam(); camDown('server'); return; }
+  if (kind === 'down') { const b = srvBusy; srvBusy = ''; stopCam(); camDown(b ? 'serverbusy' : 'server', b); return; }
   if (kind === 'dark') camChip('find', 'PC 카메라 영상이 까매요 — 렌즈·조명 확인');
   else if (kind === 'stale') camChip('find', 'PC 카메라 다시 연결 중');
   else if ($('#camDown').hidden) camChip('ok', 'PC 카메라 연결됨');

@@ -37,6 +37,10 @@
     TOWER_KIOSK_CAMPROPS=CONTRAST=200            # 이름: BRIGHTNESS·CONTRAST·SATURATION·GAMMA·GAIN·SHARPNESS·BACKLIGHT·HUE
     TOWER_KIOSK_MJPG=0                            # 교육원 웹캠은 MJPG 에서 대비가 영상에 안 먹음 → MJPG 없이 열기(추정, --try --no-mjpg 로 확인)
   확인: python tools/camera_exposure.py --try CONTRAST=200 (관제탑 끈 상태, 넣은 값·카메라가 읽은 값·날아간 점 %)
+- 11/12 교육원: 로그에 `can't grab frame. Error: -1072875772`(0xC00D3704 = 다른 프로그램이 웹캠을 쓰는 중)가 쏟아지고
+  키오스크는 '8초 안에 카메라가 열리지 않음'만 보였다. 이제 영상을 한 장도 못 받은 채 실패하면 '다른 프로그램이 웹캠 사용 중'으로
+  알리고, 윈도우 카메라 사용 기록으로 그 프로그램 이름을 붙인다(agents/camera_users.py, 상태 /api/kiosk/cameras 의 busy_by).
+  관제탑 없이 확인: python tools/camera_who.py
 """
 from __future__ import annotations
 
@@ -328,8 +332,10 @@ def stop_all(timeout: float = 1.5) -> bool:
 class CameraFeed:
     """카메라 하나를 뒤에서 읽어 최신 JPEG 하나를 들고 있는다. 보는 사람이 없으면 닫는다"""
 
-    def __init__(self, src, opener=_open, clock=time.monotonic, exposure=None, wb=None, props=None):
+    def __init__(self, src, opener=_open, clock=time.monotonic, exposure=None, wb=None, props=None, who=None):
         self.src, self._opener, self._clock = src, opener, clock
+        self._who = who               # 11/12 웹캠을 잡은 프로그램 찾기(기본 agents/camera_users.who_uses_camera)
+        self.busy_by: list | None = None   # 마지막으로 찾은 '웹캠을 쓰는 중' 프로그램(상태 화면용)
         self.exposure = exposure      # 11/11 노출 고정 값(None = 카메라가 정함)
         self.wb = wb                  # 11/11 화이트밸런스 고정 값(켈빈, None = 카메라가 정함)
         self.props = props or {}      # 11/11 영상 설정(대비 등, TOWER_KIOSK_CAMPROPS)
@@ -404,6 +410,23 @@ class CameraFeed:
         self.error = msg
         self._failed_at = self._clock()
 
+    def _fail_busy(self, msg: str) -> None:
+        """11/12 영상을 한 장도 못 받고 실패 = 다른 프로그램이 웹캠을 잡은 경우가 대부분 → 그 프로그램 이름을 붙인다"""
+        users: list = []
+        if self.src != "fake":
+            try:
+                if self._who is None:
+                    from agents.camera_users import who_uses_camera
+                    users = who_uses_camera()
+                else:
+                    users = self._who()
+            except Exception:
+                users = []
+        self.busy_by = users
+        from agents.camera_users import describe
+        why = describe(users)
+        self._fail(msg + (" — " + why if why else " — 크롬 탭·윈도우 카메라 앱·남은 옛 관제탑(python) 확인, python tools/camera_who.py"))
+
     def _run(self) -> None:
         import cv2
         cap = None
@@ -412,10 +435,11 @@ class CameraFeed:
             with self._lock:
                 self._cap, self._at = cap, self._clock()
             if not cap.isOpened():
-                self._fail("카메라를 열 수 없음(번호·USB 연결·다른 프로그램 사용 중 확인 — python tools/list_cameras.py)")
+                self._fail_busy("카메라를 열 수 없음(번호·USB 연결 확인 python tools/list_cameras.py, 또는 다른 프로그램 사용 중)")
                 return
             self._settings(cap)
             fails, dark_run, reopens, next_reopen = 0, 0, 0, 0.0
+            got = False                                   # 11/12 이번에 연 뒤 영상을 한 장이라도 받았는지
             while not self._stop and self._clock() - self._seen < IDLE_CLOSE_S:
                 ok, frame = cap.read()
                 if self._cap is not cap:                  # 11/11 멈춤으로 다른 쪽이 카메라를 놓음 → 이 읽기를 끝내고 새로 연다
@@ -423,11 +447,15 @@ class CameraFeed:
                 if not ok or frame is None:
                     fails += 1
                     if fails > 20:
-                        self._fail("카메라 영상이 들어오지 않음")
+                        if got:
+                            self._fail("카메라 영상이 들어오지 않음")
+                        else:
+                            self._fail_busy("다른 프로그램이 웹캠 사용 중(영상을 한 장도 못 받음)")
                         return
                     time.sleep(0.1)
                     continue
-                fails = 0
+                fails, got = 0, True
+                self.busy_by = None
                 if is_dark(frame):
                     dark_run += 1
                     # 계속 새까마면 카메라를 다시 연다. 11/10: 전에는 한 번만 다시 열어, 그래도 까맣면 관제탑을 다시 켤 때까지 까만 채였다
@@ -440,7 +468,7 @@ class CameraFeed:
                         with self._lock:
                             self._cap = cap
                         if not cap.isOpened():
-                            self._fail("카메라를 다시 열 수 없음(다른 프로그램이 쓰는 중인지 확인)")
+                            self._fail_busy("카메라를 다시 열 수 없음")
                             return
                         self._settings(cap)                   # 다시 열면 카메라 설정이 풀릴 수 있음
                         dark_run = 0
@@ -474,7 +502,7 @@ class CameraFeed:
 
 class KioskCameras:
     def __init__(self, config: dict | None = None, opener=_open, exposure: dict | None = None, wb: dict | None = None,
-                 props: dict | None = None):
+                 props: dict | None = None, who=None):
         self.config = parse_config(os.environ.get("TOWER_KIOSK_CAMERAS")) if config is None else config
         self.exposure = parse_exposure(os.environ.get("TOWER_KIOSK_EXPOSURE")) if exposure is None else exposure
         self.wb = parse_wb(os.environ.get("TOWER_KIOSK_WB")) if wb is None else wb
@@ -488,7 +516,7 @@ class KioskCameras:
                 self._feeds[name] = by_src[src]
                 continue
             feed = CameraFeed(src, opener, exposure=exposure_for(self.exposure, name), wb=exposure_for(self.wb, name),
-                              props=self.props)
+                              props=self.props, who=who)
             self._feeds[name] = feed
             if src != "fake":
                 by_src[src] = feed
@@ -507,6 +535,7 @@ class KioskCameras:
                           {"warning": "웹캠이 낮은 화질로 열림 — 실제 영상만 잘라 보내는 중(다른 프로그램이 웹캠을 쓰는지 확인)"} if f.cropped else {}),
                        **({"size": [OUT_W, OUT_H]} if f.latest() is not None else {}),
                        **({"stalls": f.stalls} if f.stalls else {}),
+                       **({"busy_by": [u["name"] for u in f.busy_by]} if f.busy_by else {}),
                        **({"exposure": f.exposure_state} if f.exposure_state else {}),
                        **({"white_balance": f.wb_state} if f.wb_state else {}),
                        **({"props": f.props_state} if f.props_state else {})} for name, f in self._feeds.items()}
