@@ -7,7 +7,7 @@ from center.collections import CollectionStore, CollectionError
 from center.statistics import Statistics
 
 
-def create_app(collections=None, statistics=None, staff_key=None, places=None, demo=False):
+def create_app(collections=None, statistics=None, staff_key=None, places=None, demo=False, authorize_dependency=None):
     app = FastAPI(title="본센터 회수·통계", version="0.1")
     key = staff_key if staff_key is not None else os.environ.get("LF_STAFF_API_KEY", "")
     from fastapi.responses import JSONResponse
@@ -84,7 +84,9 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
             raise HTTPException(503, "DB 연결이 설정되지 않았습니다")
         return store
 
-    @app.post("/collections", dependencies=[Depends(authorize)])
+    guard = authorize_dependency or authorize
+
+    @app.post("/collections", dependencies=[Depends(guard)])
     def pickup(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
             if demo:
@@ -93,14 +95,14 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         except CollectionError as e:
             raise collection_failure(e) from None
 
-    @app.get("/collections/{collection_id}", dependencies=[Depends(authorize)])
+    @app.get("/collections/{collection_id}", dependencies=[Depends(guard)])
     def get_collection(collection_id: int = PathParam(ge=1, le=2_147_483_647)):
         try:
             return backend(collections).get(collection_id)
         except CollectionError as e:
             raise HTTPException(404, str(e)) from None
 
-    @app.post("/collections/{collection_id}/arrivals", dependencies=[Depends(authorize)])
+    @app.post("/collections/{collection_id}/arrivals", dependencies=[Depends(guard)])
     def arrival(collection_id: int = PathParam(ge=1, le=2_147_483_647), body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
             if demo:
@@ -109,7 +111,7 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         except CollectionError as e:
             raise collection_failure(e) from None
 
-    @app.post("/collections/overdue/check", dependencies=[Depends(authorize)])
+    @app.post("/collections/overdue/check", dependencies=[Depends(guard)])
     def overdue(body: dict = Body(...)):
         if demo:
             raise HTTPException(409, '자동 지연 판정은 시연에 연결하지 않았습니다. 도착 체크 후 미도착 내역을 확인하세요')
@@ -119,7 +121,7 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         except (ValueError, TypeError) as e:
             raise HTTPException(422, "시간대를 포함한 기준시각이 필요합니다") from e
 
-    @app.post("/statistics/questions", dependencies=[Depends(authorize)])
+    @app.post("/statistics/questions", dependencies=[Depends(guard)])
     def ask(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
             if set(body) - {'question'}:
@@ -132,14 +134,14 @@ def create_app(collections=None, statistics=None, staff_key=None, places=None, d
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
 
-    @app.get("/places", dependencies=[Depends(authorize)])
+    @app.get("/places", dependencies=[Depends(guard)])
     def recommend(machine_id: str, offset: int = 0):
         try:
             return backend(places).recommend(machine_id, offset)
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
 
-    @app.post("/places", dependencies=[Depends(authorize)])
+    @app.post("/places", dependencies=[Depends(guard)])
     def put_place(body: dict = Body(...), x_demo_revision: str | None = Header(default=None)):
         try:
             if demo:

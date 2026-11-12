@@ -146,7 +146,7 @@ def build_service(backend_factory=None) -> TowerService:
     return svc
 
 
-def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None):
+def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None, center_services=None):
     try:
         from fastapi import Body, Depends, FastAPI, HTTPException
     except ImportError as e:
@@ -1057,6 +1057,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         add_control_routes(app)
     except ImportError:          # 시험용 가짜 fastapi(응답 클래스 없음)에서는 건너뜀
         pass
+    from agents.center_integration import add_center_integration
+    add_center_integration(app, auth, service=svc, services=center_services)
     return app
 
 

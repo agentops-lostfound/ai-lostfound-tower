@@ -466,7 +466,7 @@ class PostgresStorageTest(unittest.TestCase):
         gunte_load_storage(out)
         with psycopg.connect(self.dsn) as conn:
             conn.execute("UPDATE item SET status='인계 대기' WHERE item_id='A-W01'")
-        self.assertEqual(self.s.layout()["summary"]["used"], 1)       # 11/6 인계 대기는 칸 예약 유지
+        self.assertEqual(self.s.layout()["summary"]["used"], 0)       # 021: 제출보관함 도착 때 로봇 칸 해제
         with psycopg.connect(self.dsn) as conn:
             conn.execute("UPDATE item SET status='인계 완료' WHERE item_id='A-W01'")
         self.assertEqual(self.s.layout()["summary"]["used"], 0)
