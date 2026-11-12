@@ -40,7 +40,7 @@ class HangulTest(unittest.TestCase):
 class WiringTest(unittest.TestCase):
     def test_kiosk_uses_keyboard(self):
         html = (ROOT / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('<script src="/ui/vkeyboard.js?v=20261112b"></script>', html)
+        self.assertIn('<script src="/ui/vkeyboard.js?v=20261112c"></script>', html)
         self.assertIn('<script src="/ui/phonefield.js?v=20261112a" defer></script>', html)
         self.assertIn('id="cphone"', html)
         self.assertIn('data-phone>', html)                          # 11/12 전화번호 세 칸
@@ -72,6 +72,17 @@ class WiringTest(unittest.TestCase):
         self.assertEqual(p.status_code, 200)
         self.assertIn("VK.attach(frame.contentDocument", p.text)
         self.assertIn("/^\\/(?!\\/)/", p.text)                     # 같은 관제탑 주소만 틀 안에
+
+
+    def test_field_stays_visible_and_esc_closes_1112(self):
+        """11/12 교육원: 전화번호 칸이 키보드에 가려지고 닫은 뒤 흰 빈칸이 남음 · Esc 로 닫기
+        (실제 화면 측정은 Playwright 로 함 — 여기서는 고친 자리가 남아 있는지만)"""
+        js = (ROOT / "web" / "ui" / "vkeyboard.js").read_text(encoding="utf-8")
+        self.assertIn("restorePads();\n        host.body.style.paddingBottom", js)       # 칸을 옮겨도 원래 여백 기록을 덮지 않음
+        self.assertIn("box.getBoundingClientRect().bottom - kbTop()", js)               # 카드에는 넘친 만큼만
+        self.assertIn("if (r.top - delta < top) delta = r.top - top;", js)                # 칸 위가 잘리지 않게
+        self.assertIn('e.key === "Escape" && st.el', js)
+        self.assertIn("escDocs.add(w.parent.document)", js)                              # 바깥 통합 화면에서도 Esc
 
 
 if __name__ == "__main__":
