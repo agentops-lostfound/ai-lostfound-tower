@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<rect width="100%" height="100%" fill="white"/>
+<text x="50" y="70.12" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="43" font-weight="700" text-anchor="start">분실물 관리 시스템 구성도</text>
+<text x="52" y="120.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="start">사용자 접수부터 로봇 반환과 수령 확인까지 연결하는 통합 구조</text>
+<polyline points="50,148 1550,148" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<rect x="50" y="176" width="1500" height="72" rx="16" fill="#F3F6FA" stroke="#D5DEE9" stroke-width="2"/>
+<text x="800.0" y="219.52" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="28" font-weight="700" text-anchor="middle">접수   →   보관   →   찾기   →   반환   →   인계</text>
+<polyline points="455,345 455,870" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polyline points="390,345 455,345" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="455,345 442.0,339.0 442.0,351.0" fill="#3C6B9E"/>
+<polygon points="390,345 403.0,351.0 403.0,339.0" fill="#3C6B9E"/>
+<polyline points="390,520 455,520" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="455,520 442.0,514.0 442.0,526.0" fill="#3C6B9E"/>
+<polygon points="390,520 403.0,526.0 403.0,514.0" fill="#3C6B9E"/>
+<polyline points="390,695 455,695" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="455,695 442.0,689.0 442.0,701.0" fill="#3C6B9E"/>
+<polygon points="390,695 403.0,701.0 403.0,689.0" fill="#3C6B9E"/>
+<polyline points="390,870 455,870" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="455,870 442.0,864.0 442.0,876.0" fill="#3C6B9E"/>
+<polygon points="390,870 403.0,876.0 403.0,864.0" fill="#3C6B9E"/>
+<polyline points="455,600 550,600" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="550,600 537.0,594.0 537.0,606.0" fill="#3C6B9E"/>
+<polygon points="455,600 468.0,606.0 468.0,594.0" fill="#3C6B9E"/>
+<polyline points="1080,345 1080,870" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polyline points="1000,600 1080,600" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1080,600 1067.0,594.0 1067.0,606.0" fill="#3C6B9E"/>
+<polygon points="1000,600 1013.0,606.0 1013.0,594.0" fill="#3C6B9E"/>
+<polyline points="1080,345 1170,345" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1170,345 1157.0,339.0 1157.0,351.0" fill="#3C6B9E"/>
+<polygon points="1080,345 1093.0,351.0 1093.0,339.0" fill="#3C6B9E"/>
+<polyline points="1080,520 1170,520" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1170,520 1157.0,514.0 1157.0,526.0" fill="#3C6B9E"/>
+<polygon points="1080,520 1093.0,526.0 1093.0,514.0" fill="#3C6B9E"/>
+<polyline points="1080,695 1170,695" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1170,695 1157.0,689.0 1157.0,701.0" fill="#3C6B9E"/>
+<polygon points="1080,695 1093.0,701.0 1093.0,689.0" fill="#3C6B9E"/>
+<polyline points="1080,870 1170,870" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1170,870 1157.0,864.0 1157.0,876.0" fill="#3C6B9E"/>
+<polygon points="1080,870 1093.0,876.0 1093.0,864.0" fill="#3C6B9E"/>
+<rect x="50" y="275" width="340" height="140" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="220.0" y="316.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">습득물 등록기계·키오스크</text>
+<text x="220.0" y="360.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">습득 장소 입력 · 자동 촬영</text>
+<text x="220.0" y="396.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">접수 결과 안내</text>
+<rect x="50" y="450" width="340" height="140" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="220.0" y="491.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">분실인 웹·챗봇</text>
+<text x="220.0" y="535.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">물건 설명 · 후보 검색</text>
+<text x="220.0" y="571.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">찾기 신청·취소</text>
+<rect x="50" y="625" width="340" height="140" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="220.0" y="666.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">본센터 키오스크</text>
+<text x="220.0" y="710.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">본인 확인 · 회수 요청</text>
+<text x="220.0" y="746.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">물건 수령 확인</text>
+<rect x="50" y="800" width="340" height="140" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="220.0" y="841.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">관리자·직원 화면</text>
+<text x="220.0" y="885.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">전체 현황 · 예외 처리</text>
+<text x="220.0" y="921.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">정지·복귀 요청</text>
+<rect x="550" y="390" width="450" height="360" rx="16" fill="#FFF6DF" stroke="#CFB46A" stroke-width="2"/>
+<text x="775.0" y="439.4" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="35" font-weight="700" text-anchor="middle">AI 관제탑</text>
+<text x="775.0" y="478.36" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="400" text-anchor="middle">업무 단계·상태 관리</text>
+<text x="775.0" y="520.99" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="400" text-anchor="middle">메인 AI 검토·근거 대조</text>
+<text x="775.0" y="563.62" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="400" text-anchor="middle">코드 기반 실행 조건 검사</text>
+<text x="775.0" y="606.25" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="400" text-anchor="middle">명령 전달·오류 기록</text>
+<text x="775" y="806.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">API · 공통 데이터 형식</text>
+<rect x="1170" y="275" width="380" height="140" rx="16" fill="#EEF5FE" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1360.0" y="319.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">비전·매칭</text>
+<text x="1360.0" y="360.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">사진 분석 · 후보 비교</text>
+<text x="1360.0" y="396.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">탑뷰 관측 ↔ DB 대조</text>
+<rect x="1170" y="450" width="380" height="140" rx="16" fill="#F0F3FA" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1360.0" y="494.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">팀 DB</text>
+<text x="1360.0" y="535.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">물건 · 접수 · 보관 칸</text>
+<text x="1360.0" y="571.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">찾기 요청 · 반환 이력</text>
+<rect x="1170" y="625" width="380" height="140" rx="16" fill="#EAF6F1" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1360.0" y="669.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">로봇 PC · SO-101</text>
+<text x="1360.0" y="710.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">원격 명령 → 8칸 티칭 실행</text>
+<text x="1360.0" y="746.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">진행 상태·관절값 반환</text>
+<rect x="1170" y="800" width="380" height="140" rx="16" fill="#F4F0FA" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1360.0" y="844.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">운영 기록</text>
+<text x="1360.0" y="885.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">Langfuse 실행 추적</text>
+<text x="1360.0" y="921.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">디스코드 알림</text>
+<rect x="50" y="977" width="735" height="122" rx="16" fill="#F6F8FA" stroke="#C7D1DE" stroke-width="2"/>
+<text x="417.5" y="1019.68" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">통신 경로 구분</text>
+<text x="417.5" y="1061.16" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="24" font-weight="400" text-anchor="middle">MCP: 조회·비교·알림  |  로봇 실행: 별도 원격 API</text>
+<rect x="815" y="977" width="735" height="122" rx="16" fill="#FAFAFB" stroke="#8A98AA" stroke-width="2" stroke-dasharray="8 6"/>
+<polyline points="827,985 1538,985" fill="none" stroke="#8A98AA" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 5"/>
+<polyline points="827,1091 1538,1091" fill="none" stroke="#8A98AA" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 5"/>
+<text x="1182.5" y="1019.68" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">Field Vision · 별도 개발·검증</text>
+<text x="1182.5" y="1060.32" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" text-anchor="middle">자체 학습 검출 · 영상 비교 · IK 접근 · ARM 카메라 보정</text>
+<polyline points="50,1128 1550,1128" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<text x="800" y="1168.32" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" text-anchor="middle">정상 인계: 키오스크 본인 확인 → 로봇 전달 → 사용자 수령 확인  /  직원은 예외 처리에 참여</text>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1400" viewBox="0 0 1200 1400">
+<rect width="100%" height="100%" fill="white"/>
+<text x="60" y="81.12" font-family="Malgun Gothic, sans-serif" font-size="42" font-weight="700" fill="#18334B" text-anchor="start">제5공정 | 수령 확인·인계 완료</text>
+<text x="60" y="125.5" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" fill="#52677B" text-anchor="start">로봇 전달 상태와 사용자의 수령 확인을 별도 기록</text>
+<polyline points="60,151 1140,151" fill="none" stroke="#D9E3EC" stroke-width="2"/>
+<rect x="90" y="190" width="610" height="120" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="395.0" y="235.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">제출보관함 도착</text>
+<text x="395.0" y="283.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">로봇 전달 결과 반영</text>
+<rect x="90" y="370" width="610" height="120" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="395.0" y="415.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">인계 대기</text>
+<text x="395.0" y="463.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">기존 보관 칸 해제</text>
+<rect x="90" y="550" width="610" height="120" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="395.0" y="595.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">사용자 물건 수령</text>
+<text x="395.0" y="643.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">제출보관함에서 직접 꺼냄</text>
+<polyline points="395,310 395,370" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="395,370 401.0,356.0 389.0,356.0" fill="#326AA1"/>
+<polyline points="395,490 395,550" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="395,550 401.0,536.0 389.0,536.0" fill="#326AA1"/>
+<polyline points="395,670 395,740" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="395,740 401.0,726.0 389.0,726.0" fill="#326AA1"/>
+<polygon points="395,740 635.0,835.0 395,930 155.0,835.0" fill="#FFF5E7" stroke="#C29B68" stroke-width="2"/>
+<text x="395" y="822.34" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">사용자 수령 확인</text>
+<text x="395" y="862.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">완료?</text>
+<polyline points="635,835 805,835" fill="none" stroke="#966026" stroke-width="3"/>
+<polygon points="805,835 791.0,829.0 791.0,841.0" fill="#966026"/>
+<text x="719" y="817.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#966026" text-anchor="middle">아니요</text>
+<rect x="805" y="755" width="335" height="160" rx="15" fill="#FFF5E7" stroke="#D9B383" stroke-width="2"/>
+<text x="972.5" y="798.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">인계 대기 유지</text>
+<text x="972.5" y="845.96" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">미수령·불일치·오류 시</text>
+<text x="972.5" y="882.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">직원 확인 안내</text>
+<polyline points="395,930 395,1060" fill="none" stroke="#247D70" stroke-width="3"/>
+<polygon points="395,1060 401.0,1046.0 389.0,1046.0" fill="#247D70"/>
+<text x="420" y="988.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#247D70" text-anchor="start">예 · ‘물건 받았어요’</text>
+<rect x="90" y="1060" width="610" height="125" rx="15" fill="#EAF5F0" stroke="#8AB8A9" stroke-width="2"/>
+<text x="395.0" y="1105.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">인계 완료 기록</text>
+<text x="395.0" y="1153.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">반환 이력 저장 · 완료 안내</text>
+<polyline points="60,1300 1140,1300" fill="none" stroke="#D9E3EC" stroke-width="2"/>
+<text x="60" y="1344.78" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" fill="#52677B" text-anchor="start">기존 칸 해제: 제출보관함 도착·인계 대기 단계</text>
+<text x="60" y="1376.98" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" fill="#52677B" text-anchor="start">최종 인계 완료: 사용자의 수령 확인 이후</text>
+</svg>
