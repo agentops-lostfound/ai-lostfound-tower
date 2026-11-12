@@ -174,7 +174,7 @@ def system():
     css += f".hd{{position:absolute;top:60px;width:165px;text-align:center;margin:0}}.hd b{{display:block;font-size:30px;color:{INK}}}.hd span{{font-size:20px;color:{SUB}}}"
     css += f".rw{{position:absolute;left:840px;width:96px;margin:0;font-size:20px;color:{SUB};line-height:1.25;font-weight:700}}"
     css += f".lb{{position:absolute;margin:0;font-size:22px;font-weight:800;color:{INK};text-align:center}}"
-    css += ".dot{position:absolute;left:0;top:0;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);animation:mv 2.2s linear infinite;opacity:1!important;offset-rotate:0deg}"
+    css += ".dot{position:absolute;left:0;top:0;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);offset-rotate:0deg;opacity:0}"
     css += "@keyframes mv{from{offset-distance:0%}to{offset-distance:100%}}@keyframes fl{to{stroke-dashoffset:-16}}"
     base = css
     # 왼쪽: 역 키오스크 · 분실인 휴대폰
@@ -197,12 +197,14 @@ def system():
     css += kf("tp", [(0, "box-shadow:0 0 0 0 rgba(240,106,0,.45)"), (70, "box-shadow:0 0 0 18px rgba(240,106,0,0)"), (100, "box-shadow:0 0 0 0 rgba(240,106,0,0)")])
     # 관계: 역 키오스크 → 관제탑(접수·사진 보고, 주황) / 분실인 ⇄ 관제탑(찾기 요청 주황 ↑, 안내·찾기 번호 초록 ↓)
     #       관제탑 ⇄ 본센터(반환 지시 초록 →, 완료 보고 주황 ←)
-    flows = [(paths[0], "#F06A00", False, 0), (paths[0], "#F06A00", False, -1.1),
-             (paths[1], "#F06A00", False, 0), (paths[1], "#2E9E5B", True, -1.1),
-             (paths[2], "#2E9E5B", False, 0), (paths[2], "#F06A00", True, -1.1)]
-    for d, col, rev, dl in flows:
+    flows = [(paths[0], "#F06A00", "go", 0), (paths[0], "#F06A00", "go", -1.5),
+             (paths[1], "#F06A00", "go", 0), (paths[1], "#2E9E5B", "bk", 0),
+             (paths[2], "#2E9E5B", "go", -1.5), (paths[2], "#F06A00", "bk", -1.5)]
+    css += ("@keyframes go{0%{offset-distance:0%;opacity:0}6%{opacity:1}44%{offset-distance:100%;opacity:1}50%{offset-distance:100%;opacity:0}100%{offset-distance:100%;opacity:0}}"
+            "@keyframes bk{0%{offset-distance:100%;opacity:0}50%{offset-distance:100%;opacity:0}56%{opacity:1}94%{offset-distance:0%;opacity:1}100%{offset-distance:0%;opacity:0}}")
+    for d, col, kf_, dl in flows:
         body += (f'<div class="dot" style="offset-path:path(\'{d}\');background:{col};box-shadow:0 0 0 6px {col}40;'
-                 f'animation-delay:{dl}s;{"animation-direction:reverse;" if rev else ""}"></div>')
+                 f'animation:{kf_} 3s ease-in-out infinite;animation-delay:{dl}s"></div>')
     body += ('<div style="position:absolute;left:0;bottom:-2px;width:800px;display:none"></div>')
     _bl, _cl = body, css
     body, css = "", base
@@ -230,7 +232,7 @@ def system():
     css += kf("b0", [(0, "opacity:1"), (40.4, "opacity:1"), (40.9, "opacity:0"), (97, "opacity:0"), (100, "opacity:1")])
     css += kf("b2", [(0, "opacity:0"), (74.5, "opacity:0"), (75.0, "opacity:1"), (93, "opacity:1"), (97, "opacity:0"), (100, "opacity:0")])
     body += f'<div style="position:absolute;left:0;top:0;animation:b0 {CYC}s infinite">{item("balm", 1547, 256)}</div>'
-    body += f'<div style="position:absolute;left:0;top:0;animation:b2 {CYC}s infinite">{item("balm", 1290, 78)}</div>'
+    body += f'<div style="position:absolute;left:0;top:0;animation:b2 {CYC}s infinite">{item("balm", 1290, 78, "transform:rotate(90deg)")}</div>'
     # SO-101 로봇팔: 위에서는 ① 어깨 회전(방향)만, 옆에서는 ②③④ 굽힘(마디 길이 고정)
     import arm
     body += (f'<div style="position:absolute;left:1238px;top:508px;width:104px;height:104px;border-radius:50%;background:radial-gradient(circle,#4B5568 0 28%,#C3CBD6 29% 62%,#E3E8EF 63% 100%);border:4px solid #9AA6B8;box-shadow:inset 0 0 0 8px #D9DEE6"></div>'

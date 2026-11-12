@@ -12,6 +12,10 @@ D=100/11
 # (Studio normalized 값을 각도로 보고 관절 한계로 자름 — 관제탑 agents/sim_world.py REST_JOINTS 와 같은 방식)
 TA.P['home']=np.array([-3.8,-99.4,96.8,-95.0])
 REST_ROLL,REST_GRIP=9.9,-5.0
+# 립밤 위 집게를 조금 왼쪽으로(화면 10px)
+_x=np.array([0,0,0,60.])
+for _n,_z in (('r4h',75),('r4p',18)):
+    _x,_=solve(TA.tgt(1537,256,_z),_x); TA.P[_n]=_x
 TA.way=[(0,'home',-5)]
 for i in range(1,11):
     TA.way+=[(round(i*D,2),)+SEQ[i-1],(round(i*D+0.5*D,2),)+SEQ[i]]
