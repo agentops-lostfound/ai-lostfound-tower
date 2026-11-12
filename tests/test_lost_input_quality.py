@@ -51,6 +51,29 @@ class InputQualityTests(unittest.TestCase):
         confirmed = service.confirm(proposal['proposal_id'], {'confirmed': True, 'description': {'category': '립밤', 'color': '확인 불가'}})
         self.assertNotIn('color', confirmed['description'])
 
+    def test_unknown_location_answers_do_not_become_search_constraints(self):
+        service = DescriptionService()
+        payload = {'text': '어제 1호선 초량역의 검정 휴대폰',
+                   'lost_date': '모름', 'lost_line': '기억 안 나요', 'lost_station': '잘 모르겠어요'}
+        for proposal in (service.from_text(payload),
+                         build_description_graph(DescriptionService()).invoke({'payload': payload})['proposal']):
+            self.assertEqual(proposal['missing_fields'], ['lost_date', 'lost_line', 'lost_station'])
+            self.assertNotIn('lost_station', proposal)
+        known = service.from_text({'text': '검정 휴대폰', **self.meta})
+        with self.assertRaises(ValueError) as error:
+            service.confirm(known['proposal_id'], {'confirmed': True, 'lost_station': '모름'})
+        self.assertIn('분실한 역', str(error.exception))
+        self.assertNotIn('lost_station', str(error.exception))
+
+    def test_missing_context_message_uses_labels_and_keeps_the_draft_for_correction(self):
+        service = DescriptionService()
+        proposal = service.from_text({'text': '립밤'})
+        with self.assertRaises(ValueError) as error:
+            service.confirm(proposal['proposal_id'], {'confirmed': True})
+        self.assertIn('분실 날짜·호선·분실한 역', str(error.exception))
+        self.assertNotIn('lost_', str(error.exception))
+        self.assertEqual(service.confirm(proposal['proposal_id'], {'confirmed': True, **self.meta})['status'], 'ready_for_search')
+
     def test_invalid_metadata_is_rejected_before_inference(self):
         photo, speech = MagicMock(), MagicMock()
         service = DescriptionService(photo_extractor=photo, transcriber=speech)

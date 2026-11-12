@@ -123,6 +123,15 @@ def location(payload, text="", today=None):
     return result
 
 
+def review_location(payload, text=""):
+    """Unknown answers in the description form are absent, never station names."""
+    unknown = {key for key in ('lost_date', 'lost_line', 'lost_station')
+               if isinstance(payload.get(key), str) and re.sub(r'\s+', '', normalized_text(payload[key]))
+               in ('모름', '몰라요', '모르겠어요', '잘모르겠어요', '기억안남', '기억안나요', UNKNOWN.replace(' ', ''))}
+    result = location({key: value for key, value in payload.items() if key not in unknown}, text)
+    return {key: value for key, value in result.items() if key not in unknown}
+
+
 def validate_description(desc):
     if not isinstance(desc, dict) or set(desc) - set(DESCRIPTION_FIELDS):
         raise ValueError("설명에는 팀 공통 특징 항목만 사용할 수 있습니다")
@@ -166,10 +175,10 @@ class DescriptionService:
     def from_text(self, payload):
         text = checked_text(payload.get("text"))
         desc, warnings = text_features(text, corrected=True)
-        return self._save(desc, location(payload, text), warnings, "user_text")
+        return self._save(desc, review_location(payload, text), warnings, "user_text")
 
     def from_photo(self, photo_bytes, metadata):
-        meta = location(metadata)
+        meta = review_location(metadata)
         if self.photo_extractor is None:
             raise RuntimeError("사진 분석 연결이 설정되지 않았습니다. 글로 설명하거나 잠시 후 다시 시도해주세요")
         # Extractor is a server-owned adapter, never caller-supplied feature JSON.
@@ -195,10 +204,10 @@ class DescriptionService:
         return checked_text(transcript.get("text"), '인식된 말', limit)
 
     def from_audio(self, audio_path, metadata):
-        location(metadata)  # Reject invalid metadata before costly model inference.
+        review_location(metadata)  # Reject invalid metadata before costly model inference.
         text = self.transcribe_audio(audio_path)
         desc, warnings = text_features(text, corrected=True)
-        result = self._save(desc, location(metadata, text), warnings + ["음성 인식 문장을 확인해주세요"], "speech")
+        result = self._save(desc, review_location(metadata, text), warnings + ["음성 인식 문장을 확인해주세요"], "speech")
         # Returned for user review, but not retained in the proposal store or search handoff.
         return {**result, "transcript": text}
 
@@ -213,12 +222,14 @@ class DescriptionService:
         desc = validate_description(payload.get("description", proposal["description"]))
         if desc.get("category") not in (None, UNKNOWN) and not is_active_category(desc["category"]):
             raise ValueError(inactive_category_message(desc["category"]))       # 11/9 운영하지 않는 품목은 검색으로 넘기지 않음
-        meta = location({k: payload.get(k, proposal.get(k)) for k in ("lost_date", "lost_line", "lost_station")})
+        meta = review_location({k: payload.get(k, proposal.get(k)) for k in ("lost_date", "lost_line", "lost_station")})
         missing = [k for k in ("lost_date", "lost_line", "lost_station") if not meta.get(k)]
         if desc.get("category") in (None, UNKNOWN):
             missing.append("category")
         if missing:
-            raise ValueError("추가 입력 필요: " + ", ".join(missing))
+            labels = {'lost_date': '분실 날짜', 'lost_line': '호선', 'lost_station': '분실한 역', 'category': '품목'}
+            raise ValueError("아직 확인이 필요한 항목: " + '·'.join(labels[key] for key in missing)
+                             + ". 모르는 정보는 추측하지 말고 비워 두세요. 입력한 설명을 수정한 뒤 다시 확인해주세요")
         if not re.fullmatch(r'[1-9][0-9]?호선', meta['lost_line']):
             raise ValueError("호선은 1호선처럼 입력해주세요")
         # This is a handoff only. Downstream search must apply its own consent/identity gates.
@@ -242,7 +253,7 @@ def build_description_graph(service):
         desc, warnings = text_features(state["payload"].get("text"), corrected=True)
         return {"description": desc, "warnings": warnings}
     def context(state):
-        return {"metadata": location(state["payload"], state["payload"]["text"])}
+        return {"metadata": review_location(state["payload"], state["payload"]["text"])}
     def review(state):
         return {"proposal": service._save(state["description"], state["metadata"], state["warnings"], "user_text")}
     graph = StateGraph(State)
