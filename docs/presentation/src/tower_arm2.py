@@ -120,9 +120,18 @@ def side4():
         out.append(embeds.wrap(288,176,c,bg+h+cap))
     return out
 def side14():
+    # 14쪽: 보관 칸과 제출 칸 사이를 넓혀 보이게(칸 r=190mm, 제출칸 r=330mm, 옆모습 전용)
+    PX=TA.PX; save=dict(TA.P); x=np.array([0,0,0,60.])
+    for n,(r,z) in {'r4h':(190,75),'r4p':(190,18),'bxh':(330,72),'bxp':(330,28)}.items():
+        x,_=solve([PX+r,0,z],x); TA.P[n]=x
+    try:
+        return _side14()
+    finally:
+        TA.P.update(save)
+def _side14():
     from embeds import ACCL
     ch=side_embed(260,150,0.5,58,132,False,False,'r',36); out=[]
     for j,(c,h) in enumerate(ch):
-        lab=(f'<div style="position:absolute;left:10px;top:10px;padding:5px 10px;border-radius:10px;background:#16202E;color:{ACCL};font-size:17px;font-weight:800;white-space:nowrap">R4-1 → pose_7</div>') if j==len(ch)-1 else ''
+        lab=(f'<p style="position:absolute;left:8px;top:134px;margin:0;font-size:13px;font-weight:800;color:#B5500A;white-space:nowrap">R4-1 → pose_7</p>') if j==len(ch)-1 else ''
         out.append(embeds.wrap(260,150,c,h+lab))
     return out
