@@ -33,6 +33,24 @@ class LayoutSeedTest(unittest.TestCase):
         self.assertEqual(self.slots(), {})                                   # [처음으로]는 다시 빈 보관함
         self.assertEqual(self.c.post("/sim/reset", json={"seed": "../x"}).status_code, 422)
 
+    def test_refuses_when_item_on_workbench(self):
+        """11/12 안전: 작업대(제출보관함·집게)·회수 중 물건이 있거나 로봇팔이 쥐고 있으면 기본 세팅을 하지 않음(409)"""
+        from agents.sim_world import LOC_BASKET, LOC_GRIPPER
+        w = self.svc.sim.world
+        self.c.post("/sim/reset", json={"seed": "layout"})
+        iid = next(iter(w.items))
+        for loc, word in ((LOC_BASKET, "제출보관함"), (LOC_GRIPPER, "집게")):
+            w.items[iid]["loc"] = loc
+            r = self.c.post("/sim/reset", json={"seed": "layout"})
+            self.assertEqual(r.status_code, 409, r.text)
+            self.assertIn(word, r.text)
+            self.assertIn(iid, w.items)                                     # 거절하면 아무것도 지우지 않음
+        w.items[iid]["loc"] = "bin"
+        w.arm["holding"] = iid
+        self.assertEqual(self.c.post("/sim/reset", json={"seed": "layout"}).status_code, 409)
+        w.arm["holding"] = None
+        self.assertEqual(self.c.post("/sim/reset", json={"seed": "layout"}).status_code, 200)
+
     def test_button_on_showcase(self):
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         html = open(os.path.join(root, "web", "showcase", "index.html"), encoding="utf-8").read()
