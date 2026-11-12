@@ -264,15 +264,31 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         """뒤에서 도는 Qwen 작업(김건태 LF-3): {"qwen": general_items_v1 특징, "confidence": 0~1} → 물건 특징 저장"""
         try:
             out = svc.set_item_features(item_id, payload)
+            qwen = payload.get("qwen")
+            try:                            # 11/11 크기 측정이 품목을 바꿨으면 가상 탑뷰가 기억할 Qwen 원본도 같은 품목으로
+                from agents.intake import parse_features
+                from agents.vision_adapter import CATEGORY
+                used = parse_features(payload).get("category")
+                code = {"립밤": "lip_balm", "핸드크림": "hand_cream", "모형폰": "phone", "보조배터리": "power_bank"}.get(used)
+                if isinstance(qwen, dict) and code and CATEGORY.get(qwen.get("category")) != used:
+                    qwen = {**qwen, "category": code}
+            except Exception:
+                pass
             if vision is not None:          # 11/10 Qwen 이 읽은 값과 저장한 값을 화면에 나란히(비공개 값은 상태만)
                 try:
+                    from agents.color_measure import apply_to_features, view
+                    from agents.size_measure import apply_to_features as apply_size, view as size_view
                     from agents.vision_adapter import to_features
-                    vision.result(item_id, payload.get("qwen"), to_features(payload.get("qwen"), payload.get("confidence", 0.9)))
+                    base = to_features(payload.get("qwen"), payload.get("confidence", 0.9))
+                    cm = payload.get("color_measure")      # 11/11 색 측정: Qwen 색 → 측정 색 → 쓴 색을 화면에
+                    sm = payload.get("size_measure")       # 11/11 크기 측정: Qwen 품목 → 크기 → 쓴 품목
+                    vision.result(item_id, payload.get("qwen"), apply_size(apply_to_features(base, cm), sm),
+                                  measure=view(cm, base.get("color")), size=size_view(sm, base.get("category")))
                 except Exception:
                     pass
             d = getattr(svc, "sim", None)   # 11/7 가상 시연: Qwen 원본을 기억(가상 탑뷰가 같은 물건을 다시 찍을 때) + 기다리던 이야기 진행
             if d is not None:
-                d.on_features(item_id, payload.get("qwen"))
+                d.on_features(item_id, qwen)
             return out
         except RequestError as e:
             raise HTTPException(status_code=422, detail=str(e))
@@ -686,7 +702,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def ui_asset(name: str):
         """11/8 디자인 개편 공통 파일(web/ui/theme.css·theme.js) — 모든 화면이 같은 색·부품·라이트/다크 전환을 쓴다"""
         from fastapi.responses import FileResponse
-        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript"}   # 11/10 화면 키보드
+        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript",   # 11/10 화면 키보드
+                 "phonefield.js": "application/javascript"}   # 11/12 전화번호 세 칸
         if name not in types:
             raise HTTPException(status_code=404, detail="없는 파일")
         return FileResponse(os.path.join(WEB_DIR, "ui", name), media_type=types[name], headers={"Cache-Control": "no-cache"})
@@ -825,7 +842,18 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
                 out["claims_open"] = []
         if getattr(svc, "taught_robot", False):
             out['robot_control'] = {'mode': 'taught_remote', 'verification_required': True}
-            if out['world']:
+            mirror_part = getattr(svc, 'robot_mirror', None)
+            live = getattr(mirror_part, 'live', None)
+            if out['world'] and live is not None and live.fresh():
+                # 11/11 로봇 PC GET /v1/joints(읽기 전용)의 실제 팔로워 관절로 가상 팔을 그림(agents/live_joints.py)
+                out['world']['robot']['role'] = '실물 원격 티칭 · 가상 팔 = 실제 팔로워 관절값(로봇 PC 읽기 전용 조회, 초당 최대 5번)'
+                out['world']['robot']['telemetry_available'] = 'live'
+            elif out['world'] and mirror_part is not None:
+                # 11/11 가상 팔이 실물 단계 기록(11단계 시작·도착)을 따라 움직임(agents/taught_mirror.py) — 관절 막대는 가상 계산 값
+                out['world']['robot']['role'] = '실물 원격 티칭 · 가상 팔은 로봇 PC 단계 기록(시작·도착)을 따라 움직임 — 실시간 관절값이 아님' + (
+                    f' · 관절 조회: {live.reason}' if live is not None and live.reason else '')
+                out['world']['robot']['telemetry_available'] = 'stage'
+            elif out['world']:
                 out['world']['arm'] = {**out['world']['arm'], 'joints': None,
                                        'phase': '실물 원격 티칭 · 단계 기록 확인(그림은 배치 참고)'}
                 out['world']['robot']['role'] = '실물 원격 티칭 · 그림은 실시간 관절 상태가 아님'
@@ -943,6 +971,24 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         if not callable(getattr(d, "staff_visit", None)):
             raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
         return _sim_call(d.staff_visit, claim_id)
+
+    @app.get("/sim/lost/wait/{wait_id}")
+    def sim_wait(wait_id: str, key: str = "") -> dict:
+        """11/12 대기 분실 신고 결과(분실인 화면이 1.5초마다): waiting | matched(찾기 번호). key = 신고 때 받은 wait_key"""
+        d = _sim()
+        if not callable(getattr(d, "wait_poll", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.wait_poll, wait_id, key)
+
+    @app.post("/sim/lost/wait/{wait_id}/notify")
+    def sim_wait_notify(wait_id: str, payload: dict = Body(...)) -> dict:
+        """11/12 문자 알림 신청(시연): {"key": wait_key, "last4": "1234"} — 전화번호 끝 4자리만 받음, 실제 문자는 보내지 않음"""
+        if not isinstance(payload, dict) or set(payload) != {"key", "last4"}:
+            raise HTTPException(status_code=422, detail="본문은 key·last4 두 개만 보냅니다")
+        d = _sim()
+        if not callable(getattr(d, "notify_wait", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.notify_wait, wait_id, payload["key"], payload["last4"])
 
     @app.post("/sim/lost/{pending_id}/answer")
     def sim_answer(pending_id: str, payload: dict = Body(...)) -> dict:

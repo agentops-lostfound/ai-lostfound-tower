@@ -24,7 +24,7 @@ import threading
 import time
 from datetime import date, datetime, timezone
 
-from agents.contracts import (ACTIVE_STATUSES, HANDOVER_DONE, HANDOVER_HOLD, MACHINE_LETTERS, NONE, STAFF_STOP_REASON,
+from agents.contracts import (ACTIVE_STATUSES, HANDOVER_DONE, HANDOVER_HOLD, HANDOVER_WAIT, MACHINE_LETTERS, NONE, STAFF_STOP_REASON,
                               UNKNOWN, make_item_id, mentions_phone, robot_result, station_name, without_non_phone)
 from agents.intake import DEMO_PLACES, IntakeError, split_features
 from agents.vision_adapter import RESULT_NAME, adapt_report, to_features  # noqa: F401 (RESULT_NAME: 문서용)
@@ -164,7 +164,16 @@ def query_features(text: str) -> dict:
     f.pop("confidence", None)
     if q["sticker_status"] == "unknown":
         f.pop("mark", None)
-    return {k: v for k, v in f.items() if v not in (UNKNOWN, "", None)}
+    out = {k: v for k, v in f.items() if v not in (UNKNOWN, "", None)}
+    if "visible_text" not in out:                 # 11/11 한글 상표 이름('바세린' 등)도 글자 특징으로(영어 'Vaseline'만 잡히던 것)
+        brand = next((w for w in BRAND_WORDS if w in (text or "")), None)
+        if brand:
+            out["visible_text"] = brand
+    return out
+
+
+# 11/11 글자 특징으로 받을 한글 상표 이름 — contracts.LOGO_ALIASES 의 상표 묶음에서(별·하트는 스티커, '사과'는 '로고'를 붙여야 함)
+BRAND_WORDS = ["바세린", "삼성", "애플", "엘지", "샤오미", "앤커"]
 
 
 def parse_place(text: str) -> tuple[str | None, str | None]:
@@ -214,7 +223,10 @@ SEED_FULL = [
     ("보조배터리 스피디 2", "흰색 보조배터리"),
     ("립밤 바세린 레드", "빨간 립밤"),                  # 11/11 카드지갑 → 립밤(실물 바세린 빨강·파랑)
 ]
-SEED_SETS = {"default": SEED_ITEMS, "full": SEED_FULL}
+# 11/11 사용자 결정: 실물 시연이 기본이 되어 **처음에는 보관함을 비워 둔다**(관제탑 TOWER_SIM_SEED 비움 = none).
+#   더미 분홍 핸드크림이 R3-1 을 차지해 새 크림이 R3-2 로 가고, 켤 때마다 다시 생겼다.
+#   분홍 핸드크림 하나는 TOWER_SIM_SEED=cream(챗봇 채점표·찾기 연습용), 예전 5개는 full. "default" 는 SimWorld 를 직접 만드는 시험용(=cream)
+SEED_SETS = {"default": SEED_ITEMS, "cream": SEED_ITEMS, "full": SEED_FULL, "none": []}
 
 
 # ---------- SO-101 로봇팔 관절(11/4, docs/progress/soarm-local-handoff.md 와 같은 번호) ----------
@@ -237,6 +249,12 @@ SO101_LIMITS = {"shoulder_pan": (-110.0, 110.0), "shoulder_lift": (-100.0, 100.0
 SO101_GRIP_DEG = (-10.0, 100.0)                       # 집게 관절 각도 범위(0% 닫힘 ~ 100% 열림, 화면 그림용)
 # 11/9: 실제 규격 배치로 바꾸고 실제 크기(1.0)로 그린다(예전 1.6배는 H-1 을 한가운데에 수직으로 놓으려던 가정 때문)
 ARM_SCALE = 1.0
+# 11/11 접힌 대기 자세(실물 home): 김건태님 전달 · outputs/robot_panel_live/poses.json 'home' 의 Studio normalized 값.
+#   실물 사진처럼 위팔이 뒤로 눕고 아래팔이 그 위로 접히며 집게가 위를 본다. 보정값이 없어 normalized 를 각도로 그대로 보고
+#   관절 한계 안으로 자른 근사(-100~100 → 도). 칸 자세는 이 근사로 그리면 50~90mm 어긋나 위치 기준(IK)으로 그린다
+REST_REAL = {"shoulder_pan": -3.8179147243499756, "shoulder_lift": -99.41324615478516, "elbow_flex": 99.45872497558594,
+             "wrist_flex": -98.72340393066406, "wrist_roll": 9.89011001586914, "gripper": 4.505716323852539}
+REST_JOINTS = {k: round(max(lo, min(hi, REST_REAL[k])), 1) for k, (lo, hi) in SO101_LIMITS.items()}
 
 
 def so101_joints(x: float, y: float, z: float, gripper: float, roll: float = 0.0, scale: float | None = None) -> dict:
@@ -328,8 +346,8 @@ class SimWorld:
         self.contacts: dict[str, dict] = {}       # 저장 여부 확인용(밖으로 나가지 않음)
         self._places = [{"place_id": i + 1, "machine_id": m, "label": label, "use_count": 0}
                         for i, (m, label) in enumerate((m, l) for m, ls in DEMO_PLACES.items() for l in ls)]
-        self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "z": HOME_Z, "gripper": HOME_GRIP, "phase": "대기",
-                    "holding": None, "stopped": False, "target": None, "joints": so101_joints(*HOME_MM, HOME_Z, HOME_GRIP)}
+        self.arm = {"x": HOME_MM[0], "y": HOME_MM[1], "z": HOME_Z, "gripper": REST_JOINTS["gripper"], "phase": "대기",
+                    "holding": None, "stopped": False, "target": None, "joints": dict(REST_JOINTS), "rest": True}
         self.homing: threading.Thread | None = None
         self._seq: dict[str, int] = {}                 # 접수 번호 앞부분별 마지막 순번(초기화해도 유지)    # 바구니에 내려놓은 뒤 원점으로 돌아가는 중(뒤에서)
         self.faults = {"grasp_fail": 0, "calib_fail": False, "blur": False}
@@ -519,6 +537,7 @@ class SimWorld:
         cur = self.items.get(item_id)                          # 되돌림(보류→보관)일 때만 정답지를 읽는다 — 보관 화면 '넣기'는
         res = (self._reserved() if status == "본센터 보관" and cur and cur["loc"] in (LOC_STAFF, LOC_BASKET)
                else {})                                        # 정답지 잠금 안에서 이 함수를 부르므로 읽으면 교착(잠금 밖)
+        reslot = None                                          # 11/11 원래 칸 예약이 이미 풀려 새 빈 칸에 넣었으면 정답지에도 알림
         with self._lock:
             row = self.items.get(item_id)
             if row is None:
@@ -529,12 +548,20 @@ class SimWorld:
                 i = SLOT_IDS.index(sid) if sid else self.free_slot(row.get("category"), item_id, res)
                 if i is not None:
                     row["slot"], row["loc"] = i, LOC_BIN
+                    if not sid:
+                        reslot = SLOT_IDS[i]
             if status == HANDOVER_DONE and row["loc"] in (LOC_BASKET, LOC_SHELF):
-                row["loc"] = LOC_HANDED                # 직원이 바구니(또는 직원 보관 선반)에서 꺼내 분실인에게 건넴
+                row["loc"], row["loc_at"] = LOC_HANDED, time.time()   # 직원이 바구니(또는 직원 보관 선반)에서 꺼내 분실인에게 건넴
             elif status == HANDOVER_HOLD and row["loc"] == LOC_BASKET:
-                row["loc"] = LOC_STAFF                 # 직원이 꺼내 따로 보관
+                row["loc"], row["loc_at"] = LOC_STAFF, time.time()    # 직원이 꺼내 따로 보관
             self._touch()
-        if status == HANDOVER_DONE and self.on_freed:   # 11/9 칸 예약이 풀림 → 칸 대기 물건 회수(잠금 밖에서)
+        if reslot and self.on_bin is not None:          # 11/11 반환 보류 → 그때의 빈 칸에 넣음(원래 칸 예약은 인계 대기 때 풀림)
+            try:
+                self.on_bin(item_id, reslot)
+            except Exception:
+                pass
+        # 11/9 칸 예약이 풀림 → 칸 대기 물건 회수(잠금 밖에서). 11/11: 제출보관함에 놓인 때(인계 대기)도 칸이 빔
+        if status in (HANDOVER_DONE, HANDOVER_WAIT) and self.on_freed:
             try:
                 self.on_freed()
             except Exception:
@@ -658,6 +685,7 @@ class SimWorld:
             elif row["loc"] == LOC_BIN and loc != LOC_BIN:
                 row["slot"] = None
             row["loc"] = loc
+            row["loc_at"] = time.time()                         # 11/11 이 자리에 온 때(제출보관함·인계 완료 목록에서 최근 것만 그리려고)
             self._touch()
         if loc == LOC_BIN and self.on_bin:                 # 정답지(보관함 DB)에도 같은 칸으로(잠금 밖에서)
             try:
@@ -692,7 +720,7 @@ class SimWorld:
                               "loc": r["loc"], "category": r.get("category"), "color": r["features"].get("color"),
                               "place_text": r["place_text"], "mm": list(pos) if pos else None,
                               "slot_id": SLOT_IDS[r["slot"]] if pos else None,
-                              "waiting": r["item_id"] in self.wait_queue})
+                              "waiting": r["item_id"] in self.wait_queue, "loc_at": r.get("loc_at")})
             return {"version": self.version, "arm": dict(self.arm), "items": items,
                     "wait_queue": list(self.wait_queue),
                     "bench": {"size_mm": list(BENCH_MM), "bin_mm": list(BIN_MM), "basket_mm": list(BASKET_MM),
@@ -776,6 +804,13 @@ class SimRobot:
         arm = self.world.arm
         arm.update(kw)
         arm["joints"] = so101_joints(arm["x"], arm["y"], arm["z"], arm["gripper"])
+        arm["rest"] = False
+        self.world._touch()
+
+    def _rest(self, phase: str = "대기") -> None:
+        """원점에 도착 → 실물 home 처럼 접힌 대기 자세로 그림(관절 = REST_JOINTS). 화면이 관절을 부드럽게 따라가므로 접히는 모습이 보임"""
+        arm = self.world.arm
+        arm.update(phase=phase, gripper=REST_JOINTS["gripper"], joints=dict(REST_JOINTS), rest=True)
         self.world._touch()
 
     def _move(self, x=None, y=None, z=None, grip=None, seconds: float = 1.0, phase: str | None = None) -> bool:
@@ -874,7 +909,7 @@ class SimRobot:
         def go_home():
             w.sleep(0.4)
             if self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점으로"):
-                self._pose(phase="대기")
+                self._rest()
         w.homing = threading.Thread(target=go_home, daemon=True)
         w.homing.start()
         return robot_result(True)
@@ -895,7 +930,7 @@ class SimRobot:
         arm["target"] = None
         self._move(z=HOVER_Z + 40, grip=HOME_GRIP, seconds=0.6, phase="원점 복귀 · 들어 올림")
         self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점 복귀")
-        self._pose(phase="대기")
+        self._rest()
         return robot_result(True)
 
     def robot_state(self) -> dict:
@@ -905,5 +940,5 @@ class SimRobot:
                 "joints": {k: float(v) for k, v in (arm.get("joints") or {}).items()}, "source": "sim"}
 
 
-__all__ = ["SLOT_IDS", "slot_rows", "SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
+__all__ = ["SLOT_IDS", "slot_rows", "SO101_JOINTS", "SO101_LIMITS", "ARM_SCALE", "REST_JOINTS", "so101_joints", "SEED_ITEMS", "SimWorld", "SimTopview", "SimRobot", "sim_qwen", "query_features", "parse_place", "split_tags",
            "lost_station", "mm_to_px", "STATIONS", "LOST_STATIONS", "LOST_MACHINE_STATION", "LOC_KIOSK", "LOC_TRANSIT", "LOC_BIN", "LOC_BASKET", "NONE"]

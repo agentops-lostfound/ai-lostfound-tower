@@ -117,6 +117,25 @@ tools\start_tower.bat lan
 
 직원 대면 확인으로 진행하는 경우에는 `/live` 또는 `/showcase` 찾기 요청 카드의 **직원 확인 후 실물 로봇 실행**을 사용할 수 있다. 이 버튼도 실제 같은 11단계를 시작하므로 회수 버튼과 중복으로 누르지 않는다. 이동 완료 후 직원의 최종 교차 검증·인계는 그대로 필요하다.
 
+## 화면의 가상 팔이 실물을 따라 움직임 (11/11)
+
+- `agents/taught_mirror.py`: 로봇 PC 가 보내는 단계 기록(11단계마다 `stage_started`·`stage_arrived`, 자세 이름)을 받아 `/live`(통합 시연 4번 '로봇 작업대')의 가상 SO-101 을 같은 자리로 움직인다
+  - 자세 이름 → 자리: `pose_N`·`_open`·`_return` = 그 칸 위 · `_target`·`_close` = 칸 바닥 · `outlet_return*` = 제출보관함 위 · `close*`·`open` = 제출보관함 안 · `home` = 원점 (칸은 `robot/config/pick_sequences.json`)
+  - 집게 열림 = `outputs/robot_panel_live/poses.json` 의 gripper 값. '이동 시작'이면 `TOWER_ROBOT_MOVE_SECONDS`(기본 3초) 동안 부드럽게, '도착'이면 그 자리로 맞춤
+  - `pose_N_close` 도착 = 물건이 집게로, `open` 도착 = 제출보관함으로(전에는 반환이 끝날 때까지 물건이 칸에 남아 보였음)
+  - 오른쪽 로봇 카드: 관절 막대는 가상 팔 계산 값, 그 아래 `🤖 실물 5/11 pose_5_close 도착 · 저장 자세 값(normalized)` 은 실물 저장 자세 값
+- 그림만 바꾼다: 로봇에 명령을 더 보내지 않고, 단계 순서 검사(`agents/taught_return.py`)가 먼저 돈 뒤에 그린다. 그림이 실패해도 반환은 그대로(시험 `tests/test_taught_return.py`)
+- 한계: 실시간 관절값이 아니라 단계 기록을 따른다 — 한 단계 안의 실제 궤적·속도와 다를 수 있음. 로봇 PC 가 Studio 관측 관절값을 내보내면(`/v1/` 에 관절 읽기 추가, 정규화 → 각도는 보정값 필요 `robot/vendor_coordinates.py`) 그 값으로 바꿀 수 있다
+
+## 실제 팔로워 관절로 그리기 (11/11 저녁, 로봇 PC GET /v1/joints)
+
+- 로봇 PC(김건태 LF-21): `GET http://10.10.21.30:8767/v1/joints` — 기존 Bearer 토큰, 읽기 전용(명령·arm·job·lease 무관), `positions`(팔로워 normalized) + `degrees`(보정값으로 바꾼 Studio/LeRobot 각도, 집게는 0~100). 관측이 없거나 1초 넘으면 `available:false`
+- 관제탑 `agents/live_joints.py`: 서버가 반환 중(과 뒤 10초) 초당 5번, 평소 초당 1번 읽음. 브라우저는 로봇 PC 를 부르지 않음. 토큰·주소는 기록에 남기지 않음
+- 각도 옮기기: Studio 각도(보정 범위 가운데 = 0°) → 가상 팔 각도(0° = 'ㄱ' 자세) 는 관절마다 영점(+ 배율) `STUDIO_TO_SIM`. 11/11 보정값으로 바꾼 저장 자세 9개(pose_1~8_target · close)의 집게 끝이 그림의 칸·제출보관함에 오도록 맞춤 — 남는 차이 평균 약 3cm(그림용). home 근처(위팔·팔꿈치·손목 normalized 8 안)는 접힌 대기 자세로 그림
+- 실시간 관측이 있으면 자리·관절은 실물 관절이 정하고, 단계 기록(`taught_mirror`)은 단계 표시·물건 옮기기(close 도착 → 집게, open 도착 → 제출보관함)만 한다. 끊기면 단계 기록 따라가기로 자동으로 돌아감
+- `/live` 상단 '실물 원격 티칭 · 실제 관절 실시간', 로봇 카드 '🟢 실물 관절 실시간 + 팔로워 관측(normalized)'. 끄기 `.env` `TOWER_LIVE_JOINTS=0`
+- 로봇 PC 보정을 새로 하면 그림 영점이 달라질 수 있음 → `tests/test_live_joints.py` 의 보정값을 바꿔 시험
+
 ## 정지·실패
 
 - 키오스크 정지 또는 `/api/robot/stop`은 기존 관제탑 정지 입구를 통해 같은 원격 부품을 정지시킨다. 원격 lease 5초 단절도 정지 요청·실행 불허로 전환한다. HOLD는 하드웨어 비상정지가 아니다.

@@ -152,5 +152,17 @@ class QwenSetupBatTest(unittest.TestCase):
         self.assertNotIn(".env ", text)                      # 비밀값 파일을 읽거나 출력하지 않는다
 
 
+
+class LanHintTest(unittest.TestCase):
+    """11/12 lan 모드면 발표 화면 주소를 LAN 주소 하나로 안내"""
+
+    def test_hint_only_in_lan_mode(self):
+        import tools.run_tower as rt
+        h = rt.lan_hint(["agents.api:app", "--host", "0.0.0.0", "--port", "8100"], ip="10.10.21.21")
+        self.assertIn("http://10.10.21.21:8100/showcase?scene=found", h)
+        self.assertIsNone(rt.lan_hint(["agents.api:app", "--host", "127.0.0.1", "--port", "8100"], ip="10.10.21.21"))
+        self.assertIsNone(rt.lan_hint(["agents.api:app", "--port", "8100"], ip="10.10.21.21"))
+        self.assertIsNone(rt.lan_hint(["agents.api:app", "--host"], ip="10.10.21.21"))     # 인자가 모자라도 오류 없음
+
 if __name__ == "__main__":
     unittest.main()

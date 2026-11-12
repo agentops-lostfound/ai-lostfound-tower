@@ -460,6 +460,8 @@ class RealPostgresTest(unittest.TestCase):
         self.assertNotIn(real, svc.world.items)
         d = m.recent(3)
         self.assertEqual((d["items"][0]["item_id"], d["items"][0]["station"], d["items"][0]["has_photo"]), (iid, "중앙", True))
+        self.assertIn("color", d["items"][0])                              # 11/11 공개 특징(색·모양·재질)도 함께
+        self.assertNotIn("visible_text", d["items"][0])                    # 비공개 특징은 읽지 않음
         # 다시 켜면: 번호가 이어지고(겹치지 않음) 시연용 물건은 다시 채워진다
         svc2 = build_sim_service(ENV)
         m2 = dm.DbMirror(self.dsn)

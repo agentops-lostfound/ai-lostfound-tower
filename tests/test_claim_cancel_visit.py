@@ -15,7 +15,7 @@ sys.path.insert(0, ROOT)
 
 from agents.service import Conflict, NotFound, RequestError  # noqa: E402
 
-ENV = {"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}
+ENV = {"TOWER_SIM_SEED": "cream", "TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0"}   # 11/11 기본은 빈 보관함 → 분홍 핸드크림 묶음
 OPT = {"visit": "kiosk", "name_masked": "홍*동", "id_no_masked": "******-1******"}
 KIOSK = {"machine_id": "CENTER", "id_no_masked": "******-1******"}
 

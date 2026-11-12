@@ -19,6 +19,9 @@
   사진마다 모델을 다시 올리는 3~6초가 더 들지만 키오스크 접수 번호는 바로 나가므로 사람이 기다리지 않는다.
   그래픽카드가 넉넉한 PC(8GB 이상)는 QWEN_KEEP_MODEL=1 또는 --keep-model 로 계속 올려 둘 수 있다
 - 관제탑이 아직 안 켜졌으면 끝내지 않고 5초마다 다시 연결한다(--check 는 바로 끝)
+- 11/11 색 측정(agents/color_measure.py): Qwen 이 끝나면 같은 사진을 숫자로 재서(회색 펠트를 기준으로 색 치우침 제거)
+  결과 요약을 함께 보낸다. 측정이 '확실'할 때만 관제탑이 색을 그 값으로 바꾼다. 바닥이 펠트가 아니면 재지 않음.
+  끄기: .env TOWER_COLOR_MEASURE=0. 측정이 실패해도 Qwen 결과는 그대로 보낸다
 """
 from __future__ import annotations
 
@@ -80,8 +83,13 @@ class Tower:
     def pending(self, limit: int = 5) -> list[dict]:
         return self._call("GET", f"/api/admin/intake/pending-photos?limit={limit}") or []
 
-    def send(self, item_id: str, features: dict) -> dict:
-        return self._call("POST", f"/api/kiosk/items/{item_id}/features", {"qwen": features, "confidence": CONFIDENCE})
+    def send(self, item_id: str, features: dict, color_measure: dict | None = None, size_measure: dict | None = None) -> dict:
+        body = {"qwen": features, "confidence": CONFIDENCE}
+        if color_measure:
+            body["color_measure"] = color_measure
+        if size_measure:
+            body["size_measure"] = size_measure
+        return self._call("POST", f"/api/kiosk/items/{item_id}/features", body)
 
     def stage(self, item_id: str, stage: str, detail: str = "") -> None:
         """11/10 지금 어느 단계인지 관제탑에 알림(통합 시연 화면의 '사진 분석' 카드). 알림이 안 돼도 분석은 계속한다"""
@@ -102,6 +110,7 @@ def qwen_analyzer(max_edge: int = 512):
         sys.path.insert(0, p)
     from config.settings import Settings
     from vision.item_features import extract_item_features
+    hint_prompt()                       # 11/11 품목을 모양으로 가르는 기준을 Qwen 질문 뒤에 덧붙임(vision 파일은 그대로)
     settings = replace(Settings(), max_edge=max_edge, log_dir=ROOT / "qwen" / "logs" / "intake")
 
     def analyze(path: Path) -> dict:
@@ -147,7 +156,59 @@ def gpu_guarded(analyze, keep_model: bool = False, wait: float = 120.0, lease=No
     return run
 
 
-def process_once(tower, analyze, tries: dict, log=print, root: Path | None = None) -> int:
+def color_measure_on() -> bool:
+    return str(os.environ.get("TOWER_COLOR_MEASURE", "1")).strip().lower() not in ("0", "false", "no", "off")
+
+
+def measure_color(path: Path, feats: dict) -> dict | None:
+    """11/11 같은 사진의 색을 숫자로 잼 → 관제탑에 보낼 요약(실패하면 None — Qwen 결과만 보냄)"""
+    if not color_measure_on():
+        return None
+    try:
+        from agents.color_measure import measure, summary
+        from agents.vision_adapter import CATEGORY
+        return summary(measure(path, CATEGORY.get((feats or {}).get("category"))))
+    except Exception:
+        return None
+
+
+def measure_size(path: Path) -> dict | None:
+    """11/11 같은 사진의 길이·폭(회색 펠트, 자르기 정보 필요) → 관제탑에 보낼 요약(실패하면 None)"""
+    try:
+        from agents.size_measure import measure, size_measure_on, summary
+        return summary(measure(path)) if size_measure_on() else None
+    except Exception:
+        return None
+
+
+# 11/11 Qwen 질문 보탬 — vision/item_features.py(김건태 담당)는 고치지 않고, 이 작업자가 쓸 때만 뒤에 덧붙인다.
+#   키오스크는 물건 둘레만 잘라 키워 보내므로 Qwen 은 크기를 모른다 → 모양으로 가르는 기준을 알려 준다(크기는 size_measure 가 따로 확인)
+PROMPT_HINT = """
+This kiosk receives only four kinds of items. The photo is cropped and enlarged, so do NOT judge by apparent size.
+- hand_cream: a soft squeezable FLAT tube. One end is a wide flat crimped seal; the other end narrows to a small screw cap.
+  Usually printed with patterns, flowers or text over most of the body. Length about 3x width.
+- lip_balm: a small RIGID ROUND stick with straight parallel sides and the same width along its whole length,
+  a cap on one end, often a plain solid color with a printed label. No crimped seal, no tapering.
+- phone: a thin flat slab with rounded corners and camera lenses or a camera bump on the back.
+- power_bank: a thick slab with rounded corners, NO camera lenses; may show ports or an indicator on a short edge.
+When the evidence is unclear, prefer unknown over a wrong category.
+"""
+
+
+def hint_prompt() -> bool:
+    """vision.item_features.PROMPT 뒤에 PROMPT_HINT 를 한 번만 붙임(끄기 TOWER_QWEN_HINT=0). 붙였으면 True"""
+    if str(os.environ.get("TOWER_QWEN_HINT", "1")).strip().lower() in ("0", "false", "no", "off"):
+        return False
+    try:
+        import vision.item_features as vf
+    except Exception:
+        return False
+    if PROMPT_HINT not in vf.PROMPT:
+        vf.PROMPT = vf.PROMPT.rstrip("\n") + "\n" + PROMPT_HINT.strip() + "\n"
+    return True
+
+
+def process_once(tower, analyze, tries: dict, log=print, root: Path | None = None, measurer=None, sizer=None) -> int:
     """대기 물건 한 번 처리 → 보낸 개수. tries: 접수 번호 → 실패 횟수(같은 사진을 끝없이 다시 돌리지 않게)"""
     sent = 0
     for row in tower.pending():
@@ -158,8 +219,19 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
         notify = getattr(tower, "stage", None) or (lambda *a, **k: None)     # 11/10 화면에 단계 알림(없는 연결이면 건너뜀)
         try:
             notify(iid, "analyze")
-            feats = analyze(resolve_photo(row.get("photo_path") or "", root))
-            tower.send(iid, feats)
+            path = resolve_photo(row.get("photo_path") or "", root)
+            feats = analyze(path)
+            sm = (sizer or measure_size)(path)
+            sm = sm if sm and sm.get("found") and sm.get("size_group") else None    # 품목 크기로 잰 것만 보냄(못 잰 사진은 Qwen 그대로)
+            # 11/11 색 측정은 품목에 따라 규칙이 다름(핸드크림만 하늘색·분홍 구별) → 크기가 립밤·핸드크림이면 그 품목으로 색을 잼
+            size_cat = {"핸드크림": "hand_cream", "립밤": "lip_balm"}.get((sm or {}).get("size_group"))
+            cm = (measurer or measure_color)(path, {**feats, "category": size_cat} if size_cat and isinstance(feats, dict) else feats)
+            if sm:
+                tower.send(iid, feats, cm, sm)
+            elif cm:
+                tower.send(iid, feats, cm)
+            else:
+                tower.send(iid, feats)
         except Exception as e:
             if type(e).__name__ == "GpuBusy":               # 로봇이 GPU 사용 중 → 실패로 세지 않고 다음 차례에
                 log(f"[대기] {iid} {str(e)[:120]}")
@@ -173,7 +245,10 @@ def process_once(tower, analyze, tries: dict, log=print, root: Path | None = Non
             continue
         tries.pop(iid, None)
         sent += 1
-        log(f"[완료] {iid} {feats.get('category')} {feats.get('colors')} ({time.perf_counter() - started:.1f}초)")
+        mtxt = f" · 색 측정 {cm.get('color') or '-'}({'확실' if cm.get('sure') else '애매'})" if cm else ""
+        if sm:
+            mtxt += f" · 크기 {sm.get('size_group') or '-'}({sm.get('length') or '-'}×{sm.get('width') or '-'})"
+        log(f"[완료] {iid} {feats.get('category')} {feats.get('colors')}{mtxt} ({time.perf_counter() - started:.1f}초)")
     return sent
 
 

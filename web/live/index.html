@@ -159,6 +159,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .s-bench{fill:var(--bench);stroke:var(--line)} .s-bin{fill:var(--bin);stroke:var(--binline);stroke-width:2}
 .s-slot{fill:none;stroke:var(--binline);stroke-dasharray:4 4} .s-sub{fill:var(--sub)} .s-acc{fill:var(--accent)}
 .s-basket{fill:none;stroke:var(--accent);stroke-width:2.5}
+.bmore rect{fill:var(--accent);opacity:.92} .bmore text{fill:#fff;font-size:10px;font-weight:700}
 .s-tape{fill:var(--tape);stroke:var(--tape-line);stroke-width:1} .s-shim{fill:var(--shim);stroke:var(--binline)}
 .s-drop{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.5;stroke-dasharray:5 4}
 .s-ghost{fill:none;stroke:var(--binline);stroke-width:1.2;stroke-dasharray:3 3}
@@ -189,6 +190,7 @@ svg{display:block;width:100%;height:auto;max-width:100%}
 .robot-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .joints{display:grid;gap:10px}
 .joint{display:grid;grid-template-columns:24px minmax(0,1fr) 66px;gap:10px;align-items:center;font-size:13px}
+.realpose{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink)} .realpose span{color:var(--sub);font-size:11.5px}
 .joint .id{width:24px;height:24px;border-radius:50%;background:var(--soft);color:var(--sub);display:grid;place-items:center;font-weight:700;font-size:11.5px}
 .joint .nm{min-width:0}
 .joint .nm b{font-weight:700} .joint .nm code{color:var(--sub2);font-size:11px;font-family:var(--ui-mono)}
@@ -461,10 +463,16 @@ details.more .robot-note{margin-top:0}
     if (!world) return;
     const g = $("items"); if (!g) return;
     const [bx, by] = world.bench.basket_mm;
-    let s = "", basketN = 0;
-    for (const it of world.items) {
-      if (it.loc === "bin" && it.mm) s += itemShape(it, it.mm[0], it.mm[1]);
-      if (it.loc === "basket") { s += itemShape(it, bx - 12 + basketN * 8, by - 4 + basketN * 6); basketN++; }
+    let s = "";
+    for (const it of world.items) if (it.loc === "bin" && it.mm) s += itemShape(it, it.mm[0], it.mm[1]);
+    // 11/11 제출보관함: 가장 최근에 놓인 물건 하나만 그린다. 분실인이 꺼내고 [물건 받았어요]를 안 누르면 기록상 '인계 대기'로 남아
+    //   예전에는 한곳에 계속 겹쳐 쌓여 보였다 → 나머지는 '+N 인계 확인 전'으로만(직원 화면에서 확인)
+    const inBasket = world.items.filter((i) => i.loc === "basket").sort((a, b) => (b.loc_at || 0) - (a.loc_at || 0));
+    if (inBasket.length) s += itemShape(inBasket[0], bx - 4, by - 2);
+    if (inBasket.length > 1) {
+      const more = inBasket.slice(1).map((i) => i.item_id).join(", ");
+      s += `<g class="bmore" transform="translate(${bx + 26},${by - 30})"><title>인계 확인 전(제출보관함에서 꺼냈는지 직원 확인): ${esc(more)}</title>` +
+           `<rect x="-4" y="-11" width="78" height="16" rx="8"/><text x="35" y="1" text-anchor="middle">+${inBasket.length - 1} 인계 확인 전</text></g>`;
     }
     if (g.dataset.last !== s) { g.innerHTML = s; g.dataset.last = s; }   // 바뀔 때만 다시 그림(누른 카드·키보드 초점 유지)
     syncPick();
@@ -477,10 +485,14 @@ details.more .robot-note{margin-top:0}
                     "🗄 직원 보관 선반(로봇 안 씀)": i => i.loc === "shelf",
                     "🤝 인계 완료 · 직원 손": i => i.loc === "handed" || i.loc === "staff"};
     $("places").innerHTML = Object.entries(groups).map(([name, f]) => {
-      const list = world.items.filter(f);
+      let list = world.items.filter(f), older = 0;
+      if (name.startsWith("🤝")) {                 // 11/11 인계 완료는 계속 늘어나므로 최근 4개만(나머지는 개수)
+        list = list.sort((a, b) => (b.loc_at || 0) - (a.loc_at || 0));
+        older = Math.max(0, list.length - 4); list = list.slice(0, 4);
+      }
       return `<div class="place"><b>${esc(name)}</b><div class="row">${list.length ? list.map(i =>
         `<span class="tok" title="${esc(itemTip(i))}" aria-label="${esc(itemTip(i))}"><i style="background:${COLORS[i.color]||"#b9b4ff"}"></i>${stShort(i) ? `<span class="st">${esc(stShort(i))}</span>` : ""}${esc(catName(i.category))} ${esc(i.item_id)}${i.loc==="staff"?" (직원)":""}${i.waiting?" · 칸 대기":""}</span>`).join("") :
-        '<span class="empty">없음</span>'}</div></div>`;
+        '<span class="empty">없음</span>'}${older ? `<span class="empty">외 ${older}개</span>` : ""}</div></div>`;
     }).join("");
     renderPurge(); renderPurgeAll();
   }
@@ -654,7 +666,7 @@ details.more .robot-note{margin-top:0}
       return;
     }
     const held = a.holding ? `들고 있음 ${a.holding}` : "빈 집게";
-    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, `집게 높이 ${Math.round(a.z)}mm(작업대)`, held]
+    $("robotMeta").innerHTML = [`단계 ${a.stopped ? "정지" : a.phase}`, a.rest ? "접힌 대기 자세(실물 home)" : `집게 높이 ${Math.round(a.z)}mm(작업대)`, held]
       .map(t => `<span class="chip">${esc(t)}</span>`).join("");
     $("joints").innerHTML = r.joints.map(j => {
       const v = (a.joints || {})[j.name] ?? 0;
@@ -671,6 +683,18 @@ details.more .robot-note{margin-top:0}
       return `<div class="joint"><span class="id">${j.id}</span><div class="nm"><b>${esc(j.label)}</b> <code>${esc(j.name)}</code>${bar}</div>`+
              `<span class="val">${v.toFixed(1)}${esc(j.unit)}</span></div>`;
     }).join("");
+    const real = r.telemetry_available === "stage" ? a.real : null;     // 11/11 실물 단계 기록(로봇 PC 저장 자세 값, normalized)
+    if (r.telemetry_available === "live") {                            // 11/11 실제 팔로워 관절(로봇 PC 읽기 전용 조회)
+      const lv = a.live || {}, st = a.real;
+      $("joints").insertAdjacentHTML("beforeend", `<p class="realpose">🟢 실물 관절 실시간${st ? ` · ${esc(st.index ?? "-")}/${esc(st.total ?? "-")} <b>${esc(st.pose)}</b> ${esc(st.state)}` : ""}` +
+        (lv.normalized && Object.keys(lv.normalized).length ? `<br><span>팔로워 관측(normalized) ${Object.entries(lv.normalized).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(" · ")}</span>` : "") +
+        `<br><span>막대·각도 = 실물 각도를 가상 팔 기준(0° = 'ㄱ' 자세)으로 옮긴 값 · 그림 위치 차이 약 3cm</span></p>`);
+    }
+    if (r.telemetry_available === "stage") {
+      $("joints").insertAdjacentHTML("beforeend", `<p class="realpose">🤖 실물 ${real ? `${esc(real.index ?? "-")}/${esc(real.total ?? "-")} <b>${esc(real.pose)}</b> ${esc(real.state)}` : "대기 — 반환이 시작되면 단계마다 따라 움직여요"}` +
+        (real && real.values && Object.keys(real.values).length ? `<br><span>저장 자세 값(normalized) ${Object.entries(real.values).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(" · ")}</span>` : "") +
+        `<br><span>막대·각도 = 가상 팔 계산 값 · 실제 관절값 아님</span></p>`);
+    }
     $("robotNote").innerHTML = `${esc(r.role)}<br>${esc(r.leader)}<br>카메라: ${r.cameras.map(esc).join(" · ")}<br>` +
       `모터 6개 = 움직이는 축 5개 + 집게 1개 · 막대 = 공식 모델의 관절 한계 안 위치 · 각도는 가상 계산(추정), 진짜 값은 로봇 부품이 보정값으로 읽음` +
       (r.shape ? `<br>모양: ${esc(r.shape)}` : "");
@@ -807,7 +831,7 @@ details.more .robot-note{margin-top:0}
       const d = await r.json();
       failCount = 0;
       $("conn").className = "dot on"; $("connText").textContent = d.busy ? "연결됨 · 반환 진행 중" : "연결됨";
-      $("mode").textContent = d.robot_control ? "실물 원격 티칭 · 배치 참고도" : d.sim ? "가상 시연" : "진짜 부품";
+      $("mode").textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "live" ? "실물 원격 티칭 · 실제 관절 실시간" : d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 원격 티칭 · 가상 팔이 단계 따라 움직임" : "실물 원격 티칭 · 배치 참고도") : d.sim ? "가상 시연" : "진짜 부품";
       $("tryCard").hidden = !d.sim; $("btnReset").hidden = !d.sim; liveBusy = !!d.busy; realRobot = !!d.robot_control;   // 11/11 실물 모드에서도 [전체 초기화](두 번 눌러)
       if (d.world) {
         if (!world) { drawBench(d.world.bench); drawSide(); }
@@ -817,7 +841,7 @@ details.more .robot-note{margin-top:0}
         renderRobot(world);
         renderItems();
         const ph = $("phase");
-        ph.textContent = d.robot_control ? "실물 원격 티칭 · 그림은 배치 참고 · 아래 단계 기록 확인" :
+        ph.textContent = d.robot_control ? (d.world && d.world.robot && d.world.robot.telemetry_available === "live" ? "실제 팔로워 관절값으로 그린 그림 · 실제 위치는 현장 확인" : d.world && d.world.robot && d.world.robot.telemetry_available === "stage" ? "실물 단계 기록(시작·도착)을 따라 움직이는 그림 · 실제 위치는 현장 확인" : "실물 원격 티칭 · 그림은 배치 참고 · 아래 단계 기록 확인") :
           (world.arm.stopped ? "🛑 정지 — 확인 후 원점 복귀" : world.arm.phase);
         ph.className = "phase" + (world.arm.stopped ? " stopped" : "");
         $("armChip").textContent = world.arm.stopped ? "정지" : world.arm.phase;
@@ -859,7 +883,8 @@ details.more .robot-note{margin-top:0}
   $("btnHome").onclick = () => {
     const b = $("btnHome");
     if (!homeArmed) {
-      b.classList.add("confirm"); b.textContent = "주변 확인했나요? 한 번 더";
+      b.classList.add("confirm"); b.textContent = "빈 집게·주변 확인 후 한 번 더";
+      $("tryMsg").textContent = "집게의 물건을 먼저 빼고 복귀 경로를 확인하세요. 홈 복귀 후 다음 동작은 별도로 선택합니다.";
       homeArmed = setTimeout(() => { homeArmed = null; b.classList.remove("confirm"); b.textContent = "원점 복귀"; }, 4000);
       return;
     }

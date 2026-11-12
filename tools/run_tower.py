@@ -72,10 +72,40 @@ def guard(seconds: float = HARD_LIMIT_S, exit_fn=finish) -> None:
             wrap(getattr(signal, name))
 
 
+def lan_ip() -> str | None:
+    """이 PC 의 교육원 네트워크 주소(예: 10.10.21.21). 밖으로 보내지 않는 UDP 연결로 경로만 물어본다(추정 — 못 찾으면 None)"""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        ip = s.getsockname()[0]
+        return None if ip.startswith("127.") or ip == "0.0.0.0" else ip
+    except OSError:
+        return None
+    finally:
+        s.close()
+
+
+def lan_hint(args: list[str], ip: str | None = None) -> str | None:
+    """11/12 lan 모드(--host 0.0.0.0)면 발표 화면 주소를 하나로 알려 준다 — 127.0.0.1 탭과 LAN 주소 탭을 같이 열면
+    키오스크가 '다른 화면에서 사용 중(보기 전용)'이 되고 웹캠 연결도 두 배로 들어간다"""
+    if "--host" not in args or args[args.index("--host") + 1:args.index("--host") + 2] != ["0.0.0.0"]:
+        return None
+    port = args[args.index("--port") + 1] if "--port" in args and args.index("--port") + 1 < len(args) else "8000"
+    ip = ip or lan_ip()
+    if not ip:
+        return None
+    return (f"[관제탑] 발표 화면은 이 주소 하나로만 여세요: http://{ip}:{port}/showcase?scene=found\n"
+            f"         (이 PC 의 127.0.0.1 탭은 닫기 — 같은 화면을 두 탭에서 열면 한쪽은 보기 전용)")
+
+
 def main(argv: list[str] | None = None) -> None:
     import uvicorn
     args = list(sys.argv[1:] if argv is None else argv)
     code = 0
+    hint = lan_hint(args)
+    if hint:
+        print(hint, flush=True)
     try:
         config_guard = os.environ.get("TOWER_EXIT_GUARD", "1") != "0"
         if config_guard:

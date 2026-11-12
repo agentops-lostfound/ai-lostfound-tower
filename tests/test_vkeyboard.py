@@ -40,10 +40,23 @@ class HangulTest(unittest.TestCase):
 class WiringTest(unittest.TestCase):
     def test_kiosk_uses_keyboard(self):
         html = (ROOT / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('<script src="/ui/vkeyboard.js?v=20261111b"></script>', html)
+        self.assertIn('<script src="/ui/vkeyboard.js?v=20261112a"></script>', html)
+        self.assertIn('<script src="/ui/phonefield.js?v=20261112a" defer></script>', html)
+        self.assertIn('id="cphone"', html)
+        self.assertIn('data-phone>', html)                          # 11/12 전화번호 세 칸
+
         self.assertIn("VK.attach(document, { skin: 'kiosk' })", html)
         self.assertIn('id="rid" data-vk="id"', html)              # 가린 신분증: 숫자 + * + -
         self.assertIn('id="rclaim" data-vk="en" data-vk-upper', html)
+
+    def test_caret_editing_and_phone_field_1112(self):
+        """11/12 바로 고치기: 커서 자리에 넣고 앞을 지움(맨 끝만 아님), 전화번호 세 칸·맨 앞 지우기로 앞 칸"""
+        js = (ROOT / "web" / "ui" / "vkeyboard.js").read_text(encoding="utf-8")
+        for needle in ("function sel()", "setSelectionRange", "vk-back-empty", "function drawCaret()", 'code === "ArrowLeft"'):
+            self.assertIn(needle, js)
+        pf = (ROOT / "web" / "ui" / "phonefield.js").read_text(encoding="utf-8")
+        for needle in ("SIZES = [3, 4, 4]", "vk-back-empty", 'Object.defineProperty(orig, "value"'):
+            self.assertIn(needle, pf)
 
     def test_phone_page_and_asset_served(self):
         try:

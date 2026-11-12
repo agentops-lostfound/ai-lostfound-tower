@@ -237,6 +237,7 @@ LOGO_ALIASES = {
     "lg": ["lg", "엘지"],
     "xiaomi": ["xiaomi", "샤오미", "mi"],
     "anker": ["anker", "앤커"],
+    "vaseline": ["vaseline", "바세린"],        # 11/11 립밤(바세린 립테라피) — Qwen 은 영어 'Vaseline', 분실인은 '바세린'으로 씀
     "star": ["star", "별"],
     "heart": ["heart", "하트"],
 }

@@ -19,8 +19,10 @@
 """
 from __future__ import annotations
 
+import hmac
 import os
 import re
+import secrets
 import threading
 import time
 import uuid
@@ -97,6 +99,12 @@ def _show(v: str) -> str:
 def _summary(feats: dict) -> str:
     pub = public_card({k: v for k, v in feats.items() if k != "confidence"})
     return " · ".join(_show(pub[k]) for k in PUBLIC_COMPARE if _known(pub.get(k))) or "특징 없음"
+
+
+def _short(desc: dict) -> str:
+    """문자 알림용 짧은 이름: '분홍 핸드크림'(색·품목, 모르면 있는 것만)"""
+    parts = [desc.get(k) for k in ("color", "category")]
+    return " ".join(_show(v) for v in parts if _known(v)) or "찾는 물건"
 
 
 class SimDirector:
@@ -219,7 +227,11 @@ class SimDirector:
             return
         try:
             allowed = slot_rows().get((slot or "").split("-")[0]) if slot else None
-            self.talk.slot_reserved(item_id, item_id, cat, slot, allowed, wait_no)
+            # 11/11 채점 에이전트가 보관함 정답지(DB 와 같은 규칙)로 다시 봄 — 다른 물건이 회수하려고 잡아 둔 칸은 정답지에 아직 없으므로 따로
+            st = getattr(self.svc, "storage", None)
+            layout = st.layout() if st is not None else None
+            held = {s for s in (self.world.reserved_for(i) for i in list(self.world.collecting) if i != item_id) if s}
+            self.talk.slot_reserved(item_id, item_id, cat, slot, allowed, wait_no, layout=layout, held=held)
             if not slot:
                 self.talk.flush(item_id, f"습득 {item_id} 에이전트 대화(칸 대기)")
         except Exception:
@@ -618,12 +630,15 @@ class SimDirector:
         out.sort(key=lambda c: (-c["score"], c["item_id"]))
         return out[:limit]
 
-    def _quiz_field(self, item_id: str) -> str | None:
+    def _quiz_field(self, item_id: str, desc: dict | None = None) -> str | None:
         """확인 질문으로 쓸 칸: 비공개 특징(글자·스티커) → 없으면 주운 역(등록기계 물건) → 없으면 색.
-        11/4 무작위 시험: 예전에는 색·역을 분실인이 말하지 않으면 묻지도 않고 오답 처리해 반환 거절이 71/80건이었다"""
+        11/4 무작위 시험: 예전에는 색·역을 분실인이 말하지 않으면 묻지도 않고 오답 처리해 반환 거절이 71/80건이었다.
+        11/11 사용자 결정: 특징은 선택 — desc(분실인 설명)를 주면, 분실인이 그 특징(글자·스티커)을 **말했을 때만** 특징으로 확인한다.
+        Qwen 이 거의 매번 글자를 하나쯤 읽어(예: 립밤 'Vaseline') 특징 칸을 비우면 늘 미통과 → 직원 확인으로 가던 것"""
         rec = self.world.db_get_item(item_id) or {}
         f = rec.get("features", {})
-        private = next((k for k in ("visible_text", "mark") if _known(f.get(k))), None)
+        private = next((k for k in ("visible_text", "mark")
+                        if _known(f.get(k)) and (desc is None or _known(desc.get(k)))), None)
         if private:
             return private
         if MACHINE_STATION.get(self.world.items.get(item_id, {}).get("machine_id")):
@@ -679,7 +694,7 @@ class SimDirector:
             if len(ties) > 1:                               # 그래도 못 가르면 자동으로 고르지 않는다(안전 규칙)
                 return self._staff_pick(desc, ties)
             cands = ties + [c for c in cands if c not in ties]
-        field = self._quiz_field(cands[0]["item_id"])
+        field = self._quiz_field(cands[0]["item_id"], desc)
         if field == "place" and station is None and "place" in asked:
             # 11/10 장소를 모른다고 답함 → 장소 대신 색으로 확인한다(색을 아직 말하지 않았으면 아래에서 묻는다)
             f0 = (self.world.db_get_item(cands[0]["item_id"]) or {}).get("features", {})
@@ -716,11 +731,42 @@ class SimDirector:
         with self.board.bind(sid):
             self.board.stage("claim", "active", "닮은 습득물이 아직 없음 — 들어오면 찾기 요청으로 자동 연결")
             self.rep.progress(wid, "분실 신고 대기", f"{_summary(desc)}{' · ' + station + '역' if station else ''} · 습득물을 기다림")
+        key = secrets.token_hex(8)            # 11/12 화면이 결과를 물을 때 쓰는 열쇠(번호만 알아서는 남의 찾기 번호를 볼 수 없게)
         with self._wait_lock:
             self.waiting_lost[wid] = {"desc": dict(desc), "station": station, "tags": set(tags), "opts": dict(opts),
-                                      "story_id": sid, "t": time.time(), "claim_id": None, "item_id": None}
-        return {"waiting": True, "wait_id": wid, "story_id": sid, "candidates": [],
-                "visit": "kiosk", "message": "닮은 습득물이 아직 없어 분실 신고를 대기로 받아 두었어요"}
+                                      "story_id": sid, "t": time.time(), "claim_id": None, "item_id": None,
+                                      "key": key, "notify": None, "claim_story": None, "quiz_passed": None}
+        return {"waiting": True, "wait_id": wid, "wait_key": key, "story_id": sid, "candidates": [],
+                "summary": _short(desc), "visit": "kiosk", "message": "닮은 습득물이 아직 없어 분실 신고를 대기로 받아 두었어요"}
+
+    # ----- 11/12 대기 분실 신고 → 문자 알림 신청(시연) -----
+    def _wait_by_key(self, wid: str, key: str) -> dict:
+        w = self.waiting_lost.get(wid)
+        if w is None or not isinstance(key, str) or not hmac.compare_digest(str(w.get("key") or "").encode(), key.encode("utf-8", "replace")):
+            raise NotFound("없는 분실 신고예요(시간이 지났거나 관제탑이 다시 켜짐)")
+        return w
+
+    def notify_wait(self, wid: str, key: str, last4: str) -> dict:
+        """문자 알림 신청: 번호 끝 4자리만 받는다(전체 번호는 관제탑에 오지 않음, DB 에도 저장 안 함). 실제 문자는 보내지 않는 시연"""
+        if not isinstance(last4, str) or not re.fullmatch(r"\d{4}", last4):
+            raise RequestError("last4: 전화번호 끝 4자리 숫자")
+        with self._wait_lock:
+            w = self._wait_by_key(wid, key)
+            w["notify"] = last4
+            sid = w["story_id"]
+        with self.board.bind(sid):
+            self.board.stage("claim", "active", "문자 알림 신청 — 닮은 습득물이 들어오면 알림(시연, 실제 문자 없음)")
+            self.rep.progress(wid, "문자 알림 신청", "찾는 물건이 들어오면 알림(시연)")
+        return {"ok": True, "wait_id": wid, "notify": "****-" + last4}
+
+    def wait_poll(self, wid: str, key: str) -> dict:
+        """분실인 화면이 결과를 묻기: waiting | matched(찾기 번호·진행 이야기·문자 알림 여부)"""
+        with self._wait_lock:
+            w = self._wait_by_key(wid, key)
+            if w["claim_id"] and w["claim_id"] != "연결 중":
+                return {"wait_id": wid, "state": "matched", "claim_id": w["claim_id"], "story_id": w["claim_story"] or w["story_id"],
+                        "quiz_passed": w["quiz_passed"], "notify": bool(w["notify"]), "summary": _short(w["desc"])}
+            return {"wait_id": wid, "state": "waiting", "notify": bool(w["notify"])}
 
     def _match_waiting(self, item_id: str) -> None:
         """새 습득물(특징 분석 끝)과 닮은 대기 분실 신고를 먼저 들어온 순서로 하나만 찾기 요청으로 잇는다.
@@ -744,9 +790,12 @@ class SimDirector:
                 continue
             with self._wait_lock:
                 w["claim_id"], w["item_id"] = res["claim_id"], item_id
+                w["claim_story"], w["quiz_passed"] = res.get("story_id"), res.get("quiz_passed")
             with self.board.bind(w["story_id"]):
                 self.board.stage("claim", "done", f"습득물 {item_id} 들어옴 → 찾기 번호 {res['claim_id']}")
                 self.rep.progress(wid, "대기 분실 신고 연결", f"습득물 {item_id} → 찾기 번호 {res['claim_id']}")
+                if w.get("notify"):
+                    self.board.stage("claim", "done", "문자 알림 보냄(시연 — 분실인 화면에 알림, 실제 문자 없음)")
                 self.board.finish(w["story_id"], f"찾기 번호 {res['claim_id']} 로 이어짐(진행은 새 이야기 {res['story_id']})", True)
             return
 
@@ -801,7 +850,7 @@ class SimDirector:
         rec = self.world.db_get_item(item_id) or {}
         f = rec.get("features", {})
         quiz = []
-        field = self._quiz_field(item_id)
+        field = self._quiz_field(item_id, desc)
         if field in ("visible_text", "mark"):
             quiz.append({"field": field, "passed": _same_text(desc.get(field, ""), f[field])})
         # 11/10 사용자 결정: 잃어버린 역을 모르면(station 없음) 장소는 묻지도 채점하지도 않는다 — 기억 못 하는 것이 오답은 아니다.
@@ -1061,7 +1110,7 @@ class SimDirector:
         w = self.world
         if callable(getattr(self.board, "mark_epoch", None)):   # 11/10 새로 연 통합 시연 화면에 초기화 전 연습 기록이 섞이지 않게
             self.board.mark_epoch()
-        if self.talk is not None:                        # 11/9 에이전트가 배운 점도 처음으로(시연을 처음부터 다시 보여 주려고)
+        if self.talk is not None:                        # 11/9 에이전트 대화 기록도 처음으로(11/11 배운 점 연출은 없앰)
             self.talk.reset()
         with self._wait_lock:                            # 11/9 대기 분실 신고도 처음으로
             self.waiting_lost.clear()
@@ -1121,9 +1170,10 @@ def build_sim_service(env: dict | None = None):
         except ValueError:
             return float(default)
     flag = lambda k: str(env.get(k) or "0").strip().lower() in ("1", "true", "yes", "on")  # noqa: E731
-    # 11/10 처음 보관함 물건: 기본 = 분홍 핸드크림 하나. TOWER_SIM_SEED=full 이면 예전 5개(휴대폰 2·보조배터리 2·립밤 1 — 칸 대기·닮은 물건 장면 연습용)
+    # 처음 보관함 물건(11/11): 기본 = 비어 있음(none). TOWER_SIM_SEED=cream 이면 분홍 핸드크림 하나(R3-1, 11/10 기본),
+    #   full 이면 예전 5개(휴대폰 2·보조배터리 2·립밤 1 — 칸 대기·닮은 물건 장면 연습용). 모르는 값도 비어 있음
     seed = str(env.get("TOWER_SIM_SEED") or "").strip().lower()
-    world = SimWorld(speed=num("TOWER_SIM_SPEED", 1.0), seed=seed if seed == "full" else True)
+    world = SimWorld(speed=num("TOWER_SIM_SPEED", 1.0), seed=seed if seed in ("cream", "full") else "none")
     board = LiveBoard()
     real_vision = vision_part_from_env(env)
     matcher = matcher_part_from_env(env)
@@ -1131,6 +1181,10 @@ def build_sim_service(env: dict | None = None):
     from agents import taught_return
     taught = taught_return.enabled(env)
     robot = taught_return.remote_part(env) if taught else SimRobot(world)
+    mirror = None
+    if taught:                                          # 11/11 실물 단계 기록을 따라 가상 팔·물건이 움직이게(그림만, agents/taught_mirror.py)
+        from agents.taught_mirror import attach
+        mirror = attach(robot, world, env)
 
     def factory():
         return CompositeBackend(vision=topview, matcher=matcher, db=world, robot=robot, fallback=MockBackend())
@@ -1141,6 +1195,7 @@ def build_sim_service(env: dict | None = None):
     svc = TowerService(factory, LiveReporter(Reporter(dry_run=not flag("TOWER_SEND")), board), reviewer=reviewer,
                        claims=SimClaimStore(world), intake=world, gpu_lease=lease_from_env(env))
     svc.board, svc.world = board, world
+    svc.robot_mirror = mirror
     taught_return.configure(svc, env)
     if taught:
         original_flow = svc.flow

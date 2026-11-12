@@ -7,6 +7,8 @@
  * - 번호 칸(type=tel · data-vk="num")은 숫자 패드, 가린 신분증 칸(data-vk="id")은 숫자 + * + -
  * - data-vk="en" 영문으로 시작, data-vk-upper 대문자로 넣기, data-vk="off" 화면 키보드 안 씀
  * - 화면 키보드가 붙은 칸은 readonly 로 둔다 → 태블릿 자체 키보드·윈도우 한글 입력기가 끼어들지 않음
+ * - 11/12 바로 고치기: 칸 안을 누른 자리(깜빡이는 막대)에 넣고 그 앞을 지운다. 끌어 고른 부분은 새 글자로 바뀜. PC ←·→·Home·End·Delete
+ *   전화번호는 /ui/phonefield.js 가 [010]-[1111]-[1111] 세 칸으로 나눠, 칸을 누르면 그 칸 전체가 골라져 바로 다시 입력
  *
  * 쓰는 법
  *   <script src="/ui/vkeyboard.js?v=20261111b"></script>
@@ -104,6 +106,8 @@
 .vk-phone.vk-pad{--vk-h:48px}
 @media (prefers-color-scheme:dark){.vk-phone{--vk-key:#6b6b6f;--vk-fn:#464649;--vk-fg:#fff;--vk-sub:#c7c7cc;--vk-down:#8a8a8f;background:#2b2b2e}}
 .vk-target-on{outline:3px solid var(--ui-primary,#f06a00)!important;outline-offset:1px}
+.vk-caret{position:absolute;width:2px;background:var(--ui-primary,#f06a00);pointer-events:none;z-index:2147482999;animation:vk-blink 1s steps(1) infinite}
+@keyframes vk-blink{50%{opacity:0}}
 `;
 
   // ── 키보드 하나(문서 하나에 붙음) ─────────────────────────
@@ -121,7 +125,17 @@
     kb.setAttribute("role", "group"); kb.setAttribute("aria-label", "화면 키보드");
     (opt.mount || host.body).appendChild(kb);
 
-    const st = { el: null, ko: true, shift: false, layer: "abc", comp: false, kind: "text" };
+    const st = { el: null, ko: true, shift: false, layer: "abc", comp: false, kind: "text", pos: 0 };
+    // 11/12 바로 고치기: 예전에는 늘 끝에만 넣고 끝에서만 지웠다(01011111111 의 010 을 고치려면 다 지워야 했음) →
+    //   칸을 누른 자리(커서)에 넣고 그 앞 글자를 지운다. readonly 칸은 브라우저가 커서를 그리지 않아 깜빡이는 막대를 직접 그린다
+    const caret = doc.createElement("i"); caret.className = "vk-caret"; caret.hidden = true;
+    if (!doc.getElementById("vk-caret-style")) {
+      const cs = doc.createElement("style"); cs.id = "vk-caret-style";
+      cs.textContent = ".vk-caret{position:absolute;width:2px;background:#f06a00;pointer-events:none;z-index:2147482999;animation:vk-blink 1s steps(1) infinite}@keyframes vk-blink{50%{opacity:0}}";
+      doc.head.appendChild(cs);
+    }
+    doc.body.appendChild(caret);
+    let measureCtx = null;
     const keyEls = {};                                               // 실제 키 코드 → 화면 키(PC 키보드 눌림 표시)
 
     function kindOf(el) {
@@ -205,28 +219,83 @@
       fn();
     }
 
-    function setValue(v) {
+    // ── 커서(넣을 자리) ──
+    const KEEP = /[0-9A-Za-z가-힣ㄱ-ㅣ]/;                           // 칸이 값을 다시 꾸밀 때(전화번호 - 넣기) 셀 글자
+    function sel() {
+      const el = st.el, n = el.value.length;
+      let a = typeof el.selectionStart === "number" ? el.selectionStart : n, b = typeof el.selectionEnd === "number" ? el.selectionEnd : n;
+      a = Math.max(0, Math.min(a, n)); b = Math.max(a, Math.min(b, n));
+      return [a, b];
+    }
+    function setCaret(pos) {
       const el = st.el; if (!el) return;
+      st.pos = Math.max(0, Math.min(pos, el.value.length));
+      try { el.setSelectionRange(st.pos, st.pos); } catch (_) {}
+      drawCaret();
+    }
+    function drawCaret() {
+      const el = st.el;
+      if (!el || el.tagName !== "INPUT" || !el.isConnected) { caret.hidden = true; return; }
+      const cs = (doc.defaultView || window).getComputedStyle(el);
+      measureCtx = measureCtx || doc.createElement("canvas").getContext("2d");
+      measureCtx.font = cs.font || `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const r = el.getBoundingClientRect(), view = doc.defaultView || window;
+      const pl = parseFloat(cs.paddingLeft) || 0, bl = parseFloat(cs.borderLeftWidth) || 0;
+      const full = measureCtx.measureText(el.value).width, inner = r.width - pl - (parseFloat(cs.paddingRight) || 0) - bl * 2;
+      let x = measureCtx.measureText(el.value.slice(0, st.pos)).width;
+      if (cs.textAlign === "center") x += Math.max(0, (inner - full) / 2);
+      else if (cs.textAlign === "right" || cs.textAlign === "end") x += Math.max(0, inner - full);
+      x -= el.scrollLeft || 0;
+      const h = Math.min(r.height * 0.6, (parseFloat(cs.fontSize) || 20) * 1.25);
+      caret.style.left = (r.left + view.scrollX + bl + pl + Math.max(0, Math.min(x, inner)) - 1) + "px";
+      caret.style.top = (r.top + view.scrollY + (r.height - h) / 2) + "px";
+      caret.style.height = h + "px";
+      caret.hidden = false;
+    }
+    function setValue(v, pos) {
+      const el = st.el; if (!el) return false;
       const max = el.maxLength > 0 ? el.maxLength : 0;
-      if (max && v.length > max) return;
+      if (max && v.length > max) return false;
+      if (pos === undefined) pos = v.length;
+      const want = KEEP.test(v) ? [...v.slice(0, pos)].filter((c) => KEEP.test(c)).length : pos;
       el.value = (el.dataset && "vkUpper" in el.dataset) ? v.toUpperCase() : v;
       el.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+      const now = el.value;                                          // 칸이 값을 다시 꾸몄으면(010-1111-…) 같은 글자 뒤로
+      if (now !== v && KEEP.test(now)) {
+        let k = 0, i = 0;
+        for (; i < now.length && k < want; i++) if (KEEP.test(now[i])) k++;
+        pos = i;
+      }
+      if (st.el === el) setCaret(Math.min(pos, el.value.length));
+      return true;
     }
     function put(ch, letter) {
       if (!st.el) return;
-      const v = st.el.value;
+      const v = st.el.value, [a, b] = sel();
+      const head = v.slice(0, a), tail = v.slice(b);
       if (letter && st.ko && /[ㄱ-ㅣ]/.test(ch)) {
-        const last = st.comp ? v.slice(-1) : "";
-        setValue((st.comp ? v.slice(0, -1) : v) + addJamo(last, ch)); st.comp = true;
-      } else { setValue(v + ch); st.comp = false; }
+        const comp = st.comp && a === b && a === st.pos;
+        const last = comp ? head.slice(-1) : "";
+        const mid = addJamo(last, ch), front = (comp ? head.slice(0, -1) : head) + mid;
+        if (setValue(front + tail, front.length)) st.comp = true;
+      } else if (setValue(head + ch + tail, a + ch.length)) st.comp = false;
       if (st.shift) { st.shift = false; render(); }
     }
     function back() {
       if (!st.el) return;
-      const v = st.el.value; if (!v) return;
-      if (st.comp && /[가-힣ㄱ-ㅣ]/.test(v.slice(-1))) { const b = backJamo(v.slice(-1)); setValue(v.slice(0, -1) + b); st.comp = !!b; }
-      else setValue(v.slice(0, -1));
+      const v = st.el.value, [a, b] = sel();
+      if (a !== b) { setValue(v.slice(0, a) + v.slice(b), a); st.comp = false; return; }
+      if (a === 0) { st.el.dispatchEvent(new CustomEvent("vk-back-empty", { bubbles: true })); return; }   // 맨 앞에서 지우기(전화번호 칸 → 앞 칸으로)
+      const prev = v[a - 1];
+      if (st.comp && a === st.pos && /[가-힣ㄱ-ㅣ]/.test(prev)) {
+        const bj = backJamo(prev); setValue(v.slice(0, a - 1) + bj + v.slice(a), a - 1 + bj.length); st.comp = !!bj;
+      } else {
+        let cut = a - 1;
+        if (!KEEP.test(prev) && cut > 0 && /\d/.test(v[cut - 1]) && st.kind === "num") cut--;   // 010-|1111 에서 지우면 - 와 0 을 함께
+        setValue(v.slice(0, cut) + v.slice(a), cut); st.comp = false;
+      }
     }
+    function move(d) { if (!st.el) return; const [a, b] = sel(); st.comp = false; setCaret(d < 0 ? (a === b ? a - 1 : a) : (a === b ? b + 1 : b)); }
     function toggleShift() { st.shift = !st.shift; render(); }
     function toggleLang() { st.ko = !st.ko; st.comp = false; st.layer = "abc"; render(); }
     function done(fromTouch) {
@@ -244,6 +313,7 @@
       st.ko = !(el.dataset && el.dataset.vk === "en");
       el.readOnly = true; el.setAttribute("inputmode", "none"); el.classList.add("vk-target-on");
       render(); kb.classList.add("vk-on");
+      setTimeout(() => { if (st.el === el) { const [a, b] = sel(); st.pos = b; if (a === b) drawCaret(); else caret.hidden = true; } }, 0);
       if (!opt.mount) {                                             // 키오스크: 키보드에 칸이 가리지 않게
         host.body.style.paddingBottom = kb.offsetHeight + "px";
         const box = scrollBox(el);
@@ -290,7 +360,7 @@
       if (over > 0) { const box = scrollBox(el); if (box) box.scrollTop += over; else view.scrollBy(0, over); }
     }
     function hide() {
-      kb.classList.remove("vk-on");
+      kb.classList.remove("vk-on"); caret.hidden = true;
       host.querySelectorAll("[data-vk-pad]").forEach((b) => { b.style.paddingBottom = b.dataset.vkPad === "-" ? "" : b.dataset.vkPad; delete b.dataset.vkPad; });
       if (st.el) st.el.classList.remove("vk-target-on");
       st.el = null; st.comp = false;
@@ -302,6 +372,12 @@
     doc.addEventListener("pointerdown", (e) => {                    // 다른 곳을 누르면 닫기
       const el = target(e); if (st.el && !usable(el) && !kb.contains(el)) hide();
     }, true);
+    // 11/12 칸 안을 누르면 그 자리로 커서(브라우저가 정한 선택을 읽음). 글자를 끌어 고르면 고른 부분을 바꿈
+    const follow = (e) => { const el = target(e); if (st.el && el === st.el) setTimeout(() => { if (st.el !== el) return; const [a, b] = sel(); st.comp = false; st.pos = b; if (a === b) drawCaret(); else caret.hidden = true; }, 0); };
+    doc.addEventListener("pointerup", follow, true);
+    doc.addEventListener("select", follow, true);
+    (doc.defaultView || window).addEventListener("resize", () => { if (st.el) drawCaret(); });
+    doc.addEventListener("scroll", () => { if (st.el) drawCaret(); }, true);
 
     // 11/11 Ctrl+V 붙여넣기: 화면 키보드 칸은 readonly 라 브라우저가 붙여넣기를 막는다(Ctrl+C 는 됨) →
     // paste 사건에서 글자를 꺼내 칸 종류에 맞게 걸러 직접 넣는다. 찾기 번호처럼 복사해 온 값을 키오스크·폰 칸에 넣을 때
@@ -314,9 +390,9 @@
       else if (st.kind === "id") text = text.replace(/[^0-9*-]/g, "");
       e.preventDefault();
       if (!text) return;
-      const el2 = st.el, max = el2.maxLength > 0 ? el2.maxLength : 0;
-      const room = max ? Math.max(0, max - el2.value.length) : text.length;
-      st.comp = false; setValue(el2.value + text.slice(0, room));
+      const el2 = st.el, max = el2.maxLength > 0 ? el2.maxLength : 0, [a, b] = sel(), v = el2.value;
+      const room = max ? Math.max(0, max - (v.length - (b - a))) : text.length;
+      st.comp = false; setValue(v.slice(0, a) + text.slice(0, room) + v.slice(b), a + Math.min(room, text.length));
     }, true);
 
     // PC 키보드 → 같은 화면 키를 눌러 보이며 입력
@@ -330,6 +406,9 @@
       else if (code === "Backspace") { flash("Backspace"); back(); }
       else if (code === "Enter" || code === "NumpadEnter") { flash("Enter"); done(); }
       else if (code === "Space") { flash("Space"); put(" "); }
+      else if (code === "ArrowLeft" || code === "ArrowRight") move(code === "ArrowLeft" ? -1 : 1);
+      else if (code === "Home" || code === "End") { st.comp = false; setCaret(code === "Home" ? 0 : st.el.value.length); }
+      else if (code === "Delete") { const [a, b] = sel(), v = st.el.value; if (a < v.length || a !== b) { st.comp = false; setValue(v.slice(0, a) + v.slice(a === b ? a + 1 : b), a); } }
       else if (code === "ShiftLeft" || code === "ShiftRight" || code === "CapsLock" || code === "Tab" || code.startsWith("Arrow") || code === "Escape") {
         handled = code !== "Tab"; if (code === "Escape") done();
       } else if (st.kind !== "text") {
@@ -359,7 +438,7 @@
       if (handled) e.preventDefault();
     }, true);
 
-    return { el: kb, hide, show: (el) => usable(el) && show(el), state: st };
+    return { el: kb, hide, show: (el) => usable(el) && show(el), state: st, caret: () => st.pos };
   }
 
   window.VK = { attach, _hangul: { addJamo, backJamo } };

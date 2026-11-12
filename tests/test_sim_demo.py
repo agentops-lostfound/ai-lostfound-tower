@@ -25,6 +25,28 @@ def story_of(svc, sid):
     return svc.board.story(sid)
 
 
+class RestPoseTest(unittest.TestCase):
+    """11/11 실물 home(김건태님 전달, Studio normalized) 처럼 원점에서는 접힌 대기 자세로 그림"""
+
+    def test_world_starts_and_returns_to_folded_rest(self):
+        from agents.sim_world import REST_JOINTS, REST_REAL, SO101_LIMITS, SimRobot, SimWorld, so101_tip
+        self.assertEqual(REST_REAL["shoulder_lift"], -99.41324615478516)
+        for k, (lo, hi) in SO101_LIMITS.items():
+            self.assertTrue(lo <= REST_JOINTS[k] <= hi, k)
+        x, y, z = so101_tip(REST_JOINTS)
+        self.assertGreater(z, 200)                                   # 집게가 위를 봄(접혀서 높이 있음)
+        w = SimWorld(speed=0, seed=False)
+        self.assertTrue(w.arm["rest"])
+        self.assertEqual(w.arm["joints"], REST_JOINTS)
+        r = SimRobot(w)
+        r.robot_approach([205.0, 310.0], [])
+        self.assertFalse(w.arm["rest"])                              # 움직이면 위치 기준(IK) 관절
+        self.assertNotEqual(w.arm["joints"], REST_JOINTS)
+        r.robot_home()
+        self.assertTrue(w.arm["rest"])
+        self.assertEqual(w.arm["joints"], REST_JOINTS)
+
+
 class SimPartsTest(unittest.TestCase):
     def test_parts_keep_contracts(self):
         w = SimWorld(speed=0, seed="full")
@@ -201,12 +223,12 @@ class DirectorTest(unittest.TestCase):
         with self.assertRaises(NotFound):
             self.d.kiosk_return({"machine_id": "CENTER", "claim_id": "C-20261107-0999", "id_no_masked": "******-3******"})
 
-    def test_quiz_question_then_wrong_answer_is_rejected(self):
-        # 11/9 품목 4종: 글자 있는 핸드크림을 습득 신고한 뒤 찾기 → 글자(로고) 확인 질문에 틀린 답
+    def test_wrong_feature_is_rejected(self):
+        # 11/9 품목 4종: 글자 있는 핸드크림을 습득 신고한 뒤 찾기 → 분실인이 적은 글자가 틀림 → 거절
+        # (11/11 특징은 선택: 적었을 때만 특징으로 확인 — 전에는 안 적으면 글자를 따로 물었다)
         self.found("초량역 3번 출구에서 흰색 핸드크림 BOUQUET GARNI 글자 있음 주웠어요")
-        r = self.d.lost("흰색 핸드크림 잃어버렸어요")
-        self.assertIn("pending_id", r)
-        out = self.d.answer(r["pending_id"], "Kingston")
+        out = self.d.lost("흰색 핸드크림 Kingston 글자 잃어버렸어요 초량역")
+        self.assertNotIn("pending_id", out)
         self.assertFalse(out["quiz_passed"])
         self.assertTrue(self.d.wait_idle())
         st = story_of(self.svc, out["story_id"])
@@ -214,6 +236,23 @@ class DirectorTest(unittest.TestCase):
         self.assertIn("rejected", st["result"]["text"])
         self.assertEqual(self.svc.world.arm["holding"], None)
         self.assertEqual(sum(1 for i in self.svc.world.items.values() if i["loc"] == "bin"), 6)   # 로봇 안 움직임(시연 5 + 핸드크림)
+
+    def test_feature_left_empty_checks_place_and_color(self):
+        """11/11 사용자 결정: 특징 칸을 비우면 특징을 묻지도 채점하지도 않고 장소·색으로 확인(전에는 늘 미통과 → 직원 확인)"""
+        self.found("초량역 3번 출구에서 흰색 핸드크림 BOUQUET GARNI 글자 있음 주웠어요")
+        out = self.d.lost("흰색 핸드크림 잃어버렸어요 초량역")
+        self.assertNotIn("pending_id", out)                                  # 글자를 따로 묻지 않음
+        self.assertTrue(out["quiz_passed"])
+        claim = self.svc.claims.get(out["claim_id"])
+        self.assertEqual({q["field"] for q in claim["quiz"]}, {"place"})       # 특징 칸은 채점하지 않음
+
+    def test_korean_brand_matches_qwen_english_text(self):
+        """11/11 립밤: Qwen 은 'Vaseline'(영어)으로 읽고 분실인은 '바세린'이라고 씀 → 같은 말"""
+        from agents.contracts import logo_tokens
+        from agents.sim_world import query_features
+        self.assertEqual(query_features("빨강 립밤 바세린 잃어버렸어요").get("visible_text"), "바세린")
+        self.assertTrue(logo_tokens("바세린") & logo_tokens("Vaseline Lip Therapy"))
+        self.assertNotIn("visible_text", query_features("빨강 립밤 잃어버렸어요"))
 
     def test_calibration_fail_tag_sends_to_staff(self):
         self.found()
@@ -452,6 +491,37 @@ class LostWebApiTest(unittest.TestCase):
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["decision"], "returned")
         self.assertNotIn(cid, svc.sim.visit_wait)
+
+    def test_wait_notify_and_poll(self):
+        """11/12 보관함에 오기 전 분실 신고 → 번호 대신 문자 알림 신청(끝 4자리만) → 습득물이 들어오면 찾기 번호(시연 문자)"""
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        from agents.api import build_app
+        svc = build_sim_service({**ENV, "TOWER_SIM_SEED": "none"})
+        c = TestClient(build_app(svc))
+        w = c.post("/sim/lost", json={"text": "중앙역에서 분홍 핸드크림 잃어버렸어요", "visit": "kiosk",
+                                      "name_masked": "홍*동", "id_no_masked": "******-3******"}).json()
+        self.assertTrue(w["waiting"])
+        self.assertEqual(w["summary"], "분홍 핸드크림")
+        wid, key = w["wait_id"], w["wait_key"]
+        self.assertEqual(c.get(f"/sim/lost/wait/{wid}?key=틀림").status_code, 404)       # 번호만 알아서는 볼 수 없음
+        self.assertEqual(c.get(f"/sim/lost/wait/{wid}").status_code, 404)
+        self.assertEqual(c.get(f"/sim/lost/wait/{wid}?key={key}").json()["state"], "waiting")
+        for bad in ({"key": key, "last4": "12345"}, {"key": key, "last4": "12a4"}, {"key": key, "last4": "1234", "phone": "01012341234"},
+                    {"key": "틀림", "last4": "1234"}):
+            self.assertIn(c.post(f"/sim/lost/wait/{wid}/notify", json=bad).status_code, (404, 422), bad)
+        ok = c.post(f"/sim/lost/wait/{wid}/notify", json={"key": key, "last4": "5678"}).json()
+        self.assertEqual(ok["notify"], "****-5678")
+        self.assertNotIn("5678", " ".join(m.get("body", "") + m.get("title", "") for m in svc.reporter.messages))   # 디스코드 기록에 번호 없음
+        svc.sim.found("중앙역 승강장에서 분홍 핸드크림 주웠어요")
+        self.assertTrue(svc.sim.wait_idle())
+        st = c.get(f"/sim/lost/wait/{wid}?key={key}").json()
+        self.assertEqual(st["state"], "matched")
+        self.assertTrue(st["claim_id"].startswith("C-"))
+        self.assertTrue(st["notify"])
+        self.assertNotEqual(st["story_id"], w["story_id"])                               # 이어지는 찾기 요청 이야기
 
     def test_home_page_lists_screens(self):
         """11/7 주소만 입력하면 Not Found 대신 화면 목록"""

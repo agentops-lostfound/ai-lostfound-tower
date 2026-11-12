@@ -6,7 +6,8 @@
 <title>분실물 접수 키오스크</title>
 <link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
-<script src="/ui/vkeyboard.js?v=20261111b"></script>
+<script src="/ui/vkeyboard.js?v=20261112a"></script>
+<script src="/ui/phonefield.js?v=20261112a" defer></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
    한줄 설명: 색을 직접 쓰지 않고 "역할 이름(토큰)"으로 쓰면, 다크 모드는 토큰 값만 바뀌어 화면 전체가 함께 바뀐다.
@@ -82,6 +83,7 @@ input[type=text]:focus,input[type=tel]:focus,textarea:focus{border-color:var(--u
 #lost,#ret{overflow:auto;justify-content:flex-start;gap:18px}
 #lost{padding:0;overflow:hidden}
 #lostFrame{display:block;width:100%;height:100%;min-height:0;flex:1;border:0;border-radius:inherit;background:var(--ui-surface)}
+#lost .scgo{flex:none;margin:0 16px 14px;min-height:56px;font-size:20px}
 #lost h1,#ret h1{font-size:38px}
 #raway,#rform,#rwork,#rdone{display:flex;flex-direction:column;gap:18px}
 #raway[hidden],#rform[hidden],#rwork[hidden],#rdone[hidden]{display:none}
@@ -208,6 +210,7 @@ button.undo{font-size:19px;color:var(--ui-text-2)} button.undo.armed{background:
 .prep li{display:grid;justify-items:center;gap:6px;background:var(--ui-fill);border-radius:var(--ui-radius);padding:14px 8px;text-align:center;font-size:21px;font-weight:700;line-height:1.3}
 .prep li small{display:block;font-size:17px;font-weight:600;color:var(--ui-text-2)}
 .prep .pic{width:88px;height:62px}
+.doneflow{margin:8px 0 4px}
 .uses{display:grid;gap:10px;margin:0;padding:0;list-style:none}
 .uses li{display:flex;align-items:center;gap:14px;background:var(--ui-fill);border-radius:var(--ui-radius);padding:12px 18px;font-size:21px;line-height:1.4;color:var(--ui-text-2)}
 .uses li b{color:var(--ui-text)}
@@ -294,6 +297,8 @@ body.demo-mode #stn{flex:1 1 auto}
     <!-- 11/11 분실 접수: 휴대폰 분실인 웹(/lost)과 같은 화면·같은 접수(찾기 번호 또는 대기 번호)를 키오스크 안에 띄운다.
          예전에는 저장하지 않고 역무실 안내만 하는 입력칸이었다. 주소 ?embed=kiosk&station=이 키오스크 역 -->
     <iframe id="lostFrame" title="분실 접수(분실인 웹과 같은 화면)"></iframe>
+    <!-- 11/12 발표 화면 안에서만: 같은 신고를 분실인 휴대폰 웹으로 해 보기 -->
+    <button type="button" class="ghost scgo" id="goWeb" hidden>📱 휴대폰 웹으로 신고하기</button>
   </section>
   <section id="ret" class="lostsec" data-scroll-hint>
     <div id="raway" hidden>
@@ -305,6 +310,7 @@ body.demo-mode #stn{flex:1 1 auto}
         <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>방문 시간</title><circle cx="40" cy="28" r="21"/><path class="p" d="M40 15v13l9 6"/></svg>평일 9~18시<small>시연 기준</small></li>
       </ul>
       <p class="legal">번호가 없으면? <b>분실인 웹</b>에서 신고하거나 <b>AI 안내</b>에 물어보세요.</p>
+      <button type="button" id="goCenter" hidden>부산역 본센터 키오스크로 가기 →</button>   <!-- 11/12 발표 화면 안에서만 -->
       <button class="ghost" id="rawayHome">처음으로</button>
     </div>
     <div id="rform">
@@ -408,21 +414,27 @@ body.demo-mode #stn{flex:1 1 auto}
     <h1>연락처를 남기시겠어요?</h1>
     <p class="sub">안 남겨도 접수돼요 (선택)</p>
     <input type="text" id="cname" maxlength="20" placeholder="이름" autocomplete="off">
-    <input type="tel" id="cphone" inputmode="tel" maxlength="13" placeholder="전화번호 (숫자만)" autocomplete="off">
+    <input type="tel" id="cphone" inputmode="tel" maxlength="13" placeholder="전화번호 (숫자만)" autocomplete="off" data-phone>   <!-- 11/12 /ui/phonefield.js 가 [010]-[1111]-[1111] 세 칸으로 나눔(칸을 누르면 바로 다시 입력) -->
     <ul class="uses" aria-label="연락처 이용 안내">
       <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>감사 연락</title><rect x="5" y="3" width="14" height="26" rx="3"/><path d="M10 25h4"/><path class="p" d="M24 23s-6-3.5-6-7.5a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.5-6 7.5z"/></svg><span>주인이 찾아가면 <b>감사 연락에만</b> 써요</span></li>
       <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>보호</title><path d="M16 3l11 4v8c0 7-5 12-11 14C10 27 5 22 5 15V7z"/><path class="p" d="M11 16l4 4 7-8"/></svg><span><b>다른 목적으로 쓰거나 다른 곳에 주지 않아요</b></span></li>
       <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>30일 뒤 삭제</title><rect x="4" y="6" width="24" height="22" rx="3"/><path d="M4 12h24M10 3v6M22 3v6"/><text class="pf" x="9" y="25" font-size="10">30</text></svg><span>건넨 뒤 <b>30일</b>이면 지워요</span></li>
     </ul>
     <p class="err" id="err" role="alert"></p>
-    <div class="row"><button class="ghost" id="skip">건너뛰기</button><button id="send">보내기</button></div>
+    <div class="row"><button class="ghost" id="skip">건너뛰기</button><button id="send" disabled>보내기</button></div>
   </section>
   <section id="s4" data-scroll-hint>
     <svg class="pic big" viewBox="0 0 56 56" role="img"><title>접수 완료</title><circle class="p" cx="28" cy="28" r="25"/><path class="p" stroke-width="3.5" d="M16 29l8 8 16-17"/></svg>
-    <h1 class="center">접수되었습니다</h1>
-    <p class="sub center">접수 번호</p>
-    <div class="receipt" id="rno"></div>
-    <button type="button" class="ghost copy" id="copyNo">접수 번호 복사</button>
+    <h1 class="center" id="doneTitle">접수됐어요. 고맙습니다!</h1>
+    <p class="sub center" id="doneSub">주인이 빨리 찾을 수 있게 저희가 잘 보관할게요</p>
+    <!-- 11/12 발표 검토: 습득자에게 접수 번호는 쓸 데가 없어 어색함 → 번호 대신 다음 과정. 번호는 직원 화면·DB 에 그대로 -->
+    <ol class="prep doneflow" aria-label="이 물건은 이렇게 돼요">
+      <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>AI 가 정리</title><rect x="10" y="10" width="38" height="30" rx="4"/><circle class="p" cx="29" cy="25" r="7"/><path class="p" d="M54 18h16M54 26h12M54 34h14"/></svg>AI 가 정리<small>품목·색을 읽어요</small></li>
+      <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>본센터 보관</title><rect x="12" y="16" width="56" height="32" rx="3"/><path d="M12 30h56M31 16v32M49 16v32"/><rect class="p" x="35" y="20" width="10" height="7" rx="1"/></svg>본센터 보관<small>부산역 보관함으로</small></li>
+      <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>주인에게 알림</title><rect x="26" y="6" width="28" height="44" rx="5"/><path d="M36 44h8"/><path class="p" d="M33 18h14M33 25h10"/><circle class="p" cx="56" cy="10" r="6"/></svg>주인에게 알림<small>찾는 분께 문자로</small></li>
+    </ol>
+    <div class="receipt" id="rno" hidden></div>   <!-- 접수 번호(화면에는 안 보임 · 접수 취소에 씀) -->
+    <button type="button" class="ghost copy" id="copyNo" hidden>접수 번호 복사</button>
     <p class="sub center"><span class="cdnum" id="count">10</span>초 뒤 처음 화면으로</p>
     <div class="bar" aria-hidden="true"><i id="homeBar"></i></div>
     <button class="ghost" id="home">지금 처음으로</button>
@@ -460,6 +472,7 @@ const isCenter = kiosk === 'CENTER';     // 회수는 본센터 키오스크만(
 $('#raway').hidden = isCenter; $('#rform').hidden = !isCenter;
 let curTab = 'found';                    // 11/6: 다른 탭에 있을 때 촬영·자동 초기화가 습득 화면을 다시 켜지 않게
 let photo = null, photoUrl = '', place = '', timer = null, stream = null, sending = false;
+let photoGeom = null;      // 11/11 잘라 키운 정보 {crop,frame,up} — 관제탑이 물건 크기를 잴 때 되돌림(agents/size_measure.py)
 let step = 1;
 const CATS = ['모형폰','보조배터리','핸드크림','립밤'];     // agents/contracts.py ACTIVE_CATEGORIES(운영 품목) 와 같게(품목 값은 그대로). 11/11 지갑 대신 립밤.
 const CAT_LABEL = {'모형폰': '휴대폰'};                                                   // 11/8 화면 글자만 '휴대폰'. 서버로 보내는 값은 '모형폰' 그대로
@@ -479,9 +492,22 @@ function tab(which) {
   if (lost || ret) { stopCam(); sections.forEach(s => s.classList.remove('on')); }
   else { go(step); if (step === 1) startCam(); }
 }
-$('#tabFound').onclick = () => tab('found');
-$('#tabLost').onclick = () => tab('lost');
-$('#tabRet').onclick = () => tab('ret');
+$('#tabFound').onclick = () => { tab('found'); tellShowcase('kiosk-tab', {tab: 'found'}); };
+$('#tabLost').onclick = () => { tab('lost'); tellShowcase('kiosk-tab', {tab: 'lost'}); };
+$('#tabRet').onclick = () => { tab('ret'); tellShowcase('kiosk-tab', {tab: 'ret'}); };
+// 11/12 발표 화면(/showcase) 안: 키오스크 탭을 누르면 발표 화면 장면도 함께 바뀌고, 발표 화면 장면 단추가 키오스크 탭을 바꾼다.
+//   역 키오스크 회수 탭 → [부산역 본센터 키오스크로 가기], 분실 탭 → [휴대폰 웹으로 신고하기]
+const IN_SHOWCASE = Q.get('in') === 'showcase' && window.parent !== window;
+function tellShowcase(type, more) { if (IN_SHOWCASE) try { window.parent.postMessage(Object.assign({type, machine: Q.get('machine') || 'KIOSK-A'}, more), location.origin); } catch (_) {} }
+if (IN_SHOWCASE) {
+  $('#goWeb').hidden = false; $('#goCenter').hidden = false;
+  $('#goWeb').onclick = () => tellShowcase('showcase-go', {scene: 'lostweb'});
+  $('#goCenter').onclick = () => tellShowcase('showcase-go', {scene: 'pickup'});
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'kiosk-set-tab') return;
+    if (['found', 'lost', 'ret'].includes(e.data.tab) && e.data.tab !== curTab) tab(e.data.tab);
+  });
+}
 // 11/11 분실 접수 탭 = 분실인 웹(/lost)을 틀로. 화면 키보드는 바깥(키오스크) 아래에 뜨고 글자는 틀 안 칸에 들어간다
 let lostKb = null;
 function openLost() {
@@ -494,8 +520,11 @@ function openLost() {
   const st = kiosk === 'CENTER' ? '' : station + '역';
   f.src = '/lost?embed=kiosk' + (st ? '&station=' + encodeURIComponent(st) : '');
 }
+// 11/11 연락처 화면: 이름·전화번호가 모두 비었으면 [보내기]를 끈다(아무것도 안 넣고 보내기 = 건너뛰기와 같아 헷갈림)
+function contactCheck() { $('#send').disabled = sending || !($('#cname').value.trim() || $('#cphone').value.trim()); }
 function go(n) {
   step = n; lastTouch = Date.now();
+  if (n === 3) contactCheck();
   sections.forEach((s, i) => s.classList.toggle('on', curTab === 'found' && i === n - 1));
   dots.forEach((d, i) => d.classList.toggle('on', i < n));
 }
@@ -825,11 +854,13 @@ function capture() {
   } catch (e) { r = null; }
   if (r) {
     const up = Math.max(1, Math.min(3, 720 / Math.max(r.w, r.h)));       // 잘린 사진이 작으면 긴 변 720 까지 키움(최대 3배)
+    photoGeom = {crop: [r.x, r.y, r.w, r.h], frame: [W, H], up: Math.round(r.w * up) / r.w};
     c.width = Math.round(r.w * up); c.height = Math.round(r.h * up);
     const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
     g.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
   } else {
     [c.width, c.height] = [W, H];
+    photoGeom = {crop: null, frame: [W, H], up: 1};
     c.getContext('2d').drawImage(v, 0, 0);
   }
   const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
@@ -884,7 +915,8 @@ const CAM = {openMs: 8000, frameMs: 4000, retryMs: 15000};
 const CAM_CODE = {insecure: '주소 보안 설정(https·localhost 아님) — web/README.md 카메라 설정', denied: '카메라 권한 거부 — 브라우저 사이트 설정에서 허용',
                   nodevice: '카메라 장치 없음 — USB 연결 확인', busy: '다른 프로그램이 카메라 사용 중', timeout: '8초 안에 카메라가 열리지 않음',
                   noframe: '카메라 영상이 들어오지 않음', lost: '카메라 연결이 끊김',
-                  server: 'PC 카메라 연결 안 됨 — 관제탑 .env TOWER_KIOSK_CAMERAS·웹캠 USB 확인(/api/kiosk/cameras)'};
+                  server: 'PC 카메라 연결 안 됨 — 관제탑 .env TOWER_KIOSK_CAMERAS·웹캠 USB 확인(/api/kiosk/cameras)',
+                  serverbusy: 'PC 웹캠 영상 못 받음'};   // 11/12 관제탑이 알려 준 프로그램 이름을 뒤에 붙임
 let camGen = 0, retryTimer = null;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const named = n => Object.assign(new Error(n), {name: n});
@@ -893,15 +925,16 @@ function camKind(e) {
   const n = (e && e.name) || '';
   if (n === 'InsecureError') return 'insecure';
   if (n === 'ServerCamError') return 'server';
+  if (n === 'ServerBusyError') return 'serverbusy';
   if (/NotAllowed|Security|PermissionDenied/.test(n)) return 'denied';
   if (/NotReadable|TrackStart|Abort/.test(n)) return 'busy';
   if (n === 'TimeoutError') return 'timeout';
   if (n === 'NoFrameError') return 'noframe';
   return 'nodevice';                              // NotFoundError·OverconstrainedError·mediaDevices 없음
 }
-function camDown(kind) {
+function camDown(kind, detail) {
   $('.camwrap').classList.add('down'); $('#camDown').hidden = false; $('#cam').hidden = true; $('#camCanvas').hidden = true;
-  $('#camCode').textContent = '점검 코드: ' + (CAM_CODE[kind] || kind);
+  $('#camCode').textContent = '점검 코드: ' + (CAM_CODE[kind] || kind) + (detail ? ' · ' + String(detail).slice(0, 140) : '');
   camChip('down', '카메라 점검 중'); setPhase('down');
   if (kind !== 'insecure' && kind !== 'denied') retryTimer = setTimeout(startCam, CAM.retryMs);
 }
@@ -916,7 +949,8 @@ async function startCam() {
     if (!DEMO && !SERVER_CAM && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw named('NotFoundError');
     const opening = DEMO ? demoOpen() : SERVER_CAM ? serverOpen() : camOpen();
     opening.then(s => { if (gen !== camGen) s.getTracks().forEach(t => t.stop()); }, () => {});   // 늦게 열린 카메라는 바로 끔
-    const s = await Promise.race([opening, wait(CAM.openMs).then(() => { throw named('TimeoutError'); })]);
+    // 11/12 서버 카메라는 관제탑이 8초까지 기다렸다 원인을 알려 주므로 조금 더 기다림(먼저 끊으면 '8초 시간 초과'만 보였음)
+    const s = await Promise.race([opening, wait(SERVER_CAM ? CAM.openMs + 4000 : CAM.openMs).then(() => { throw named('TimeoutError'); })]);
     if (gen !== camGen) return;
     stream = s; const v = $('#cam');
     if (SERVER_CAM) { v.hidden = true; $('#camCanvas').hidden = false; }       // 11/11 사진이 오면 바로 보임(영상 요소·자동 재생에 기대지 않음)
@@ -934,7 +968,7 @@ async function startCam() {
     autoTimer = setInterval(tick, AUTO.every);
   } catch (e) {
     if (gen !== camGen) return;
-    stopCam(); camDown(camKind(e));
+    stopCam(); camDown(camKind(e), e && e.detail);
   }
 }
 function stopCam() {
@@ -952,7 +986,7 @@ function stopCam() {
 //  · 사진마다 번호·나이·어두움이 붙어 와서, 같은 사진은 다시 그리지 않고 '멈춤'(관제탑 카메라 읽기)·'까맘'(렌즈·조명)을 구별한다
 const SRV = {gapMs: 80, staleMs: 3000, downMs: 12000};
 const SRV_STREAM = {getTracks: () => [], getVideoTracks: () => []};
-let srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '';
+let srvRun = 0, srvSeq = -1, srvLast = 0, srvNote = '', srvBusy = '';
 function serverOpen() {
   const machine = encodeURIComponent(Q.get('camsrc') || Q.get('machine') || 'KIOSK-A');   // 11/11 camsrc: 다른 기계의 서버 카메라를 빌려 씀(발표 화면 초량역)
   const run = ++srvRun; srvSeq = -1; srvLast = 0; srvNote = '';
@@ -971,6 +1005,13 @@ function serverOpen() {
           const r = await fetch(`/api/kiosk/camera/${machine}.jpg?after=${srvSeq}&t=${Date.now()}`, {cache: 'no-store'});
           if (run !== srvRun) return;
           if (r.status === 404) { if (!opened) reject(named('ServerCamError')); else serverWarn('down'); return; }
+          if (r.status === 503) {                           // 11/12 관제탑이 원인을 알려 줌 — 웹캠을 다른 프로그램이 잡았으면 바로 점검 화면에 그 이름
+            const detail = await r.json().then(j => String(j.detail || ''), () => '');
+            if (/사용 중|열 수 없음/.test(detail)) {
+              if (!opened) { reject(Object.assign(named('ServerBusyError'), {detail})); return; }
+              srvBusy = detail; serverWarn('down'); return;
+            }
+          }
           if (!r.ok) throw new Error(r.status);
           const seq = Number(r.headers.get('X-Frame-Seq') || 0), age = Number(r.headers.get('X-Frame-Age-Ms') || 0);
           if (seq !== srvSeq) { await draw(await r.blob()); srvSeq = seq; srvLast = Date.now(); }
@@ -992,7 +1033,7 @@ function serverOpen() {
 function serverWarn(kind) {
   if (kind === srvNote) return;
   srvNote = kind;
-  if (kind === 'down') { stopCam(); camDown('server'); return; }
+  if (kind === 'down') { const b = srvBusy; srvBusy = ''; stopCam(); camDown(b ? 'serverbusy' : 'server', b); return; }
   if (kind === 'dark') camChip('find', 'PC 카메라 영상이 까매요 — 렌즈·조명 확인');
   else if (kind === 'stale') camChip('find', 'PC 카메라 다시 연결 중');
   else if ($('#camDown').hidden) camChip('ok', 'PC 카메라 연결됨');
@@ -1169,7 +1210,9 @@ $('#next2').onclick = () => {
 $('#cphone').oninput = e => {
   const d = e.target.value.replace(/\D/g, '').slice(0, 11);
   e.target.value = d.length > 7 ? `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}` : d.length > 3 ? `${d.slice(0,3)}-${d.slice(3)}` : d;
+  contactCheck();
 };
+$('#cname').oninput = contactCheck;
 async function reason(r) {
   try {
     const d = await r.json(); let x = d.detail ?? d.reason ?? d.message;
@@ -1187,6 +1230,7 @@ async function submit(withContact) {
   const buttons = [$('#skip'), $('#send')]; buttons.forEach(b => b.disabled = true);
   $('#err').classList.remove('on');
   const body = {machine_id: kiosk, place_text: place, photo: await blobToDataUrl(photo), client: CLIENT_ID};   // client: 조작 화면 확인용(저장 안 함)
+  if (photoGeom) body.photo_geom = photoGeom;          // 11/11 크기 측정용(숫자만)
   if (withContact) {
     const n = $('#cname').value.trim(), p = $('#cphone').value.trim();
     if (n || p) body.finder = {name: n || null, phone: p || null};
@@ -1200,7 +1244,7 @@ async function submit(withContact) {
   } catch (e) {
     $('#err').textContent = e instanceof TypeError ? BUSY_MSG : e.message;
     $('#err').classList.add('on');
-  } finally { sending = false; buttons.forEach(b => b.disabled = false); }
+  } finally { sending = false; $('#skip').disabled = false; contactCheck(); }
 }
 $('#skip').onclick = () => submit(false);
 $('#send').onclick = () => submit(true);
@@ -1214,7 +1258,7 @@ $('#undo').onclick = async () => {
   try {
     const r = await fetch(API + '/api/kiosk/items/' + encodeURIComponent(doneNo) + '/cancel',
       {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({client: CLIENT_ID})});
-    if (r.ok) { $('#rno').textContent = '접수를 취소했어요'; b.textContent = '취소됨'; setTimeout(reset, 1800); return; }
+    if (r.ok) { $('#doneTitle').textContent = '접수를 취소했어요'; $('#doneSub').textContent = '물건을 다시 놓고 처음부터 찍어 주세요'; b.textContent = '취소됨'; setTimeout(reset, 1800); return; }
     let d = {}; try { d = await r.json(); } catch (e) {}
     $('#undoErr').textContent = typeof d.detail === 'string' ? d.detail : '취소하지 못했어요. 역무실에 알려 주세요.';
   } catch (e) { $('#undoErr').textContent = BUSY_MSG; }
@@ -1223,6 +1267,7 @@ $('#undo').onclick = async () => {
 function done(no) {
   doneNo = no; undoReset();
   $('#rno').textContent = no;
+  $('#doneTitle').textContent = '접수됐어요. 고맙습니다!'; $('#doneSub').textContent = '주인이 빨리 찾을 수 있게 저희가 잘 보관할게요';
   $('#cname').value = ''; $('#cphone').value = '';
   go(4); let n = RESET_SEC; $('#count').textContent = n;
   const bar = $('#homeBar'); bar.style.transition = 'none'; bar.style.width = '100%'; void bar.offsetWidth; bar.style.transition = '';

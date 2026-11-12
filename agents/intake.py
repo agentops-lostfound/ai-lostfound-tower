@@ -144,6 +144,31 @@ def save_photo(raw: bytes, ext: str, machine_id: str, root: Path | None = None) 
     return rel, path
 
 
+def parse_geom(g: object) -> dict | None:
+    """11/11 키오스크가 사진을 잘라 키운 정보 {"crop": [x,y,w,h], "frame": [W,H], "up": 1~3} → 검사한 값 또는 None(크기 측정용,
+    agents/size_measure.py). 틀린 모양이면 접수를 막지 않고 버린다(크기를 못 잴 뿐)"""
+    if not isinstance(g, dict) or set(g) - {"crop", "frame", "up"}:
+        return None
+    def nums(v, n):
+        return isinstance(v, list) and len(v) == n and all(isinstance(x, (int, float)) and not isinstance(x, bool) and 0 <= x <= 10000 for x in v)
+    up = g.get("up", 1)
+    if not nums(g.get("frame"), 2) or min(g["frame"]) <= 0 or isinstance(up, bool) or not isinstance(up, (int, float)) or not 0.1 <= up <= 4:
+        return None
+    if g.get("crop") is not None and not nums(g.get("crop"), 4):
+        return None
+    return {"crop": [round(x) for x in g["crop"]] if g.get("crop") else None, "frame": [round(x) for x in g["frame"]], "up": round(float(up), 4)}
+
+
+def save_geom(photo_file: Path, geom: dict | None) -> Path | None:
+    """사진 옆에 자르기 정보(.json) — 같은 이름, 확장자만 .json. 개인정보 없음(숫자만)"""
+    if not geom or photo_file is None:
+        return None
+    import json
+    p = Path(photo_file).with_suffix(".json")
+    p.write_text(json.dumps(geom), encoding="utf-8")
+    return p
+
+
 def receipt(row: dict) -> dict:
     """습득자 화면에 돌려줄 값(접수 번호·시각·장소). 연락처는 저장 여부만."""
     return {"item_id": row["item_id"], "received_at": row["received_at"], "status": row["status"],
@@ -160,14 +185,24 @@ def split_features(feats: dict) -> tuple[str, dict, dict]:
 
 
 def parse_features(payload: object) -> dict:
-    """Qwen 결과 → 계약 특징. 본문: {"qwen": general_items_v1 특징, "confidence": 0~1(선택)}"""
+    """Qwen 결과 → 계약 특징. 본문: {"qwen": general_items_v1 특징, "confidence": 0~1(선택), "color_measure": 색 측정 요약(선택)}
+    11/11 color_measure(agents/color_measure.py, Qwen 작업자가 같은 사진을 숫자로 잼)가 '확실'이면 색만 그 값으로 바꾼다
+    11/11 size_measure(agents/size_measure.py, 같은 사진의 길이·폭)가 Qwen 품목과 확실히 다르면 품목만 바꾼다"""
+    from agents.color_measure import apply_to_features
     from agents.vision_adapter import to_features
-    if not isinstance(payload, dict) or set(payload) - {"qwen", "confidence"} or not isinstance(payload.get("qwen"), dict):
-        raise IntakeError('본문: {"qwen": {...Qwen 특징...}, "confidence": 0~1}')
+    from agents.size_measure import apply_to_features as apply_size
+    if not isinstance(payload, dict) or set(payload) - {"qwen", "confidence", "color_measure", "size_measure"} or not isinstance(payload.get("qwen"), dict):
+        raise IntakeError('본문: {"qwen": {...Qwen 특징...}, "confidence": 0~1, "color_measure": {...}(선택), "size_measure": {...}(선택)}')
     conf = payload.get("confidence", 0.9)
     if isinstance(conf, bool) or not isinstance(conf, (int, float)):
         raise IntakeError("confidence: 0~1 숫자")
-    return to_features(payload["qwen"], conf)
+    cm = payload.get("color_measure")
+    if cm is not None and not isinstance(cm, dict):
+        raise IntakeError("color_measure: 객체여야 합니다")
+    sm = payload.get("size_measure")             # 11/11 크기 측정: 크기가 Qwen 품목과 확실히 다르면 품목만 바꿈
+    if sm is not None and not isinstance(sm, dict):
+        raise IntakeError("size_measure: 객체여야 합니다")
+    return apply_size(apply_to_features(to_features(payload["qwen"], conf), cm), sm)
 
 
 class IntakeStore(Protocol):
