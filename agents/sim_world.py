@@ -226,7 +226,19 @@ SEED_FULL = [
 # 11/11 사용자 결정: 실물 시연이 기본이 되어 **처음에는 보관함을 비워 둔다**(관제탑 TOWER_SIM_SEED 비움 = none).
 #   더미 분홍 핸드크림이 R3-1 을 차지해 새 크림이 R3-2 로 가고, 켤 때마다 다시 생겼다.
 #   분홍 핸드크림 하나는 TOWER_SIM_SEED=cream(챗봇 채점표·찾기 연습용), 예전 5개는 full. "default" 는 SimWorld 를 직접 만드는 시험용(=cream)
-SEED_SETS = {"default": SEED_ITEMS, "cream": SEED_ITEMS, "full": SEED_FULL, "none": []}
+# 11/12 실물 보관함 배치 그대로 8칸(통합 화면 [📦 보관함 채우기], /sim/reset {"seed": "layout"}) — 넣는 순서가 곧 칸(-1 → -2):
+#   R1 휴대폰 검정·흰 · R2 보조배터리 흰·검정 · R3 핸드크림 분홍·파랑 · R4 립밤 빨강·파랑(R4-2 파란 립밤, 사용자 추가)
+SEED_LAYOUT = [
+    ("목업폰 블랙", "검정 모형폰", "KIOSK-A", "중앙역 승강장"),              # → R1-1
+    ("목업폰 화이트", "화이트 모형폰", "KIOSK-C", "초량역 개찰구"),          # → R1-2
+    ("보조배터리 흰색", "흰색 보조배터리", "KIOSK-A", "중앙역 대합실"),       # → R2-1
+    ("보조배터리 검정", "검정 보조배터리", "KIOSK-C", "초량역 승강장"),       # → R2-2
+    ("핸드크림 핑크", "분홍 핸드크림", "KIOSK-A", "중앙역 승강장"),           # → R3-1
+    ("핸드크림 블루", "파란 핸드크림", "KIOSK-C", "초량역 대합실"),           # → R3-2
+    ("립밤 바세린 레드", "빨간 립밤", "KIOSK-A", "중앙역 개찰구"),            # → R4-1
+    ("립밤 바세린 블루", "파란 립밤", "KIOSK-C", "초량역 승강장"),            # → R4-2
+]
+SEED_SETS = {"default": SEED_ITEMS, "cream": SEED_ITEMS, "full": SEED_FULL, "layout": SEED_LAYOUT, "none": []}
 
 
 # ---------- SO-101 로봇팔 관절(11/4, docs/progress/soarm-local-handoff.md 와 같은 번호) ----------

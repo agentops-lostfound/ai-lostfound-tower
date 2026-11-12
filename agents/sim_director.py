@@ -1099,7 +1099,7 @@ class SimDirector:
                 self.board.finish(sid, f"반환 보류 — 교차 검증 불일치({result.get('reason') or '확인 필요'})", False)
             return
 
-    def reset(self, startup: bool = False, force_real: bool = False) -> dict:
+    def reset(self, startup: bool = False, force_real: bool = False, seed: str | None = None) -> dict:
         """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
         11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
         # startup=True: 관제탑이 켜질 때 팀 DB 와 번호를 맞추려고 처음 물건을 다시 채우는 것(agents/db_mirror.py) — 아직 아무 일도
@@ -1136,7 +1136,14 @@ class SimDirector:
                 w.wait_queue.clear()
                 w.arm.update(x=w.arm["x"], phase="대기", holding=None, stopped=False, target=None)
                 w.faults.update(grasp_fail=0, calib_fail=False, blur=False)
-                w.seed()
+                # 11/12 seed="layout": 이번 한 번만 실물 보관함 배치 8칸으로 채움([처음으로]는 늘 설정값 — 기본 빈 보관함)
+                keep = w.seed_set
+                if seed:
+                    w.seed_set = seed
+                try:
+                    w.seed()
+                finally:
+                    w.seed_set = keep
             finally:
                 w.on_bin, w.reserved = hooks
         SimRobot(w).robot_home()
@@ -1149,7 +1156,8 @@ class SimDirector:
                 sid = w.slot_id_of(r["item_id"])
                 if sid:
                     w.on_bin(r["item_id"], sid)
-        self.rep.progress("SIM", "가상 세계 초기화", f"보관함 시연 물건 {len(w.items)}개 · 로봇 원점")
+        self.rep.progress("SIM", "보관함 채우기(실물 배치)" if seed == "layout" else "가상 세계 초기화",
+                          f"보관함 시연 물건 {len(w.items)}개 · 로봇 원점(화면)")
         return w.snapshot()
 
 

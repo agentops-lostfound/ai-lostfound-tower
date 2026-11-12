@@ -1013,7 +1013,10 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         if svc.health()["busy"]:
             raise HTTPException(status_code=409, detail={"kind": "busy", "message": "반환 진행 중 — 끝난 뒤 초기화"})
         force = bool(isinstance(payload, dict) and payload.get("force_real") is True)
-        return _sim_call(lambda: d.reset(force_real=force))
+        seed = payload.get("seed") if isinstance(payload, dict) else None    # 11/12 "layout" = 실물 보관함 배치 8칸으로 채움
+        if seed is not None and seed not in ("layout", "none", "cream", "full"):
+            raise HTTPException(status_code=422, detail="seed: layout·none·cream·full 중 하나")
+        return _sim_call(lambda: d.reset(force_real=force, seed=seed))
 
     @app.get("/returns", dependencies=admin)
     @app.get("/api/admin/returns", dependencies=admin)
