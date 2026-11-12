@@ -1,0 +1,8 @@
+[
+  {"no": 1001, "group": "취소 시작", "turns": [{"say": "찾기 요청 취소하고 싶어요", "expect": {"path_has": ["intake"], "any": ["찾기 번호"], "not": ["어떤 물건인가요", "취소가 완료"]}}]},
+  {"no": 1002, "group": "취소 방법과 실행 구분", "turns": [{"say": "예약 취소는 어떻게 해요?", "expect": {"path_has": ["researcher"], "path_not": ["intake"], "any": ["취소"], "not": ["취소가 완료"]}}]},
+  {"no": 1003, "group": "무인 수령 안내", "turns": [{"say": "본센터에서 물건은 직원한테 받나요?", "expect": {"path_has": ["researcher"], "path_not": ["intake"], "any": ["제출보관함", "직접", "물건 받았어요"], "not": ["직원이 건네줍니다"]}}]},
+  {"no": 1004, "group": "수령 확인 버튼 안내", "turns": [{"say": "물건 받았어요 버튼은 언제 눌러요?", "expect": {"path_has": ["researcher"], "path_not": ["intake"], "any": ["꺼내", "꺼낸", "받은", "수령", "제출보관함"], "not": ["바로 답할 내용은 찾지 못"]}}]},
+  {"no": 1005, "group": "열차 안 분실과 역 모름", "turns": [{"say": "분실 접수하기", "expect": {"path_has": ["intake"]}}, {"say": "휴대폰", "expect": {"path_has": ["intake"]}}, {"say": "검정", "expect": {"choices_any": ["부산역", "모름"]}}, {"say": "열차 안", "expect": {"choices_any": ["오늘", "어제"], "not": ["모름역"]}}]},
+  {"no": 1006, "group": "핸드크림 색 선택지", "turns": [{"say": "습득 신고하기", "expect": {"path_has": ["intake"]}}, {"say": "핸드크림", "expect": {"choices_any": ["분홍", "초록"]}}]}
+]

@@ -1,0 +1,117 @@
+{
+  "kind": "same_responses_rubric_review_not_new_model_run",
+  "reviews": [
+    {
+      "original_report": "docs/reports/2026-11-10-midm-guidance-before-rubric.json",
+      "original_report_sha256": "f8ee2ca04d9cc79f9cbdbd7ff9e28bed369f10978778e4be232a0b3aebd5ef39",
+      "review_questions": "evaluation/chat_eval_500.json",
+      "review_questions_sha256": "b62da021452a65ab86da5f954d0edec55052917fe494cc2aad02340153f1baec",
+      "original_total": 3,
+      "review_total": 5,
+      "total": 5,
+      "results": [
+        {
+          "no": 31,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 68,
+          "original_score": 0,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 105,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 138,
+          "original_score": 0,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 146,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        }
+      ]
+    },
+    {
+      "original_report": "docs/reports/2026-11-10-midm-guidance-novel.json",
+      "original_report_sha256": "da0b0586030c24b32133832d079da55d3dad48f26b310b6508d19490e48b4fa0",
+      "review_questions": "evaluation/chat_guidance_quality_cases.json",
+      "review_questions_sha256": "85a9f12463d63a1196b4ad243d8582f874c9baa4a7507c33ef159327589b7e6a",
+      "original_total": 9,
+      "review_total": 10,
+      "total": 10,
+      "results": [
+        {
+          "no": 1,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 2,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 3,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 4,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 5,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 6,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 7,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 8,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 9,
+          "original_score": 0,
+          "review_score": 1,
+          "why": []
+        },
+        {
+          "no": 10,
+          "original_score": 1,
+          "review_score": 1,
+          "why": []
+        }
+      ]
+    }
+  ]
+}

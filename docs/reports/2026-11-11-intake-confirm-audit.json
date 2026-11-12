@@ -1,0 +1,8 @@
+{
+  "data": "synthetic_only",
+  "old_draft": 3,
+  "new_draft": 4,
+  "same_plain_confirmation_payload_committed": true,
+  "write_calls": 1,
+  "limitation": "확인 요청에 사용자가 본 초안 버전이 없어 이전 버튼과 새 버튼의 동일한 문구를 서버가 구별할 수 없음"
+}

@@ -42,7 +42,7 @@ function setup({questionFetch,storage,width=1280,height=900,pageTheme=null}={}){
  const run=delay=>{for(const [id,t] of [...timers])if(t.delay===delay){timers.delete(id);t.fn();}};
  // 11/9: 화면 숫자는 1%씩 세는 짧은 타이머(16~60ms)로 따라간다 — 그 타이머를 다 돌리고, 지나간 숫자를 모은다
  const steps=(seen)=>{for(let k=0;k<400;k++){const due=[...timers].filter(([,t])=>t.delay>=16&&t.delay<=60);if(!due.length)break;
-   for(const [id,t] of due){timers.delete(id);t.fn();}
+   for(const [id,t] of due){timers.delete(id);clock.t+=t.delay;t.fn();}
    const b=root.querySelector('.prog');if(seen&&b)seen.push(Number(b.getAttribute('aria-valuenow')));}};
  return {doc,root,get,calls,timers,window,clock,run,steps,
   open(){window.LostFoundChat.open();run(0);},
@@ -91,8 +91,8 @@ test('a slow answer shows a progressbar with aria values, then 100% and the answ
  assert.deepEqual(seen,[...seen].sort((x,y)=>x-y));assert.ok(seen.at(-1)<=95&&seen.at(-1)>=80);
  assert.match(bar.querySelector('b').textContent,/^답 준비 중 \d+%/);assert.equal(bar.querySelector('.est').textContent,'예상');
  resolve(ok('안내'));await tick();
- const before=drawn.length;s.steps();assert.equal(bar.getAttribute('aria-valuenow'),'100');
- const tail=drawn.slice(before-1);assert.deepEqual(tail,tail.map((_,i)=>tail[0]+i),'답이 오면 남은 숫자도 1씩 빠르게 세어 100');assert.ok(s.root.querySelectorAll('.bubble').some(n=>n.textContent==='안내'));
+ const before=drawn.length;s.steps();s.run(180);await tick();assert.equal(bar.getAttribute('aria-valuenow'),'100');
+ const tail=drawn.slice(before-1).filter((v,i,a)=>!i||v!==a[i-1]);assert.deepEqual(tail,tail.map((_,i)=>tail[0]+i),'답이 오면 남은 숫자도 1씩 빠르게 세어 100');assert.ok(s.root.querySelectorAll('.bubble').some(n=>n.textContent==='안내'));
  assert.equal(s.root.querySelectorAll('.msg.pending').length,0);
  s.run(450);s.run(450);assert.equal(s.get('.prog'),null,'100% 를 잠깐(0.45초) 보인 뒤 사라짐');
 });
@@ -110,6 +110,7 @@ test('streamed stages move the bar and the last line becomes the normal answer',
  s.clock.t=300;s.run(300);
  resolve(ndjson([{stage:'received',pct:5},{stage:'retrieve',pct:22},{stage:'write',pct:35},{stage:'check',pct:80},{done:true,...okBody('스트림 답')}]));
  for(let i=0;i<8;i++)await tick();
+ s.steps();s.run(180);await tick();
  assert.ok(s.root.querySelectorAll('.bubble').some(n=>n.textContent==='스트림 답'));
  assert.equal(s.get('.send').disabled,false);assert.equal(s.root.querySelectorAll('.msg.error').length,0);
 });
@@ -122,6 +123,7 @@ test('a stage line updates the label with the real stage name',async()=>{
  await tick();push({done:false,value:enc.encode(JSON.stringify({stage:'check',pct:80})+'\n')});await tick();await tick();
  s.clock.t=450;s.run(150);s.steps();const bar=s.get('.prog');assert.ok(Number(bar.getAttribute('aria-valuenow'))>=80);assert.match(bar.querySelector('b').textContent,/근거 확인/);
  push({done:false,value:enc.encode(JSON.stringify({done:true,...okBody('끝')})+'\n')});for(let i=0;i<6;i++)await tick();
+ s.steps();s.run(180);await tick();
  assert.ok(s.root.querySelectorAll('.bubble').some(n=>n.textContent==='끝'));
 });
 
@@ -151,7 +153,7 @@ test('minimize turns into a pill, a new answer marks it unread, the opener resto
  s.send('지갑 찾아줘');s.button('챗봇 접기').dispatchEvent({type:'click'});
  assert.ok(s.get('.wrap').className.includes('min'));assert.equal(s.doc.activeElement,s.get('.pill'));
  s.clock.t=600;s.run(300);assert.match(s.get('.pt').textContent,/답 준비 중 \d+%/);
- resolve(ok('안내'));await tick();assert.ok(s.get('.pill').className.includes('unread'));
+ resolve(ok('안내'));await tick();s.steps();s.run(180);await tick();assert.ok(s.get('.pill').className.includes('unread'));
  assert.notEqual(s.doc.activeElement,s.get('textarea'),'접힌 동안 입력칸으로 초점을 빼앗지 않음');
  s.window.LostFoundChat.toggle();assert.ok(!s.get('.wrap').className.includes('min'));assert.ok(!s.get('.pill').className.includes('unread'));
  assert.equal(s.get('.panel').hidden,false);

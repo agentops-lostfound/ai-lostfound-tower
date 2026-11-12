@@ -1,0 +1,12 @@
+[
+  {"no": 1, "group": "안내와 검색 구분", "turns": [{"say": "지갑 안에 면허증이 들어 있어서 없어요", "expect": {"path_has": ["researcher"], "path_not": ["item_search", "intake"], "any": ["신분증", "면허"]}}]},
+  {"no": 2, "group": "안내와 검색 구분", "turns": [{"say": "지갑 받을 때 필요한 신분증은 뭐예요?", "expect": {"path_has": ["researcher"], "path_not": ["item_search", "intake"], "any": ["신분증", "여권"]}}]},
+  {"no": 3, "group": "안내와 검색 구분", "turns": [{"say": "휴대폰은 상자에 어떻게 놓아요?", "expect": {"path_has": ["researcher"], "path_not": ["item_search", "intake"], "any": ["뒷면", "케이스", "상자"]}}]},
+  {"no": 4, "group": "명시적 복합 요청", "turns": [{"say": "검정 지갑 찾아줘 그리고 받을 때 필요한 신분증도 알려줘", "expect": {"path_has": ["researcher", "item_search"], "path_not": ["intake"], "all": ["신분증"]}}]},
+  {"no": 5, "group": "첫 이용 안내", "turns": [{"say": "처음 이용하는데 무엇부터 시작하면 돼요?", "expect": {"path_has": ["researcher"], "path_not": ["intake"], "any": ["후보", "검색", "분실 신고"]}}]},
+  {"no": 6, "group": "번호 메모 미확정", "turns": [{"say": "찾기번호 메모는 어느 앱에 해야 해요?", "expect": {"status": ["policy_pending", "partial"], "any": ["보관·메모 방법"], "not": ["메모장 앱", "카카오톡에", "로봇팔이 물건을 꺼내"]}}]},
+  {"no": 7, "group": "번호 메모 미확정", "turns": [{"say": "찾기 번호를 캡처해도 돼요?", "expect": {"status": ["policy_pending", "partial"], "any": ["보관·메모 방법"], "not": ["캡처하면 됩니다"]}}]},
+  {"no": 8, "group": "번호 사용과 메모 구분", "turns": [{"say": "찾기 번호는 어디에 입력해요?", "expect": {"any": ["키오스크", "본센터"], "not": ["보관·메모 방법"]}}]},
+  {"no": 9, "group": "연락처 선택", "turns": [{"say": "주운 사람 연락처도 남겨야 하나요?", "expect": {"any": ["남기지 않아도", "선택", "필수가 아닙", "필수는 아닙", "필수는 아니", "필수가 아니"], "not": ["반드시 남겨야", "꼭 남겨야"]}}]},
+  {"no": 10, "group": "접수 확인 절차", "turns": [{"say": "챗봇으로도 분실 접수가 되나요?", "expect": {"any": ["접수할게요", "확인한 뒤", "확인 후"], "path_not": ["intake"]}}]}
+]

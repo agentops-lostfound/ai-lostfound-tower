@@ -1,0 +1,53 @@
+{
+ "state": "verified",
+ "source_commit": "f25f894e4cfbb39c1f1c50471d13ed9af9d26fe5",
+ "unique_questions": 500,
+ "semantic_questions_sha256": "5c26815a75144f4d100c32429dfba1856d02e38fd6a122a13a8560983d3cd839",
+ "unchanged_source_files": 67,
+ "source_mismatches": [],
+ "same_source_for_final_rules_and_model": true,
+ "fixture_preconditions_checked": {
+  "before": 500,
+  "after": 500
+ },
+ "valid_json_artifacts": 16,
+ "baseline_auto": {
+  "passed": 359,
+  "total": 500,
+  "model_calls": 2597,
+  "model_errors": 0,
+  "seconds": 1511.42
+ },
+ "baseline_reviewed_passed": 364,
+ "final_model": {
+  "passed": 500,
+  "total": 500,
+  "model_calls": 1693,
+  "model_errors": 1,
+  "seconds": 759.79
+ },
+ "final_rules": {
+  "passed": 500,
+  "total": 500,
+  "model_calls": 0,
+  "model_errors": 0,
+  "seconds": 15.29
+ },
+ "improved_cases": 136,
+ "regressions": [],
+ "unauthorized_writes": [],
+ "authorized_question_writes": [
+  316,
+  317
+ ],
+ "setup_http_requests": 236,
+ "model_digest_unchanged": "ff63fe102a7c9d4865526fb467aa4ab25e208d2c0c5a8bdfeae925ece4557a26",
+ "approved_corpus_canonical_sha256": "325a662ab569d09230e3c3f0eb5bcaed94480f19aec53551d805ff1ab396ea7a",
+ "model_request_error": {
+  "count": 1,
+  "question": 398,
+  "question_passed_with_fallback": true,
+  "exception_type_recorded": false
+ },
+ "operational_db_auth_hardware_cloud_tested": false
+}

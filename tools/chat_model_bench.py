@@ -75,7 +75,7 @@ def run_model(model: str, cases: list[dict], request=None, warmup: bool = True, 
         status = res.get("generation_status", "not_needed")
         gen[status] += 1
         if status not in ("not_needed", "model_not_configured", "rejected", "fixed_policy_text", "fixed_rule_text",   # 시연 운영 기준은 모델을 안 부름
-                          "guided_question", "off_topic", "retrieval_clarification"):          # 11/6 규칙 되묻기·주제 밖도 모델 안 부름
+                          "guided_question", "off_topic", "retrieval_clarification", "conversation_clarification"):  # 규칙 되묻기는 모델 호출 아님
             called_ms.append(ms)                 # 모델을 실제로 부른 질문
         answers.append({"question": case["question"], "answer": res.get("answer", ""),
                         "generated": status in ("generated", "generated_clarification")})

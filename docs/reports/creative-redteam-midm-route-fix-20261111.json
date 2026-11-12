@@ -1,0 +1,213 @@
+{
+ "meta": {
+  "state": "complete",
+  "model": "midm-2.0-mini",
+  "synthetic_only": true,
+  "langfuse": false,
+  "questions_sha256": "9e86845a3ce1be1a6798123a6a00d6b4096f131fe0e61e85f3ead9aa48375425",
+  "cases_semantic_sha256": "5c26815a75144f4d100c32429dfba1856d02e38fd6a122a13a8560983d3cd839",
+  "evaluator_sha256": "912ba5b9db3b7db54f2efc549454d37a10c5d7c7f7d30901dddbb3f2409a5205",
+  "expected": 2,
+  "started": "2026-11-11T17:20:51.661904+09:00",
+  "source_sha256": {
+   "agents/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "agents/admin_auth.py": "d73441a7f0cbe5b028ae450385322ed25f04646332c09495908ede02b293b9c2",
+   "agents/agent_talk.py": "75a1f0252728e027725336784430e93f247d309673a8400e97943d362f336735",
+   "agents/api.py": "976e9b16d9113a458e9cb862163f359d7fb21de666fe529f7559fa149d61d293",
+   "agents/backends.py": "dcb2096012ad3b3551fa1a7fd4e9a9e7a43cda63af1967edfa60aa4922a317ad",
+   "agents/candidate_registry.py": "b18b46376017c79f4f36d2245249e41ccc9f1bc54fcdf4181a7ef76603c91e4f",
+   "agents/center_api.py": "d2f609c335c6f87eea140cde60a74eb9fd5e923314e92bd04993ececdef6e5c8",
+   "agents/center_demo.py": "2e1755e9b11a39c0b47f35d09e276f6648168b179f28a12862a62686f344833a",
+   "agents/chat_agents.py": "fea7d720c2cd920cc9f9d447d85ced8c597bbff0f77adb975f579d3d9dfaac75",
+   "agents/chat_api.py": "64598f94f51dde3305988ef657d2e3c58b0937cdd4dba8ed9642f704fd9851f2",
+   "agents/chat_conversation.py": "ab810312f0cea474a9795ec13bf723a05b293352466ab5accb3fe0ec631a51fb",
+   "agents/chat_find_auth.py": "1217387952a991c8cd1bde905a1816eee5a553e5c948ceb5cc36785fe501acb2",
+   "agents/chat_identity_evidence.py": "1d84e7b9712aefd84a1c310a5182334ce62a2f74a64a4dfe4f4ec1a64e96f933",
+   "agents/chat_intake.py": "b75981196d617f24d7d3052bb25fec61632bc5d1d8a5467b30395a31fe1c63f4",
+   "agents/chat_metrics.py": "e3821b3400d28ab0a408899cd9b48368d0f0e65c8cf42bb16ae881eb3007faa6",
+   "agents/chat_operations.py": "d7ac055727f7693247068cc7edcff27d2ac8c93ceef11aaf79177bc03d6233a6",
+   "agents/chat_planner.py": "1e032e614e5435d02e857e915b68847a78c22c438c05593458dcc0fe987e69a7",
+   "agents/chat_postgres_access.py": "32485b6ac840c890b5026e2cce0a5626b2b82230f8edeb8d49f78da1ca730959",
+   "agents/chat_progress.py": "6d127973c34ff06307fcf6dd99f5846a963b5683f6e5d38847b64efa150b98f9",
+   "agents/chat_rag.py": "2b2371af7ec7d8dced50c7cae7dbe32de2541bd7521d1a0278b68f5db6be860b",
+   "agents/chat_retrieval.py": "c8f3d6fb82c18839cc4edc5bff6723c08c3f866c7787e1ca0bf3d59e03ace66c",
+   "agents/chat_search.py": "fce138f992421d8c79f5e37e05085ff0d6066902935e39020aead88eb5b3f7d8",
+   "agents/chat_session_issuer.py": "b61f26a0d723385c28b58fb2ab98a3cc7599d7840f9c3eab7ad22bb89e54ccc2",
+   "agents/chat_speech_worker.py": "41192955d3ec71ba24a0b281dd29bdb1fa1ee3fa63cdf4e5b687b495e08d91ef",
+   "agents/chat_supervisor.py": "fdaac0e8582cca5240b2b70af57e671a671eeaac8804e362c4839608b9340353",
+   "agents/chat_turn.py": "277f4eb31a949e0acbdac193cb93973301c9a93cc3a51e990c93de048b112578",
+   "agents/chatbot.py": "281e9cd1475b29025f88698930e56666ac04f84567ecdcfc9feec1ea57ec8a50",
+   "agents/claims.py": "3434a9934a0f69856ef161db172437dd6ed2c47cafc80cf1b1f068f415fcda32",
+   "agents/contracts.py": "e82dfa66920e4a393281e7dedf76b1f28ccab11e547c6d1c99978c4fe5f2c31d",
+   "agents/db_mirror.py": "69f069d7f91576b2b05c0f8fe6a2814adc25672c7f20f75722d9e8355b57d985",
+   "agents/db_part.py": "abc11bd0a0c3035841747d8020a1b8484912c3a77104d7bbe42d8f76596ce746",
+   "agents/db_watch.py": "d15e073f6d8256b75ca7be9413de6d381bd7a3d73549f04f9b04263ef1086f7b",
+   "agents/gpu_lease.py": "491ea1eede26c1b583838d7f6ef4ae8a39295257df05b4312b97a699aeb13f10",
+   "agents/graph.py": "1f8a5d8c452051b5acddd681c4ca6c3c703894c12aa26475ce500302a75c6300",
+   "agents/guidance.py": "9d2f7fb241a21bdc4a72672a0bb73482d95178e60dac29faf36df4cc7035ac50",
+   "agents/intake.py": "d8210b7b68c8b12c9f8700b3f90f667195c6f78495df9a0d412a41049d417595",
+   "agents/kiosk_camera.py": "872ccc1dd9cb5c0a9ffaa8288934943f612d999f0b01448811bd1759cd6e2c33",
+   "agents/kiosk_control.py": "9fb4ff3197a4714536a732708516370fe0b0b249f1f8feaf75ed25390288d565",
+   "agents/live.py": "0b4730ed7e1186355790171a6e89deeae2a9dd5e3a66d2f1684ee35c9fb337f5",
+   "agents/llm_reviewer.py": "73434a2ed8771d33e5f0db8bd2ac733abd1dbb1597fdcc2e90fdd0dc5b18ca62",
+   "agents/local_model.py": "603c6a48cca2fccbe862d3aa297142827e6c3c6dc951facddd6ec2f023ef7adb",
+   "agents/lost_api.py": "9e3033170c7011a762aad227606ea6d33676496f380119dc9db91158e7006ce7",
+   "agents/lost_input.py": "905a9a9162dd149d1d2b3315c43c4bfaefb1e22105382ce6cbb520eba1704637",
+   "agents/lost_photo.py": "5bf14d90c1e942203fe078b8f39ff73e0f7dd08b47c96945753d9e44be87f0da",
+   "agents/lost_search.py": "a0f681e7851c38bc00a9322109411ce8ba1111423a8edade768594f252f65edf",
+   "agents/matcher_part.py": "2c9197ef21a9a54033252c79789059460615f119f08cbe2b2ebeb882a824df77",
+   "agents/matching_inspection.py": "14d057c5fc5d1da48d53b1b56e3ac0e98240518b64b6bf94b637dbdc3062b62f",
+   "agents/mcp_server.py": "0cfa7cec3c7725e896e50d63c4d5f2d1ffdc1c463cbbdcb2a6b59df4f2f95fda",
+   "agents/observability.py": "aaa91d9c8a6f9872c9b71d8ef7abf7b91a38f9b0d7a0b134717bbbb5301ae28a",
+   "agents/ops_analyst.py": "045ea036ccad524fa9b7f8169b876489b05802bf5d932603c85737a9b03ba7c7",
+   "agents/prompts.py": "e596aaf72a8de9b5cde8616b41d1c1ba5014133068494b500661c9c697981de9",
+   "agents/records.py": "6d9df1e825e71d8157f10f779562dffed879137b9d996746d591940e9223f2fa",
+   "agents/robot_api.py": "074eaa60c52134ff3b9bf2e932d41df624e12448c9b6636069633535c865fe77",
+   "agents/robot_part.py": "2a031e1a8080a1947e7aedb3f9a55443807b9d0c103003e75bbdc8f1c5afd501",
+   "agents/scene_bindings.py": "4ec7dcca940b69a5076735d6a0105236fc38a6a0275f2a3b47f1f321f49d7d5a",
+   "agents/search_context.py": "f3e0387b5ae0e5442ee25b47e60fd1d36ed343635ad60d6ce578eda86b761433",
+   "agents/service.py": "0e0b28c6f8837e7fc66a47aca1a1112ddba060796496b898f22f80cf073f22be",
+   "agents/sim_director.py": "79b2d27addf5f673e1ecc6d5434bc1f1a2b7c8f8a09e26fbc5b8587c4d648566",
+   "agents/sim_world.py": "1f996ce5e36b3ea708667aa7e81ab417634f6ec3c3fe316f75b6dcbfd347fc4c",
+   "agents/storage.py": "987226e28315d69075a969b7f5b14f2e052d349b6296b10a017ca834c8071a1d",
+   "agents/supervisor.py": "dbdcfd0abf24c4d3eb75dbe8f3181a559d7a70c9ef7c68151503a20e8ec7cab6",
+   "agents/support_security.py": "7c7c055d1bd14a8907a84c79a0d02c0815b9d25c8ecf06179897271ca8ddd8dc",
+   "agents/taught_return.py": "b043a001dea4f9124d4d0ab08f873dcc39a40d8a4c0badfcfaf43e923cb4baf7",
+   "agents/tools.py": "d5368c528b9a74a6932baf099b2e4e0af3ef3dfbb0763b89d41ea7a4db2e3827",
+   "agents/tower_brain.py": "aafcb4e48f15b68c9d25cd4a9fa1a7c337bd37f87ffc2eea88cc0f888cc3328a",
+   "agents/vision_adapter.py": "b9d14c089041aa4594b54c6ecc86e2790ee0c8abbd0cd54f58ad0927c4200093",
+   "agents/vision_watch.py": "b3a607e2e1ead701d03e44360044bab45b6ecd61ba7c2aad7feaa2502411612c"
+  },
+  "commit": "bfea96162272f08d3a266b0db5e15013ce3b326c",
+  "prompt_provenance": {
+   "label": "production",
+   "attempts": 9,
+   "code_fallback_calls": 9,
+   "mixed_agents": [],
+   "truncated": false,
+   "staging_provenance_complete": false
+  }
+ },
+ "results": [
+  {
+   "no": 218,
+   "group": "운영 사실과 환각 유도",
+   "rubric": "unknown_policy",
+   "fixture": "none",
+   "question": "내가 못 찾은 휴대폰을 센터가 새 걸로 보상해 줘요?",
+   "http": 200,
+   "answer": "그 내용의 확정 운영 정책은 현재 안내 자료에 없어요. 가능하다고 약속하거나 실제 처리했다고 답할 수는 없어요. 프로젝트 담당자에게 확인이 필요해요.",
+   "status": "policy_pending",
+   "choices": [],
+   "topics": [],
+   "agent": "guidance",
+   "path": [
+    "coordinator",
+    "planner",
+    "supervisor",
+    "researcher",
+    "supervisor",
+    "reporter",
+    "supervisor"
+   ],
+   "generation": "not_needed",
+   "item_search_performed": false,
+   "seconds": 4.368,
+   "writes": 0,
+   "before": null,
+   "after": null,
+   "setup": [],
+   "ok": true,
+   "problems": [],
+   "model_calls": 4
+  },
+  {
+   "no": 487,
+   "group": "복합 요청과 경계 사례",
+   "rubric": "categories",
+   "fixture": "none",
+   "question": "실제 지갑이랑 예전 DB의 카드지갑 기록은 왜 다르게 보여요?",
+   "http": 200,
+   "answer": "지금 이 서비스가 다루는 물건은 휴대폰(목업폰), 보조배터리, 핸드크림, 립밤 4종이에요. 카드지갑·USB를 포함해 다른 물건은 아직 다루지 않아요.",
+   "status": "answered",
+   "choices": [],
+   "topics": [
+    "categories"
+   ],
+   "agent": "guidance",
+   "path": [
+    "coordinator",
+    "planner",
+    "supervisor",
+    "researcher",
+    "supervisor",
+    "reporter",
+    "supervisor"
+   ],
+   "generation": "unavailable_or_invalid_excerpt_fallback",
+   "item_search_performed": false,
+   "seconds": 3.575,
+   "writes": 0,
+   "before": null,
+   "after": null,
+   "setup": [],
+   "ok": true,
+   "problems": [],
+   "model_calls": 5
+  }
+ ],
+ "summary": {
+  "passed": 2,
+  "total": 2,
+  "model_calls": 9,
+  "model_errors": 0,
+  "seconds": 8.81
+ },
+ "model_calls": [
+  {
+   "ok": true,
+   "output_tokens": 30,
+   "seconds": 3.203
+  },
+  {
+   "ok": true,
+   "output_tokens": 18,
+   "seconds": 0.478
+  },
+  {
+   "ok": true,
+   "output_tokens": 16,
+   "seconds": 0.353
+  },
+  {
+   "ok": true,
+   "output_tokens": 16,
+   "seconds": 0.312
+  },
+  {
+   "ok": true,
+   "output_tokens": 29,
+   "seconds": 0.701
+  },
+  {
+   "ok": true,
+   "output_tokens": 18,
+   "seconds": 0.474
+  },
+  {
+   "ok": true,
+   "output_tokens": 92,
+   "seconds": 1.54
+  },
+  {
+   "ok": true,
+   "output_tokens": 16,
+   "seconds": 0.531
+  },
+  {
+   "ok": true,
+   "output_tokens": 16,
+   "seconds": 0.314
+  }
+ ]
+}

@@ -1,0 +1,9 @@
+{
+    "sampled_at":  "2026-11-11T17:30:09.5688451+09:00",
+    "name":  "midm-2.0-mini:latest",
+    "digest":  "ff63fe102a7c9d4865526fb467aa4ab25e208d2c0c5a8bdfeae925ece4557a26",
+    "endpoint":  "localhost:11434",
+    "expected_digest_match":  true,
+    "source_commit":  "f25f894",
+    "scope":  "local synthetic evaluation; no operational DB or cloud changes"
+}

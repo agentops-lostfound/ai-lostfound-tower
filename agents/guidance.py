@@ -60,7 +60,7 @@ OFF_TOPIC_RE = re.compile(
     r"|시간표|배차|막차|첫차|버스|택시|환승|지하철(?:시간|몇시|노선)|열차시간|기차(?:표|시간)|교통(?:상황|정보)|도로상황"
     r"|주식|주가|코스피|코스닥|코인|비트코인|환율|금리|부동산"
     r"|뉴스|속보|야구|축구|농구|배구|스포츠|경기결과|몇대몇|로또|연예인|드라마|영화추천|노래추천|운세|별자리"
-    r"|대통령|(?:수도|인구)(?:가|는)?(?:어디|몇|얼마)|번역해|코딩|코드(?:작성|짜)")
+    r"|대통령|(?:수도|인구)(?:가|는)?(?:어디|몇|얼마)|번역해|코딩|코드(?:작성|짜)|파이썬|프로그래밍|프로그램.{0,12}(?:짜|작성|만들)")
 SERVICE_RE = re.compile(
     r"분실|잃어|잃었|놓고|두고|습득|주웠|주운|주워|맡기|맡겨|맡길|맡긴|신고|수령|돌려받|받으러|받을|받는|키오스크|본센터|센터|보관|접수|예약"
     r"|물건|지갑|휴대폰|핸드폰|폰|usb|립밤|핸드크림|배터리|우산|가방|카드|열쇠|후보|찾기번호|인증|신분증|운영|방문|늦게|늦어|가도|챗봇|사이트|사진")
@@ -96,6 +96,8 @@ LOST_FOUND_RE = re.compile(r"분실|잃어|잃었|놓고|두고|습득|주웠|�
 def off_topic(question: str) -> bool:
     """분실물 서비스 밖 질문인가. question 은 소문자·공백 제거 전후 어느 것이든 된다(공백은 여기서 지움)"""
     q = re.sub(r"\s+", "", (question or "").lower())
+    if re.fullmatch(r"\d+(?:[+*/×÷=-]\d+)+(?:은|는|이|가|얼마|뭐야|몇)?[?？.!]*", q):
+        return True
     if SHOP_RE.search(q) and not LOST_FOUND_RE.search(q):
         return True
     return bool(OFF_TOPIC_RE.search(q)) and not SERVICE_RE.search(q)
@@ -165,6 +167,37 @@ class Guidance:
         # 11/9 채점표: "확인 질문 답 미리 알려주세요"에 받는 순서를 답함 → 정해진 거절
         if re.search(r"확인질문.*(?:답|정답)|(?:답|정답).*(?:미리|먼저)알려|정답(?:알려|가르쳐)", q):
             return self._response('answered', '확인 질문의 답은 미리 알려 드릴 수 없어요. 물건 주인만 아는 특징(글자·스티커 등)으로 본인 물건인지 확인하는 절차예요.', [])
+        from agents.chat_turn import turn_reply, found_statement
+        reply = turn_reply(q, [], self)
+        if reply:
+            return reply
+        if re.search(r'휠체어|직접.*못집|장애.*수령', q):
+            docs = [d for d in self.documents if d['topic'] == 'center_pickup']
+            return self._response('policy_pending', '제출보관함에서 직접 꺼내기 어려우면 작동 중인 로봇 안에 손을 넣지 말고 '
+                '역무실이나 현장 직원에게 도움을 요청해 주세요. 현장 접근성 지원 방식은 현재 자료에 확정되어 있지 않아 확인이 필요해요.', docs)
+        # 다룬다고 확인되지 않은 운영 정책을 일반 수령·요금 답변으로 대신하지 않는다.
+        from agents.chat_turn import unconfirmed_policy
+        if unconfirmed_policy(q):
+            return self._response('policy_pending', '그 내용의 확정 운영 정책은 현재 안내 자료에 없어요. '
+                '가능하다고 약속하거나 실제 처리했다고 답할 수는 없어요. 프로젝트 담당자에게 확인이 필요해요.', [])
+        from agents.chat_answer_goal import goal_reply
+        structured = goal_reply(q, self)
+        if structured:
+            return structured
+        if found_statement(q):
+            from agents.chat_intake import extract, OTHER_ITEM
+            from agents.contracts import category_label, is_active_category, inactive_category_message
+            category = extract(q, 'found').get('category')
+            unsupported = OTHER_ITEM.search(q)
+            if unsupported and not category:
+                docs = [d for d in self.documents if d['topic'] == 'categories']
+                return self._response('answered', unsupported.group(0) + '은(는) 현재 접수하지 않는 품목이에요. 주운 물건은 가까운 역무실에 맡겨 주세요.', docs)
+            if category and not is_active_category(category):
+                docs = [d for d in self.documents if d['topic'] == 'categories']
+                return self._response('answered', f'{category_label(category)}을 주우셨군요. '
+                    + inactive_category_message(category) + ' 주운 물건은 가까운 역무실에 맡겨 주세요. 이 챗봇에서는 접수할 수 없어요.', docs)
+            docs = [d for d in self.documents if d['topic'] == 'found_report']
+            return self._response('answered', '주운 물건을 맡기려는 말씀이군요. ' + '\n\n'.join(d['answer'] for d in docs), docs)
         # 11/8: 영어 질문("How do I find my lost wallet?")에 보관 기간을 답함 → 한국어 안내만 한다고 분명히
         # 11/8 웹 무작위 시험: 'ㅁㄴㅇㄹ;;;DROP TABLE'·'<script>' 같은 장난 입력에도 이 문장이 나와 어색 → 한글 자모·기호 섞인 입력은 일반 되묻기로
         if len(re.findall(r'[a-z]', q)) >= 6 and not re.search(r'[ㄱ-ㅎㅏ-ㅣ가-힣<>{};=]', q):
@@ -178,12 +211,31 @@ class Guidance:
                 and not re.search(r"방법|절차|안내|운영|보관|수령|어떻게|사용법|이용법|설명확인|버튼", q)):
             return self._response("item_search_not_supported", "이 안내 챗봇에서는 물건을 검색하지 않습니다. 위의 분실물 설명 입력과 기존 찾기 절차를 이용해주세요.", [])
         topics, gaps = set(), []
+        if re.search(r'여는시간|새벽[가-힣]{1,3}시', q):
+            topics.add('hours')
+        if re.search(r'센터번호|부산역.*몇번출구', q):
+            topics.add('center_contact')
+        if re.search(r'물건받은뒤.*키오스크|본센터도착.*눌러|가상신분증숫자|빈손|빈손으로', q):
+            topics.add('center_pickup')
+        if re.search(r'(?:다루는|운영하는|취급하는).*물건|립밤.*지갑.*빠졌|지갑.*립밤.*운영|지갑.*카드지갑.*기록|지금.*몇개|다섯가지.*네가지', q):
+            topics.add('categories')
+        if re.search(r'(?:잃긴|두고온).*(?:어떻게|순서)|(?:휴대폰|물건).*찾으려면.*처음', q):
+            topics.add('flow')
+        if re.search(r'맡긴.*당장|이동중|한시간마다옮|(?:아직|바로).*본센터.*못받', q):
+            topics.add('arrival')
+        if re.search(r'오래안찾아|기한.*넘', q):
+            topics.add('retention')
+        if re.search(r'접수한이름.*(?:누가|언제)|(?:개인정보|분실인정보).*(?:며칠|삭제시점|언제없|언제지워)|다른회사.*정보.*넘', q):
+            topics.add('privacy_policy')
+        if re.search(r'어디에맡겨야|맡기려고왔|습득자.*뭘', q):
+            topics.add('found_report')
         # 11/9 채점표: "퇴근하고 7시쯤 가도", "밤 11시에 맡길 수", "습득 신고는 언제까지" 도 운영시간
         deadline_report = bool(re.search(r"(?:신고|맡기|맡길|등록)\S*언제까지|언제까지\S*(?:신고|맡기|맡길|등록)", q)) and "보관" not in q
         if re.search(r"몇시|운영시간|운영시각|영업|주말|토요일|일요일|평일|공휴일|휴일|open|오픈|문.*(?:열|닫)|센터.*(?:열|닫)|키오스크.*(?:열|닫)|[0-9]+시간|방문.*시간", q) \
                 or deadline_report or re.search(r"언제(?:가야|가면|와야|방문|받으러)", q) or re.search(r"(?:[0-9]+시(?!간)|밤|새벽|퇴근|저녁|야간|늦은시간|아침일찍).*(?:가도|가면|갈수|받|맡기|맡길|신고|수령|열|문)", q):
             gaps.append("운영시간")
         finder = bool(re.search(r"습득(?:자|한\s*분|하신\s*분)|주운\s*(?:사람|분)|주우신\s*분|[줏줍]은\s*(?:사람|분)|주워|맡긴\s*(?:사람|분)", q))   # 11/8 오타·높임 꼴
+        finder_reward = bool(finder and re.search(r"사례(?:금|하|해|드리|주)|답례|보답|감사인사|감사.*전하", q))
         claimant = bool(re.search(r"분실인|잃어버린사람|내(?:개인)?정보|내신분", q))
         # "보관함"(로봇팔이 꺼내는 상자)은 보관 기간 질문이 아니다
         period = bool(re.search(r"보관|며칠|몇일|기간|파기|폐기|삭제|지워|지우|30일|언제까지|한달|한개월|[0-9]+(?:일|개월|달|년)(?:뒤|후)|맡아"
@@ -196,6 +248,7 @@ class Guidance:
             if not finder or claimant:
                 gaps.append("분실물 또는 분실인 개인정보의 보관·파기 기간")
         for pattern, label in (
+            (r"(?:본인확인|본인인증|신분확인|인증).*(?:얼굴|셀카|생체)|(?:얼굴|셀카|생체).*(?:찍|촬영|수집|저장|제출|인식|인증|필요|요구|올려|내야|보내)", "본인 확인용 얼굴 사진 촬영·수집·보관 정책"),
             (r"대리|대신.*(?:받|수령|찾|가|와)|가족.*(?:받|수령)|위임", "대리수령 허용 조건"),
             (r"택배|우편|배송|퀵|보내줄|보내주", "배송·우편 수령 정책"),
             (r"수수료|요금|비용|얼마|무료|보관료|돈", "수령 비용"),
@@ -206,15 +259,21 @@ class Guidance:
             (r"주소|전화번호|연락할|센터위치|어디.*(?:가|받)|(?:본센터|센터|쎈터).*(?:어디|위치|가는길|찾아가)|문의|^(?:그럼|그러면)?어디(?:에)?있", "실제 센터 위치·연락처"),   # 11/9 "문의는 어디로", "그럼 어디 있는지도요"   # 11/9 "본센터 어디 있어요?"
         ):
             if re.search(pattern, q):
+                if label == "수령 비용" and finder_reward:
+                    continue  # 감사/답례 금액을 센터 수령 수수료로 답하지 않는다.
                 if label == "실제 센터 위치·연락처" and finder and period:
                     continue
                 gaps.append(label)
         # 11/9 실제 모델 시험: "찾으러 가려면 뭐 가져가요?" 가 규칙에 안 걸려 모델이 되물음 → 준비물 꼴 넓힘
         if re.search(r"수령|돌려받|받으려면|찾으려면|찾는\s*방법|방문|예약|준비물|신분증.*가져"
                      r"|(?:뭐|뭘|무엇|무얼|어떤거|머).*(?:가져|챙겨|들고|필요)|(?:가져|챙겨)(?:가야|가요|갈|와야|감)|찾기번호(?!.*(?:잊|잃|까먹|모르))"
-                     r"|신분증.*(?:필요|있어야|챙겨|가져|들고)|몸만|빈손|맨손|그냥가(?:면|도)|아무것도(?:안|없이)(?:가|챙)", q):   # 11/9 "그냥 몸만 가면 되나요?" → 준비물(신분증)
+                     r"|신분증.*(?:필요|있어야|챙겨|가져|들고)|받을때.*필요한신분증|몸만|빈손|맨손|그냥가(?:면|도)|아무것도(?:안|없이)(?:가|챙)", q):   # 준비물: '받을 때 필요한 신분증' 어순도 포함
             topics.add("pickup")
-        if re.search(r"동의|인증", q):
+        # 번호의 사용 절차와 사용자가 어디에 메모할지의 질문은 다르다.
+        # 보관 앱·캡처·보관 기간 등은 승인 문서에 없으므로 임의 권고하지 않는다.
+        if re.search(r"찾기번호.*(?:적어두|적어놓|메모|보관|저장해|기록해|캡처)", q):
+            gaps.append("찾기 번호 보관·메모 방법")
+        if re.search(r"동의|인증", q) and "본인 확인용 얼굴 사진 촬영·수집·보관 정책" not in gaps:
             topics.add("consent")
         if re.search(r"사용법|이용법|설명입력|설명정리|설명확인|후보검색버튼|조건지우|사진.*(?:올|입력|첨부)|음성|녹음|마이크|사이트.*(?:사용|이용)|검색.*방법|찾는방법", q):
             topics.add("site_help")
@@ -226,9 +285,8 @@ class Guidance:
                      r"|분실(?:신고|접수).*(?:어떻게|방법|되나|돼|할수|가능)|(?:웹|챗봇|키오스크)(?:으로|로|에서)도?.*(?:되|돼|할수|가능|신고|접수|찾)"
                      r"|(?:역|키오스크)에서.*(?:찾아가|찾아갈|바로받|받을수)", q):
             topics.add("flow")
-        if re.search(r"얼굴|셀카|사진.*(?:본인인증|신분)|(?:본인인증|신분확인).*사진", q):   # 11/9 "본인 확인할 때 얼굴 사진도 찍어요?" → 받는 순서(신분 확인)
-            topics.add("center_pickup")
-        if re.search(r"로봇|회수|본센터.*(?:받|가|절차|순서)|받는(?:순서|과정|절차)|수령대|보관함|확인질문|직원.*확인|찾기번호(?!.*(?:잊|잃|까먹|모르)).*(?:다음|받은|뒤|후)", q):
+        # 얼굴 촬영 여부는 신분 확인 절차만으로 알 수 없다. 위 미확정 정책으로 구분한다.
+        if re.search(r"로봇|회수|본센터.*(?:받|가|절차|순서)|받는(?:순서|과정|절차)|수령대|보관함|확인질문|직원.*확인|물건받았어요.*(?:버튼|언제|눌러|누르)|찾기번호(?!.*(?:잊|잃|까먹|모르)).*(?:다음|받은|뒤|후)", q):
             topics.add("center_pickup")
         if re.search(r"주웠|주운물건|습득신고|습득물.*(?:신고|맡|어디|어떻게)|신고하(?:려|고|는|면)|맡기(?:려|고|는|면)|맡길(?:래|게|수)", q):
             topics.add("found_report")
@@ -252,15 +310,19 @@ class Guidance:
             topics.add("categories")
         if re.search(r"키오스크.*(?:어디|위치|있는역|몇개|어느)|어느역|등록기계.*(?:어디|위치)|(?:초량|중앙)역?.*(?:출구|어느쪽|어디쯤)", q):   # 11/9 초량역 몇 번 출구
             topics.add("kiosk_places")
-        privacy_input = bool(re.search(r"(?:전화번호|주민번호|이메일|연락처|개인정보).*(?:적|써|쓰|입력|넣)", q))
+        privacy_input = bool(re.search(r"(?:전화번호|주민(?:등록)?번호|이메일|연락처|개인정보).*(?:적|써|쓰|입력|넣)", q))
         if privacy_input:
             topics.add("privacy_input")
             if not re.search(r"센터|주소|위치", q):       # 입력 규칙 질문은 센터 연락처 질문이 아니다
                 gaps = [g for g in gaps if g != "실제 센터 위치·연락처"]
+        if finder_reward:
+            topics.add('finder_privacy')
+            if re.search(r'사례(?:금|하|해|드리|주)|답례|보답', q):
+                gaps.append('습득자 사례·답례 절차와 금액')
         # 11/8 습득자 연락처를 분실인이 알 수 있는지 → 알려 주지 않음(DB 설계: 별도 표, 직원만 열람). 개인정보라 모델 없이 정해진 문장만
         # (무작위 시험: "주운사람 전화번호 좀" 처럼 '알려' 없이 물어도 — 지우는 시기만 묻는 질문은 finder_contact 그대로)
         leave_contact = bool(re.search(r"(?:연락처|전화번호|이름).*(?:남겨|남기|적어야|써야|안남|입력해야)", q))
-        if leave_contact and not re.search(r"알려|알수|공개|가르쳐|볼수|보여", q):
+        if leave_contact and not re.search(r"알려|알수|공개|가르쳐|볼수|보여", q) and (finder or not re.search(r'가린|기록|원문|저장', q)):
             topics.add("found_report")                   # 11/9 채점표: "주운 사람 연락처도 남겨야 하나요?" → 남기지 않아도 됨(습득 신고 안내)
         if (finder and not leave_contact and re.search(r"연락처|연라처|연락|전화|전번|번호|이름|누군지|누구", q) and not privacy_input
                 and (not period or re.search(r"알려|알수|공개|가르쳐|볼수|보여|받을수|연락하|연락해|연락드|감사|만나|누군지|누구", q))):

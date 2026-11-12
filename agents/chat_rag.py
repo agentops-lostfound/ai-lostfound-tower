@@ -22,10 +22,43 @@ DEMO_SUFFIX = " (프로젝트 시연 기준이며 실제 기관 안내가 아니
 MENU = ["물건을 잃어버렸어요", "물건을 주웠어요", "물건 받는 방법 알려줘", "운영시간 알려줘"]
 # 잃어버림 → 무엇을? (품목 버튼을 누르면 물건 검색으로 이어짐)
 # 질문 꼴 → 답에 꼭 남아야 할 핵심 낱말(하나라도). 근거 문서에 그 낱말이 있을 때만 요구한다
-KEY_FACTS = ((r'준비물|챙겨|가져가|가져와|필요한게|필요한거|뭐가필요|뭘가져', ('신분증',)),
+SELF_PICKUP_Q = r'^(?!.*(?:직원보관|확인질문|예외|틀렸|못맞)).*(?:본센터.*직원.*받|직원(?:한테|에게).*받|물건받았어요)'
+CHAT_INTAKE_Q = r'(?:챗봇|대화).*(?:접수|신고)|(?:접수|신고).*챗봇'
+KEY_FACTS = ((r'준비물|챙겨|가져가|가져와|필요한게|필요한거|뭐가필요|뭘가져|필요한신분증', ('신분증',)),
+             (SELF_PICKUP_Q, ('직접',)),
+             (SELF_PICKUP_Q, ('물건받았어요',)),
              (r'몇시|운영시간|영업시간|언제까지(?:해|열)', ('09:00', '18:00', '9시', '6시')),
              (r'보관기간|며칠|몇일|언제까지보관', ('14일',)),
-             (r'수수료|비용|요금|돈', ('무료', '없어요')))
+             (r'수수료|비용|요금|돈', ('무료', '없어요')),
+             (r'처음.*(?:뭐부터|무엇부터|어떻게|시작)|뭐부터(?:하면|해야|하나요)', ('검색', '후보')),
+             (CHAT_INTAKE_Q, ('접수할게요',)),
+             (CHAT_INTAKE_Q, ('확인',)))
+
+
+def contact_optional_clear(question, answer):
+    """연락처 남기기 의무 질문에는 선택사항임을 모호하지 않게 남긴다."""
+    q = re.sub(r'\s+', '', question)
+    if not re.search(r'(?:연락처|전화번호).*(?:남겨야|남기나|남겨요|필수|의무|안남|입력해야)', q):
+        return True
+    a = re.sub(r'\s+', '', answer)
+    if re.search(r'선택.{0,5}(?:아니|아닙|아닌)|(?:안남겨도|않아도)안(?:돼|되|됩)', a):
+        return False
+    return bool(re.search(r'선택|필수.{0,4}(?:아니|아닙|아닌)|의무.{0,4}(?:아니|아닙|아닌)'
+                          r'|(?:남기|남겨|적|입력).{0,5}않아도(?:돼|되|됩|괜찮|가능)'
+                          r'|안(?:남겨|남기|적어|입력)(?:도|셔도|어도|해도)(?:돼|되|됩|괜찮|가능)'
+                          r'|남길.{0,4}필요.{0,3}없', a))
+
+
+def generation_requirements(question, passages):
+    """문서에 실제 있는 핵심 개념만 모델에 미리 전달. 새 사실을 요구하지 않는다."""
+    q = re.sub(r'\s+', '', question)
+    evidence = re.sub(r'\s+', '', ' '.join(p['text'] for p in passages))
+    groups = [[word for word in words if word in evidence]
+              for pattern, words in KEY_FACTS if re.search(pattern, q)]
+    if re.search(r'(?:연락처|전화번호).*(?:남겨야|남기나|남겨요|필수|의무|안남|입력해야)', q) \
+            and '남기지않아도' in evidence:
+        groups.append(['남기지 않아도'])
+    return [group for group in groups if group]
 LOST_RE = re.compile(r"잃어버|분실|두고내렸|놓고내렸|놓고왔|두고왔|없어졌|잃었|번호를?잊")   # 11/9 찾기 번호를 잊음
 LOST_CHOICES = ["립밤 잃어버렸어요", "휴대폰 잃어버렸어요", "보조배터리 잃어버렸어요", "찾을 수 있는 물건 종류"]   # 11/9 품목 4종(USB 뺌)
 # 11/7 규칙 문장 그대로 쓰는 주제: 모델이 바꿔 말하면 뜻이 틀어지는 규칙(실측: 4개 모델 38문항 비교, docs/design/chatbot_sllm_rag.md §9)
@@ -213,7 +246,7 @@ WH_Q = re.compile(r"어떻게|어디|언제|무엇|뭐|왜|어느|누가|누구|
 YESNO_Q = re.compile(r"수(?:있|없)|가능|(?:해|어|아)도(?:돼|되)|야(?:해|돼|되|하나|할까|합)|(?:돼|되나|되요|될까|되죠|되는지|되나요)$|괜찮")
 STANCE_A = re.compile(r"수\s*(?:있|없)|가능|불가|(?:^|[\s,.])(?:안\s*)?(?:돼요|됩니다|돼)|필요|필수|야\s*(?:해|합|돼|됩)|않|없|못|마세요|말아|금지|아니|아닙|^(?:네|예)[,.\s]")
 WHEN_Q = re.compile(r"언제|며칠|몇일|기간|얼마나(?:오래|걸|보관|있)|몇시")
-WHEN_A = re.compile(r"\d|하루|당일|즉시|바로|마다|시간|동안|이후|후에|전에|까지")
+WHEN_A = re.compile(r"\d|하루|당일|즉시|바로|마다|시간|동안|이후|후에|전에|까지|(?:한|된|낸|은|인)\s*뒤")
 WHERE_A = re.compile(r"역|센터|키오스크|웹|보관함|창구|에서")
 # 11/8 실측: 안내 자료에 없는 돈·책임 질문("습득자한테 사례금 줘야 하나요", "없어지면 누가 책임져요")에 엉뚱한 근거로 답함
 # → 질문의 이 낱말이 답에 없으면 '맞물리지 않음'(다시 쓰기 → 그래도 없으면 자료에 없다고 답함)
@@ -236,6 +269,10 @@ def answer_gap(question: str, answer: str) -> str | None:
     """답이 질문이 묻는 것을 빠뜨렸으면 그 종류(when·where·subject·yesno), 맞물리면 None. 코드 규칙이라 빠르고 매번 같다"""
     q = re.sub(r"[\s?？!.~]+", "", question or "")
     a = answer or ""
+    from agents.chat_answer_goal import question_goal, covers_goal
+    goal = question_goal(question)
+    if goal and not covers_goal(goal, a):
+        return 'intent'
     if WHEN_Q.search(q) and not WHEN_A.search(a):
         return "when"
     if "어디" in q and not WHERE_A.search(a):
@@ -255,9 +292,22 @@ def answer_gap(question: str, answer: str) -> str | None:
     return None
 
 
+def append_rule_quotes(answer, quotes):
+    """본문에 이미 있는 고정 근거 문장은 다시 붙이지 않는다."""
+    shown = _squash(answer)
+    missing = []
+    for quote in quotes:
+        normalized = _squash(quote)
+        if normalized and normalized not in shown:
+            missing.append(quote)
+            shown += normalized
+    return answer.rstrip() + ('\n\n근거: ' + ' '.join(missing) if missing else '')
+
+
 def gap_hint(gap: str, question: str) -> str:
     item = "·".join(sorted(items_named(question))) or "그 물건"
-    return {"yesno": "앞 답은 질문이 묻는 '되는지(할 수 있는지)'에 답하지 않았다. 첫 문장에서 근거대로 된다·안 된다(할 수 있다·없다)를 바로 말한다",
+    return {"intent": "앞 답은 질문이 묻는 핵심 기능·조건·절차에 답하지 않았다. 질문의 요청 종류에 맞는 결론을 먼저 쓰고 필요한 절차만 설명한다",
+            "yesno": "앞 답은 질문이 묻는 '되는지(할 수 있는지)'에 답하지 않았다. 첫 문장에서 근거대로 된다·안 된다(할 수 있다·없다)를 바로 말한다",
             "when": "앞 답에 질문이 묻는 때·기간이 없다. 근거의 시간·기간을 넣어 답한다",
             "where": "앞 답에 질문이 묻는 장소가 없다. 근거의 장소를 넣어 답한다",
             "subject": f"질문은 {item} 에 대해 묻는데 앞 답은 다른 물건 이야기다. {item} 에 대한 근거로 답한다",
@@ -303,6 +353,12 @@ class GroundedRag:
         notify('retrieve')
         result = self.guidance.ask(question)
         result = {**result, 'generation_used': False, 'generation_status': 'not_needed'}
+        from agents.chat_answer_goal import question_goal, covers_goal
+        goal = question_goal(question)
+        if result.get('method') == 'question_goal_guidance' and goal != 'chat_registration':
+            # 유지된 계측 규약: 코드 답변을 모델 호출로 세지 않는다.
+            status = 'fixed_policy_text' if any(s['topic'] == 'hours' for s in result['sources']) else 'not_needed'
+            return {**result, 'generation_status': status}
         allowed = None
         if [s['topic'] for s in result['sources']] == ['site_help'] and result['status'] == 'answered':
             paragraphs = result['answer'].split('\n\n')
@@ -314,6 +370,8 @@ class GroundedRag:
                 chosen.add(2)
             if re.search(r'후보|검색|조건지우|설명확인', q):
                 chosen.add(4)
+            if re.search(r'처음.*(?:뭐부터|무엇부터|어떻게|시작)|뭐부터(?:하면|해야|하나요)', q):
+                chosen.update((0, 4))
             if chosen:
                 allowed = chosen
                 result['answer'] = '\n\n'.join(paragraphs[i] for i in sorted(chosen))
@@ -353,6 +411,8 @@ class GroundedRag:
                 method = 'retrieval_augmented_extractive_generation'
             else:
                 answer, method = parsed['answer'], 'retrieval_augmented_generation'
+            if goal and not covers_goal(goal, answer):
+                raise ValueError('question_goal_missing')
             # 11/9 채점표(Mi:dm): "본센터 갈 때 준비물 알려줘"에 모델이 문서를 다시 쓰며 '신분증'을 빼먹음 → 문서의 핵심 낱말을
             # 절반 넘게 잃은 답은 받지 않고 문서 글로(지어내기뿐 아니라 빠뜨리기도 막음)
             compact, cq = re.sub(r'\s+', '', answer), re.sub(r'\s+', '', question)
@@ -361,6 +421,9 @@ class GroundedRag:
                 need = [n for n in need if n in evidence]          # 근거 문서에 있는 핵심 낱말만 요구
                 if need and re.search(pattern, cq) and not any(n in compact for n in need):
                     raise ValueError('key facts dropped')
+            if any(d['topic'] == 'found_report' and '남기지 않아도' in d['answer'] for d in docs) \
+                    and not contact_optional_clear(question, answer):
+                raise ValueError('contact optional unclear')
             if rule_topics:
                 if 'answer' not in parsed:
                     return {**result, 'generation_status': fixed_status, 'generation_note': 'rule_extractive_only'}
@@ -368,7 +431,7 @@ class GroundedRag:
                 if not rule_answer_ok(answer, rule_topics) or (evidence_has_number and not re.search(r'\d', answer)):
                     return {**result, 'generation_status': fixed_status, 'generation_note': 'rule_guard_failed'}
                 quotes = [first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics]
-                answer = answer.rstrip() + '\n\n근거: ' + ' '.join(quotes)
+                answer = append_rule_quotes(answer, quotes)
                 method = 'retrieval_augmented_generation_with_rule_quote'
             extra = generation_note(parsed)
             return {**result, 'answer': answer, 'method': method, 'generation_used': True,
@@ -408,18 +471,21 @@ class GroundedRag:
         from agents import prompts
         from agents.observability import step
         # 11/9 칸별 설정(chat-researcher config): use_llm 끔이면 ValueError → 부른 쪽이 문서 문장으로 답함
-        cfg = prompts.settings('researcher', model=self.model, temperature=0)
+        system, prompt_obj, cfg = prompts.resolve('researcher', model=self.model, temperature=0,
+                                                 clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
         if not cfg['use_llm'] or not cfg['model']:
             raise ValueError('use_llm off')
-        system, prompt_obj = prompts.for_agent('researcher', clarify_rule=prompts.CLARIFY_RULE if allow_clarify else '')
         payload = {'model': cfg['model'], 'stream': False, 'format': schema,
             'messages': [{'role': 'system', 'content': system},
                          {'role': 'user', 'content': json.dumps({**({'previous_questions': questions} if questions else {}),
                                                                   **({'previous_turns': turns} if turns else {}),
                                                                   'question': question, 'retrieved_passages': passages,
+                                                                  'required_fact_groups': generation_requirements(question, passages),
                                                                   **({'feedback': feedback} if feedback else {})}, ensure_ascii=False)}],
             'options': {'temperature': cfg['temperature'], 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
+        usage = prompts.record_usage('researcher', cfg, prompt_obj)
         with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=cfg['model'], input=payload['messages'], prompt=prompt_obj,
+                  metadata={'prompt_usage': usage},
                   model_parameters={'temperature': cfg['temperature'], 'num_predict': 400}) as gen:
             from agents.chat_progress import notify      # 11/8 진행률 알림만(동작 그대로)
             notify('rewrite' if feedback else 'write')
@@ -556,12 +622,12 @@ class GroundedRag:
                         'choices': LOST_CHOICES}
             return {**base, 'status': 'clarification_needed', 'generation_status': 'guided_question',
                     'answer': f'어떤 물건을 잃어버리셨나요? 이 시연에서는 {active_category_text()} {len(ACTIVE_CATEGORIES)}가지를 찾을 수 있어요. '
-                              '물건 종류와 색을 알려 주세요. 예: "검정 카드지갑 잃어버렸어요"',
+                              '물건 종류와 색을 알려 주세요. 예: "검정 휴대폰 잃어버렸어요"',
                     'choices': LOST_CHOICES}
         if not hits:
-            return {**base, 'generation_status': 'off_topic',
-                    'answer': '분실물 서비스와 관련된 질문에 답할 수 있어요. 아래에서 궁금한 것을 고르거나 다시 물어봐 주세요.',
-                    'choices': MENU}
+            return {**base, 'generation_status': 'conversation_clarification',
+                    'answer': '말씀하신 뜻을 잘 모르겠어요. 분실물 찾기·주운 물건 신고·물건 받는 방법 중 궁금한 질문을 한 문장으로 알려 주세요.',
+                    'choices': []}
         tried = False
         if self.model and self._lock.acquire(blocking=False):
             tried = True
@@ -582,7 +648,7 @@ class GroundedRag:
                 answer = parsed['answer']
                 rule_topics = [d['topic'] for d in docs if d['topic'] in FIXED_TEXT_TOPICS]
                 if rule_topics:
-                    answer = answer.rstrip() + '\n\n근거: ' + ' '.join(first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics)
+                    answer = append_rule_quotes(answer, [first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics])
                 return {**self.guidance._response('answered', answer, docs), 'generation_used': True,
                         'generation_status': 'generated', 'method': 'retrieval_augmented_generation', 'model': self.model,
                         **generation_note(parsed)}

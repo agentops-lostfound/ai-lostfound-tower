@@ -1,0 +1,65 @@
+{
+  "kind": "read_only_xlsx_reconciliation",
+  "source": "evaluation\\chat_eval_scores.xlsx",
+  "sha256": "6d2773c8d75861a10ffe3d740942eb0953925fb5cff1c9cc1dddd9b9f9660d3b",
+  "sheets": [
+    "점수",
+    "분류별",
+    "단계 정보",
+    "실패 이유(최근)",
+    "사람 판정"
+  ],
+  "errors": [],
+  "warnings": [
+    "historical_workbook_questions_differ_from_current_dataset",
+    "formula_cache_missing_not_native_excel_recalculation"
+  ],
+  "stages": [
+    {
+      "stage": "11/9 01",
+      "cases": 500,
+      "passed": 355,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 02",
+      "cases": 500,
+      "passed": 373,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 03",
+      "cases": 500,
+      "passed": 403,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 04",
+      "cases": 500,
+      "passed": 402,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 05",
+      "cases": 500,
+      "passed": 403,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 06",
+      "cases": 500,
+      "passed": 459,
+      "mismatched_score_cells": 0
+    },
+    {
+      "stage": "11/9 07",
+      "cases": 500,
+      "passed": 500,
+      "mismatched_score_cells": 0
+    }
+  ],
+  "formula_cached_values_missing": 14,
+  "native_recalculation": false,
+  "question_text_differences_from_current": 85,
+  "source_unchanged": true
+}

@@ -20,9 +20,11 @@ from agents.chat_search import SearchAgent
 from agents.search_context import checked_context
 from agents.chat_conversation import checked_history, checked_turns, natural_question, resolve_turn, search_intent
 from agents.chat_intake import FOUND_SAY, LOST_SAY, SLOT_KO as SLOT_KO_JUDGE, IntakeAgent, detect_start
+from agents.chat_turn import found_statement, turn_reply, normalize_terms, cancel_draft_requested, help_question
 from langsmith import tracing_context
 
 _search_access = ContextVar('lf_chat_search_access', default=None)
+_intake_confirmation = ContextVar('lf_chat_intake_confirmation', default=None)
 
 
 class ChatState(TypedDict, total=False):
@@ -54,6 +56,10 @@ class ChatState(TypedDict, total=False):
     steps: list          # [{no, agent, task, status(todo·running·done·skipped), by(planner·supervisor), note}]
     task: str            # supervisor 가 지금 일꾼에게 넘긴 지시(일꾼 칸 입력에 보임)
     work_question: str   # 섞인 질문에서 이 일꾼 몫만 떼어 낸 말(없으면 원래 질문)
+    worker_executions: int  # 결과 종류 수가 아닌 실제 업무 일꾼 호출 횟수(reporter 제외)
+    supervisor_checks: list  # 모델 제안 → 코드 수락/거절 → 실제 선택(민감값 제외)
+    planner_check: dict     # 검증된 읽기 작업·입력 참조의 계약 판정(모델 원문 없음)
+    turn_reply: dict        # 개인정보 우려·위험 상황·대화 오류 복구(초안 변경 없음)
 
 
 # 계획 이름(planner·supervisor 가 쓰는 짧은 이름) → 그래프 칸(에이전트) 이름. Langfuse 나무의 칸 이름과 같게 보여 준다
@@ -188,6 +194,11 @@ class Chatbot:
         from agents.observability import node_step
         with node_step('coordinator', as_type='agent', input={'question': state['question']}) as obs:
             intent, routing = 'service', 'rule'
+            if state.get('turn_reply'):
+                obs.update(output={'intent': 'conversation_repair', 'routing': 'rule'})
+                return {'intent': 'service', 'routing': 'rule', 'path': ['coordinator'], 'route': 'coordinator',
+                        'result': {**state['turn_reply'], 'generation_used': False,
+                                   'generation_status': 'conversation_reply'}}
             if state.get('intake_active') or state.get('intake_start') or state.get('intake_action'):
                 # 11/9 접수 대화 중이거나 접수를 시작하는 말 → 모델에 맡기지 않고 접수 길("초량이요" 같은 짧은 답을 주제 밖으로 보지 않게)
                 obs.update(output={'intent': 'intake', 'routing': 'rule',
@@ -212,17 +223,26 @@ class Chatbot:
         """규칙이 분명하게 찾은 일꾼(planner 가 지울 수 없음)"""
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
-        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|가는법|가는길|받는순서|순서'
+        from agents.chat_answer_goal import question_goal
+        if question_goal(q):
+            return {'guidance': True, 'item_search': False}
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|면허증|운전면허|여권|가는법|가는길|받는순서|순서'
                                   r'|남겨야|남기나|남겨요|적어야|써야|연락처', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)   # 11/9 접수 중 "연락처도 남겨야 해요?"
         search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
         from agents.guidance import off_topic
         if off_topic(q):          # 11/9 서비스 밖 질문은 물건 검색을 강제하지 않음
             return {'guidance': True, 'item_search': False}
+        if re.search(r'맡기|맡겨|맡길', q):
+            return {'guidance': True, 'item_search': False}
+        from agents.chat_turn import help_question as dialogue_help
+        help_question = help_question or dialogue_help(q)
         return {'guidance': bool(help_question), 'item_search': bool((search or search_intent(q)) and not help_question) or bool(help_question and search_intent(q))}
 
     def _planner(self, state):
         from agents.observability import node_step
         with node_step('planner', as_type='agent', input={'question': state['question']}) as obs:
+            validation_notes, proposed_plan, model_instructions = [], None, {}
+            planner_check = {'validation': 'not_requested', 'reason': 'rule_path'}
             if state.get('ops_turn'):
                 plan, routing = ['ops'], 'rule'
             elif state.get('intent') == 'intake':
@@ -235,33 +255,61 @@ class Chatbot:
                 if self.brain is not None:
                     sig = self._signals(state)
                     must = [w for w in ('item_search', 'guidance') if sig[w]]
-                    got = self.brain.plan(state['question'], state.get('questions'), must)
+                    if callable(getattr(self.brain, 'plan_contract', None)):
+                        decision = self.brain.plan_contract(state['question'], state.get('questions'), must)
+                        got = list(decision.workers) if decision.instructions else None
+                        planner_check = decision.audit
+                        model_instructions = {step.worker: step for step in decision.instructions}
+                    else:
+                        got = self.brain.plan(state['question'], state.get('questions'), must)
+                        planner_check = {'validation': 'accepted' if got else 'rejected',
+                                         'reason': 'internal_legacy_adapter'}
+                    proposed_plan = [w for w in (got or []) if w in ('guidance', 'item_search')]
                     from agents.guidance import off_topic
                     if got and 'item_search' in got and off_topic(state['question']):
                         # 11/9 Mi:dm 채점(461~464): "지갑 사고 싶은데", "보조배터리 추천해줘", "휴대폰 요금제" 에 모델이 검색을 더함 → 서비스 밖이면 뺌
                         got = [w for w in got if w != 'item_search'] or ['guidance']
+                        validation_notes.append('off_topic_search_denied')
                     if got and 'item_search' in got and not sig['item_search']:
                         # 11/9 채점표(Mi:dm): "어떤 물건을 찾을 수 있어요?"·"후보가 뭐예요?"에 모델이 물건 검색을 더해
                         # "찾는 물건 한 종류와 색상을 알려주세요"가 붙음 → 규칙이 물건 종류를 읽지 못했으면 모델이 더한 검색은 뺌
                         from agents.lost_input import text_features
                         f, _ = text_features(state['question'])
-                        if f.get('category') in (None, '확인 불가', '없음'):
+                        if (sig['guidance'] and not sig['item_search']) or f.get('category') in (None, '확인 불가', '없음'):
                             got = [w for w in got if w != 'item_search'] or ['guidance']
+                            validation_notes.append('search_requires_request_and_item')
                     if got:
                         plan, routing = got, 'model'
-            steps = [self._step(i + 1, w, {**state, '_plan_now': plan}, 'planner') for i, w in enumerate(plan)]
-            obs.update(output={'plan': plan, 'routing': routing, 'steps': [f"{x['no']}. {x['agent']} — {x['task']}" for x in steps]})
+            steps = [self._step(i + 1, w, {**state, '_plan_now': plan}, 'planner',
+                                instruction=model_instructions.get(w)) for i, w in enumerate(plan)]
+            obs.update(output={'plan': plan, 'proposed_plan': proposed_plan, 'validation_notes': validation_notes,
+                               'routing': routing, 'steps': [f"{x['no']}. {x['agent']} — {x['task']}" for x in steps],
+                               'proposal_check': planner_check})
             return {'plan': plan, 'steps': steps, 'results': {}, 'path': state.get('path', []) + ['planner'], 'decisions': [], 'offers': [],
-                    'last': '', 'stop': False, 'task': '',
+                    'last': '', 'stop': False, 'task': '', 'worker_executions': 0, 'supervisor_checks': [],
+                    'planner_check': planner_check,
                     'routing': 'model' if routing == 'model' or state.get('routing') == 'model' else 'rule'}
 
     MAX_STEPS = 6       # 일꾼 호출 상한(다시 계획이 되풀이되지 않게)
 
-    def _step(self, no, name, state, by, note=''):
+    def _step(self, no, name, state, by, note='', instruction=None):
         """계획 한 단계 = {번호, 맡을 에이전트, 지시(task), 상태, 누가 정했나}. 지시는 질문에서 규칙이 읽은 값으로 구체적으로 적는다"""
         q = state.get('question') or ''
         both = {'guidance', 'item_search'} <= set(state.get('plan') or []) or (by == 'planner' and {'guidance', 'item_search'} <= set(state.get('_plan_now') or []))
-        part = sub_question(q, name) if both and name in ('guidance', 'item_search') else q
+        from agents.chat_planner import WorkInstruction, instruction_for, parse_proposal
+        if name in ('guidance', 'item_search'):
+            try:
+                if type(instruction) is not WorkInstruction or instruction.worker != name:
+                    raise ValueError('invalid_instruction')
+                parse_proposal({'version': 2, 'steps': [instruction.public_contract()]})
+                if instruction.input_ref != instruction_for(name, both).input_ref:
+                    raise ValueError('input_scope_does_not_match_final_plan')
+            except ValueError:
+                instruction = instruction_for(name, both)
+        else:
+            instruction = None
+        scoped = instruction is not None and instruction.input_ref in ('guidance_part', 'search_part')
+        part = sub_question(q, name) if scoped else q
         if name == 'item_search':
             from agents.lost_input import text_features
             f, _ = text_features(part)
@@ -280,23 +328,28 @@ class Chatbot:
         else:
             task = '관제 기록 분석 보고(읽기 전용, 숫자는 기록에서만)'
         return {'no': no, 'agent': STEP_AGENT.get(name, name), 'plan_name': name, 'task': task, 'status': 'todo', 'by': by,
+                **({'instruction': instruction.public_contract()} if instruction else {}),
                 **({'input': part} if part != q else {}),
                 **({'note': note} if note else {})}
 
     def _supervisor(self, state):
-        """11/9 판단하는 감독: 방금 끝난 일꾼 결과를 보고 (1) 남은 일꾼을 멈출지 (2) 일꾼을 더할지 (3) 다음 행동 버튼을 붙일지 정한다.
-        판단은 규칙(코드)이 하고 근거를 decisions 에 남긴다 — 모델은 일꾼 안에서 답·빈칸 채우기만 한다(로봇·접수 안전 원칙과 같음)"""
+        """업무 정책이 허용 후보를 만들고, LLM 감독 제안을 코드로 검사한 뒤 실행한다."""
         from agents.observability import node_step
+        from agents.chat_supervisor import candidates, decide
         done = state.get('results') or {}
         plan = list(state.get('plan') or [])
         decisions = list(state.get('decisions') or [])
         offers = list(state.get('offers') or [])
         stop = bool(state.get('stop'))
         last = state.get('last') or ''
+        executions = state.get('worker_executions', 0)
+        checks = list(state.get('supervisor_checks') or [])
         with node_step('supervisor', as_type='agent', input={'plan': plan, 'done': list(done), 'last': last}) as obs:
             if state.get('reported'):
-                obs.update(output={'next': 'end', 'why': 'reporter 가 답을 정리함 → 끝'})
-                return {'next': 'end', 'path': state.get('path', []) + ['supervisor']}
+                _, audit = decide(self.brain, candidates([], reported=True), {'reported': True})
+                checks.append(audit)
+                obs.update(output={'next': 'end', 'why': 'reporter 가 답을 정리함 → 끝', 'proposal_check': audit})
+                return {'next': 'end', 'supervisor_checks': checks, 'path': state.get('path', []) + ['supervisor']}
             if last and last in ('intake', 'item_search', 'researcher'):
                 key = 'guidance' if last == 'researcher' else last
                 d = self._judge(last, done.get(key) or {}, state, plan, done)
@@ -319,24 +372,37 @@ class Chatbot:
                     if x['status'] == 'todo':
                         x['status'], x['note'] = 'skipped', (decisions[-1]['decide'] if decisions else 'stop')
                 nxt = 'reporter'
-            elif len(done) >= self.MAX_STEPS:
+            elif executions >= self.MAX_STEPS:
                 nxt = 'reporter'
-                decisions.append({'after': last, 'saw': f'일꾼 {len(done)}번', 'decide': 'finish', 'why': '호출 상한 — 여기서 정리'})
+                decisions.append({'after': last, 'saw': f'일꾼 {executions}번', 'decide': 'finish', 'why': '호출 상한 — 여기서 정리'})
             else:
                 nxt = next((w for w in plan if w not in done), 'reporter')
-                # 11/9 use_llm(기본 끔, Langfuse chat-supervisor config): 계획에 남은 안내·검색 칸과 정리(reporter) 안에서만 모델이 고름.
-                # 접수(intake)·관제(ops)·멈춤(stop)·상한은 규칙만 — 목록 밖·실패면 규칙 값 그대로
-                if self.brain is not None and nxt in ('guidance', 'item_search', 'reporter'):
-                    allowed = [w for w in plan if w not in done and w in ('guidance', 'item_search')] + (['reporter'] if done else [])
-                    got = self.brain.choose('supervisor', allowed, nxt, {'question': state.get('question'), 'done': list(done), 'last': last})
-                    if got and got != nxt:
-                        decisions.append({'after': last, 'saw': f'규칙 다음 칸 {nxt}', 'decide': f'model_next:{got}',
-                                          'why': '모델이 허용 목록 안에서 다른 칸을 고름(chat-supervisor use_llm)'})
-                        nxt = got
+            allowed = candidates(steps, stop=stop, executions=executions, limit=self.MAX_STEPS,
+                                 intake_allowed=bool(state.get('intake_start') or state.get('intake_active') or state.get('intake_action')),
+                                 ops_allowed=bool(state.get('ops_turn') and self.ops is not None))
+            chosen, audit = decide(self.brain, allowed, {
+                'completed': list(done), 'last': last, 'executions': executions,
+                'outcomes': {k: {'has_sources': bool(v.get('sources')), 'candidate_count': len(v.get('candidates') or []),
+                                 'needs_user': v.get('status') in ('intake_question', 'intake_confirm', 'search_needs_details')}
+                             for k, v in done.items()},
+                'steps': [{'step': x['no'], 'agent': x['agent'], 'status': x['status'], 'task': x['task']} for x in steps]})
+            checks.append(audit)
+            if chosen['action'] in ('run_step', 'add_step', 'replan'):
+                selected = next(x for x in steps if x['no'] == chosen['step'])
+                nxt = selected['plan_name']
+            else:
+                nxt = 'reporter'
+            if chosen['action'] == 'ask_user':
+                stop = True
+            if executions >= self.MAX_STEPS:
+                for x in steps:
+                    if x['status'] == 'todo':
+                        x['status'], x['note'] = 'skipped', 'execution_limit'
             task, run, work_q = '', None, ''
-            cur = next((x for x in steps if x['plan_name'] == nxt and x['status'] == 'todo'), None)
+            cur = next((x for x in steps if x['no'] == chosen['step'] and x['status'] == 'todo'), None)
             if cur:                                           # planner 지시서의 다음 단계를 일꾼에게 넘김
                 cur['status'], task, work_q = 'running', cur['task'], cur.get('input', '')
+                executions += 1
                 run = {'step': f"{cur['no']}/{len(steps)}", 'agent': cur['agent'], 'task': task, **({'input': work_q} if work_q else {}),
                        'why': ('planner 계획 순서' if cur['by'] == 'planner' else f"supervisor 가 더한 단계({cur.get('note', '')})")}
             elif nxt == 'reporter':
@@ -344,8 +410,10 @@ class Chatbot:
                 run = {'step': 'report', 'agent': 'reporter', 'task': '일꾼 결과를 답 하나로 정리',
                        'why': (f'계획 {n_done}/{len(steps)}단계 끝' if not stop else '사용자 답이 필요해 남은 단계를 멈추고 정리')}
             obs.update(output={'next': nxt, 'run_step': run, 'plan_status': [self._step_line(x) for x in steps],
-                               'decision': decisions[-1] if decisions else None})
+                               'decision': decisions[-1] if decisions else None, 'proposal_check': audit,
+                               'worker_executions': executions})
         return {'next': nxt, 'plan': plan, 'steps': steps, 'task': task, 'work_question': work_q, 'decisions': decisions, 'offers': offers, 'stop': stop,
+                'worker_executions': executions, 'supervisor_checks': checks,
                 'path': state.get('path', []) + ['supervisor']}
 
     @staticmethod
@@ -362,6 +430,9 @@ class Chatbot:
         rec = lambda saw, decide, why: {'after': last, 'saw': saw, 'decide': decide, 'why': why}  # noqa: E731
         if last == 'intake':
             info = res.get('intake') or {}
+            if status == 'intake_uncertain':
+                return {'record': rec('처리 완료 여부 불명', 'finish',
+                                      '재접수·재취소를 실행하지 않고 처리 결과 확인을 요청함'), 'stop': True}
             if status in ('intake_question', 'intake_confirm'):
                 sig = self._signals(state)
                 if not info.get('progress') and sig['guidance'] and 'guidance' not in done:
@@ -473,7 +544,7 @@ class Chatbot:
         with node_step('intake', as_type='agent', input={'question': state['question'], 'task': state.get('task') or None,
                                                         'start': state.get('intake_start') or None,
                                                         'form': bool(state.get('intake_action'))}) as obs:
-            res = self.intake.step(sid, state['question'], start=state.get('intake_start') or None, action=state.get('intake_action'),
+            res = self.intake.step(sid, state['question'], start=state.get('intake_start') or None, action=_intake_confirmation.get() or state.get('intake_action'),
                                    prior=state.get('questions'))
             obs.update(output={'status': res.get('status'), **(res.get('intake') or {})})
         return {'results': {**(state.get('results') or {}), 'intake': res}, 'path': state.get('path', []) + ['intake'], 'last': 'intake'}
@@ -546,12 +617,19 @@ class Chatbot:
             return {'route': 'ops'}
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
+        from agents.chat_answer_goal import question_goal
+        if question_goal(q):
+            return {'route': 'guidance'}
         # Process/help questions stay in guidance, even when they mention searching.
-        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|가는법|가는길|받는순서|순서', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
+        help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|면허증|운전면허|여권|가는법|가는길|받는순서|순서', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
+        from agents.chat_turn import help_question as dialogue_help
+        help_question = help_question or dialogue_help(q)
         search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
         direct_search = search_intent(q)
         from agents.guidance import off_topic
         if off_topic(q):          # 11/9 "맛집 찾아줘" 가 '찾아' 때문에 물건 검색으로 가던 것 → 안내 길(정해진 문장)
+            return {'route': 'guidance'}
+        if re.search(r'맡기|맡겨|맡길', q):
             return {'route': 'guidance'}
         if help_question and direct_search:
             return {'route': 'both'}
@@ -591,6 +669,9 @@ class Chatbot:
     def ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, channel='web',
             intake_action=None):
         """session_id: 같은 화면 대화를 Langfuse 에서 묶는 번호(화면이 만든 무작위 값, 개인정보 아님). channel: web·kiosk·staff"""
+        # 거절될 개인정보·초과 입력은 root observation에도 넘기지 않는다.
+        # 정규화보다 앞에서 기록하면 전각 숫자·숨은 구분자가 마스킹을 피할 수 있다.
+        question = checked_text(question, '질문', 500)
         from agents.observability import conversation, step
         with conversation(session_id=session_id, tags=[channel]):
             with step('lost-found-chatbot', as_type='chain', input={'question': question}) as root:
@@ -601,19 +682,38 @@ class Chatbot:
                                     'decisions': out.get('decisions'), 'intake': out.get('intake')})
         from agents.observability import flush_soon
         flush_soon()                 # 11/9 질문 하나가 끝나면 바로 Langfuse 로(관제탑을 끌 때까지 기다리지 않음)
-        return wallet_nudge(question, history, out)
+        out = wallet_nudge(question, history, out)
+        if out.get('status') == 'intake_confirm':
+            proof = self.intake.confirmation(session_id, (out.get('intake') or {}).get('draft_version'))
+            if proof:
+                out = {**out, 'confirmation': proof}
+        return out
 
     def _ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, intake_action=None):
         question = checked_text(question, '질문', 500)
         from agents.guidance import fix_typos
         question = fix_typos(question)          # 11/9 '지깝 일어버림' 같은 흔한 오타(앞 대화 해석·검색·모델 모두 바로잡힌 글을 봄)
+        question = normalize_terms(question)
         context = checked_context(context)
         turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
         history = checked_history(history)
         ops_turn = bool(staff and self.ops is not None and is_ops_question(question))
         intake_active = bool(not ops_turn and self.intake.wants(session_id, question))
-        intake_start = '' if ops_turn or intake_active else (detect_start(question) or '')
-        if ops_turn:            # 관제 질문은 앞 대화와 합치지 않고 그대로 분석한다
+        cancelling = intake_active and cancel_draft_requested(question)
+        active = self.intake.active(session_id) if intake_active else None
+        reply = None if ops_turn or cancelling else turn_reply(question, history, self.guidance,
+            identity_pending=bool(active and active.get('asked') == 'identity'))
+        from agents.chat_answer_goal import question_goal
+        intake_start = '' if ops_turn or intake_active or reply or question_goal(question) else (detect_start(question, history) or '')
+        if not ops_turn and not intake_active and not intake_start and not reply and found_statement(question):
+            reply = {**self.guidance.ask(question), 'choices': ['습득 신고하기']}
+            # 운영하지 않는 품목에는 접수 버튼을 제안하지 않는다.
+            from agents.chat_intake import extract
+            from agents.contracts import is_active_category
+            category = extract(question, 'found').get('category')
+            if category and not is_active_category(category):
+                reply['choices'] = []
+        if ops_turn or reply:            # 관제·위험·개인정보 질문은 앞 검색 조건과 합치지 않는다
             resolved = False
         elif intake_active or intake_start or intake_action:
             resolved = False    # 11/9 접수 대화의 짧은 답("초량이요")을 앞 질문과 합치지 않는다(접수 일꾼이 지금 묻는 칸으로 읽음)
@@ -623,10 +723,14 @@ class Chatbot:
             resolved = False        # 11/7: 무엇을 가리키는지 규칙이 못 정하면 모델(planner·안내 작성)이 앞 대화를 보고 판단
         if resolved is None:
             return {**self.guidance._response('clarification_needed',
-                '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 카드지갑 찾아줘 / 본인인증에 실패하면?', []),
+                '어떤 내용을 이어서 물으신 건가요? 찾는 물건·색상이나 궁금한 절차를 함께 적어주세요. 예: 파란 휴대폰 찾아줘 / 본인인증에 실패하면?', []),
                 'agent': 'guidance', 'context_used': False}
         # Bearer credentials must never enter graph state, checkpoints or tracing.
+        from agents.chat_intake import check_action
+        intake_action = check_action(intake_action)
+        confirmation = intake_action if intake_action and intake_action.get('type') == 'confirm' else None
         context_token = _search_access.set(access_token)
+        confirmation_context = _intake_confirmation.set(confirmation)
         try:
             from agents.observability import callbacks_active, graph_callbacks
             handlers = graph_callbacks()     # 11/7 Langfuse callback 방식: 그래프 칸별 기록(키 없으면 빈 목록 = 기록 안 함)
@@ -634,12 +738,14 @@ class Chatbot:
             with tracing_context(enabled=False, parent=False), callbacks_active(bool(handlers)):
                 state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn,
                                            'history': turns if turns else history, 'questions': history,
-                                           'session_id': session_id or '', 'intake_action': intake_action,
-                                           'intake_start': intake_start, 'intake_active': intake_active},
+                                           'session_id': session_id or '', 'intake_action': {'type': 'confirm'} if confirmation else intake_action,
+                                           'intake_start': intake_start, 'intake_active': intake_active, 'turn_reply': reply or {}},
                                           config={'callbacks': handlers, 'run_name': 'chatbot-graph'})
         finally:
             _search_access.reset(context_token)
+            _intake_confirmation.reset(confirmation_context)
         return {**state['result'], 'agent': state['route'],
+                'supervisor_checks': state.get('supervisor_checks', []), 'worker_executions': state.get('worker_executions', 0),
                 'agent_path': state.get('path', []), 'routing': state.get('routing', 'rule'),
                 'context_used': bool(resolved),
                 'orchestration': 'langgraph_guidance_item_search_and_staff_ops' if self.ops is not None

@@ -146,7 +146,8 @@ def build_service(backend_factory=None) -> TowerService:
     return svc
 
 
-def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None, center_services=None):
+def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None,
+              find_auth=None, operation_results=None, center_services=None):
     try:
         from fastapi import Body, Depends, FastAPI, HTTPException
     except ImportError as e:
@@ -156,6 +157,10 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
 
     svc = service or build_service()
     auth = admin_auth or AdminAuth.from_env()
+    if find_auth is None:
+        from agents.chat_postgres_access import find_access_from_env
+        find_auth, configured_results = find_access_from_env()
+        operation_results = operation_results or configured_results
     # 11/10 통합 시연 화면(/showcase): 저장소에 쓰고 읽는 일(db 사건)과 에이전트 한 칸의 시작/끝(trace 사건)을 기록판에 남긴다.
     # 기록판이 없는 서비스(시험용)에는 아무것도 붙이지 않는다. 사건은 /api/admin/live/state?detail=1 로만 나간다(관리자 문지기)
     _board = getattr(svc, "board", None)
@@ -1047,8 +1052,10 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         from agents.chat_api import LazyChatbot, build_chatbot_from_env
         from agents.chat_search import SimTowerItemSearch
         # 11/9 대화 접수: 챗봇이 분실 접수·습득 신고를 가상 시연 창구(svc.sim — /sim/found·/sim/lost 와 같은 함수)로 끝까지 한다
-        chatbot = LazyChatbot(lambda: build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items), desk=svc.sim))
-    add_chat_routes(app, chatbot, staff_allowed=staff_allowed, ops_source=ops_source)
+        chatbot = LazyChatbot(lambda: build_chatbot_from_env(SimTowerItemSearch(svc.world.chat_items),
+                                                            desk=svc.sim, find_auth=find_auth))
+    add_chat_routes(app, chatbot, staff_allowed=staff_allowed, ops_source=ops_source,
+                    find_auth=find_auth, operation_results=operation_results)
     # 11/9 키오스크 서버 카메라: 태블릿은 화면만, 웹캠은 관제탑 PC(.env TOWER_KIOSK_CAMERAS) → /kiosk?…&cam=server
     try:
         from agents.kiosk_camera import add_camera_routes

@@ -14,7 +14,9 @@
 
 환경값(.env, 없으면 기본)
     LF_CHAT_RAG_MODEL     문서 답변을 다듬을 로컬 Ollama 모델 이름. 없으면 문서 문단을 그대로 안내
-    LF_CHAT_DATABASE_URL  실제 팀 DB 조회(본인인증 세션 검증기가 연결돼야 열림 — 지금은 연결 전)
+    LF_CHAT_DATABASE_URL  실제 팀 DB 조회(서버 본인인증 세션 검증기가 연결될 때만 열림)
+    LF_CHAT_SESSION_DATABASE_URL / LF_CHAT_BINDING_KEY_HEX  서버 인증 읽기 뷰·고정 결합 키(명시 설정)
+    LF_CHAT_OPERATION_DATABASE_URL  본인 작업 영수증 읽기 뷰(명시 설정, 쓰기 없음)
     TOWER_CHAT_DEMO_DB    가상 물건 DB(SQLite) 파일. 기본 저장소/.cache/chat-demo.sqlite3, "0" 이면 물건 검색 끔
 
 - 챗봇 부품(langgraph 등)은 첫 질문 때 만든다. 설치가 안 돼 있어도 관제탑은 켜지고, 챗봇 주소만 503 으로 알린다
@@ -56,7 +58,7 @@ def wants_stream(body, request) -> bool:
     return "application/x-ndjson" in accept
 
 
-def build_chatbot_from_env(database=None, desk=None):
+def build_chatbot_from_env(database=None, desk=None, find_auth=None):
     """환경값으로 챗봇을 만든다. 실제 DB 설정이 있으면 가상 DB 로 바꿔 대신하지 않는다(정연우 원칙 유지).
     database 를 주면 그 검색 부품을 쓴다(11/7 가상 시연: 관제탑 가상 물건 목록 SimTowerItemSearch).
     desk(11/9): 대화 접수 창구(가상 시연 SimDirector). 없으면 챗봇이 빈칸을 정리한 뒤 키오스크·웹으로 안내"""
@@ -64,6 +66,9 @@ def build_chatbot_from_env(database=None, desk=None):
     from agents.chat_search import DemoItemDatabase, PostgresItemSearch, SearchAgent
     from agents.chatbot import Chatbot
     from agents.guidance import Guidance
+    if find_auth is None:
+        from agents.chat_postgres_access import find_access_from_env
+        find_auth, _ = find_access_from_env()
     guide = Guidance()
     if database is not None:
         pass
@@ -81,7 +86,8 @@ def build_chatbot_from_env(database=None, desk=None):
         from agents.chat_agents import AgentBrain
         brain = AgentBrain(os.environ.get("LF_CHAT_AGENT_MODEL") or model)
     from agents.chat_intake import IntakeAgent
-    return Chatbot(guide, rag=rag, search=SearchAgent(database), brain=brain, intake=IntakeAgent(desk=desk, brain=brain))
+    return Chatbot(guide, rag=rag, search=SearchAgent(database, authorize=find_auth.authorize if find_auth else None),
+                   brain=brain, intake=IntakeAgent(desk=desk, brain=brain))
 
 
 class LazyChatbot:
@@ -127,7 +133,8 @@ def build_ops_agent(source, metrics):
     return OpsAnalyst(reader=_OpsReader(source, metrics), model=model)
 
 
-def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_factory=build_ops_agent) -> None:
+def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_factory=build_ops_agent,
+                    find_auth=None, operation_results=None) -> None:
     """관제탑 앱(agents/api.py build_app)에 챗봇·위젯 주소를 더한다. chatbot 은 시험용으로 바꿔 끼울 수 있다.
     staff_allowed(request) → 관리자 로그인 여부, ops_source() → {"returns": [...], "live": {...}}. 둘 다 있어야 직원 관제 길이 열린다."""
     from fastapi import Body, Header, HTTPException
@@ -135,7 +142,14 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
 
     from agents.chat_metrics import ChatMetrics
 
-    holder = chatbot if isinstance(chatbot, LazyChatbot) else LazyChatbot(lambda: chatbot) if chatbot else LazyChatbot()
+    if find_auth is None:
+        from agents.chat_postgres_access import find_access_from_env
+        find_auth, configured_results = find_access_from_env()
+        operation_results = operation_results or configured_results
+    if operation_results is not None and find_auth is None:
+        raise ValueError('작업 결과 조회에는 사용자 인증 검증기가 필요합니다')
+    holder = (chatbot if isinstance(chatbot, LazyChatbot) else LazyChatbot(lambda: chatbot) if chatbot
+              else LazyChatbot(lambda: build_chatbot_from_env(find_auth=find_auth)))
     metrics = ChatMetrics()
     try:
         app.state.chat_metrics = metrics      # 시험에서 꺼내 볼 수 있게(가짜 앱에는 state 가 없음)
@@ -150,6 +164,10 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             b = holder.get()
         except RuntimeError:
             raise HTTPException(status_code=503, detail="챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요") from None
+        if find_auth is not None:
+            from agents.chat_search import SearchAgent
+            if isinstance(getattr(b, 'search', None), SearchAgent):
+                b.search.authorize = find_auth.authorize
         if staff_ready and getattr(b, "ops", "absent") is None:     # 직원 관제 에이전트는 처음 한 번만 붙인다
             with ops_lock:
                 if b.ops is None:
@@ -158,6 +176,41 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
                     except Exception:      # 붙이지 못해도 분실인 안내·검색은 그대로
                         pass
         return b
+
+    def verified_session(authorization, permission='chat:use'):
+        from agents.chat_find_auth import FindAuthenticationRequired, FindAuthenticationUnavailable
+        if find_auth is None:
+            raise HTTPException(status_code=503, detail='사용자 인증 연결이 준비되지 않았습니다')
+        token = authorization[7:] if isinstance(authorization, str) and authorization.startswith('Bearer ') else None
+        try:
+            return find_auth.require(token, permission)
+        except FindAuthenticationRequired:
+            raise HTTPException(status_code=401, detail='본인인증·필수 동의가 필요합니다') from None
+        except FindAuthenticationUnavailable:
+            raise HTTPException(status_code=503, detail='인증 세션을 확인하지 못했습니다') from None
+
+    def chat_operation_result(operation_id: str, authorization: str | None = Header(default=None)):
+        from agents.chat_operations import OperationNotFound
+        from agents.chat_postgres_access import PostgresAccessUnavailable
+        session = verified_session(authorization, 'chat:operations:read')
+        if operation_results is None:
+            raise HTTPException(status_code=503, detail='작업 결과 조회 연결이 준비되지 않았습니다')
+        try:
+            operation = operation_results.get(session.owner, operation_id)
+        except OperationNotFound:
+            raise HTTPException(status_code=404, detail='작업 기록을 찾을 수 없습니다') from None
+        except PostgresAccessUnavailable:
+            raise HTTPException(status_code=503, detail='작업 기록을 확인하지 못했습니다') from None
+        # 긴 DB 조회 도중 인증이 만료/철회됐으면 결과 ID도 돌려주지 않는다.
+        if verified_session(authorization, 'chat:operations:read').owner != session.owner:
+            raise HTTPException(status_code=401, detail='본인인증·필수 동의가 필요합니다')
+        from fastapi.responses import JSONResponse
+        return JSONResponse({'operation_id': operation.operation_id, 'kind': operation.kind,
+                             'state': operation.state, 'result': operation.result, 'retry_allowed': False},
+                            headers={'Cache-Control': 'no-store'})
+
+    if find_auth is not None:
+        app.get('/chat/operations/{operation_id}')(chat_operation_result)
 
     def stream_answer(call, body, b, t0):
         """11/8 진행률: 단계마다 한 줄짜리 JSON(NDJSON)을 흘려보내고, 마지막 줄은 {"done": true, ...기존 응답}.
@@ -234,6 +287,7 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             staff = True
         elif mode not in (None, "", "web", "kiosk"):
             raise HTTPException(status_code=422, detail="mode 는 web·kiosk·staff 중 하나")
+        session = verified_session(authorization) if find_auth is not None and not staff else None
         try:
             b = bot()
         except HTTPException:
@@ -242,13 +296,17 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
         token = authorization[7:] if authorization and authorization.startswith("Bearer ") else None
         # 11/7 Langfuse: 같은 화면 대화를 묶는 번호(화면이 만든 무작위 값). 형식이 다르면 버림(개인정보·긴 값이 기록에 섞이지 않게)
         sid = body.get("session_id") if isinstance(body.get("session_id"), str) and SESSION_RE.match(body.get("session_id")) else None
+        if session is not None:
+            sid = find_auth.conversation_id(session, sid)
+        elif find_auth is not None and staff:
+            sid = find_auth.staff_conversation_id(sid)
         extra = {}
         try:
             import inspect
             params = inspect.signature(b.ask).parameters
             if "session_id" in params:
                 extra = {"session_id": sid, "channel": "staff" if staff else (mode or "web")}
-            if body.get("intake_action") is not None:      # 11/9 위젯 본인 확인 양식(가린 값만) — 모양이 다르면 422
+            if body.get("intake_action") is not None:      # 가린 본인 확인 또는 버전·토큰 확인 요청. 형식 오류는 422
                 from agents.chat_intake import check_action
                 try:
                     action = check_action(body.get("intake_action"))
@@ -276,6 +334,9 @@ def add_chat_routes(app, chatbot=None, staff_allowed=None, ops_source=None, ops_
             raise HTTPException(status_code=503, detail="챗봇 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요") from None
         metrics.record("question", (time.perf_counter() - t0) * 1000, "ok", result)
         b.guidance.record_suggestion(body.get("suggestion_id"), body.get("question"))
+        if session is not None:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
         return result
 
     @app.get("/chat/metrics")

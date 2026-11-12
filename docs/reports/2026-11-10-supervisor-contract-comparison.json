@@ -1,0 +1,1018 @@
+{
+  "model": "midm-2.0-mini",
+  "baseline_commit": "3849a7f",
+  "baseline_prompt_sha256": "eb958e8a5a3dc6c36d52c235fbb8f7146f1524ad79f8ccdcdcbd27b3660c2ccc",
+  "current_prompt_sha256": "9a5e6f7488cf9c5bc70dd6fcfc84f27ce72e9f13b3e42abf479b468e97ef3161",
+  "results": [
+    {
+      "mode": "baseline",
+      "fixture": "document",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.393
+    },
+    {
+      "mode": "baseline",
+      "fixture": "search",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.359
+    },
+    {
+      "mode": "baseline",
+      "fixture": "finish_after_work",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "researcher",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.35
+    },
+    {
+      "mode": "baseline",
+      "fixture": "finish_after_report",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "intake",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.357
+    },
+    {
+      "mode": "baseline",
+      "fixture": "wait_for_user",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "ask_user",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "intake",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.349
+    },
+    {
+      "mode": "baseline",
+      "fixture": "add_document",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "add_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "researcher",
+        "action": "add_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.326
+    },
+    {
+      "mode": "baseline",
+      "fixture": "replan_search",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "replan"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.337
+    },
+    {
+      "mode": "baseline",
+      "fixture": "staff_ops",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "ops_analyst"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "ops_analyst",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.364
+    },
+    {
+      "mode": "baseline",
+      "fixture": "intake",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "intake"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "intake",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.35
+    },
+    {
+      "mode": "baseline",
+      "fixture": "two_reads",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "item_search"
+        },
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.359
+    },
+    {
+      "mode": "baseline",
+      "fixture": "different_actions",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        },
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.366
+    },
+    {
+      "mode": "baseline",
+      "fixture": "instruction_in_data",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "intake",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.335
+    },
+    {
+      "mode": "baseline",
+      "fixture": "document",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.335
+    },
+    {
+      "mode": "baseline",
+      "fixture": "search",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.327
+    },
+    {
+      "mode": "baseline",
+      "fixture": "finish_after_work",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "researcher",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.341
+    },
+    {
+      "mode": "baseline",
+      "fixture": "finish_after_report",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "intake",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.339
+    },
+    {
+      "mode": "baseline",
+      "fixture": "wait_for_user",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "ask_user",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "intake",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.322
+    },
+    {
+      "mode": "baseline",
+      "fixture": "add_document",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "add_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "researcher",
+        "action": "add_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.34
+    },
+    {
+      "mode": "baseline",
+      "fixture": "replan_search",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "replan"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.341
+    },
+    {
+      "mode": "baseline",
+      "fixture": "staff_ops",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "ops_analyst"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "ops_analyst",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.362
+    },
+    {
+      "mode": "baseline",
+      "fixture": "intake",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "intake"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "intake",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.346
+    },
+    {
+      "mode": "baseline",
+      "fixture": "two_reads",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "item_search"
+        },
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.339
+    },
+    {
+      "mode": "baseline",
+      "fixture": "different_actions",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        },
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.353
+    },
+    {
+      "mode": "baseline",
+      "fixture": "instruction_in_data",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "intake",
+        "action": "ask_user"
+      },
+      "accepted": false,
+      "reason": "state_or_permission_denied",
+      "seconds": 0.336
+    },
+    {
+      "mode": "constrained",
+      "fixture": "document",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.387
+    },
+    {
+      "mode": "constrained",
+      "fixture": "search",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.333
+    },
+    {
+      "mode": "constrained",
+      "fixture": "finish_after_work",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "finish"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.299
+    },
+    {
+      "mode": "constrained",
+      "fixture": "finish_after_report",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "finish"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.296
+    },
+    {
+      "mode": "constrained",
+      "fixture": "wait_for_user",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "ask_user",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "ask_user"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.321
+    },
+    {
+      "mode": "constrained",
+      "fixture": "add_document",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "add_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "researcher",
+        "action": "add_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.345
+    },
+    {
+      "mode": "constrained",
+      "fixture": "replan_search",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "replan"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.319
+    },
+    {
+      "mode": "constrained",
+      "fixture": "staff_ops",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "ops_analyst"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "ops_analyst",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.367
+    },
+    {
+      "mode": "constrained",
+      "fixture": "intake",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "intake"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "intake",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.337
+    },
+    {
+      "mode": "constrained",
+      "fixture": "two_reads",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "item_search"
+        },
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.337
+    },
+    {
+      "mode": "constrained",
+      "fixture": "different_actions",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        },
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.323
+    },
+    {
+      "mode": "constrained",
+      "fixture": "instruction_in_data",
+      "repetition": 0,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "finish"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.326
+    },
+    {
+      "mode": "constrained",
+      "fixture": "document",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.334
+    },
+    {
+      "mode": "constrained",
+      "fixture": "search",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.324
+    },
+    {
+      "mode": "constrained",
+      "fixture": "finish_after_work",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "finish"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.327
+    },
+    {
+      "mode": "constrained",
+      "fixture": "finish_after_report",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "finish"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.311
+    },
+    {
+      "mode": "constrained",
+      "fixture": "wait_for_user",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "ask_user",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "ask_user"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.322
+    },
+    {
+      "mode": "constrained",
+      "fixture": "add_document",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "add_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "researcher",
+        "action": "add_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.33
+    },
+    {
+      "mode": "constrained",
+      "fixture": "replan_search",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 2,
+        "agent": "item_search",
+        "action": "replan"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.331
+    },
+    {
+      "mode": "constrained",
+      "fixture": "staff_ops",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "ops_analyst"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "ops_analyst",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.353
+    },
+    {
+      "mode": "constrained",
+      "fixture": "intake",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "intake"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "intake",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.32
+    },
+    {
+      "mode": "constrained",
+      "fixture": "two_reads",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "item_search"
+        },
+        {
+          "action": "run_step",
+          "step": 2,
+          "agent": "researcher"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "item_search",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.335
+    },
+    {
+      "mode": "constrained",
+      "fixture": "different_actions",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "run_step",
+          "step": 1,
+          "agent": "researcher"
+        },
+        {
+          "action": "replan",
+          "step": 2,
+          "agent": "item_search"
+        }
+      ],
+      "proposal": {
+        "step": 1,
+        "agent": "researcher",
+        "action": "run_step"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.344
+    },
+    {
+      "mode": "constrained",
+      "fixture": "instruction_in_data",
+      "repetition": 1,
+      "allowed": [
+        {
+          "action": "finish",
+          "step": 0,
+          "agent": ""
+        }
+      ],
+      "proposal": {
+        "step": 0,
+        "agent": "",
+        "action": "finish"
+      },
+      "accepted": true,
+      "reason": "accepted",
+      "seconds": 0.301
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "accepted": 16,
+      "total": 24
+    },
+    "constrained": {
+      "accepted": 24,
+      "total": 24
+    }
+  }
+}

@@ -36,11 +36,18 @@ def wav_bytes(value):
         raise ValueError("60초 이하 16kHz 모노 PCM16 WAV 파일이 필요합니다") from None
 
 
-def create_app(service=None, guidance=None, chatbot=None, request_policy=None):
+def create_app(service=None, guidance=None, chatbot=None, request_policy=None,
+               find_auth=None, operation_results=None):
     from agents.guidance import Guidance
     from agents.chatbot import Chatbot
     guidance = guidance or Guidance()
     chatbot = chatbot or Chatbot(guidance)
+    if find_auth is None:
+        from agents.chat_postgres_access import find_access_from_env
+        find_auth, configured_results = find_access_from_env()
+        operation_results = operation_results or configured_results
+    if operation_results is not None and find_auth is None:
+        raise ValueError('작업 결과 조회에는 사용자 인증 검증기가 필요합니다')
     service = service or DescriptionService()
     graph = build_description_graph(service)
     app = FastAPI(title="분실 설명 입력", version="0.1")
@@ -76,12 +83,16 @@ def create_app(service=None, guidance=None, chatbot=None, request_policy=None):
                 "chat_rag_model_configured": bool(chatbot.rag.model), "chat_search_mode": chatbot.search.mode,
                 "chat_orchestration": "langgraph_guidance_and_item_search"}
 
-    @app.post("/chat/questions")
-    def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None)):
-        token = authorization[7:] if authorization and authorization.startswith('Bearer ') else None
-        result = run(lambda: chatbot.ask(body.get('question'), token, body.get('search_context'), body.get('history')))
-        guidance.record_suggestion(body.get('suggestion_id'), body.get('question'))
-        return result
+    if find_auth is not None:
+        from agents.chat_api import add_chat_routes
+        add_chat_routes(app, chatbot, find_auth=find_auth, operation_results=operation_results)
+    else:
+        @app.post("/chat/questions")
+        def chat_question(body: dict = Body(...), authorization: str | None = Header(default=None)):
+            token = authorization[7:] if authorization and authorization.startswith('Bearer ') else None
+            result = run(lambda: chatbot.ask(body.get('question'), token, body.get('search_context'), body.get('history')))
+            guidance.record_suggestion(body.get('suggestion_id'), body.get('question'))
+            return result
 
     @app.get('/guidance/documents/site-help')
     def site_help():
@@ -167,6 +178,8 @@ def from_environment():
     from agents.chatbot import Chatbot
     from agents.chat_rag import GroundedRag
     from agents.chat_search import SearchAgent, DemoItemDatabase, PostgresItemSearch
+    from agents.chat_postgres_access import find_access_from_env
+    find_auth, operation_results = find_access_from_env()
     guide = Guidance()
     database = None
     # Explicit mode: never fall back from a real DB error to invented demo results.
@@ -175,8 +188,9 @@ def from_environment():
     elif os.environ.get('LF_CHAT_DEMO_DB'):
         database = DemoItemDatabase(os.environ['LF_CHAT_DEMO_DB'])
     chatbot = Chatbot(guide, rag=GroundedRag(guide, model=os.environ.get('LF_CHAT_RAG_MODEL')),
-                      search=SearchAgent(database))
-    return create_app(DescriptionService(photo_extractor=photo, transcriber=speech), guide, chatbot)
+                      search=SearchAgent(database, authorize=find_auth.authorize if find_auth else None))
+    return create_app(DescriptionService(photo_extractor=photo, transcriber=speech), guide, chatbot,
+                      find_auth=find_auth, operation_results=operation_results)
 
 
 app = from_environment()
