@@ -90,7 +90,7 @@ class SimPartsTest(unittest.TestCase):
         self.assertEqual(set(w.arm["joints"]), {n for n, _ in SO101_JOINTS})
         self.assertTrue(r.robot_approach(list(SLOTS_MM[0]), [0, 0])["ok"])
         self.assertTrue(r.robot_grasp()["ok"])
-        self.assertLess(w.arm["joints"]["gripper"], 20)            # 집게 닫힘
+        self.assertLess(w.arm["joints"]["gripper"], 30)            # 집게 닫힘(11/12 그림은 물건 두께에서 멈춤 — 휴대폰 26%)
         self.assertTrue(r.robot_deliver()["ok"])
         if w.homing:
             w.homing.join(5)
@@ -578,4 +578,26 @@ class ArmTimingTest(unittest.TestCase):
         r._rest("home · 접힌 대기 자세", 3.9)
         self.assertGreater(len(seen), 20)                         # 한 번에 바뀌지 않고 여러 장(초당 8장)
         self.assertNotEqual(seen[0], seen[-1])
+
+
+class GripRollTest(unittest.TestCase):
+    """11/12 사용자: 집게가 과하게 열리고·닫힘, 사선 물건인데 손목이 안 돎, 집은 물건이 세로로 '딱' 섬 → 실물 티칭 자세 값으로"""
+
+    def test_wrist_turns_to_real_pose_and_grip_stops_on_item(self):
+        from agents.sim_world import SLOTS_MM, SLOT_IDS, REST_JOINTS
+        w = SimWorld(speed=0, seed="layout")
+        r = SimRobot(w)
+        self.assertTrue(r.robot_approach(list(SLOTS_MM[SLOT_IDS.index("R3-1")]), [0, 0])["ok"])   # 분홍 크림 = pose_5
+        self.assertEqual(w.arm["joints"]["wrist_roll"], SimRobot.POSE_ROLL[5])
+        self.assertEqual(w.arm["joints"]["gripper"], SimRobot.POSE_OPEN[5])                        # 실물 열림 30.9%(전엔 늘 70%)
+        self.assertTrue(r.robot_grasp()["ok"])
+        self.assertEqual(w.arm["joints"]["gripper"], SimRobot.CLOSE_ON["핸드크림"])                 # 물건 두께에서 멈춤
+        self.assertTrue(r.robot_deliver()["ok"])
+        if w.homing:
+            w.homing.join(5)
+        self.assertEqual(w.arm["joints"]["wrist_roll"], REST_JOINTS["wrist_roll"])                 # 원점에서 손목도 제자리
+
+    def test_held_item_keeps_orientation_on_screen(self):
+        html = (Path(__file__).resolve().parents[1] / "web" / "live" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('const placed = it.loc === "bin" || it.loc === "gripper";', html)
 
