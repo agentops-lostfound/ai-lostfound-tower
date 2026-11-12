@@ -317,7 +317,7 @@ class ApiTest(unittest.TestCase):
 class PageContractTest(unittest.TestCase):
     def test_showcase_page(self):
         html = (ROOT / "web" / "showcase" / "index.html").read_text(encoding="utf-8")
-        for needle in ("/api/admin/live/state?after=${seq}&detail=1", "/kiosk?machine=${machine}", '"/kiosk?machine=CENTER&tab=ret&demo=1"',
+        for needle in ("/api/admin/live/state?after=${seq}&detail=1", "/kiosk?machine=${machine}", '"/kiosk?machine=CENTER&tab=ret&demo=1&in=showcase"',
                        '$("fLost").src = "/phone"', '$("full").src = "/live?embed=1"', "/ui/theme.css",
                        "data-theme-slot", "prefers-reduced-motion"):
             self.assertIn(needle, html)
@@ -396,7 +396,21 @@ class UiFixes1111Test(unittest.TestCase):
     def test_found_tab_swaps_station(self):
         html = self.read("web/showcase/index.html")
         self.assertIn('const FOUND_STN = {"KIOSK-A": "중앙역", "KIOSK-C": "초량역"};', html)
-        self.assertIn('if (b.dataset.scene === "found" && scene === "found") swapFound(); else setScene(b.dataset.scene);', html)
+        self.assertIn('if (sc === "found" && scene === "found") swapFound();', html)
+
+    def test_two_views_three_tabs_1112(self):
+        """11/12 발표 검토: 탭은 습득/분실/회수 3개, 화면은 키오스크+DB·에이전트(간단히) ⇄ 키오스크 크게(단추 하나),
+        로봇 작업대는 작은 단추, 키오스크 탭 ⇄ 발표 장면 맞춤(postMessage, 같은 출처만)"""
+        html = self.read("web/showcase/index.html")
+        self.assertEqual(html.count('role="tab" data-scene='), 3)
+        self.assertNotIn('data-scene="robot"', html)
+        for needle in ('id="btnView"', 'id="btnRobot"', 'id="btnMore"', 'body.kview main > .panel{display:none}',
+                       'document.body.classList.add("simple")', '"kiosk-set-tab"', 'd.type === "showcase-go"',
+                       'stationret', 'lostweb', '&in=showcase'):
+            self.assertIn(needle, html)
+        k = self.read("web/kiosk/index.html")
+        for needle in ('id="goWeb"', 'id="goCenter"', "IN_SHOWCASE", "e.origin !== location.origin", "tellShowcase('kiosk-tab'"):
+            self.assertIn(needle, k)
 
 if __name__ == "__main__":
     unittest.main()

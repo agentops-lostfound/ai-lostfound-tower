@@ -6,7 +6,8 @@
 <title>분실물 접수 키오스크</title>
 <link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
-<script src="/ui/vkeyboard.js?v=20261111b"></script>
+<script src="/ui/vkeyboard.js?v=20261112a"></script>
+<script src="/ui/phonefield.js?v=20261112a" defer></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
    한줄 설명: 색을 직접 쓰지 않고 "역할 이름(토큰)"으로 쓰면, 다크 모드는 토큰 값만 바뀌어 화면 전체가 함께 바뀐다.
@@ -82,6 +83,7 @@ input[type=text]:focus,input[type=tel]:focus,textarea:focus{border-color:var(--u
 #lost,#ret{overflow:auto;justify-content:flex-start;gap:18px}
 #lost{padding:0;overflow:hidden}
 #lostFrame{display:block;width:100%;height:100%;min-height:0;flex:1;border:0;border-radius:inherit;background:var(--ui-surface)}
+#lost .scgo{flex:none;margin:0 16px 14px;min-height:56px;font-size:20px}
 #lost h1,#ret h1{font-size:38px}
 #raway,#rform,#rwork,#rdone{display:flex;flex-direction:column;gap:18px}
 #raway[hidden],#rform[hidden],#rwork[hidden],#rdone[hidden]{display:none}
@@ -208,6 +210,7 @@ button.undo{font-size:19px;color:var(--ui-text-2)} button.undo.armed{background:
 .prep li{display:grid;justify-items:center;gap:6px;background:var(--ui-fill);border-radius:var(--ui-radius);padding:14px 8px;text-align:center;font-size:21px;font-weight:700;line-height:1.3}
 .prep li small{display:block;font-size:17px;font-weight:600;color:var(--ui-text-2)}
 .prep .pic{width:88px;height:62px}
+.doneflow{margin:8px 0 4px}
 .uses{display:grid;gap:10px;margin:0;padding:0;list-style:none}
 .uses li{display:flex;align-items:center;gap:14px;background:var(--ui-fill);border-radius:var(--ui-radius);padding:12px 18px;font-size:21px;line-height:1.4;color:var(--ui-text-2)}
 .uses li b{color:var(--ui-text)}
@@ -294,6 +297,8 @@ body.demo-mode #stn{flex:1 1 auto}
     <!-- 11/11 분실 접수: 휴대폰 분실인 웹(/lost)과 같은 화면·같은 접수(찾기 번호 또는 대기 번호)를 키오스크 안에 띄운다.
          예전에는 저장하지 않고 역무실 안내만 하는 입력칸이었다. 주소 ?embed=kiosk&station=이 키오스크 역 -->
     <iframe id="lostFrame" title="분실 접수(분실인 웹과 같은 화면)"></iframe>
+    <!-- 11/12 발표 화면 안에서만: 같은 신고를 분실인 휴대폰 웹으로 해 보기 -->
+    <button type="button" class="ghost scgo" id="goWeb" hidden>📱 휴대폰 웹으로 신고하기</button>
   </section>
   <section id="ret" class="lostsec" data-scroll-hint>
     <div id="raway" hidden>
@@ -305,6 +310,7 @@ body.demo-mode #stn{flex:1 1 auto}
         <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>방문 시간</title><circle cx="40" cy="28" r="21"/><path class="p" d="M40 15v13l9 6"/></svg>평일 9~18시<small>시연 기준</small></li>
       </ul>
       <p class="legal">번호가 없으면? <b>분실인 웹</b>에서 신고하거나 <b>AI 안내</b>에 물어보세요.</p>
+      <button type="button" id="goCenter" hidden>부산역 본센터 키오스크로 가기 →</button>   <!-- 11/12 발표 화면 안에서만 -->
       <button class="ghost" id="rawayHome">처음으로</button>
     </div>
     <div id="rform">
@@ -408,7 +414,7 @@ body.demo-mode #stn{flex:1 1 auto}
     <h1>연락처를 남기시겠어요?</h1>
     <p class="sub">안 남겨도 접수돼요 (선택)</p>
     <input type="text" id="cname" maxlength="20" placeholder="이름" autocomplete="off">
-    <input type="tel" id="cphone" inputmode="tel" maxlength="13" placeholder="전화번호 (숫자만)" autocomplete="off">
+    <input type="tel" id="cphone" inputmode="tel" maxlength="13" placeholder="전화번호 (숫자만)" autocomplete="off" data-phone>   <!-- 11/12 /ui/phonefield.js 가 [010]-[1111]-[1111] 세 칸으로 나눔(칸을 누르면 바로 다시 입력) -->
     <ul class="uses" aria-label="연락처 이용 안내">
       <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>감사 연락</title><rect x="5" y="3" width="14" height="26" rx="3"/><path d="M10 25h4"/><path class="p" d="M24 23s-6-3.5-6-7.5a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.5-6 7.5z"/></svg><span>주인이 찾아가면 <b>감사 연락에만</b> 써요</span></li>
       <li><svg class="pic" viewBox="0 0 32 32" role="img"><title>보호</title><path d="M16 3l11 4v8c0 7-5 12-11 14C10 27 5 22 5 15V7z"/><path class="p" d="M11 16l4 4 7-8"/></svg><span><b>다른 목적으로 쓰거나 다른 곳에 주지 않아요</b></span></li>
@@ -419,10 +425,16 @@ body.demo-mode #stn{flex:1 1 auto}
   </section>
   <section id="s4" data-scroll-hint>
     <svg class="pic big" viewBox="0 0 56 56" role="img"><title>접수 완료</title><circle class="p" cx="28" cy="28" r="25"/><path class="p" stroke-width="3.5" d="M16 29l8 8 16-17"/></svg>
-    <h1 class="center">접수되었습니다</h1>
-    <p class="sub center">접수 번호</p>
-    <div class="receipt" id="rno"></div>
-    <button type="button" class="ghost copy" id="copyNo">접수 번호 복사</button>
+    <h1 class="center" id="doneTitle">접수됐어요. 고맙습니다!</h1>
+    <p class="sub center" id="doneSub">주인이 빨리 찾을 수 있게 저희가 잘 보관할게요</p>
+    <!-- 11/12 발표 검토: 습득자에게 접수 번호는 쓸 데가 없어 어색함 → 번호 대신 다음 과정. 번호는 직원 화면·DB 에 그대로 -->
+    <ol class="prep doneflow" aria-label="이 물건은 이렇게 돼요">
+      <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>AI 가 정리</title><rect x="10" y="10" width="38" height="30" rx="4"/><circle class="p" cx="29" cy="25" r="7"/><path class="p" d="M54 18h16M54 26h12M54 34h14"/></svg>AI 가 정리<small>품목·색을 읽어요</small></li>
+      <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>본센터 보관</title><rect x="12" y="16" width="56" height="32" rx="3"/><path d="M12 30h56M31 16v32M49 16v32"/><rect class="p" x="35" y="20" width="10" height="7" rx="1"/></svg>본센터 보관<small>부산역 보관함으로</small></li>
+      <li><svg class="pic" viewBox="0 0 80 56" role="img"><title>주인에게 알림</title><rect x="26" y="6" width="28" height="44" rx="5"/><path d="M36 44h8"/><path class="p" d="M33 18h14M33 25h10"/><circle class="p" cx="56" cy="10" r="6"/></svg>주인에게 알림<small>찾는 분께 문자로</small></li>
+    </ol>
+    <div class="receipt" id="rno" hidden></div>   <!-- 접수 번호(화면에는 안 보임 · 접수 취소에 씀) -->
+    <button type="button" class="ghost copy" id="copyNo" hidden>접수 번호 복사</button>
     <p class="sub center"><span class="cdnum" id="count">10</span>초 뒤 처음 화면으로</p>
     <div class="bar" aria-hidden="true"><i id="homeBar"></i></div>
     <button class="ghost" id="home">지금 처음으로</button>
@@ -480,9 +492,22 @@ function tab(which) {
   if (lost || ret) { stopCam(); sections.forEach(s => s.classList.remove('on')); }
   else { go(step); if (step === 1) startCam(); }
 }
-$('#tabFound').onclick = () => tab('found');
-$('#tabLost').onclick = () => tab('lost');
-$('#tabRet').onclick = () => tab('ret');
+$('#tabFound').onclick = () => { tab('found'); tellShowcase('kiosk-tab', {tab: 'found'}); };
+$('#tabLost').onclick = () => { tab('lost'); tellShowcase('kiosk-tab', {tab: 'lost'}); };
+$('#tabRet').onclick = () => { tab('ret'); tellShowcase('kiosk-tab', {tab: 'ret'}); };
+// 11/12 발표 화면(/showcase) 안: 키오스크 탭을 누르면 발표 화면 장면도 함께 바뀌고, 발표 화면 장면 단추가 키오스크 탭을 바꾼다.
+//   역 키오스크 회수 탭 → [부산역 본센터 키오스크로 가기], 분실 탭 → [휴대폰 웹으로 신고하기]
+const IN_SHOWCASE = Q.get('in') === 'showcase' && window.parent !== window;
+function tellShowcase(type, more) { if (IN_SHOWCASE) try { window.parent.postMessage(Object.assign({type, machine: Q.get('machine') || 'KIOSK-A'}, more), location.origin); } catch (_) {} }
+if (IN_SHOWCASE) {
+  $('#goWeb').hidden = false; $('#goCenter').hidden = false;
+  $('#goWeb').onclick = () => tellShowcase('showcase-go', {scene: 'lostweb'});
+  $('#goCenter').onclick = () => tellShowcase('showcase-go', {scene: 'pickup'});
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'kiosk-set-tab') return;
+    if (['found', 'lost', 'ret'].includes(e.data.tab) && e.data.tab !== curTab) tab(e.data.tab);
+  });
+}
 // 11/11 분실 접수 탭 = 분실인 웹(/lost)을 틀로. 화면 키보드는 바깥(키오스크) 아래에 뜨고 글자는 틀 안 칸에 들어간다
 let lostKb = null;
 function openLost() {
@@ -1223,7 +1248,7 @@ $('#undo').onclick = async () => {
   try {
     const r = await fetch(API + '/api/kiosk/items/' + encodeURIComponent(doneNo) + '/cancel',
       {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({client: CLIENT_ID})});
-    if (r.ok) { $('#rno').textContent = '접수를 취소했어요'; b.textContent = '취소됨'; setTimeout(reset, 1800); return; }
+    if (r.ok) { $('#doneTitle').textContent = '접수를 취소했어요'; $('#doneSub').textContent = '물건을 다시 놓고 처음부터 찍어 주세요'; b.textContent = '취소됨'; setTimeout(reset, 1800); return; }
     let d = {}; try { d = await r.json(); } catch (e) {}
     $('#undoErr').textContent = typeof d.detail === 'string' ? d.detail : '취소하지 못했어요. 역무실에 알려 주세요.';
   } catch (e) { $('#undoErr').textContent = BUSY_MSG; }
@@ -1232,6 +1257,7 @@ $('#undo').onclick = async () => {
 function done(no) {
   doneNo = no; undoReset();
   $('#rno').textContent = no;
+  $('#doneTitle').textContent = '접수됐어요. 고맙습니다!'; $('#doneSub').textContent = '주인이 빨리 찾을 수 있게 저희가 잘 보관할게요';
   $('#cname').value = ''; $('#cphone').value = '';
   go(4); let n = RESET_SEC; $('#count').textContent = n;
   const bar = $('#homeBar'); bar.style.transition = 'none'; bar.style.width = '100%'; void bar.offsetWidth; bar.style.transition = '';

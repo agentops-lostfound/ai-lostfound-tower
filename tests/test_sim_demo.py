@@ -492,6 +492,37 @@ class LostWebApiTest(unittest.TestCase):
         self.assertEqual(r.json()["decision"], "returned")
         self.assertNotIn(cid, svc.sim.visit_wait)
 
+    def test_wait_notify_and_poll(self):
+        """11/12 보관함에 오기 전 분실 신고 → 번호 대신 문자 알림 신청(끝 4자리만) → 습득물이 들어오면 찾기 번호(시연 문자)"""
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        from agents.api import build_app
+        svc = build_sim_service({**ENV, "TOWER_SIM_SEED": "none"})
+        c = TestClient(build_app(svc))
+        w = c.post("/sim/lost", json={"text": "중앙역에서 분홍 핸드크림 잃어버렸어요", "visit": "kiosk",
+                                      "name_masked": "홍*동", "id_no_masked": "******-3******"}).json()
+        self.assertTrue(w["waiting"])
+        self.assertEqual(w["summary"], "분홍 핸드크림")
+        wid, key = w["wait_id"], w["wait_key"]
+        self.assertEqual(c.get(f"/sim/lost/wait/{wid}?key=틀림").status_code, 404)       # 번호만 알아서는 볼 수 없음
+        self.assertEqual(c.get(f"/sim/lost/wait/{wid}").status_code, 404)
+        self.assertEqual(c.get(f"/sim/lost/wait/{wid}?key={key}").json()["state"], "waiting")
+        for bad in ({"key": key, "last4": "12345"}, {"key": key, "last4": "12a4"}, {"key": key, "last4": "1234", "phone": "01012341234"},
+                    {"key": "틀림", "last4": "1234"}):
+            self.assertIn(c.post(f"/sim/lost/wait/{wid}/notify", json=bad).status_code, (404, 422), bad)
+        ok = c.post(f"/sim/lost/wait/{wid}/notify", json={"key": key, "last4": "5678"}).json()
+        self.assertEqual(ok["notify"], "****-5678")
+        self.assertNotIn("5678", " ".join(m.get("body", "") + m.get("title", "") for m in svc.reporter.messages))   # 디스코드 기록에 번호 없음
+        svc.sim.found("중앙역 승강장에서 분홍 핸드크림 주웠어요")
+        self.assertTrue(svc.sim.wait_idle())
+        st = c.get(f"/sim/lost/wait/{wid}?key={key}").json()
+        self.assertEqual(st["state"], "matched")
+        self.assertTrue(st["claim_id"].startswith("C-"))
+        self.assertTrue(st["notify"])
+        self.assertNotEqual(st["story_id"], w["story_id"])                               # 이어지는 찾기 요청 이야기
+
     def test_home_page_lists_screens(self):
         """11/7 주소만 입력하면 Not Found 대신 화면 목록"""
         try:

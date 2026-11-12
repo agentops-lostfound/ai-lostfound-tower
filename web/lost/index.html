@@ -14,6 +14,7 @@
        11/8 글 줄이기: 안내 문장을 짧게 하고 진행 단계·물건 종류·본센터에서 받는 순서·가져갈 것을 선 그림(인라인 SVG)으로 바꿨다 -->
   <link rel="stylesheet" href="/ui/theme.css?v=20261111a">
   <script src="/ui/theme.js"></script>
+  <script src="/ui/phonefield.js?v=20261112a" defer></script>
   <script>/* 11/11 키오스크 '분실 접수' 탭 안(?embed=kiosk): 앱 머리띠·AI 안내 단추·꼬리말을 빼고(키오스크에 이미 있음) 글자를 키움 */
   try { if (new URLSearchParams(location.search).get("embed") === "kiosk") document.documentElement.classList.add("embed-kiosk"); } catch (_) {}</script>
   <style>
@@ -115,6 +116,19 @@
     .card.ok{background:var(--ui-ok-soft)}
     .card.warn{background:var(--ui-warn-soft)}
     .card.bad{background:var(--ui-err-soft)}
+    /* 11/12 대기 신고 → 문자 알림 신청 · 들어오면 휴대폰 위에서 내려오는 문자 알림(시연) */
+    .notify{display:grid;gap:10px;margin-top:14px}
+    .notify label{font-size:15px;font-weight:700;color:var(--ui-text-2)}
+    .notify .tiny{font-size:13px;color:var(--ui-text-3);margin:0}
+    .notify-ok{margin:14px 0 0;font-weight:700;color:var(--ui-ok,#16a34a)}
+    .sms{position:fixed;left:10px;right:10px;top:10px;z-index:50;display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:18px;
+      background:color-mix(in srgb,var(--ui-surface) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+      box-shadow:0 10px 30px rgba(0,0,0,.25);transform:translateY(-140%);transition:transform .35s cubic-bezier(.2,.9,.3,1.2);cursor:pointer}
+    .sms.on{transform:none}
+    .sms .ic{flex:none;width:38px;height:38px;border-radius:10px;background:#34c759;display:grid;place-items:center;color:#fff;font-size:20px}
+    .sms .bd{min-width:0;font-size:14px;line-height:1.45;color:var(--ui-text)}
+    .sms .bd .from{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+    .sms .bd .from small{font-weight:500;color:var(--ui-text-3)}
     .card > b:first-child{font-size:17px;font-weight:700}
     .q{font-size:20px;font-weight:700;line-height:1.45;margin:0 0 16px}
     .qrow{display:flex;flex-wrap:wrap;gap:8px}
@@ -441,12 +455,25 @@ function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;'
 function done(res) {
   const card = $('#donecard'), head = $('#donehead');
   state.story = res.story_id || null; state.claim = res.claim_id || null; state.after = 0;
-  if (res.waiting) {           // 11/9 분실인이 먼저 신고(닮은 습득물이 아직 없음) → 대기 번호(정연우 검토)
+  if (res.waiting) {           // 11/9 분실인이 먼저 신고(닮은 습득물이 아직 없음)
+    // 11/12 발표 검토: 대기 번호(L-…)는 어색함 → 번호 없이 '들어오면 문자로 알려 드려요' + 알림 신청. 번호는 관제탑 안에서만 씀
     card.className = 'card warn';
-    head.innerHTML = `<div class="hint" style="margin:0">대기 번호</div><div class="code">${esc(res.wait_id)}</div>
-      <button type="button" class="ghost copyno" data-no="${esc(res.wait_id)}">번호 복사</button>
-      <p class="desc" style="margin:4px 0 0">아직 닮은 습득물이 없어요.<br>들어오면 자동으로 찾기 번호가 만들어지고 아래 진행 상황에 보여요.</p>`;
+    head.innerHTML = `<h2>아직 보관함에 없어요</h2>
+      <p class="desc" style="margin:6px 0 0"><b>${esc(res.summary || '찾는 물건')}</b> — 누군가 주워 맡기면<br>바로 문자로 알려 드릴게요.</p>
+      <div class="notify" id="notifyBox">
+        <label for="nphone">문자 받을 번호</label>
+        <input type="tel" id="nphone" inputmode="tel" maxlength="13" placeholder="전화번호" autocomplete="off" data-phone>
+        <button type="button" id="notifyBtn" disabled>알림 신청</button>
+        <p class="tiny">끝 4자리만 관제탑에 보내요 · 시연에서는 이 화면 위로 알림이 와요</p>
+      </div>
+      <p class="notify-ok" id="notifyOk" hidden></p>`;
     $('#visit').hidden = true;
+    state.wait = {id: res.wait_id, key: res.wait_key, summary: res.summary || '찾는 물건'};
+    const np = $('#nphone');
+    if (window.PhoneField) PhoneField.enhance(np);
+    np.addEventListener('input', () => { $('#notifyBtn').disabled = np.value.replace(/\D/g, '').length < 10; });
+    $('#notifyBtn').addEventListener('click', () => notifyMe(np.value));
+    startWaitPoll();
   } else if (res.staff) {
     card.className = 'card warn';
     head.innerHTML = `<h2>비슷한 물건이 여러 개예요</h2><p class="desc" style="margin:6px 0 0">부산역 본센터에서<br>직원이 직접 확인해 드려요.</p>`;
@@ -470,6 +497,44 @@ function done(res) {
   $('#vid').textContent = (state.idMasked || '').replace(/^\*{6}-([1-4])\*{6}$/, '$1') || '-';   // 11/10 키오스크에는 이 숫자 하나만 넣는다
   steps(res.claim_id && res.quiz_passed ? 3 : 3, 2); show('#s-done');
   startPoll();
+}
+
+// 11/12 대기 신고 → 문자 알림 신청(끝 4자리만 보냄) · 물건이 들어오면 화면 위로 문자 알림(시연, 실제 문자 없음)
+async function notifyMe(phone) {
+  const d = String(phone || '').replace(/\D/g, ''), w = state.wait;
+  if (!w || d.length < 10) return;
+  $('#notifyBtn').disabled = true;
+  try {
+    const r = await fetch(`/sim/lost/wait/${encodeURIComponent(w.id)}/notify`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify({key: w.key, last4: d.slice(-4)})});
+    if (!r.ok) throw new Error();
+    w.phone = `${d.slice(0, 3)}-****-${d.slice(-4)}`;
+    $('#notifyBox').hidden = true;
+    const ok = $('#notifyOk'); ok.hidden = false; ok.textContent = `✅ 알림 신청 완료 · ${w.phone} 로 알려 드려요`;
+  } catch (_) { $('#notifyBtn').disabled = false; err($('#err1'), '알림 신청을 하지 못했어요. 잠시 뒤 다시 눌러 주세요.'); }
+}
+function startWaitPoll() {
+  clearInterval(state.waitPoll);
+  state.waitPoll = setInterval(async () => {
+    const w = state.wait; if (!w) { clearInterval(state.waitPoll); return; }
+    try {
+      const r = await fetch(`/sim/lost/wait/${encodeURIComponent(w.id)}?key=${encodeURIComponent(w.key)}`);
+      if (r.status === 404) { clearInterval(state.waitPoll); return; }
+      const st = await r.json();
+      if (st.state !== 'matched') return;
+      clearInterval(state.waitPoll); state.wait = null;
+      if (w.phone) sms(`찾으시는 물건(<b>${esc(st.summary || w.summary)}</b>)이 보관함에 들어왔어요. 찾기 번호 <b>${esc(st.claim_id)}</b> — 부산역 본센터 키오스크에서 받으세요.`);
+      done({claim_id: st.claim_id, story_id: st.story_id, quiz_passed: st.quiz_passed, candidates: []});
+    } catch (_) {}
+  }, 1500);
+}
+function sms(html) {
+  let el = document.getElementById('sms');
+  if (!el) { el = document.createElement('div'); el.id = 'sms'; el.className = 'sms'; el.setAttribute('role', 'status'); document.body.appendChild(el);
+             el.addEventListener('click', () => el.classList.remove('on')); }
+  el.innerHTML = `<span class="ic" aria-hidden="true">💬</span><span class="bd"><span class="from">분실물 관제탑 <small>지금</small></span>${html}</span>`;
+  requestAnimationFrame(() => el.classList.add('on'));
+  clearTimeout(sms.t); sms.t = setTimeout(() => el.classList.remove('on'), 12000);
 }
 
 // 11/9 번호 복사(찾기·대기 번호). 복사가 막힌 기기면 번호를 선택해 둔다
@@ -526,7 +591,7 @@ $('#cancelClaim').addEventListener('click', async () => {
 function startPoll() { clearInterval(state.poll); state.started = Date.now(); pollOnce(); state.poll = setInterval(pollOnce, 1500); }
 
 function resetAll() {
-  clearInterval(state.poll); state.poll = null; state.story = state.claim = null; pending = null;
+  clearInterval(state.poll); state.poll = null; clearInterval(state.waitPoll); state.wait = null; state.story = state.claim = null; pending = null;
   $('#cancelClaim').hidden = true; $('#cancelMsg').hidden = true; cancelArmed = false;
   $('#form').reset(); state.cat = state.color = '';
   document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false'));

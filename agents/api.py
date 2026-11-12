@@ -697,7 +697,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def ui_asset(name: str):
         """11/8 디자인 개편 공통 파일(web/ui/theme.css·theme.js) — 모든 화면이 같은 색·부품·라이트/다크 전환을 쓴다"""
         from fastapi.responses import FileResponse
-        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript"}   # 11/10 화면 키보드
+        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript",   # 11/10 화면 키보드
+                 "phonefield.js": "application/javascript"}   # 11/12 전화번호 세 칸
         if name not in types:
             raise HTTPException(status_code=404, detail="없는 파일")
         return FileResponse(os.path.join(WEB_DIR, "ui", name), media_type=types[name], headers={"Cache-Control": "no-cache"})
@@ -965,6 +966,24 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
         if not callable(getattr(d, "staff_visit", None)):
             raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
         return _sim_call(d.staff_visit, claim_id)
+
+    @app.get("/sim/lost/wait/{wait_id}")
+    def sim_wait(wait_id: str, key: str = "") -> dict:
+        """11/12 대기 분실 신고 결과(분실인 화면이 1.5초마다): waiting | matched(찾기 번호). key = 신고 때 받은 wait_key"""
+        d = _sim()
+        if not callable(getattr(d, "wait_poll", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.wait_poll, wait_id, key)
+
+    @app.post("/sim/lost/wait/{wait_id}/notify")
+    def sim_wait_notify(wait_id: str, payload: dict = Body(...)) -> dict:
+        """11/12 문자 알림 신청(시연): {"key": wait_key, "last4": "1234"} — 전화번호 끝 4자리만 받음, 실제 문자는 보내지 않음"""
+        if not isinstance(payload, dict) or set(payload) != {"key", "last4"}:
+            raise HTTPException(status_code=422, detail="본문은 key·last4 두 개만 보냅니다")
+        d = _sim()
+        if not callable(getattr(d, "notify_wait", None)):
+            raise HTTPException(status_code=409, detail="가상 시연(TOWER_SIM=1)에서만 쓸 수 있어요")
+        return _sim_call(d.notify_wait, wait_id, payload["key"], payload["last4"])
 
     @app.post("/sim/lost/{pending_id}/answer")
     def sim_answer(pending_id: str, payload: dict = Body(...)) -> dict:
