@@ -360,3 +360,36 @@ class ApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RetryAfterFailedQuizTest(unittest.TestCase):
+    """11/12 김건태님 시험: 역을 잘못 말해 확인 질문을 통과 못 한 요청이 남아 바로잡은 재신고가 claim_exists 로 막혔다"""
+
+    def test_failed_unvisited_claim_is_replaced(self):
+        from agents.sim_director import build_sim_service
+        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_AGENT_TALK": "0", "TOWER_AGENT_LLM": "0"})
+        d = svc.sim
+        d.reset(seed="layout")
+        r1 = d.lost("흰색 휴대폰 잃어버렸어요 중앙역에서요")         # 흰 폰은 초량역 접수 → 장소 확인 실패
+        d.wait_idle(30)
+        self.assertFalse(svc.claims.get(r1["claim_id"])["quiz"][0]["passed"])
+        r2 = d.lost("흰색 휴대폰 잃어버렸어요 초량역에서요")
+        d.wait_idle(30)
+        self.assertEqual(r2["item_id"], r1["item_id"])
+        self.assertNotEqual(r2["claim_id"], r1["claim_id"])
+        self.assertEqual(svc.claims.get(r1["claim_id"])["status"], "cancelled")   # 앞 요청은 기록으로 남고 취소
+
+    def test_passed_claim_still_blocks(self):
+        from agents.service import Conflict
+        from agents.sim_director import build_sim_service
+        svc = build_sim_service({"TOWER_SIM_SPEED": "0", "TOWER_GPU_LEASE": "0", "TOWER_AGENT_TALK": "0", "TOWER_AGENT_LLM": "0",
+                                 "TOWER_SIM_MANUAL_HANDOVER": "1"})
+        d = svc.sim
+        d.reset(seed="layout")
+        r1 = d.lost("흰색 휴대폰 잃어버렸어요 초량역에서요")
+        c = svc.claims.get(r1["claim_id"])
+        if c["status"] != "booked" or not all(q["passed"] for q in c["quiz"]):
+            self.skipTest("가상 흐름이 이미 방문·반환까지 진행")
+        with self.assertRaises(Exception):
+            svc.create_claim({**{k: c[k] for k in c if k in ("item_id",)}, "consented_at": "2026-11-12T10:00:00", "name_masked": "김*수",
+                              "id_verified": True, "id_no_masked": "900101-1******", "quiz": [{"field": "place", "passed": True}]})

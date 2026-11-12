@@ -643,12 +643,17 @@ details.more .robot-note{margin-top:0}
     $("side").innerHTML = s;
   }
 
-  function tick() {          // 화면에서 팔이 부드럽게 따라가게(관제탑은 0.2초 간격으로 위치를 바꿈)
+  // 11/12 김건태님: '로봇이 빠르게 움직였다가 마지막에 순식간에 홈으로'. 화면은 0.4초마다 새 값을 받는데 예전에는 장면마다 22%씩(약 0.2초)
+  //   곧바로 따라가 '확 움직이고 멈춤'이 되풀이됐다 → 시간 기준으로 0.45초에 걸쳐 이어서 따라가게(받는 간격보다 조금 길게 — 끊기지 않음)
+  let lastTick = 0;
+  function tick(now) {
+    const dt = lastTick ? Math.min(0.1, ((now || 0) - lastTick) / 1000) : 0.016; lastTick = now || 0;
+    const a = 1 - Math.exp(-dt / 0.45);
     if (targetJ) {
       if (!shownJ) shownJ = {...targetJ};
-      for (const k of JN) shownJ[k] += ((targetJ[k] ?? 0) - (shownJ[k] ?? 0)) * 0.22;
+      for (const k of JN) shownJ[k] += ((targetJ[k] ?? 0) - (shownJ[k] ?? 0)) * a;
     }
-    shown.z += (target.z - shown.z) * 0.22;
+    shown.z += (target.z - shown.z) * a;
     placeArm();
     requestAnimationFrame(tick);
   }

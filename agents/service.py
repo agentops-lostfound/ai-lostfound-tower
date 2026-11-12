@@ -341,6 +341,15 @@ class TowerService:
             taken = busy(claim["item_id"]) if callable(busy) else None
         except Exception:
             taken = None
+        if taken and self._failed_unvisited(taken):
+            # 11/12 김건태님 시험: 역을 잘못 말해 확인 질문을 통과하지 못한 요청(방문 전)이 '진행 중'으로 남아, 바로잡아 다시 신고하면
+            #   막혔다(지우고 다시 넣는 수밖에 없었음) → 통과 못 한 방문 전 요청은 취소하고 새 요청을 받는다(기록은 cancelled 로 남음).
+            #   통과한 요청이나 방문 중인 요청은 그대로 막는다(두 번 반환 방지)
+            try:
+                if self.claims.cancel(taken):
+                    taken = None
+            except Exception:
+                pass
         if taken:
             raise Conflict("claim_exists", "이 물건에는 이미 진행 중인 찾기 요청이 있어요 — 본센터 역무실에서 직원이 확인합니다")
         try:
@@ -350,6 +359,17 @@ class TowerService:
         except Exception as e:
             raise Unavailable(f"찾기 요청 저장소 연결 실패({type(e).__name__})") from e
         return public_view(row)
+
+    def _failed_unvisited(self, claim_id: str) -> bool:
+        """방문 전(booked)이고 확인 질문을 통과하지 못한 찾기 요청인가(다시 신고하면 바꿔도 되는 요청)"""
+        try:
+            old = self.claims.get(claim_id)
+        except Exception:
+            return False
+        if not old or old.get("status") != "booked":
+            return False
+        quiz = old.get("quiz") or []
+        return not quiz or not all(q.get("passed") for q in quiz)
 
     def get_claim(self, claim_id: str) -> dict | None:
         if not CLAIM_ID_RE.match(claim_id or ""):
