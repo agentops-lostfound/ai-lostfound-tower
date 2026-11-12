@@ -544,3 +544,38 @@ class LostWebApiTest(unittest.TestCase):
                        "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261111a" defer></script>', "부산역 본센터"):
             self.assertIn(needle, html)
         self.assertNotIn("저장되거나 역무실로 전송되지 않습니다", html)        # 예전 데모 양식 문구 제거
+
+
+class ArmTimingTest(unittest.TestCase):
+    """11/12 실물 로그(단계마다 약 3.9초, 11단계 약 44초)에 맞춘 가상 팔: 단계 이름은 티칭 자세(VLA 아님), 원점 복귀는 천천히 접힘"""
+
+    def test_stage_names_and_slow_home(self):
+        from agents.sim_world import SLOTS_MM, SLOT_IDS, REST_JOINTS
+        w = SimWorld(speed=0, seed="layout")
+        r = SimRobot(w)
+        phases = []
+        orig = r._pose
+        r._pose = lambda **kw: (phases.append(w.arm["phase"] if "phase" not in kw else kw["phase"]), orig(**kw))[1]
+        self.assertTrue(r.robot_approach(list(SLOTS_MM[SLOT_IDS.index("R2-1")]), [0, 0])["ok"])
+        self.assertTrue(r.robot_grasp()["ok"])
+        self.assertTrue(r.robot_deliver()["ok"])
+        if w.homing:
+            w.homing.join(5)
+        text = " ".join(dict.fromkeys(phases))
+        for name in ("pose_3 · 칸 위로", "pose_3_open", "pose_3_target", "pose_3_close", "outlet_return_1", "close ·", "open ·"):
+            self.assertIn(name, text)
+        self.assertNotIn("VLA", text)
+        self.assertEqual(w.arm["phase"], "대기")
+        self.assertEqual(w.arm["joints"], REST_JOINTS)
+        self.assertEqual(SimRobot.STAGE_S, 3.9)
+
+    def test_rest_folds_over_time(self):
+        w = SimWorld(speed=0, seed="none")
+        r = SimRobot(w)
+        r._pose(x=200, y=150, z=90, gripper=70)
+        seen = []
+        w.sleep = lambda s: seen.append(dict(w.arm["joints"]))
+        r._rest("home · 접힌 대기 자세", 3.9)
+        self.assertGreater(len(seen), 20)                         # 한 번에 바뀌지 않고 여러 장(초당 8장)
+        self.assertNotEqual(seen[0], seen[-1])
+
