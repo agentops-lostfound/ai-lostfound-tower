@@ -269,6 +269,10 @@ def answer_gap(question: str, answer: str) -> str | None:
     """답이 질문이 묻는 것을 빠뜨렸으면 그 종류(when·where·subject·yesno), 맞물리면 None. 코드 규칙이라 빠르고 매번 같다"""
     q = re.sub(r"[\s?？!.~]+", "", question or "")
     a = answer or ""
+    from agents.chat_answer_goal import question_goal, covers_goal
+    goal = question_goal(question)
+    if goal and not covers_goal(goal, a):
+        return 'intent'
     if WHEN_Q.search(q) and not WHEN_A.search(a):
         return "when"
     if "어디" in q and not WHERE_A.search(a):
@@ -288,9 +292,22 @@ def answer_gap(question: str, answer: str) -> str | None:
     return None
 
 
+def append_rule_quotes(answer, quotes):
+    """본문에 이미 있는 고정 근거 문장은 다시 붙이지 않는다."""
+    shown = _squash(answer)
+    missing = []
+    for quote in quotes:
+        normalized = _squash(quote)
+        if normalized and normalized not in shown:
+            missing.append(quote)
+            shown += normalized
+    return answer.rstrip() + ('\n\n근거: ' + ' '.join(missing) if missing else '')
+
+
 def gap_hint(gap: str, question: str) -> str:
     item = "·".join(sorted(items_named(question))) or "그 물건"
-    return {"yesno": "앞 답은 질문이 묻는 '되는지(할 수 있는지)'에 답하지 않았다. 첫 문장에서 근거대로 된다·안 된다(할 수 있다·없다)를 바로 말한다",
+    return {"intent": "앞 답은 질문이 묻는 핵심 기능·조건·절차에 답하지 않았다. 질문의 요청 종류에 맞는 결론을 먼저 쓰고 필요한 절차만 설명한다",
+            "yesno": "앞 답은 질문이 묻는 '되는지(할 수 있는지)'에 답하지 않았다. 첫 문장에서 근거대로 된다·안 된다(할 수 있다·없다)를 바로 말한다",
             "when": "앞 답에 질문이 묻는 때·기간이 없다. 근거의 시간·기간을 넣어 답한다",
             "where": "앞 답에 질문이 묻는 장소가 없다. 근거의 장소를 넣어 답한다",
             "subject": f"질문은 {item} 에 대해 묻는데 앞 답은 다른 물건 이야기다. {item} 에 대한 근거로 답한다",
@@ -336,6 +353,12 @@ class GroundedRag:
         notify('retrieve')
         result = self.guidance.ask(question)
         result = {**result, 'generation_used': False, 'generation_status': 'not_needed'}
+        from agents.chat_answer_goal import question_goal, covers_goal
+        goal = question_goal(question)
+        if result.get('method') == 'question_goal_guidance' and goal != 'chat_registration':
+            # 유지된 계측 규약: 코드 답변을 모델 호출로 세지 않는다.
+            status = 'fixed_policy_text' if any(s['topic'] == 'hours' for s in result['sources']) else 'not_needed'
+            return {**result, 'generation_status': status}
         allowed = None
         if [s['topic'] for s in result['sources']] == ['site_help'] and result['status'] == 'answered':
             paragraphs = result['answer'].split('\n\n')
@@ -388,6 +411,8 @@ class GroundedRag:
                 method = 'retrieval_augmented_extractive_generation'
             else:
                 answer, method = parsed['answer'], 'retrieval_augmented_generation'
+            if goal and not covers_goal(goal, answer):
+                raise ValueError('question_goal_missing')
             # 11/9 채점표(Mi:dm): "본센터 갈 때 준비물 알려줘"에 모델이 문서를 다시 쓰며 '신분증'을 빼먹음 → 문서의 핵심 낱말을
             # 절반 넘게 잃은 답은 받지 않고 문서 글로(지어내기뿐 아니라 빠뜨리기도 막음)
             compact, cq = re.sub(r'\s+', '', answer), re.sub(r'\s+', '', question)
@@ -406,7 +431,7 @@ class GroundedRag:
                 if not rule_answer_ok(answer, rule_topics) or (evidence_has_number and not re.search(r'\d', answer)):
                     return {**result, 'generation_status': fixed_status, 'generation_note': 'rule_guard_failed'}
                 quotes = [first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics]
-                answer = answer.rstrip() + '\n\n근거: ' + ' '.join(quotes)
+                answer = append_rule_quotes(answer, quotes)
                 method = 'retrieval_augmented_generation_with_rule_quote'
             extra = generation_note(parsed)
             return {**result, 'answer': answer, 'method': method, 'generation_used': True,
@@ -623,7 +648,7 @@ class GroundedRag:
                 answer = parsed['answer']
                 rule_topics = [d['topic'] for d in docs if d['topic'] in FIXED_TEXT_TOPICS]
                 if rule_topics:
-                    answer = answer.rstrip() + '\n\n근거: ' + ' '.join(first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics)
+                    answer = append_rule_quotes(answer, [first_sentence(d['answer']) for d in docs if d['topic'] in rule_topics])
                 return {**self.guidance._response('answered', answer, docs), 'generation_used': True,
                         'generation_status': 'generated', 'method': 'retrieval_augmented_generation', 'model': self.model,
                         **generation_note(parsed)}

@@ -60,7 +60,7 @@ OFF_TOPIC_RE = re.compile(
     r"|시간표|배차|막차|첫차|버스|택시|환승|지하철(?:시간|몇시|노선)|열차시간|기차(?:표|시간)|교통(?:상황|정보)|도로상황"
     r"|주식|주가|코스피|코스닥|코인|비트코인|환율|금리|부동산"
     r"|뉴스|속보|야구|축구|농구|배구|스포츠|경기결과|몇대몇|로또|연예인|드라마|영화추천|노래추천|운세|별자리"
-    r"|대통령|(?:수도|인구)(?:가|는)?(?:어디|몇|얼마)|번역해|코딩|코드(?:작성|짜)")
+    r"|대통령|(?:수도|인구)(?:가|는)?(?:어디|몇|얼마)|번역해|코딩|코드(?:작성|짜)|파이썬|프로그래밍|프로그램.{0,12}(?:짜|작성|만들)")
 SERVICE_RE = re.compile(
     r"분실|잃어|잃었|놓고|두고|습득|주웠|주운|주워|맡기|맡겨|맡길|맡긴|신고|수령|돌려받|받으러|받을|받는|키오스크|본센터|센터|보관|접수|예약"
     r"|물건|지갑|휴대폰|핸드폰|폰|usb|립밤|핸드크림|배터리|우산|가방|카드|열쇠|후보|찾기번호|인증|신분증|운영|방문|늦게|늦어|가도|챗봇|사이트|사진")
@@ -180,6 +180,10 @@ class Guidance:
         if unconfirmed_policy(q):
             return self._response('policy_pending', '그 내용의 확정 운영 정책은 현재 안내 자료에 없어요. '
                 '가능하다고 약속하거나 실제 처리했다고 답할 수는 없어요. 프로젝트 담당자에게 확인이 필요해요.', [])
+        from agents.chat_answer_goal import goal_reply
+        structured = goal_reply(q, self)
+        if structured:
+            return structured
         if found_statement(q):
             from agents.chat_intake import extract, OTHER_ITEM
             from agents.contracts import category_label, is_active_category, inactive_category_message

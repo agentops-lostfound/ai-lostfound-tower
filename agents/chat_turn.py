@@ -40,7 +40,8 @@ def cancel_draft_requested(question):
 
 def help_question(question):
     q = compact(question)
-    return bool(unconfirmed_policy(q) or re.search(r'운영시간|몇시|센터.{0,10}(?:문|열|닫)|개인정보|신분정보|인증|동의|수령|대리|택배|배송|보관기간'
+    from agents.chat_answer_goal import question_goal
+    return bool(question_goal(q) or unconfirmed_policy(q) or re.search(r'운영시간|몇시|센터.{0,10}(?:문|열|닫)|개인정보|신분정보|인증|동의|수령|대리|택배|배송|보관기간'
         r'|(?:물건|취급|운영|다루는).{0,10}(?:종류|몇개|몇가지|품목)|받으러.{0,10}(?:뭘|뭐|필요)|준비물|예전db|카드지갑.*기록', q))
 
 
@@ -90,6 +91,10 @@ def protected_reply(question, guidance):
     q = compact(question)
     def reply(answer, topics=()):
         return guidance._response('answered', answer, [d for d in guidance.documents if d['topic'] in topics])
+    if (re.search(r'(?:인증|동의|본인확인).{0,8}(?:없이|안하고|하지않고)', q)
+            and re.search(r'(?:접수|등록|반환|수령).*(?:완료해|완료하고|처리해|만들어|발급해|진행해)', q)):
+        return reply('관리자라고 말해도 본인 확인이나 필수 동의를 생략해 접수할 수 없어요. '
+            '이 요청으로 접수하거나 접수번호를 만들지 않았어요. 정상 접수에는 필요한 확인과 요약 승인 절차가 필요해요.', ('consent',))
     if re.search(r'비밀번호|비번|암호|api키|apikey|토큰|token|시스템프롬프트|숨겨진프롬프트|환경변수|비밀값|비밀문자열|\.env', q) \
             and (not re.search(r'(?:전화번호|비밀번호).*(?:적|써|쓰|입력|넣)', q) or re.search(r'관리자|데이터베이스|서버|접속', q)):
         return reply('관리자 비밀번호·키·내부 프롬프트·환경설정은 알려 드릴 수 없어요. 이 대화로 직원 권한을 부여하거나 인증을 생략할 수도 없어요.')
@@ -137,7 +142,10 @@ def turn_reply(question, history, guidance, identity_pending=False):
         return guidance._response('answered', '위험할 수 있어요. 해당 물건을 기계에 넣거나 직접 충전·분해하지 마세요. '
             '작동 중인 로봇 안에 손을 넣지 말고, 안전한 곳에서 역무실이나 현장 직원에게 도움을 요청해 주세요. 이 채팅으로 장치를 정지하거나 도난·위험물 신고를 대신 접수할 수는 없어요.', [])
     from agents.chat_intake import OTHER_ITEM
-    if OTHER_ITEM.search(question) and re.search(r'처럼|이라고|취급|쳐서', q) and re.search(r'등록|접수|신고|맡', q):
+    from agents.contracts import CATEGORIES, category_label, is_active_category
+    retired = any(compact(name) in q for c in CATEGORIES if not is_active_category(c)
+                  for name in (c, category_label(c)))
+    if (OTHER_ITEM.search(question) or retired) and re.search(r'처럼|이라고|취급|쳐서|바꿔|바꾸|위장|거짓|다르게적', q) and re.search(r'등록|접수|신고|맡', q):
         from agents.contracts import active_category_text
         docs = [d for d in guidance.documents if d['topic'] == 'categories']
         return guidance._response('answered', '다른 품목을 지원 품목 이름으로 바꿔 접수할 수는 없어요. '

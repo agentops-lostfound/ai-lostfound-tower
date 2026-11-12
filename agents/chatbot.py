@@ -223,6 +223,9 @@ class Chatbot:
         """규칙이 분명하게 찾은 일꾼(planner 가 지울 수 없음)"""
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
+        from agents.chat_answer_goal import question_goal
+        if question_goal(q):
+            return {'guidance': True, 'item_search': False}
         help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|면허증|운전면허|여권|가는법|가는길|받는순서|순서'
                                   r'|남겨야|남기나|남겨요|적어야|써야|연락처', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)   # 11/9 접수 중 "연락처도 남겨야 해요?"
         search = re.search(r'찾아(?!가|갈|올|오|와)|찾고|검색|후보(?!.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개))|접수번호|(?:지갑|모형폰|휴대폰|핸드폰|휴대전화|스마트폰|전화기|아이폰|갤럭시|usb|립밤|보조배터리|핸드크림|폰).*(?:있나요|있어|있나|있니|있습니까|있는지|있을까|들어왔|보관중|보관하고|보관하|있으면)', q)
@@ -614,6 +617,9 @@ class Chatbot:
             return {'route': 'ops'}
         q = unicodedata.normalize('NFKC', natural_question(state['question'])).lower()
         q = re.sub(r'[\s\u200b-\u200d\ufeff]', '', q)
+        from agents.chat_answer_goal import question_goal
+        if question_goal(q):
+            return {'route': 'guidance'}
         # Process/help questions stay in guidance, even when they mention searching.
         help_question = re.search(r'방법|절차|사용법|이용법|어떻게|운영|개인정보|보관기간|인증|동의|예약|준비물|수령|주말|몇시|보관|필요해|챙겨|가져가|위치|어디있|대신|대리|택배|수수료|비용|신분증|면허증|운전면허|여권|가는법|가는길|받는순서|순서', q) or re.search(r'후보가뭐|후보.*(?:뜻|의미|확정|사진|안나|번호만|끝|구분|맞|2개|두개|여러개|몇개)', q)  # 11/5: 후보의 뜻을 묻는 질문은 안내로
         from agents.chat_turn import help_question as dialogue_help
@@ -697,7 +703,8 @@ class Chatbot:
         active = self.intake.active(session_id) if intake_active else None
         reply = None if ops_turn or cancelling else turn_reply(question, history, self.guidance,
             identity_pending=bool(active and active.get('asked') == 'identity'))
-        intake_start = '' if ops_turn or intake_active or reply else (detect_start(question, history) or '')
+        from agents.chat_answer_goal import question_goal
+        intake_start = '' if ops_turn or intake_active or reply or question_goal(question) else (detect_start(question, history) or '')
         if not ops_turn and not intake_active and not intake_start and not reply and found_statement(question):
             reply = {**self.guidance.ask(question), 'choices': ['습득 신고하기']}
             # 운영하지 않는 품목에는 접수 버튼을 제안하지 않는다.
