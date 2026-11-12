@@ -697,7 +697,8 @@ def build_app(service: TowerService | None = None, chatbot=None, admin_auth=None
     def ui_asset(name: str):
         """11/8 디자인 개편 공통 파일(web/ui/theme.css·theme.js) — 모든 화면이 같은 색·부품·라이트/다크 전환을 쓴다"""
         from fastapi.responses import FileResponse
-        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript"}   # 11/10 화면 키보드
+        types = {"theme.css": "text/css", "theme.js": "application/javascript", "vkeyboard.js": "application/javascript",   # 11/10 화면 키보드
+                 "phonefield.js": "application/javascript"}   # 11/12 전화번호 세 칸
         if name not in types:
             raise HTTPException(status_code=404, detail="없는 파일")
         return FileResponse(os.path.join(WEB_DIR, "ui", name), media_type=types[name], headers={"Cache-Control": "no-cache"})
