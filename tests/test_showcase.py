@@ -422,6 +422,9 @@ class UiFixes1111Test(unittest.TestCase):
                        "const devw = Math.max(screenW + 20 + 54, pw + 22);", "height:44px;box-sizing:border-box",
                        ".scenes button[aria-selected=\"true\"] .swap{visibility:visible}", "#btnView{min-width:12.5em}"):
             self.assertIn(needle, html)
+        # 11/12 오후: 키오스크는 늘 가운데(왼쪽 DB · 가운데 기기 · 오른쪽 에이전트)
+        self.assertIn("grid-template-columns:minmax(0,1fr) var(--devw,400px) minmax(0,1fr)", html)
+        self.assertIn("#deviceCol{order:2} #panelDb{order:1} #panelAgent{order:3}", html)
         vk = self.read("web/ui/vkeyboard.js")
         self.assertIn("b.tabIndex = -1;", vk)                                   # 화면 글쇠는 Tab 순서 밖
         self.assertIn("else if (st.el && !kb.contains(el)) hide();", vk)        # Tab 으로 칸을 벗어나면 키보드·여백 닫기
