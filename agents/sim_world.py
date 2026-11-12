@@ -741,13 +741,13 @@ class SimWorld:
                               "slot_ids": list(SLOT_IDS), "rows": slot_rows(), "hbox_mm": list(HBOX_MM),
                               "tape_mm": TAPE_MM, "shim_mm": list(SHIM_MM), "camera_height_mm": CAMERA_HEIGHT_MM},
                     "faults": dict(self.faults),
-                    "robot": {"model": "SO-101", "role": "팔로워(흰색) — 학습된 정책(SmolVLA)이 움직임",
+                    "robot": {"model": "SO-101", "role": "팔로워(흰색) — 저장한 티칭 자세 11단계(home → pose_N → 열기 → 목표 → 집기 → 제출구 → home)로 움직임(VLA 미사용, 11/12)",
                               "leader": "리더(검정) — 텔레오퍼레이션으로 학습 에피소드 녹화용(시연 때는 쓰지 않음)",
                               "joints": [{"id": i + 1, "name": n, "label": l, "unit": "%" if n == "gripper" else "°",
                                           "range": list(SO101_LIMITS[n])} for i, (n, l) in enumerate(SO101_JOINTS)],
                               "scale": ARM_SCALE, "real_reach_mm": _REAL_REACH, "grip_deg": list(SO101_GRIP_DEG), "pan_x": SO101_PAN_X,
                               "shape": "SO-ARM100 공식 MuJoCo 모델 so101_new_calib_camera(Apache-2.0)",
-                              "cameras": ["탑뷰 카메라(보관함 위, 위치 찾기)", "손목 카메라(팔로워, 집기 때 VLA 입력)"]}}
+                              "cameras": ["탑뷰 카메라(보관함 위, 위치 찾기)", "손목 카메라(팔로워 — 지금 시연에서는 쓰지 않음)"]}}
 
 
 # ---------- 가상 탑뷰 카메라 ----------
@@ -808,6 +808,9 @@ class SimRobot:
     바구니에 내려놓으면 결과(성공)를 먼저 돌려주고, 원점 복귀는 뒤에서 한다(화면의 '바구니 전달' 단계가 늦게 켜지지 않게)."""
 
     STEPS = 12
+    # 11/12 실물 로그(김건태 sequence_panel 20261112-*.jsonl): 단계(시작 → 도착)마다 약 3.9초(profile 3초 + 도착 확인), 11단계 약 44초.
+    #   가상 팔도 같은 시간으로 움직인다(전에는 0.4~2.4초라 실물보다 훨씬 빠르고, 원점 복귀는 순간 접힘). TOWER_SIM_SPEED 를 곱함
+    STAGE_S = 3.9
 
     def __init__(self, world: SimWorld):
         self.world = world
@@ -819,11 +822,31 @@ class SimRobot:
         arm["rest"] = False
         self.world._touch()
 
-    def _rest(self, phase: str = "대기") -> None:
-        """원점에 도착 → 실물 home 처럼 접힌 대기 자세로 그림(관절 = REST_JOINTS). 화면이 관절을 부드럽게 따라가므로 접히는 모습이 보임"""
-        arm = self.world.arm
-        arm.update(phase=phase, gripper=REST_JOINTS["gripper"], joints=dict(REST_JOINTS), rest=True)
-        self.world._touch()
+    def _rest(self, phase: str = "대기", seconds: float = 0.0) -> None:
+        """원점에 도착 → 실물 home 처럼 접힌 대기 자세로 그림(관절 = REST_JOINTS).
+        11/12 seconds 동안 관절을 조금씩 접는다(실물처럼 천천히 — 전에는 한 번에 바꿔 마지막 원점 복귀가 너무 빨라 보였음)"""
+        w, arm = self.world, self.world.arm
+        arm["phase"] = phase
+        start = dict(arm.get("joints") or REST_JOINTS)
+        steps = max(self.STEPS, int(seconds * 8)) if seconds > 0 else 0
+        for i in range(1, steps + 1):
+            if arm["stopped"]:
+                return
+            t = i / steps
+            t = t * t * (3 - 2 * t)
+            arm["joints"] = {k: round(start.get(k, v) + (v - start.get(k, v)) * t, 1) for k, v in REST_JOINTS.items()}
+            arm["gripper"] = arm["joints"]["gripper"]
+            arm["rest"] = False
+            w._touch()
+            w.sleep(seconds / steps)
+        arm.update(phase="대기" if steps else phase, gripper=REST_JOINTS["gripper"], joints=dict(REST_JOINTS), rest=True)   # 다 접히면 '대기'
+        w._touch()
+
+    def _pose_of(self, item_id) -> str:
+        """물건이 있는 칸 → 실물 티칭 자세 이름(R1-1 = pose_1, R1-2 = pose_2 … R4-2 = pose_8, 먼 줄 -1 이 홀수)"""
+        sid = self.world.slot_id_of(item_id) if item_id else None
+        m = re.fullmatch(r"R([1-4])-([12])", sid or "")
+        return f"pose_{(int(m.group(1)) - 1) * 2 + int(m.group(2))}" if m else "칸 자세"
 
     def _move(self, x=None, y=None, z=None, grip=None, seconds: float = 1.0, phase: str | None = None) -> bool:
         w, arm = self.world, self.world.arm
@@ -832,13 +855,14 @@ class SimRobot:
         start = {k: arm[k] for k in ("x", "y", "z", "gripper")}
         goal = {"x": start["x"] if x is None else float(x), "y": start["y"] if y is None else float(y),
                 "z": start["z"] if z is None else float(z), "gripper": start["gripper"] if grip is None else float(grip)}
-        for i in range(1, self.STEPS + 1):
+        steps = max(self.STEPS, int(seconds * 8))         # 11/12 긴 동작은 더 잘게(초당 8장)
+        for i in range(1, steps + 1):
             if arm["stopped"]:
                 return False
-            t = i / self.STEPS
+            t = i / steps
             t = t * t * (3 - 2 * t)                      # 부드럽게 출발·도착
             self._pose(**{k: round(start[k] + (goal[k] - start[k]) * t, 1) for k in goal})
-            w.sleep(seconds / self.STEPS)
+            w.sleep(seconds / steps)
         return not arm["stopped"]
 
     def _wait_homing(self) -> None:
@@ -859,9 +883,12 @@ class SimRobot:
         if not (BIN_MM[0] - 20 <= x <= BIN_MM[2] + 20 and BIN_MM[1] - 20 <= y <= BIN_MM[3] + 20):
             return robot_result(False, f"작업대 밖 좌표({x:.0f}, {y:.0f})mm")
         self.world.arm["target"] = self.world.item_at(x, y)
-        if not self._move(x, y, HOVER_Z, 70, 2.2, "사전 접근(물건 위)"):
+        p = self._pose_of(self.world.arm["target"])
+        if not self._move(x, y, HOVER_Z, None, self.STAGE_S, f"{p} · 칸 위로(티칭 자세)"):
             return robot_result(False, STAFF_STOP_REASON)
-        self._pose(phase="접근 완료 · 집게 열림")
+        if not self._move(grip=70, seconds=self.STAGE_S, phase=f"{p}_open · 집게 열기"):
+            return robot_result(False, STAFF_STOP_REASON)
+        self._pose(phase=f"{p}_open · 접근 완료")
         return robot_result(True)
 
     def robot_go_pose(self, pose_name, slot_id) -> dict:
@@ -875,9 +902,10 @@ class SimRobot:
         if (b := self._blocked()):
             return b
         w, arm = self.world, self.world.arm
-        if not self._move(z=PICK_Z, seconds=0.8, phase="집는 중(VLA) · 내려감"):
+        p = self._pose_of(arm.get("target"))                # 11/12 VLA 아님 — 실물은 저장한 티칭 자세 순서로 집는다
+        if not self._move(z=PICK_Z, seconds=self.STAGE_S, phase=f"{p}_target · 내려감(티칭 자세)"):
             return robot_result(False, STAFF_STOP_REASON)
-        if not self._move(grip=8, seconds=0.5, phase="집는 중(VLA) · 집게 닫음"):
+        if not self._move(grip=8, seconds=self.STAGE_S, phase=f"{p}_close · 집게 닫음"):
             return robot_result(False, STAFF_STOP_REASON)
         with w._lock:
             fail = None
@@ -893,7 +921,7 @@ class SimRobot:
         if fail:                                          # 빈 집게를 다시 열고 들어 올림
             self._move(z=HOVER_Z, grip=70, seconds=0.6, phase="집기 실패")
             return robot_result(False, fail)
-        if not self._move(z=HOVER_Z, seconds=0.6, phase="들어 올림"):
+        if not self._move(z=HOVER_Z, seconds=self.STAGE_S, phase=f"{p} · 들어 올림"):
             return robot_result(False, STAFF_STOP_REASON)
         return robot_result(True)
 
@@ -905,11 +933,11 @@ class SimRobot:
         if (b := self._blocked()):
             return b
         w, arm = self.world, self.world.arm
-        if not self._move(BASKET_MM[0], BASKET_MM[1], HOVER_Z, None, 2.4, "제출보관함으로 이동"):
+        if not self._move(BASKET_MM[0], BASKET_MM[1], HOVER_Z, None, self.STAGE_S, "outlet_return_1 · 제출구 위로"):
             return robot_result(False, STAFF_STOP_REASON)
-        if not self._move(z=DROP_Z, seconds=0.4, phase="제출보관함 위로 내림"):
+        if not self._move(z=DROP_Z, seconds=self.STAGE_S, phase="close · 제출보관함 위로 내림"):
             return robot_result(False, STAFF_STOP_REASON)
-        if not self._move(grip=70, seconds=0.4, phase="집게 열어 내려놓음"):
+        if not self._move(grip=70, seconds=self.STAGE_S, phase="open · 집게 열어 내려놓음"):
             return robot_result(False, STAFF_STOP_REASON)
         with w._lock:
             held = arm.get("holding")
@@ -918,10 +946,10 @@ class SimRobot:
             arm["holding"], arm["target"] = None, None
         self._pose(phase="제출보관함에 내려놓음")
 
-        def go_home():
-            w.sleep(0.4)
-            if self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점으로"):
-                self._rest()
+        def go_home():                                   # 11/12 실물: outlet_return_1 로 올라온 뒤 home(각 3.9초)
+            if self._move(z=HOVER_Z, seconds=self.STAGE_S, phase="outlet_return_1 · 들어 올림"):
+                if self._move(HOME_MM[0], HOME_MM[1], HOME_Z, None, self.STAGE_S / 2, "home · 원점으로"):
+                    self._rest("home · 접힌 대기 자세", self.STAGE_S / 2)
         w.homing = threading.Thread(target=go_home, daemon=True)
         w.homing.start()
         return robot_result(True)
@@ -940,9 +968,9 @@ class SimRobot:
             w.move(held, LOC_STAFF)
             arm["holding"] = None
         arm["target"] = None
-        self._move(z=HOVER_Z + 40, grip=HOME_GRIP, seconds=0.6, phase="원점 복귀 · 들어 올림")
-        self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, 1.6, "원점 복귀")
-        self._rest()
+        self._move(z=HOVER_Z + 40, grip=HOME_GRIP, seconds=self.STAGE_S / 2, phase="원점 복귀 · 들어 올림")
+        self._move(HOME_MM[0], HOME_MM[1], HOME_Z, HOME_GRIP, self.STAGE_S / 2, "원점 복귀")
+        self._rest("원점 복귀 · 접힌 대기 자세", self.STAGE_S / 2)
         return robot_result(True)
 
     def robot_state(self) -> dict:
