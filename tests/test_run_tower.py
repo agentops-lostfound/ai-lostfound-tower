@@ -166,3 +166,28 @@ class LanHintTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PortGuardTest(unittest.TestCase):
+    """11/12 같은 포트에 옛 관제탑이 남아 있으면 켜지 않음(브라우저·Qwen 작업자가 서로 다른 관제탑을 보던 문제)"""
+
+    def test_port_taken_and_refuse(self):
+        import socket
+        from unittest import mock
+        import tools.run_tower as rt
+        srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
+        port = srv.getsockname()[1]
+        try:
+            self.assertTrue(rt.port_taken(port))
+            self.assertEqual(rt.port_of(["agents.api:app", "--host", "0.0.0.0", "--port", str(port)]), port)
+            self.assertIn(f"findstr :{port}", rt.taken_message(port))
+            ended = []
+            with mock.patch.object(rt, "finish", side_effect=lambda c=0: ended.append(c)), \
+                    mock.patch.dict(os.environ, {"TOWER_PORT_GUARD": "1"}):
+                rt.main(["agents.api:app", "--host", "0.0.0.0", "--port", str(port)])
+            self.assertEqual(ended, [1])                       # 켜지 않고 끝냄
+        finally:
+            srv.close()
+        self.assertFalse(rt.port_taken(port))
+        self.assertEqual(rt.port_of(["x", "--port"]), 8000)
+

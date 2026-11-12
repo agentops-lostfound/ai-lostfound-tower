@@ -381,6 +381,51 @@ class BlackFrameRetryTest(unittest.TestCase):
             feed.stop(2)
 
 
+class DarkShownWhileReopeningTest(unittest.TestCase):
+    """11/12 교육원: 까만 영상이 계속 오는데 화면은 'PC 카메라 연결됨' — 다시 열 때마다 '까맘' 수를 0 으로 돌려 표시가 거의 안 켜졌다"""
+
+    def test_dark_flag_survives_reopen(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy 필요")
+        from unittest import mock
+        from agents import kiosk_camera
+        opened = []
+
+        class Black:
+            def isOpened(self):
+                return True
+
+            def read(self):
+                return True, np.zeros((48, 64, 3), np.uint8)
+
+            def release(self):
+                pass
+
+        def opener(src):
+            opened.append(1)
+            return Black()
+        with mock.patch.object(kiosk_camera, "DARK_FRAMES", 3), mock.patch.object(kiosk_camera, "DARK_SHOW", 2), \
+                mock.patch.object(kiosk_camera, "FPS", 200), mock.patch.object(kiosk_camera, "DARK_RETRY_MAX_S", 0.0):
+            feed = kiosk_camera.CameraFeed(0, opener)
+            feed.touch()
+            deadline, seen = time.time() + 5, []
+            while time.time() < deadline and len(opened) < 4:
+                seen.append(feed.dark)
+                time.sleep(0.01)
+            feed.stop(2)
+        self.assertGreaterEqual(len(opened), 2)                   # 계속 다시 열면서도
+        self.assertTrue(feed.dark)                                 # '까맘'은 켜진 채
+        self.assertGreater(sum(seen) / max(1, len(seen)), 0.5)
+
+
+class KioskDarkChipTest(unittest.TestCase):
+    def test_first_dark_frame_is_not_covered_by_connected(self):
+        html = (Path(__file__).resolve().parents[1] / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("if (SERVER_CAM && srvNote) { const k = srvNote; srvNote = ''; serverWarn(k); }", html)
+
+
 class _ExpCam:
     """노출 값에 따라 밝기가 바뀌는 가짜 웹캠(자동이면 펠트 위처럼 밝게 올려 흰 물건이 날아감).
     ignore=True 면 노출 고정을 무시하는 카메라"""

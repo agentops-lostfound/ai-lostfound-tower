@@ -280,7 +280,7 @@ def main(argv=None) -> int:
             except KeyboardInterrupt:
                 print("작업자 종료")
                 return 0
-    print(f"관제탑 연결 OK · 사진 분석 대기 {len(waiting)}건 · 사진 폴더 {photo_root()}")
+    print(f"관제탑 연결 OK ({tower.url}) · 사진 분석 대기 {len(waiting)}건 · 사진 폴더 {photo_root()}")   # 11/12 어느 관제탑에 붙었는지 보이게
     if args.check:
         return 0
     analyze = gpu_guarded(qwen_analyzer(args.max_edge), keep_model=keep,

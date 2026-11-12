@@ -53,6 +53,7 @@ IDLE_CLOSE_S = 60.0
 RETRY_S = 5.0          # 열기 실패 뒤 다시 열기까지 기다리는 시간
 DARK_LEVEL = 16        # 이 밝기(0~255) 아래면 새까만 영상으로 봄
 DARK_FRAMES = 30       # 이만큼 계속 새까마면 카메라를 다시 연다(MJPG 를 빼고/넣고 번갈아)
+DARK_SHOW = 10         # 11/12 이만큼(약 1초) 계속 새까마면 화면에 '영상이 까매요'(다시 열어도 이어서 셈)
 DARK_RETRY_MAX_S = 10.0   # 다시 열기 사이 간격의 최댓값(2초부터 늘어남)
 STALL_S = 4.0             # 11/11 보는 사람이 있는데 이만큼 새 사진이 없으면 카메라 읽기가 멈춘 것으로 보고 놓았다가 다시 연다
 FPS = 10
@@ -440,6 +441,7 @@ class CameraFeed:
             self._settings(cap)
             fails, dark_run, reopens, next_reopen = 0, 0, 0, 0.0
             got = False                                   # 11/12 이번에 연 뒤 영상을 한 장이라도 받았는지
+            black = 0                                     # 11/12 다시 열어도 0 으로 돌리지 않는 '연속 까만 사진' 수(화면 '까맘' 표시용)
             while not self._stop and self._clock() - self._seen < IDLE_CLOSE_S:
                 ok, frame = cap.read()
                 if self._cap is not cap:                  # 11/11 멈춤으로 다른 쪽이 카메라를 놓음 → 이 읽기를 끝내고 새로 연다
@@ -458,6 +460,8 @@ class CameraFeed:
                 self.busy_by = None
                 if is_dark(frame):
                     dark_run += 1
+                    black += 1
+                    self.dark = black >= DARK_SHOW          # 11/12 다시 여는 중에도 '까맘'을 알림(전에는 다시 열 때마다 꺼져 화면이 '연결됨'만 보였음)
                     # 계속 새까마면 카메라를 다시 연다. 11/10: 전에는 한 번만 다시 열어, 그래도 까맣면 관제탑을 다시 켤 때까지 까만 채였다
                     # (교육원: 영상 값이 전부 0 — 조명이 아니라 카메라가 빈 화면을 보냄). 이제 MJPG 를 빼고/넣고 번갈아, 간격을 늘려 가며(최대 10초) 계속 시도
                     if dark_run >= DARK_FRAMES and self.src != "fake" and self._clock() >= next_reopen:
@@ -475,8 +479,8 @@ class CameraFeed:
                         next_reopen = self._clock() + min(DARK_RETRY_MAX_S, 2.0 * reopens)
                         continue
                 else:
-                    dark_run = 0
-                self.dark = dark_run >= DARK_FRAMES
+                    dark_run = black = 0
+                    self.dark = False
                 self.source_size = (int(frame.shape[1]), int(frame.shape[0]))
                 frame, self.cropped = fit(frame)          # 실제 영상만 · 늘 같은 크기로
                 ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])

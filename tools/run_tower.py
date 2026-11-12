@@ -99,10 +99,39 @@ def lan_hint(args: list[str], ip: str | None = None) -> str | None:
             f"         (이 PC 의 127.0.0.1 탭은 닫기 — 같은 화면을 두 탭에서 열면 한쪽은 보기 전용)")
 
 
+def port_of(args: list[str]) -> int:
+    try:
+        return int(args[args.index("--port") + 1]) if "--port" in args else 8000
+    except (ValueError, IndexError):
+        return 8000
+
+
+def port_taken(port: int, timeout: float = 0.5) -> bool:
+    """이 PC 의 127.0.0.1:{port} 에 이미 듣고 있는 프로그램이 있나(연결이 받아지면 있음)"""
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def taken_message(port: int) -> str:
+    """11/12 교육원: 윈도우는 127.0.0.1:8100(남은 옛 관제탑)과 0.0.0.0:8100(lan) 을 함께 열 수 있어, 브라우저는 새 관제탑을,
+    Qwen 작업자(기본 127.0.0.1:8100)는 옛 관제탑을 보며 '작업자 꺼짐'·웹캠 사용 중이 생겼다(추정) → 켜기 전에 막는다"""
+    return (f"[관제탑] 127.0.0.1:{port} 를 이미 다른 프로그램이 쓰고 있어 켜지 않습니다(남은 옛 관제탑 추정).\n"
+            f"         확인: netstat -ano | findstr :{port}  →  끄기: taskkill /PID <번호> /F  (그 뒤 다시 켜기)\n"
+            f"         그래도 켜려면 .env 에 TOWER_PORT_GUARD=0")
+
+
 def main(argv: list[str] | None = None) -> None:
     import uvicorn
     args = list(sys.argv[1:] if argv is None else argv)
     code = 0
+    if os.environ.get("TOWER_PORT_GUARD", "1") != "0" and "--reload" not in args and port_taken(port_of(args)):
+        print(taken_message(port_of(args)), flush=True)
+        finish(1)
+        return
     hint = lan_hint(args)
     if hint:
         print(hint, flush=True)
