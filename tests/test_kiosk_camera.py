@@ -146,6 +146,75 @@ class FrameFitTest(unittest.TestCase):
         f._thread.join(3)
 
 
+class BusyCameraTest(unittest.TestCase):
+    """11/12 교육원: 다른 프로그램이 웹캠을 잡으면(로그 -1072875772) 키오스크는 '8초 시간 초과'만 보였다
+    → 영상을 한 장도 못 받으면 '다른 프로그램이 사용 중' + 그 프로그램 이름(윈도우 카메라 사용 기록)"""
+
+    REC = [("C:#Program Files#Google#Chrome#Application#chrome.exe", True, 133, 0),     # 지금 사용 중
+           ("C:#git#ai-lostfound-tower#.venv#Scripts#python.exe", True, 133, 0),       # 관제탑 자신
+           ("C:#Program Files#Zoom#bin#Zoom.exe", True, 120, 125),                       # 끝난 기록
+           ("Microsoft.WindowsCamera_8wekyb3d8bbwe", False, 0, 0)]                      # 쓴 적 없음
+
+    def test_who_uses_camera_reads_in_use_only(self):
+        from agents.camera_users import describe, who_uses_camera
+        users = who_uses_camera(lambda: self.REC, self_exe=r"C:\git\ai-lostfound-tower\.venv\Scripts\python.exe")
+        self.assertEqual([(u["name"], u["self"]) for u in users], [("크롬(chrome.exe)", False), ("파이썬(python.exe)", True)])
+        self.assertEqual(describe(users), "사용 중(추정): 크롬(chrome.exe)")
+        self.assertIn("옛 관제탑", describe([u for u in users if u["self"]]))
+        self.assertEqual(describe([]), "")
+        self.assertEqual(who_uses_camera(lambda: [("Microsoft.WindowsCamera_8w", False, 5, 0)])[0]["name"], "윈도우 카메라 앱(Microsoft.WindowsCamera)")
+        if os.name != "nt":
+            self.assertEqual(who_uses_camera(), [])              # 윈도우가 아니면 빈 목록(오류 없음)
+
+    def test_opened_but_no_frame_is_reported_busy_with_name(self):
+        from agents import kiosk_camera as kc
+
+        class NoFrame(kc.FakeSource):                            # MSMF 로 열리긴 하지만 영상이 안 옴(0xC00D3704)
+            def read(self):
+                return False, None
+        cams = KioskCameras({"KIOSK-A": 0}, opener=lambda src: NoFrame(),
+                            who=lambda: [{"name": "크롬(chrome.exe)", "path": "x", "self": False}])
+        f = cams.feed("KIOSK-A")
+        orig = time.sleep
+        kc.time.sleep = lambda s: None
+        try:
+            f.touch()
+            f._thread.join(3)
+        finally:
+            kc.time.sleep = orig
+        self.assertIn("다른 프로그램이 웹캠 사용 중", f.error)
+        self.assertIn("크롬(chrome.exe)", f.error)
+        self.assertEqual(cams.status()["KIOSK-A"]["busy_by"], ["크롬(chrome.exe)"])
+
+    def test_frames_then_loss_is_not_called_busy(self):
+        from agents import kiosk_camera as kc
+        n = [0]
+
+        class Dies(kc.FakeSource):                               # 영상이 오다가 끊김 = 사용 중 아님(USB 빠짐 등)
+            def read(self):
+                n[0] += 1
+                return super().read() if n[0] <= 3 else (False, None)
+        f = kc.CameraFeed(0, opener=lambda src: Dies(), who=lambda: self.fail("부르면 안 됨"))
+        orig = time.sleep
+        kc.time.sleep = lambda s: None
+        try:
+            f.touch()
+            f._thread.join(3)
+        finally:
+            kc.time.sleep = orig
+        self.assertEqual(f.error, "카메라 영상이 들어오지 않음")
+        self.assertIsNone(f.busy_by)
+
+    def test_kiosk_shows_server_reason_and_tool_exists(self):
+        html = (Path(__file__).resolve().parents[1] / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
+        for needle in ("ServerBusyError", "serverbusy: 'PC 웹캠 영상 못 받음'", "SERVER_CAM ? CAM.openMs + 4000"):
+            self.assertIn(needle, html)
+        import subprocess
+        tool = Path(__file__).resolve().parents[1] / "tools" / "camera_who.py"
+        out = subprocess.run([sys.executable, str(tool)], capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+
+
 class RoutesTest(unittest.TestCase):
     def setUp(self):
         try:
