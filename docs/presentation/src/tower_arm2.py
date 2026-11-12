@@ -53,9 +53,9 @@ def svg_css(pieces,cyc,pfx,dark=False):
     pc="#e9edf3" if dark else "#fff"
     css+=(f".p{{fill:{pc};stroke:#6b7684;stroke-width:1.4;stroke-linejoin:round}}.m{{fill:#23262d;stroke:#0d0f12;stroke-width:1}}.c{{fill:#3d4450;stroke:#0d0f12}}")
     return css,body
-def held(tips,cyc,name,w,h):
+def held(tips,cyc,name,w,h,lie=False):
     css="@keyframes %s{%s}"%(name,"".join("%s%%{transform:translate(%dpx,%dpx);opacity:%d}"%(t,x-w/2,y-h/2,1 if T_PICK<=t<T_REL else 0) for t,(x,y,_) in tips))
-    return css,f'<div style="position:absolute;left:0;top:0;width:{w}px;height:{h}px;border-radius:2px;background:linear-gradient(#E3264E 0 62%,#fff 62%);box-shadow:0 0 0 1px rgba(0,0,0,.25);opacity:0;animation:{name} {cyc}s linear infinite"></div>'
+    return css,f'<div style="position:absolute;left:0;top:0;width:{w}px;height:{h}px;border-radius:2px;background:linear-gradient({'90deg,' if lie else ''}#E3264E 0 62%,#fff 62%);box-shadow:0 0 0 1px rgba(0,0,0,.25);opacity:0;animation:{name} {cyc}s linear infinite"></div>'
 CYC=36
 def split(pcs,lim):
     out=[[]];n=0
@@ -89,14 +89,15 @@ def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc,show_held=True):
     PX=TA.PX
     proj=lambda W:np.c_[ox+s*(W[:,0]-PX),gy-s*W[:,2],-W[:,1]]
     pcs,tips=build(proj,pan0=True,skip_base=False)
-    hc,hh=held(tips,cyc,pfx+'h',8,22) if show_held else ('','')
+    hc,hh=held(tips,cyc,pfx+'h',22,8,lie=True) if show_held else ('','')
     # 칸·제출보관함 위치(옆에서 본 거리)
-    r4=math.hypot(*TA.P_t['r4p'][:2])-PX; bx=math.hypot(*TA.P_t['bxp'][:2])-PX
-    sx,bxx=ox+s*r4,ox+s*bx
+    def tipx(n):
+        q=dict(zip(J,TA.P[n])); q['shoulder_pan']=0; return ox+s*(tip(fk(q))[0]-PX)
+    sx,bxx=tipx('r4p'),tipx('bxp')
     gc,pad,lc="#C9C1B3","#D6C9B5","#4A5568"
     if dark: gc,pad,lc="#4A5A70","#3A4A62","#9AA6B8"
     css=("@keyframes %sb0{0%%{opacity:1}%s%%{opacity:1}%s%%{opacity:0}97%%{opacity:0}100%%{opacity:1}}@keyframes %sb2{0%%{opacity:0}%s%%{opacity:0}%s%%{opacity:1}93%%{opacity:1}97%%{opacity:0}100%%{opacity:0}}"%(pfx,T_PICK-0.5,T_PICK,pfx,T_REL-0.5,T_REL))
-    bal=lambda cx,by,a:f'<div style="position:absolute;left:{cx-4:.0f}px;top:{by-22:.0f}px;width:8px;height:22px;border-radius:2px;background:linear-gradient(#E3264E 0 62%,#fff 62%);box-shadow:0 0 0 1px rgba(0,0,0,.25);animation:{pfx}{a} {cyc}s infinite"></div>'
+    bal=lambda cx,by,a:f'<div style="position:absolute;left:{cx-11:.0f}px;top:{by-8:.0f}px;width:22px;height:8px;border-radius:2px;background:linear-gradient(90deg,#E3264E 0 62%,#fff 62%);box-shadow:0 0 0 1px rgba(0,0,0,.25);animation:{pfx}{a} {cyc}s infinite"></div>'
     pre=(f'<i style="position:absolute;left:6px;top:{gy}px;width:{W_-12}px;height:3px;background:{gc}"></i>'
          f'<i style="position:absolute;left:{sx-18:.0f}px;top:{gy-6}px;width:36px;height:6px;background:{pad}"></i>'
          f'<i style="position:absolute;left:{bxx-22:.0f}px;top:{gy-12}px;width:44px;height:12px;border:2px dashed #F06A00;border-bottom:0;box-sizing:border-box"></i>'
@@ -112,7 +113,7 @@ def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc,show_held=True):
     return out
 
 def side4():
-    ch=side_embed(288,176,0.42,40,150,False,True,'s',CYC,show_held=False); out=[]
+    ch=side_embed(288,176,0.5,62,150,False,True,'s',CYC,show_held=False); out=[]
     for j,(c,h) in enumerate(ch):
         bg='<div style="position:absolute;left:0;top:0;width:288px;height:176px;border-radius:16px;background:#fff;border:2px solid #E3D6C4;box-sizing:border-box"></div>' if j==0 else ''
         cap='<p style="position:absolute;left:12px;top:154px;margin:0;font-size:15px;font-weight:800;color:#B5500A">옆에서 본 모습</p>' if j==len(ch)-1 else ''
@@ -120,8 +121,8 @@ def side4():
     return out
 def side14():
     from embeds import ACCL
-    ch=side_embed(260,150,0.36,40,128,True,False,'r',36); out=[]
+    ch=side_embed(260,150,0.5,58,132,False,False,'r',36); out=[]
     for j,(c,h) in enumerate(ch):
-        lab=(f'<div style="position:absolute;left:10px;top:10px;padding:5px 10px;border-radius:10px;background:#24324A;color:{ACCL};font-size:17px;font-weight:800;white-space:nowrap">R4-1 → pose_7</div>') if j==len(ch)-1 else ''
+        lab=(f'<div style="position:absolute;left:10px;top:10px;padding:5px 10px;border-radius:10px;background:#16202E;color:{ACCL};font-size:17px;font-weight:800;white-space:nowrap">R4-1 → pose_7</div>') if j==len(ch)-1 else ''
         out.append(embeds.wrap(260,150,c,h+lab))
     return out
