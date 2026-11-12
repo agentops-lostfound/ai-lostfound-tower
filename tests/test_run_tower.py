@@ -179,6 +179,10 @@ class PortGuardTest(unittest.TestCase):
         port = srv.getsockname()[1]
         try:
             self.assertTrue(rt.port_taken(port))
+            # Drain the probe before main probes again: backlog=1 can fill on
+            # Windows, make the second probe time out, then start a real server.
+            probe, _ = srv.accept()
+            probe.close()
             self.assertEqual(rt.port_of(["agents.api:app", "--host", "0.0.0.0", "--port", str(port)]), port)
             self.assertIn(f"findstr :{port}", rt.taken_message(port))
             ended = []

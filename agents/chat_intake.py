@@ -37,6 +37,26 @@ WANT = re.compile(r"싶|해\s*주|받아\s*주|해\s*줄\s*(?:수|래)|할게|�
 REGISTER = re.compile(r"(?:접수|신고|등록).{0,10}(?:해\s*(?:주|줘|줄|달)|할게|하고\s*싶|부탁|시작|진행|받아)|(?:접수|신고|등록)하기")
 CANCEL = re.compile(r"^(?:취소|그만|접수\s*취소|안\s*할래|처음부터|됐어요?|괜찮아요)\s*[.!]*$")
 YES = re.compile(r"^(?:접수할게요|네|예|응|좋아요|맞아요|확인|접수|그래요?|ㅇㅇ|넵)\s*[.!]*$")
+CONFIRM_SAY = re.compile(
+    r'^(?:(?:네|예|응|넵|좋아요|맞아요|맞습니다|오케이|ㅇㅇ))?'
+    r'(?:(?:이대로|이내용으로|그대로|그렇게|내용그대로)?(?:접수|신고|등록)'
+    r'(?:할게요|하겠습니다|해줘요?|해주세요|부탁해요|부탁드려요)'
+    r'|(?:이대로|이내용으로|그대로|그렇게)?진행(?:해줘요?|해주세요)'
+    r'|(?:이대로|이내용으로|그대로|그렇게)(?:해주세요|해줘요?)'
+    r'|네|예|응|넵|좋아요|맞아요|맞습니다|오케이|ㅇㅇ)$')
+CONFIRM_HELP = re.compile(r'^(?:접수(?:된거야|됐나요|됐어|된건가요|안돼요|안되는데요)|'
+                          r'왜(?:자꾸|계속)?확인(?:하래|하나요|해야해요)|'
+                          r'버튼눌렀는데안돼요|계속같은말만하네)[.!?~]*$')
+
+
+def confirmation_requested(question, kind=None):
+    """Only a whole, affirmative reply; proof/version checks still gate every write."""
+    q = question or ''
+    value = re.sub(r'[,.!~，。！]', '', compact(q))
+    if kind == 'cancel' and re.search(r'접수|신고|등록', value):
+        return False
+    return bool(YES.fullmatch(q.strip()) or CONFIRM_SAY.fullmatch(value))
+
 FIX = re.compile(r"^(?:고칠게요|수정|다시|고쳐|틀렸어요)\s*[.!]*$")
 COLOR_HINT = re.compile(r"색|검|까만|까맣|블랙|흰|하얀|하양|화이트|회|그레이|갈|브라운|빨|레드|주황|오렌지|노랑|노란|초록|녹|파랑|파란|블루|남색|네이비|보라|분홍|핑크|베이지|은|실버|금|골드")
 UNKNOWN_SAY = re.compile(r"^(?:모름|몰라요?|(?:잘\s*)?모르겠(?:어요?|음|네요?)|기억(?:이|은)?\s*(?:잘\s*)?안\s*(?:나요?|남|나네요?)|없어요|없음|건너뛰기|넘어가기)\s*[.!~ㅠㅜ]*$")
@@ -286,7 +306,7 @@ class IntakeAgent:
         s = self.sessions.get(sid)
         if not s:
             return False
-        return s.get("stage") != "done" or bool(YES.match((question or "").strip()))
+        return s.get("stage") != "done" or confirmation_requested(question, s.get('kind'))
 
     # ---------- 한 걸음 ----------
     def step(self, sid: str | None, question: str, start: str | None = None, action: dict | None = None,
@@ -312,8 +332,8 @@ class IntakeAgent:
                 last = dict(s["last"])
                 last["answer"] = "이미 접수했어요. " + last["answer"]
                 return last
-            if YES.match((question or '').strip()) or action:
-                return self._out('intake_failed', '유효한 확인 요청이 아니에요. 접수 결과를 확인해 주세요.', None)
+            if confirmation_requested(question, s.get('kind')) or action:
+                return self._out('intake_failed', '이미 처리된 요청이에요. 앞선 완료 메시지에서 결과를 확인해 주세요.', None)
             self.sessions.drop(sid)
             s = None
         if s is None and (start == "status" or (start is None and detect_start(question) == "status")):
@@ -366,16 +386,28 @@ class IntakeAgent:
             return self._out("intake_cancelled", "접수를 취소했어요. 다른 궁금한 점이 있으면 물어보세요.", s, done=True)
         if not sid:
             return self._out("intake_failed", "대화 번호가 없어 접수를 이어 갈 수 없어요. 챗봇 창에서 다시 시작해 주세요.", s, done=True)
-        if not action and help_question(q):
+        recovering_confirmation = s['stage'] == 'confirm' and CONFIRM_HELP.fullmatch(compact(q))
+        if not action and help_question(q) and not recovering_confirmation:
             # 절차 질문을 색·특징 값으로 저장하지 않는다. 감독이 안내 일꾼을 추가한다.
             return self._ask_next(sid, s, progress=False)
         if s["stage"] == "quiz":
             return self._quiz_answer(sid, s, q)
         if s["stage"] == "confirm":
-            if YES.match(q):
+            if confirmation_requested(q, s.get('kind')):
                 if not self._confirmed(s, action):
-                    return self._confirm(sid, s, note="확인 요청이 없거나 이전 내용의 요청이에요. 현재 요약의 확인 버튼을 눌러 주세요.")
+                    if s['kind'] == 'cancel':
+                        note = ('이번 확인으로는 취소하지 않았어요. 아래 최신 내용을 다시 확인해 주세요.' if action else
+                                '아직 취소 전이에요. 아래 내용을 확인한 뒤 [네]를 눌러 주세요.')
+                    else:
+                        note = ('이번 확인으로는 접수하지 않았어요. 아래 최신 요약을 다시 확인해 주세요.' if action else
+                                '아직 접수 전이에요. 아래 요약을 확인한 뒤 [접수할게요]를 눌러 주세요.')
+                    return self._confirm(sid, s, note=note, progress=False)
                 return self._commit(sid, s)
+            if CONFIRM_HELP.fullmatch(compact(q)):
+                note = ('찾기 요청은 아직 취소되지 않았어요. 아래 내용을 확인한 뒤 [네]를 누르거나 "네"라고 입력해 주세요.'
+                        if s['kind'] == 'cancel' else
+                        '아직 접수되지 않았어요. 아래 요약을 확인한 뒤 [접수할게요]를 누르거나 "이대로 접수해 주세요"라고 입력해 주세요.')
+                return self._confirm(sid, s, note=note, progress=False)
             if FIX.match(q):
                 s["stage"], s["slots"], s["asked"] = "collect", {k: v for k, v in s["slots"].items() if k == "category"}, None
                 self.sessions.put(sid, s)
@@ -394,9 +426,11 @@ class IntakeAgent:
         progressed = s["slots"] != before
         if progressed:            # 11/9 초안 번호: 값이 바뀌면 올라가고, 확인은 그 번호의 초안에만 유효
             s["version"] = s.get("version", 0) + 1
-        if s["stage"] == "confirm" and not progressed and not YES.match(q):
+        if s["stage"] == "confirm" and not progressed and not confirmation_requested(q, s.get('kind')):
             self.sessions.put(sid, s)
-            return self._confirm(sid, s, note="접수하려면 [접수할게요], 고치려면 [고칠게요]를 눌러 주세요.", progress=False)
+            note = ('찾기 요청을 취소하려면 [네], 유지하려면 [아니요]를 눌러 주세요.' if s['kind'] == 'cancel' else
+                    '접수하려면 [접수할게요], 고치려면 [고칠게요]를 눌러 주세요.')
+            return self._confirm(sid, s, note=note, progress=False)
         if s["kind"] == "found" and s["slots"].get("category") and not is_active_category(s["slots"]["category"]):
             self.sessions.drop(sid)
             return self._out("intake_failed", inactive_category_message(s["slots"]["category"]) + " — 역무실에 맡겨 주세요.", s, done=True)
@@ -433,7 +467,7 @@ class IntakeAgent:
         # 품목·색만, 그 칸을 묻는 중(또는 첫 말)일 때만, 빈 칸에만 채운다(역은 이름이 둘뿐이라 규칙으로만)
         missing = [k for k in ("category", "color") if k not in s["slots"]]
         if (self.brain is not None and missing and s.get("asked") in (None, "category", "color") and len(q) >= 6 and not detect_start(q)
-                and not YES.match(q) and not CANCEL.match(q)):
+                and not confirmation_requested(q, s.get('kind')) and not CANCEL.match(q)):
             for k, v in self._model_fill(q, s["kind"], missing).items():
                 if k == "color" and not COLOR_HINT.search(q):
                     continue                          # 색 낱말이 없는데 색을 고르면 지어낸 것 → 버림
@@ -503,7 +537,7 @@ class IntakeAgent:
         what = "분실 접수" if s["kind"] == "lost" else "습득 신고"
         tail = (" 접수하면 찾기 번호가 나오고, 부산역 본센터 키오스크에서 찾기 번호와 신분증으로 받을 수 있어요."
                 if s["kind"] == "lost" else " 접수하면 접수 번호가 나와요. 물건은 그 역 키오스크(습득물 등록기계) 상자에 넣어 주세요.")
-        answer = (note + " " if note else "") + f"{what} 내용을 확인해 주세요: {self._filled_text(s)}." + tail
+        answer = (note + "\n\n" if note else "") + f"{what} 내용을 확인해 주세요:\n{self._filled_text(s)}.\n" + tail.strip()
         return self._out("intake_confirm", answer.strip(), s, progress=progress, choices=["접수할게요", "고칠게요", "취소"])
 
     def _filled_text(self, s: dict) -> str:
