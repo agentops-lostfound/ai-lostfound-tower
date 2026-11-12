@@ -8,6 +8,7 @@ K=9
 # 실물 티칭 순서(11단계, 단계마다 움직임 50% + 멈춤 50%, 실물 44초의 약 80% 속도): 원점 → pose_7 칸 위 → 열기 → 내려감 → 닫기 → 들기 → 제출보관함 위 → 내림 → 열기 → 들기 → 원점
 SEQ=[('home',15),('r4h',15),('r4h',35),('r4p',35),('r4p',2),('r4h',2),('bxh',2),('bxp',2),('bxp',35),('bxh',35),('home',15)]
 D=100/11
+TA.P['home']=np.array([0,-100,96,40.])  # 원점: 사선이 아니라 세로(정면) 방향
 TA.way=[(0,'home',15)]
 for i in range(1,11):
     TA.way+=[(round(i*D,2),)+SEQ[i-1],(round(i*D+0.5*D,2),)+SEQ[i]]
@@ -77,17 +78,18 @@ def top_embed():
         h=hull([tuple(v) for v in np.round(xy[:,:2]).astype(int)])
         bs+=f'<path class="{ {"motor":"m"}.get(k[1],"p") }" d="M'+'L'.join(f'{a} {b}' for a,b in h)+'Z"/>'
     hc,hh=held(tips,CYC,'hb',20,54)
+    hc,hh='',''  # 4쪽: 집으면 립밤 안 보이게
     out=[]
     for j,ch in enumerate(split(pcs,11000)):
         css,body=svg_css(ch,CYC,'a')
         last=(j==len(split(pcs,11000))-1)
         out.append(embeds.wrap(864,650,css+(hc if last else ''),f'<svg width="864" height="650" style="position:absolute;left:0;top:0;filter:drop-shadow(5px 8px 5px rgba(22,32,46,.25))">{bs if j==0 else ""}{body}</svg>{hh if last else ""}'))
     return out
-def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc):
+def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc,show_held=True):
     PX=TA.PX
     proj=lambda W:np.c_[ox+s*(W[:,0]-PX),gy-s*W[:,2],-W[:,1]]
     pcs,tips=build(proj,pan0=True,skip_base=False)
-    hc,hh=held(tips,cyc,pfx+'h',8,22)
+    hc,hh=held(tips,cyc,pfx+'h',8,22) if show_held else ('','')
     # 칸·제출보관함 위치(옆에서 본 거리)
     r4=math.hypot(*TA.P_t['r4p'][:2])-PX; bx=math.hypot(*TA.P_t['bxp'][:2])-PX
     sx,bxx=ox+s*r4,ox+s*bx
@@ -110,7 +112,7 @@ def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc):
     return out
 
 def side4():
-    ch=side_embed(288,176,0.42,40,150,False,True,'s',CYC); out=[]
+    ch=side_embed(288,176,0.42,40,150,False,True,'s',CYC,show_held=False); out=[]
     for j,(c,h) in enumerate(ch):
         bg='<div style="position:absolute;left:0;top:0;width:288px;height:176px;border-radius:16px;background:#fff;border:2px solid #E3D6C4;box-sizing:border-box"></div>' if j==0 else ''
         cap='<p style="position:absolute;left:12px;top:154px;margin:0;font-size:15px;font-weight:800;color:#B5500A">옆에서 본 모습</p>' if j==len(ch)-1 else ''
