@@ -70,7 +70,7 @@ class DescriptionTests(unittest.TestCase):
         self.assertIn("운영하지 않는 품목", proposal["warnings"][0])
         with self.assertRaises(ValueError) as cm:
             service.confirm(proposal["proposal_id"], {"confirmed": True})          # 품목을 다시 골라야 함
-        self.assertIn("category", str(cm.exception))
+        self.assertIn("품목", str(cm.exception))
         with self.assertRaises(ValueError) as cm:
             service.confirm(proposal["proposal_id"], {"confirmed": True, "description": {"category": "지갑", "color": "흰색"}})
         self.assertIn("운영하지 않는 품목", str(cm.exception))
