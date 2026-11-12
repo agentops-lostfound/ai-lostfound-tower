@@ -68,7 +68,7 @@ def text_features(text, corrected=False):
             found.add("기타")                  # 11/6 연보라색 → 예전엔 색을 못 알아듣고 색 없이(다른 색 후보까지) 찾았음
         if tail and found:                     # 고쳐 말하기: 뒤쪽에 이 칸 값이 하나 있으면 그것만 씀(앞쪽은 버린 조건)
             in_tail = {label for label in found if any(
-                (bool(re.search(r"(?<![가-힣])은색", tail)) if t == "은색" else t in tail) for t in aliases[label])}
+                (bool(re.search(r"(?<![가-힣])은색", tail)) if t == "은색" else t in tail) for t in (OTHER_COLORS if label == '기타' else aliases[label]))}
             if field == "category" and "모형폰" in found:
                 in_tail = (in_tail - {"모형폰"}) | ({"모형폰"} if mentions_phone(tail) else set())
             if len(in_tail) == 1:
@@ -129,6 +129,11 @@ def validate_description(desc):
     result = {k: checked_text(v, k, 200) for k, v in desc.items()}
     if result.get("category") not in [*CATEGORIES, UNKNOWN]:
         raise ValueError("지원하지 않는 품목입니다")
+    from agents.contracts import COLORS as VALID_COLORS
+    if result.get('color') not in (None, UNKNOWN, *VALID_COLORS):
+        raise ValueError("색상은 검정·흰색·파랑 등 지원하는 색으로 선택해주세요. 모르면 비워주세요")
+    if result.get('color') == UNKNOWN:
+        result.pop('color')
     return result
 
 
@@ -160,15 +165,19 @@ class DescriptionService:
 
     def from_text(self, payload):
         text = checked_text(payload.get("text"))
-        desc, warnings = text_features(text)
+        desc, warnings = text_features(text, corrected=True)
         return self._save(desc, location(payload, text), warnings, "user_text")
 
     def from_photo(self, photo_bytes, metadata):
+        meta = location(metadata)
         if self.photo_extractor is None:
-            raise RuntimeError("사진 분석 연결이 설정되지 않았습니다")
+            raise RuntimeError("사진 분석 연결이 설정되지 않았습니다. 글로 설명하거나 잠시 후 다시 시도해주세요")
         # Extractor is a server-owned adapter, never caller-supplied feature JSON.
-        desc = self.photo_extractor(photo_bytes)
-        return self._save(desc, location(metadata), ["사진의 품목·색상을 직접 확인해주세요. 재질·문자·손상은 분석하지 않습니다"], "photo_model")
+        try:
+            desc = self.photo_extractor(photo_bytes)
+        except (OSError, RuntimeError):
+            raise RuntimeError("사진 분석을 완료하지 못했습니다. 글로 설명하거나 잠시 후 다시 시도해주세요") from None
+        return self._save(desc, meta, ["사진의 품목·색상을 직접 확인해주세요. 재질·문자·손상은 분석하지 않습니다"], "photo_model")
 
     def transcribe_audio(self, audio_path, limit=2000):
         if self.transcriber is None:
@@ -179,13 +188,16 @@ class DescriptionService:
                 transcript = worker.transcribe(audio_path)
         except (ImportError, OSError, RuntimeError):
             raise RuntimeError("음성 모델·라이브러리 연결을 확인해주세요. 글자로 입력할 수 있습니다") from None
+        if not isinstance(transcript, dict):
+            raise RuntimeError("음성 인식 응답을 확인할 수 없습니다. 다시 녹음하거나 글자로 입력해주세요")
         if transcript.get("status") != "transcribed":
             raise ValueError("음성을 인식하지 못했습니다. 다시 녹음하거나 글자로 입력해주세요")
         return checked_text(transcript.get("text"), '인식된 말', limit)
 
     def from_audio(self, audio_path, metadata):
+        location(metadata)  # Reject invalid metadata before costly model inference.
         text = self.transcribe_audio(audio_path)
-        desc, warnings = text_features(text)
+        desc, warnings = text_features(text, corrected=True)
         result = self._save(desc, location(metadata, text), warnings + ["음성 인식 문장을 확인해주세요"], "speech")
         # Returned for user review, but not retained in the proposal store or search handoff.
         return {**result, "transcript": text}
@@ -203,10 +215,12 @@ class DescriptionService:
             raise ValueError(inactive_category_message(desc["category"]))       # 11/9 운영하지 않는 품목은 검색으로 넘기지 않음
         meta = location({k: payload.get(k, proposal.get(k)) for k in ("lost_date", "lost_line", "lost_station")})
         missing = [k for k in ("lost_date", "lost_line", "lost_station") if not meta.get(k)]
-        if desc.get("category") == UNKNOWN:
+        if desc.get("category") in (None, UNKNOWN):
             missing.append("category")
         if missing:
             raise ValueError("추가 입력 필요: " + ", ".join(missing))
+        if not re.fullmatch(r'[1-9][0-9]?호선', meta['lost_line']):
+            raise ValueError("호선은 1호선처럼 입력해주세요")
         # This is a handoff only. Downstream search must apply its own consent/identity gates.
         from agents.lost_search import matching_query
         return {"status": "ready_for_search", "description": desc, **meta,
@@ -225,7 +239,7 @@ def build_description_graph(service):
         warnings: list
         metadata: dict
     def extract(state):
-        desc, warnings = text_features(state["payload"].get("text"))
+        desc, warnings = text_features(state["payload"].get("text"), corrected=True)
         return {"description": desc, "warnings": warnings}
     def context(state):
         return {"metadata": location(state["payload"], state["payload"]["text"])}

@@ -8,7 +8,7 @@ MAP_CATEGORY = {"wallet": "지갑", "card_wallet": "지갑", "phone": "모형폰
                 "lip_balm": "립밤", "hand_cream": "핸드크림", "power_bank": "보조배터리",
                 "other": "확인 불가", "unknown": "확인 불가", "multiple_items": "확인 불가"}
 MAP_COLOR = {"black": "검정", "gray": "회색", "blue": "파랑", "brown": "갈색", "white": "흰색",
-             "red": "빨강", "pink": "기타", "green": "초록", "yellow": "노랑", "other": "기타", "unknown": None}
+             "red": "빨강", "pink": "분홍", "green": "초록", "yellow": "노랑", "other": "기타", "unknown": None}
 
 
 def prepare_photo(raw):
@@ -49,7 +49,7 @@ class OllamaPhoto:
                               "options": {"temperature": 0, "num_predict": 32, "num_ctx": 4096}, "keep_alive": "5m"})
         try:
             value = json.loads(result["message"]["content"])
-            if set(value) != {"answer"} or value["answer"] not in choices:
+            if not isinstance(value, dict) or set(value) != {"answer"} or value["answer"] not in choices:
                 raise ValueError()
             return value["answer"]
         except (KeyError, TypeError, ValueError):
