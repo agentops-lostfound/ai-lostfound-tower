@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 
 from agents.contracts import MACHINE_STATION_NAME, NONE, UNKNOWN, category_label, is_active_category, station_name
@@ -37,9 +38,9 @@ ROBOT = "로봇팔 에이전트"
 GRADER = "채점 에이전트"
 
 KINDS = {"request": "요청", "reply": "답", "check": "확인", "score": "점수", "coach": "도움",
-         "reflect": "되돌아보기", "retry": "다시 답", "decide": "결정", "learn": "배운 점 반영"}
+         "reflect": "되돌아보기", "retry": "다시 답", "decide": "결정", "learn": "배운 점 반영", "explain": "설명(sLLM)"}
 MARK = {"request": "📨", "reply": "💬", "check": "🔎", "score": "🧮", "coach": "🤝", "reflect": "💭",
-        "retry": "🔁", "decide": "✅", "learn": "📚"}
+        "retry": "🔁", "decide": "✅", "learn": "📚", "explain": "🗣"}
 
 
 
@@ -105,6 +106,8 @@ class AgentTalk:
         self.board = board if board is not None else getattr(reporter, "board", None)
         self._lines: dict[str, list] = {}
         self._lock = threading.Lock()
+        self.explainer = None       # 11/12 메인 AI 결정을 쉬운 한 문장으로 풀어 주는 sLLM(make_explainer) — 없으면 규칙 문장만
+        self._explaining = threading.Lock()
 
     # ---------- 기록 ----------
     def say(self, key: str, frm: str, to: str, kind: str, text: str, score: int | None = None) -> None:
@@ -120,6 +123,25 @@ class AgentTalk:
                 self.board.agent_say(frm, to, kind, text, score, ref=key)
             except Exception:
                 pass
+        if kind == "decide" and frm == MAIN and self.explainer is not None:
+            self._explain_later(key, to, text)
+
+    def _explain_later(self, key: str, to: str, decision: str) -> None:
+        """11/12 메인 AI 결정 → sLLM 이 '왜'를 쉬운 한 문장으로(뒤에서, 흐름을 막지 않음). 한 번에 하나만 — 이미 만드는 중이면 건너뜀.
+        결정 문장에 없는 숫자·칸 번호를 만들어 내거나 개인정보 모양이면 버린다(규칙 문장이 사실, 설명은 덧붙임)"""
+        if not self._explaining.acquire(blocking=False):
+            return
+
+        def run():
+            try:
+                out = safe_explanation(self.explainer(decision), decision)
+                if out and self.board is not None:
+                    self.board.agent_say(MAIN, to, "explain", out, None, ref=key)
+            except Exception:
+                pass
+            finally:
+                self._explaining.release()
+        threading.Thread(target=run, daemon=True, name="agent-explain").start()
 
     def flush(self, key: str, title: str) -> None:
         """대화 하나가 끝남 → 디스코드 에이전트 채널로 한 번에(웹후크가 없으면 보내지 않음). 실패해도 흐름은 계속"""
@@ -151,15 +173,20 @@ class AgentTalk:
         빠진 항목이 있거나 다시 본 값과 다르면: 채점 에이전트가 무엇이 왜 문제인지 알리고(도움) → 메인 AI 가 직원 확인 경보.
         11/11 사용자 결정(2번): 예전에는 첫 답을 **일부러** 덜 채워 '도움 → 배운 점' 을 매번 연출했다 → 없앰. 이제는 실제로 틀릴 때만 도움.
         why = {항목 이름: 그 항목이 왜 필요한지/틀리면 무슨 일이 생기는지}. 돌려줌: grade 결과 + "flag"(직원 확인이 필요한가)"""
+        # 11/12 사용자 결정: 채점 에이전트(점수)는 없앰 — 다른 기록과 맞춰 보는 실제 검사는 메인 AI 가 직접 하고 결과만 한 줄로
         g = grade(need, got, verify)
-        self.say(key, GRADER, MAIN, "score", self._score_text(agent, g), g["score"])
         gaps = g["missing"] + g["wrong"]
         g["flag"] = bool(gaps) or bool(g["pii"])
-        if gaps:
-            self.say(key, GRADER, MAIN, "coach", " ".join(f"{name}: {why.get(name, '확인 필요')}." for name in gaps))
+        if g["pii"]:
+            self.say(key, MAIN, agent, "check", f"{agent} 답에 개인정보 모양이 있어 쓰지 않아요")
+        elif gaps:
+            self.say(key, MAIN, agent, "check", "다른 기록과 맞춰 보니 확인할 점이 있어요 — "
+                     + " ".join(f"{name}: {why.get(name, '확인 필요')}." for name in gaps))
+        else:
+            self.say(key, MAIN, agent, "check", f"{agent} 답을 다른 기록(보관함 정답지·등록기계 역 표)과 맞춰 봤어요 — 일치")
         if gaps and alert:
             try:
-                self.alerts.alert(case or key, f"{agent} 답 확인 필요 — {'·'.join(gaps)}", "에이전트 대화에서 채점 에이전트가 찾음(/live)")
+                self.alerts.alert(case or key, f"{agent} 답 확인 필요 — {'·'.join(gaps)}", "에이전트 대화에서 메인 AI 가 찾음(/live)")
             except Exception:
                 pass
         return g
@@ -307,13 +334,54 @@ class AgentTalk:
             self.say(key, who, MAIN, "reply", text)
 
 
+EXPLAIN_SYSTEM = ("너는 지하철 분실물 관제탑의 메인 AI다. 아래 결정을 처음 보는 관람객이 이해하도록 '왜 그렇게 했는지'를 "
+                  "한국어 존댓말 한 문장(60자 이내)으로 쉽게 설명해. 결정에 없는 숫자·칸 번호·사실은 만들지 마. 설명 문장만 써.")
+
+
+def safe_explanation(text, decision: str) -> str:
+    """sLLM 설명 검사: 한 문장·짧게, 결정에 없는 숫자/칸 번호(R1-1 등)·개인정보 모양이면 버림("")"""
+    t = " ".join(str(text or "").split()).strip().strip('"').strip()
+    if not t or not re.search(r"[가-힣]", t) or _pii(t):
+        return ""
+    t = re.split(r"(?<=[.!?])\s", t)[0]
+    if len(t) > 90:
+        return ""
+    for tok in re.findall(r"[A-Z]\d-\d|\d+", t):
+        if tok not in decision:
+            return ""
+    return t
+
+
+def make_explainer(env: dict | None = None):
+    """로컬 sLLM(Ollama)로 설명을 만드는 함수. 모델은 TOWER_AGENT_LLM_MODEL → LF_CHAT_RAG_MODEL → midm-2.0-mini.
+    Qwen 사진 분석 등이 그래픽카드 사용권을 쥐고 있으면 이번엔 건너뜀(분석을 늦추지 않게). 실패하면 예외 → 설명 없이 진행"""
+    env = os.environ if env is None else env
+    model = (env.get("TOWER_AGENT_LLM_MODEL") or env.get("LF_CHAT_RAG_MODEL") or "midm-2.0-mini").strip()
+
+    def explain(decision: str) -> str:
+        from agents.local_model import ask_local_model, gpu_taken
+        if gpu_taken():
+            return ""
+        r = ask_local_model({"model": model, "stream": False, "keep_alive": "5m",
+                             "options": {"temperature": 0.2, "num_predict": 80},
+                             "messages": [{"role": "system", "content": EXPLAIN_SYSTEM},
+                                          {"role": "user", "content": f"결정: {decision}"}]}, timeout=12)
+        return ((r or {}).get("message") or {}).get("content") or ""
+    explain.model = model
+    return explain
+
+
 def build_talk(reporter, env: dict | None = None, sim: bool = False) -> AgentTalk | None:
-    """TOWER_AGENT_TALK=1 이거나(가상 시연이면 기본 켜짐) → AgentTalk. 0 이면 끔"""
+    """TOWER_AGENT_TALK=1 이거나(가상 시연이면 기본 켜짐) → AgentTalk. 0 이면 끔.
+    11/12 메인 AI 결정 설명(sLLM)은 기본 켜짐 — 끄기 TOWER_AGENT_LLM=0(Ollama 가 꺼져 있으면 저절로 설명 없이)"""
     env = os.environ if env is None else env
     v = (env.get("TOWER_AGENT_TALK") or "").strip()
     if v == "0" or (not sim and v != "1"):
         return None
-    return AgentTalk(reporter)
+    talk = AgentTalk(reporter)
+    if str(env.get("TOWER_AGENT_LLM", "1")).strip().lower() not in ("0", "false", "no", "off"):
+        talk.explainer = make_explainer(env)
+    return talk
 
 
-__all__ = ["AgentTalk", "grade", "build_talk", "PASS", "KINDS"]
+__all__ = ["AgentTalk", "grade", "build_talk", "make_explainer", "safe_explanation", "PASS", "KINDS"]

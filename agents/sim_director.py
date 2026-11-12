@@ -1099,6 +1099,18 @@ class SimDirector:
                 self.board.finish(sid, f"반환 보류 — 교차 검증 불일치({result.get('reason') or '확인 필요'})", False)
             return
 
+    def workbench_items(self) -> list[str]:
+        """11/12 작업대 위(집게·제출보관함)·회수 중인 물건과 로봇이 쥔 물건 → ['A-…(제출보관함)', …]"""
+        from agents.sim_world import LOC_BASKET, LOC_GRIPPER, LOC_TRANSIT
+        where = {LOC_GRIPPER: "집게", LOC_BASKET: "제출보관함", LOC_TRANSIT: "회수 중"}
+        w = self.world
+        with w._lock:
+            out = [f"{iid}({where[r.get('loc')]})" for iid, r in w.items.items() if r.get("loc") in where]
+            held = w.arm.get("holding")
+        if held and not any(o.startswith(f"{held}(") for o in out):
+            out.append(f"{held}(로봇팔이 쥠)")
+        return out
+
     def reset(self, startup: bool = False, force_real: bool = False, seed: str | None = None) -> dict:
         """세계를 처음 상태로(보관함 시연 물건 5개, 로봇 원점). 찾기·반환 기록 번호는 이어진다(같은 번호 재사용 방지).
         11/7: 보관함 정답지(svc.storage) 칸을 먼저 비운 뒤 채운다 — 예전 예약이 남아 있으면 새 시연 물건이 엉뚱한 칸으로 감"""
@@ -1108,6 +1120,11 @@ class SimDirector:
         if getattr(self.svc, "taught_robot", False) and not startup and not force_real:
             raise Conflict("real_robot", "실물 연결 모드에서는 가상 초기화를 사용할 수 없습니다 — 로봇 작업대 [전체 초기화]를 두 번 눌러 확인하세요")
         w = self.world
+        if seed == "layout":                               # 11/12 [기본 세팅] 안전: 작업대(집게·제출보관함)·회수 중 물건이 있으면 하지 않음
+            busy = self.workbench_items()
+            if busy:
+                raise Conflict("workbench", "작업대에 물건이 있어 기본 세팅을 하지 않았어요 — "
+                               + ", ".join(busy[:4]) + " · 물건을 치우고(분실인 인계·직원 회수) 로봇이 원점에 있는지 확인한 뒤 다시")
         if callable(getattr(self.board, "mark_epoch", None)):   # 11/10 새로 연 통합 시연 화면에 초기화 전 연습 기록이 섞이지 않게
             self.board.mark_epoch()
         if self.talk is not None:                        # 11/9 에이전트 대화 기록도 처음으로(11/11 배운 점 연출은 없앰)

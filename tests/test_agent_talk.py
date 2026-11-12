@@ -67,6 +67,10 @@ class TalkTest(unittest.TestCase):
     def kinds(self, after=0):
         return [e["agent"]["kind"] for e in self.board.since(after, limit=999) if e["channel"] == "agent"]
 
+    def flagged(self, after=0):          # 11/12 채점 에이전트 대신 메인 AI 가 '확인할 점' 한 줄
+        return any(e["agent"]["from"] == "메인 AI" and "확인할 점" in e["body"]
+                   for e in self.board.since(after, limit=999) if e["channel"] == "agent")
+
     def alerts(self):
         return [m for m in self.rep.inner.messages if m["channel"] == "alert"]
 
@@ -74,13 +78,14 @@ class TalkTest(unittest.TestCase):
         # 예전: 첫 답을 일부러 칸 번호만 → 도움 → 배운 점. 이제 처음부터 칸 범위까지 답하고, 맞으면 도움 없음
         self.talk.robot_check("C1", "S-1", [150, 150], {"slot_id": "R2-1", "bounds_mm": [100, 100, 200, 200]})
         k = self.kinds()
-        self.assertIn("score", k)
-        self.assertFalse({"coach", "reflect", "retry", "learn"} & set(k))
+        self.assertIn("check", k)
+        self.assertFalse({"score", "coach", "reflect", "retry", "learn"} & set(k))   # 11/12 채점 에이전트 없음
+        self.assertFalse(self.flagged())
         self.assertEqual(self.alerts(), [])
 
     def test_position_mismatch_gets_help_but_alert_only_once_from_flow(self):
         self.talk.robot_check("C2", "S-1", [300, 150], {"slot_id": "R2-1", "bounds_mm": [100, 100, 200, 200]})
-        self.assertIn("coach", self.kinds())
+        self.assertTrue(self.flagged())
         self.assertEqual(self.alerts(), [])                       # 반환 흐름이 직원 확인 경보를 보내므로 여기선 안 보냄
 
     def found(self, cat="handcream", color="분홍", machine="KIOSK-A", place="중앙역 승강장"):
@@ -92,7 +97,7 @@ class TalkTest(unittest.TestCase):
         from agents.contracts import ACTIVE_CATEGORIES
         r = self.found(cat=ACTIVE_CATEGORIES[2])
         self.assertFalse(r["grade"]["flag"], r)
-        self.assertNotIn("coach", self.kinds())
+        self.assertFalse(self.flagged())
 
     def test_found_catches_unknown_category_retired_category_and_wrong_station(self):
         from agents.contracts import ACTIVE_CATEGORIES
@@ -102,7 +107,7 @@ class TalkTest(unittest.TestCase):
             r = self.found(**kw)
             self.assertTrue(r["grade"]["flag"], kw)
             self.assertIn(why, r["grade"]["missing"] + r["grade"]["wrong"], kw)
-            self.assertIn("coach", self.kinds(last))
+            self.assertTrue(self.flagged(last), kw)
         self.assertEqual(len(self.alerts()), 4)                   # 어긋날 때마다 직원 확인 경보
 
     def lay(self, r3=(None, None)):
@@ -150,10 +155,9 @@ class SimTalkTest(unittest.TestCase):
         self.d.found(FOUND)
         self.assertTrue(self.d.wait_idle())
         ev = agent_events(self.svc)
-        scores = [e["agent"]["score"] for e in ev if e["agent"]["kind"] == "score"]
-        self.assertTrue(scores and all(s == 100 for s in scores), scores)   # 맞는 답은 처음부터 100점(일부러 덜 채우지 않음)
-        self.assertFalse(any(e["agent"]["kind"] in ("coach", "reflect", "retry", "learn") for e in ev))
-        self.assertTrue(any(e["agent"]["from"] == "채점 에이전트" and "보관 칸" in e["body"] for e in ev))   # 보관 칸 답도 정답지로 채점
+        self.assertFalse(any(e["agent"]["kind"] in ("score", "coach", "reflect", "retry", "learn") for e in ev))   # 11/12 채점 에이전트 없음
+        self.assertFalse(any("채점" in e["agent"]["from"] for e in ev))
+        self.assertTrue(any(e["agent"]["from"] == "메인 AI" and e["agent"]["to"] == "보관 칸 에이전트" and "일치" in e["body"] for e in ev))   # 보관 칸 답도 정답지로 확인
         self.assertTrue(all(e["agent"]["from"] == "메인 AI" or e["agent"]["to"] == "메인 AI" for e in ev))   # 모든 말은 메인 AI 를 거침
         r = self.d.lost("검정 립밤 잃어버렸어요 초량역에서요")
         self.assertTrue(self.d.wait_idle())
@@ -170,7 +174,7 @@ class SimTalkTest(unittest.TestCase):
         row = {**self.svc.world.db_get_item(iid), "features": {"category": "확인 불가", "color": "분홍"}}
         self.svc.talk.found_registered(iid, row, "중앙역 승강장")
         ev = agent_events(self.svc)
-        self.assertTrue(any(e["agent"]["kind"] == "coach" and "품목" in e["body"] for e in ev))
+        self.assertTrue(any(e["agent"]["kind"] == "check" and "확인할 점" in e["body"] and "품목" in e["body"] for e in ev))
         self.assertTrue([m for m in self.svc.reporter.messages if m["channel"] == "alert" and "답 확인 필요" in m["title"]])
 
     def test_off_switch_keeps_flow(self):
@@ -212,7 +216,8 @@ class DemoToolTest(unittest.TestCase):
             self.assertEqual(agent_talk_demo.main([]), 0)
         out = buf.getvalue()
         self.assertEqual(out.count("── T"), 3)
-        self.assertIn("score", out)
+        self.assertNotIn("score", out)                      # 11/12 채점 에이전트 없음
+        self.assertIn("일치", out)
         self.assertNotIn("reflect", out)                    # 11/11 일부러 만든 도움·되돌아보기 연출 없음
         self.assertIn("범위 안", out)
 
@@ -221,3 +226,37 @@ class DemoToolTest(unittest.TestCase):
         from tools import agent_talk_demo
         with mock.patch.dict(os.environ, {"DISCORD_WEBHOOK_AGENT": ""}), mock.patch("tools.envfile.load_env", lambda *a, **k: None):
             self.assertEqual(agent_talk_demo.main(["--send"]), 2)
+
+
+class ExplainTest(unittest.TestCase):
+    """11/12 메인 AI 결정 → sLLM 이 '왜'를 쉬운 한 문장으로(뒤에서). 결정에 없는 숫자·칸 번호를 만들면 버림"""
+
+    def test_safe_explanation(self):
+        from agents.agent_talk import safe_explanation
+        d = "R4-1 칸이 립밤 열의 알맞은 빈 칸이에요 — 회수해서 그 칸에 둘게요"
+        self.assertEqual(safe_explanation("립밤은 립밤 열에 두어야 로봇이 정확히 집을 수 있어서예요. 추가 문장", d),
+                         "립밤은 립밤 열에 두어야 로봇이 정확히 집을 수 있어서예요.")
+        self.assertEqual(safe_explanation("R2-2 칸이 더 가까워서예요.", d), "")       # 결정에 없는 칸 번호
+        self.assertEqual(safe_explanation("3초 안에 옮겨요.", d), "")                  # 결정에 없는 숫자
+        self.assertEqual(safe_explanation("", d), "")
+        self.assertEqual(safe_explanation("OK", d), "")
+
+    def test_decide_gets_explanation_in_background(self):
+        import time as _t
+        board = LiveBoard()
+        talk = AgentTalk(LiveReporter(Reporter(), board))
+        talk.explainer = lambda decision: "품목 열에 맞게 두면 나중에 로봇이 바로 찾을 수 있어서예요."
+        talk.say("K", "메인 AI", "보관 칸 에이전트", "decide", "R1-1 칸에 둘게요")
+        for _ in range(50):
+            ev = [e for e in talk.board.since(0, limit=99) if e["channel"] == "agent" and e["agent"]["kind"] == "explain"]
+            if ev:
+                break
+            _t.sleep(0.02)
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(ev[0]["agent"]["from"], "메인 AI")
+
+    def test_build_talk_switch(self):
+        from agents.agent_talk import build_talk
+        self.assertIsNotNone(build_talk(Reporter(), {}, sim=True).explainer)
+        self.assertIsNone(build_talk(Reporter(), {"TOWER_AGENT_LLM": "0"}, sim=True).explainer)
+

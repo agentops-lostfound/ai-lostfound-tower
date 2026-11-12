@@ -417,7 +417,7 @@ class UiFixes1111Test(unittest.TestCase):
         휴대폰 장면도 같은 왼쪽 칸 폭, 탭·보기 단추 폭 고정"""
         html = self.read("web/showcase/index.html")
         self.assertNotIn("body.kview main{grid-template-columns", html)
-        self.assertNotIn("body.kview #steps{display:none}", html)
+        self.assertIn("body.kview #steps,body.kview .cap{display:none}", html)   # 11/12 오후(2) 키오스크만 보기는 최대한 크게
         for needle in ("height:calc(1.45em * 3)", ".devgo{display:flex;gap:8px;justify-content:center;flex-wrap:nowrap;height:38px",
                        "const devw = Math.max(screenW + 20 + 54, pw + 22);", "height:44px;box-sizing:border-box",
                        ".scenes button[aria-selected=\"true\"] .swap{visibility:visible}", "#btnView{min-width:12.5em}"):
