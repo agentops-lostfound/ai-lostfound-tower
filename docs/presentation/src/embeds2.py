@@ -214,7 +214,7 @@ def system():
     body += '<p class="rw" style="top:232px">-1<br>먼 칸</p><p class="rw" style="top:334px">-2<br>로봇 쪽</p>'
     fill = {(0, 0): "phone", (0, 1): "white", (1, 0): "batt", (2, 0): "cream"}
     for (i, j), k in fill.items():
-        rot = "transform:rotate(45deg)" if k in ("phone", "white") else ("transform:rotate(-35deg)" if k == "cream" else "")
+        rot = "transform:rotate(45deg)"  # 휴대폰·보조배터리·핸드크림 모두 '/'(핸드크림은 뚜껑이 왼쪽 아래)
         body += item(k, gx[i] + 82, 210 + j * 102 + 46, rot)
     css += kf("c41", [(0, "border:2px dashed #D6C9B5"), (4, f"border:4px solid {ACC};box-shadow:0 0 0 8px rgba(240,106,0,.25)"), (34, f"border:4px solid {ACC};box-shadow:0 0 0 8px rgba(240,106,0,.25)"), (40, "border:2px dashed #D6C9B5;box-shadow:none"), (100, "border:2px dashed #D6C9B5")])
     css += kf("tip", [(0, "opacity:0;transform:translateY(6px)"), (5, "opacity:1;transform:none"), (34, "opacity:1"), (39, "opacity:0"), (100, "opacity:0")])
