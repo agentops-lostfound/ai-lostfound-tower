@@ -166,7 +166,7 @@ def solution():
 
 # ───────── 전체 구성: 역 · 관제탑 · 본센터(보관함 R 줄 설명) ─────────
 def system():
-    W, H, CYC = 1664, 650, 10
+    W, H, CYC = 1664, 650, 14
     css = ICSS + KIOSK
     css += f".bx{{position:absolute;border-radius:26px;padding:22px 26px}}.bx h4{{margin:0;font-size:24px;font-weight:800;color:#B5500A}}.bx h3{{margin:2px 0 0;font-size:28px;color:{INK};white-space:nowrap}}"
     css += f".ch{{background:#24324A;color:#F7F5F1;border-radius:12px;padding:9px 12px;font-size:21px;font-weight:700;white-space:nowrap}}.ch small{{display:block;color:{ACCL};font-weight:600;font-size:17px}}"
@@ -202,7 +202,7 @@ def system():
     body, css = "", base
     # 오른쪽: 본센터 — 실제 작업대처럼 위 제출보관함 · 가운데 보관함 · 아래 로봇팔
     body += f'<div class="bx" style="left:800px;top:0;width:864px;height:650px;background:{SOFT};border:3px solid {ACC}"><h4>부산역 본센터</h4><h3>보관 · 반환 구역</h3></div>'
-    css += kf("ob", [(0, "box-shadow:none"), (58, "box-shadow:none"), (62, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (90, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (96, "box-shadow:none"), (100, "box-shadow:none")])
+    css += kf("ob", [(0, "box-shadow:none"), (60, "box-shadow:none"), (64, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (90, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (96, "box-shadow:none"), (100, "box-shadow:none")])
     body += (f'<div style="position:absolute;left:1205px;top:26px;width:170px;height:104px;border-radius:14px;background:#FFFFFF;border:4px dashed {ACC};animation:ob {CYC}s infinite"></div>'
              f'<p class="lb" style="left:1390px;top:54px;width:150px;text-align:left;font-size:22px;color:#B5500A">제출보관함</p>')
     cols = [("R1", "휴대폰"), ("R2", "보조배터리"), ("R3", "핸드크림"), ("R4", "립밤")]
@@ -210,7 +210,7 @@ def system():
     for i, (r, nm) in enumerate(cols):
         body += f'<p class="hd" style="left:{gx[i]}px;top:136px"><b style="{"color:" + ACC if r == "R4" else ""}">{r}</b><span>{nm}</span></p>'
         for j in range(2):
-            body += f'<div class="cell" style="left:{gx[i]}px;top:{210 + j * 102}px;{"animation:c41 10s infinite" if (i, j) == (3, 0) else ""}"></div>'
+            body += f'<div class="cell" style="left:{gx[i]}px;top:{210 + j * 102}px;{"animation:c41 14s infinite" if (i, j) == (3, 0) else ""}"></div>'
     body += '<p class="rw" style="top:232px">-1<br>먼 칸</p><p class="rw" style="top:334px">-2<br>로봇 쪽</p>'
     fill = {(0, 0): "phone", (0, 1): "white", (1, 0): "batt", (2, 0): "cream"}
     for (i, j), k in fill.items():
@@ -221,8 +221,8 @@ def system():
     body += (f'<div style="position:absolute;left:1452px;top:388px;padding:6px 10px;border-radius:12px;background:{INK};color:#F7F5F1;font-size:17px;font-weight:700;white-space:nowrap;animation:tip {CYC}s infinite;opacity:0;z-index:3">'
              f'<b style="color:{ACCL}">R4-1</b> = 4번 줄 · 먼 칸</div>')
     # 칸에 있는 립밤(집기 전) · 제출보관함의 립밤(놓은 뒤)
-    css += kf("b0", [(0, "opacity:1"), (34, "opacity:1"), (35, "opacity:0"), (97, "opacity:0"), (100, "opacity:1")])
-    css += kf("b2", [(0, "opacity:0"), (70, "opacity:0"), (71, "opacity:1"), (93, "opacity:1"), (97, "opacity:0"), (100, "opacity:0")])
+    css += kf("b0", [(0, "opacity:1"), (41.3, "opacity:1"), (41.8, "opacity:0"), (97, "opacity:0"), (100, "opacity:1")])
+    css += kf("b2", [(0, "opacity:0"), (75, "opacity:0"), (75.5, "opacity:1"), (93, "opacity:1"), (97, "opacity:0"), (100, "opacity:0")])
     body += f'<div style="position:absolute;left:0;top:0;animation:b0 {CYC}s infinite">{item("balm", 1547, 256)}</div>'
     body += f'<div style="position:absolute;left:0;top:0;animation:b2 {CYC}s infinite">{item("balm", 1290, 78)}</div>'
     # SO-101 로봇팔: 위에서는 ① 어깨 회전(방향)만, 옆에서는 ②③④ 굽힘(마디 길이 고정)
@@ -236,7 +236,7 @@ def system():
                 f'<p style="position:absolute;left:12px;top:152px;margin:0;font-size:15px;font-weight:800;color:#B5500A">옆에서 본 모습</p></div>')
     body += (f'<p style="position:absolute;left:1368px;top:612px;width:290px;margin:0;font-size:14px;line-height:1.3;color:#4A5568;font-weight:700">① 어깨 회전 ② 어깨 ③ 팔꿈치<br>④ 손목 굽힘 ⑤ 손목 회전 ⑥ 집게</p>')
     # 본센터 키오스크(왼쪽 아래)
-    css += kf("ka", [(0, "opacity:0"), (64, "opacity:0;transform:scale(.4)"), (69, "opacity:1;transform:scale(1)"), (93, "opacity:1"), (99, "opacity:0")])
+    css += kf("ka", [(0, "opacity:0"), (80, "opacity:0;transform:scale(.4)"), (84, "opacity:1;transform:scale(1)"), (93, "opacity:1"), (99, "opacity:0")])
     body += (f'<div class="kio" style="left:858px;top:440px"></div><p class="lb" style="left:826px;top:572px;width:150px;font-size:20px">본센터<br>키오스크</p>'
              f'<div style="position:absolute;left:924px;top:424px;width:44px;height:44px;border-radius:50%;background:#2E9E5B;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;animation:ka {CYC}s infinite;opacity:0">✓</div>')
     return (wrap(800, H, _cl, _bl), wrap(864, H, css, '<div style="position:absolute;left:-800px;top:0;width:1664px;height:650px">' + body + "</div>"), wrap(288, 176, ICSS + scss, sidecard), wrap(864, H, re.search(r'\.i-balm\{[^}]*\}', ICSS).group(0) + tacss, '<div style="position:absolute;left:-800px;top:0;width:1664px;height:650px">' + tahtml + "</div>"))
