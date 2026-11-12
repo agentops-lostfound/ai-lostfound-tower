@@ -174,14 +174,14 @@ def system():
     css += f".hd{{position:absolute;top:60px;width:165px;text-align:center;margin:0}}.hd b{{display:block;font-size:30px;color:{INK}}}.hd span{{font-size:20px;color:{SUB}}}"
     css += f".rw{{position:absolute;left:840px;width:96px;margin:0;font-size:20px;color:{SUB};line-height:1.25;font-weight:700}}"
     css += f".lb{{position:absolute;margin:0;font-size:22px;font-weight:800;color:{INK};text-align:center}}"
-    css += ".dot{position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);animation:mv 2.2s linear infinite}"
-    css += "@keyframes mv{from{offset-distance:0%}to{offset-distance:100%}}"
+    css += ".dot{position:absolute;left:0;top:0;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);animation:mv 2.2s linear infinite;opacity:1!important;offset-rotate:0deg}"
+    css += "@keyframes mv{from{offset-distance:0%}to{offset-distance:100%}}@keyframes fl{to{stroke-dashoffset:-16}}"
     base = css
     # 왼쪽: 역 키오스크 · 분실인 휴대폰
     body = f'<svg width="{W}" height="{H}" style="position:absolute;left:0;top:0">'
     paths = ["M300 170 C340 170 340 250 380 250", "M300 500 C340 500 340 400 380 400", "M720 330 C760 330 760 520 800 520"]
-    for d in paths:
-        body += f'<path d="{d}" fill="none" stroke="#C9C1B3" stroke-width="4" stroke-dasharray="8 8"/>'
+    for d in paths:  # 점선이 흐르는 방향 = 정보가 가는 방향(역·분실인 → 관제탑 → 본센터)
+        body += f'<path d="{d}" fill="none" stroke="#C9C1B3" stroke-width="4" stroke-dasharray="8 8" style="animation:fl 1s linear infinite"/>'
     body += "</svg>"
     body += (f'<div class="bx" style="left:0;top:20px;width:300px;height:300px;background:{CARD};border:2px solid {LINE}"><h4>역 2곳</h4><h3>습득물 등록기계</h3></div>'
              f'<div class="kio" style="left:40px;top:140px"></div><div class="kio" style="left:170px;top:140px"></div>'
@@ -195,9 +195,15 @@ def system():
              f'<h4 style="color:{ACCL}">관제탑 PC</h4><h3 style="color:#F7F5F1;margin-bottom:10px">AI 관제탑</h3>'
              + "".join(f'<div class="ch">{a}<small>{b}</small></div>' for a, b in chips) + "</div>")
     css += kf("tp", [(0, "box-shadow:0 0 0 0 rgba(240,106,0,.45)"), (70, "box-shadow:0 0 0 18px rgba(240,106,0,0)"), (100, "box-shadow:0 0 0 0 rgba(240,106,0,0)")])
-    for d in paths:
-        for k in (0, 1):
-            body += f'<div class="dot" style="offset-path:path(\'{d}\');animation-delay:{-1.1 * k}s"></div>'
+    # 관계: 역 키오스크 → 관제탑(접수·사진 보고, 주황) / 분실인 ⇄ 관제탑(찾기 요청 주황 ↑, 안내·찾기 번호 초록 ↓)
+    #       관제탑 ⇄ 본센터(반환 지시 초록 →, 완료 보고 주황 ←)
+    flows = [(paths[0], "#F06A00", False, 0), (paths[0], "#F06A00", False, -1.1),
+             (paths[1], "#F06A00", False, 0), (paths[1], "#2E9E5B", True, -1.1),
+             (paths[2], "#2E9E5B", False, 0), (paths[2], "#F06A00", True, -1.1)]
+    for d, col, rev, dl in flows:
+        body += (f'<div class="dot" style="offset-path:path(\'{d}\');background:{col};box-shadow:0 0 0 6px {col}40;'
+                 f'animation-delay:{dl}s;{"animation-direction:reverse;" if rev else ""}"></div>')
+    body += ('<div style="position:absolute;left:0;bottom:-2px;width:800px;display:none"></div>')
     _bl, _cl = body, css
     body, css = "", base
     # 오른쪽: 본센터 — 실제 작업대처럼 위 제출보관함 · 가운데 보관함 · 아래 로봇팔
