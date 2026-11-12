@@ -89,43 +89,47 @@ def top_embed():
         out.append(embeds.wrap(864,650,css+(hc if last else ''),f'<svg width="864" height="650" style="position:absolute;left:0;top:0;filter:drop-shadow(5px 8px 5px rgba(22,32,46,.25))">{bs if j==0 else ""}{body}</svg>{hh if last else ""}'))
     return out
 def rigid_side(s,ox,gy,pfx,cyc,dark):
-    """옆모습: 관절이 화면과 수직인 축으로 돌므로 부품마다 '모양 고정 + 회전·이동'으로 그림(크기 변화 없음)"""
+    """옆모습: 부품마다 모양 고정, '관절 위치로 이동 + 관절 중심 회전'만 키프레임(관절이 벌어지지 않게 촘촘히)"""
     PX=TA.PX
-    A_of=lambda R: s*np.array([R[0],-R[2]])          # 2x3: 몸체 좌표 → 화면
     def tfs(t):
         q,gr=TA.at(t); qd=dict(zip(J,q)); qd['gripper']=gr; qd['wrist_roll']=REST_ROLL; qd['shoulder_pan']=0
         return fk(qd)
-    tf0=tfs(0)
-    bodies=sorted(set(k[0] for k in GR))
-    css=""; body=""; depth={}; parts=[]
-    keys={b:[] for b in bodies}
-    for t in TS:
+    TT=sorted(set([round(x,2) for x in TS]+list(range(0,101,3))))
+    tf0=tfs(0); bodies=sorted(set(k[0] for k in GR))
+    sc=lambda p:np.array([ox+s*(p[0]-PX),gy-s*p[2]])
+    keys={b:[] for b in bodies}; last={}; ymin=1e9
+    for t in TT:
         tf=tfs(t)
         for b in bodies:
             R0,p0=tf0[b]; R,p=tf[b]
-            A0,A=A_of(R0),A_of(R)
-            M=A@np.linalg.pinv(A0)
-            c0=np.array([ox+s*(p0[0]-PX),gy-s*p0[2]]); c=np.array([ox+s*(p[0]-PX),gy-s*p[2]])
-            e=c-M@c0
-            keys[b].append((t,"transform:matrix(%.3f,%.3f,%.3f,%.3f,%.1f,%.1f)"%(M[0,0],M[1,0],M[0,1],M[1,1],e[0],e[1])))
+            A0=np.array([R0[0],-R0[2]]); A=np.array([R[0],-R[2]])
+            M=A@np.linalg.pinv(A0); th=math.degrees(math.atan2(M[1,0],M[0,0]))
+            if b in last:
+                while th-last[b]>180: th-=360
+                while th-last[b]<-180: th+=360
+            last[b]=th; c=sc(p)
+            keys[b].append((t,"transform:translate(%.1fpx,%.1fpx) rotate(%.1fdeg)"%(c[0],c[1],th)))
+        for (bb,k),pts in GR.items():
+            R,p=tf[bb]; W=(R@pts.T).T+p; ymin=min(ymin,(gy-s*W[:,2]).min())
+    parts=[]
     for b in bodies:
-        R0,p0=tf0[b]; paths=""
+        R0,p0=tf0[b]; c0=sc(p0); paths=""
         for (bb,k),pts in GR.items():
             if bb!=b: continue
-            W=(R0@pts.T).T+p0; xy=np.c_[ox+s*(W[:,0]-PX),gy-s*W[:,2]]
+            W=(R0@pts.T).T+p0; xy=np.c_[ox+s*(W[:,0]-PX),gy-s*W[:,2]]-(c0 if b else 0)
             h=TA.simp(hull([tuple(v) for v in np.round(xy).astype(int)]),3)
             cl={'motor':'m','camera':'c'}.get(k,'p')
-            paths+=f'<path class="{cl}" d="M'+'L'.join(f'{a} {c}' for a,c in h)+'Z"/>'
-            depth[b]=-W[:,1].mean()
+            paths+=f'<path class="{cl}" d="M'+'L'.join(f'{x} {y}' for x,y in h)+'Z"/>'
         if b==0: parts.append(("",paths)); continue
         parts.append(("@keyframes %sr%d{%s}"%(pfx,b,"".join("%s%%{%s}"%(t,v) for t,v in keys[b])),
                       f'<g style="transform-box:view-box;transform-origin:0 0;animation:{pfx}r{b} {cyc}s linear infinite">{paths}</g>'))
+    print('side ymin',round(ymin,1))
     pc="#e9edf3" if dark else "#fff"
     base=(f".p{{fill:{pc};stroke:#6b7684;stroke-width:1.2;stroke-linejoin:round}}.m{{fill:#23262d;stroke:#0d0f12;stroke-width:1}}.c{{fill:#3d4450;stroke:#0d0f12}}")
-    half=[[],[]]; n=sum(len(a)+len(b) for a,b in parts); acc=0
-    for a,b in parts:
-        half[0 if acc<n/2 else 1].append((a,b)); acc+=len(a)+len(b)
-    return [(base+"".join(a for a,_ in h),"".join(b for _,b in h)) for h in half]
+    half=[[],[],[]]; n=sum(len(a)+len(b) for a,b in parts); acc=0
+    for a2,b2 in parts:
+        half[min(2,int(3*acc/n))].append((a2,b2)); acc+=len(a2)+len(b2)
+    return [(base+"".join(x for x,_ in h),"".join(y for _,y in h)) for h in half]
 def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc,show_held=True):
     PX=TA.PX
     proj=lambda W:np.c_[ox+s*(W[:,0]-PX),gy-s*W[:,2],-W[:,1]]
@@ -147,13 +151,15 @@ def side_embed(W_,H_,s,ox,gy,dark,labels,pfx,cyc,show_held=True):
     if labels:
         pre+=(f'<p style="position:absolute;left:{sx-58:.0f}px;top:{gy+5}px;width:52px;margin:0;text-align:right;font-size:12px;font-weight:800;color:{lc}">R4-1</p>'
               f'<p style="position:absolute;left:{bxx-14:.0f}px;top:{gy+5}px;width:60px;margin:0;text-align:left;font-size:12px;font-weight:800;color:#B5500A">제출함</p>')
-    (c1,b1),(c2,b2)=rigid_side(s,ox,gy,pfx,cyc,dark)
-    out=[(css+c1, pre+f'<svg width="{W_}" height="{H_}" style="position:absolute;left:0;top:0">{b1}</svg>'),
-         (c2+hc, f'<svg width="{W_}" height="{H_}" style="position:absolute;left:0;top:0">{b2}</svg>'+hh)]
+    ch=[c for c in rigid_side(s,ox,gy,pfx,cyc,dark) if c[1]]
+    out=[]
+    for j,(c1,b1) in enumerate(ch):
+        f,l=j==0,j==len(ch)-1
+        out.append(((css if f else '')+c1+(hc if l else ''), (pre if f else '')+f'<svg width="{W_}" height="{H_}" style="position:absolute;left:0;top:0">{b1}</svg>'+(hh if l else '')))
     return out
 
 def side4():
-    ch=side_embed(288,176,0.5,62,150,False,True,'s',CYC,show_held=False); out=[]
+    ch=side_embed(288,176,0.4,62,150,False,True,'s',CYC,show_held=False); out=[]
     for j,(c,h) in enumerate(ch):
         bg='<div style="position:absolute;left:0;top:0;width:288px;height:176px;border-radius:16px;background:#fff;border:2px solid #E3D6C4;box-sizing:border-box"></div>' if j==0 else ''
         cap='<p style="position:absolute;left:12px;top:154px;margin:0;font-size:15px;font-weight:800;color:#B5500A">옆에서 본 모습</p>' if j==len(ch)-1 else ''
@@ -170,8 +176,8 @@ def side14():
         TA.P.update(save)
 def _side14():
     from embeds import ACCL
-    ch=side_embed(260,150,0.5,58,132,False,False,'r',36); out=[]
+    ch=side_embed(260,150,0.38,60,144,False,False,'r',36); out=[]
     for j,(c,h) in enumerate(ch):
-        lab=(f'<p style="position:absolute;left:8px;top:134px;margin:0;font-size:13px;font-weight:800;color:#B5500A;white-space:nowrap">R4-1 → pose_7</p>') if j==len(ch)-1 else ''
+        lab=(f'<p style="position:absolute;right:4px;top:0;margin:0;font-size:13px;font-weight:800;color:#B5500A;white-space:nowrap">R4-1 → pose_7</p>') if j==len(ch)-1 else ''
         out.append(embeds.wrap(260,150,c,h+lab))
     return out
