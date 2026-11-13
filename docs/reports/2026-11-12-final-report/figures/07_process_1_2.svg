@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1740" viewBox="0 0 1200 1740">
+<rect width="100%" height="100%" fill="white"/>
+<text x="60" y="81.12" font-family="Malgun Gothic, sans-serif" font-size="42" font-weight="700" fill="#18334B" text-anchor="start">제1·2공정 | 습득 접수·입고·보관</text>
+<text x="60" y="125.5" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" fill="#52677B" text-anchor="start">접수 정보와 보관 기록을 연결하고 탑뷰 관측으로 대조</text>
+<polyline points="60,151 1140,151" fill="none" stroke="#D9E3EC" stroke-width="2"/>
+<rect x="320" y="190" width="560" height="110" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="600.0" y="235.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">습득 장소 입력</text>
+<text x="600.0" y="283.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">등록기계·키오스크</text>
+<polyline points="600,300 600,335" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="600,335 606.0,321.0 594.0,321.0" fill="#326AA1"/>
+<rect x="320" y="335" width="560" height="110" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="600.0" y="380.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">물건 자동 촬영</text>
+<text x="600.0" y="428.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">사진 입력</text>
+<polyline points="600,445 600,480" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="600,480 606.0,466.0 594.0,466.0" fill="#326AA1"/>
+<rect x="320" y="480" width="560" height="110" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="600.0" y="525.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">사진 분석</text>
+<text x="600.0" y="573.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">검출·크롭·특징 추출</text>
+<polyline points="600,590 600,625" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="600,625 606.0,611.0 594.0,611.0" fill="#326AA1"/>
+<rect x="320" y="625" width="560" height="110" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="600.0" y="670.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">습득 접수 기록</text>
+<text x="600.0" y="718.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">물건 정보·사진 특징 저장</text>
+<polyline points="600,735 600,770" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="600,770 606.0,756.0 594.0,756.0" fill="#326AA1"/>
+<rect x="320" y="770" width="560" height="110" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="600.0" y="815.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">본센터 회수·도착 처리</text>
+<text x="600.0" y="863.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">부분 도착·늦은 도착·중복 처리</text>
+<polyline points="600,880 600,915" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="600,915 606.0,901.0 594.0,901.0" fill="#326AA1"/>
+<rect x="320" y="915" width="560" height="110" rx="15" fill="#EAF5F0" stroke="#8AB8A9" stroke-width="2"/>
+<text x="600.0" y="960.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">보관 칸 배정</text>
+<text x="600.0" y="1008.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">칸 번호 ↔ pose_N 연결</text>
+<polyline points="60,1080 1140,1080" fill="none" stroke="#D9E3EC" stroke-width="2"/>
+<text x="60" y="1128.8" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" fill="#18334B" text-anchor="start">보관 상태 점검</text>
+<rect x="60" y="1170" width="300" height="110" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="210.0" y="1213.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">탑뷰 관측</text>
+<text x="210.0" y="1260.9599999999998" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">칸별 개수·품목</text>
+<rect x="450" y="1170" width="300" height="110" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="600.0" y="1213.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">DB 기록과 대조</text>
+<text x="600.0" y="1260.9599999999998" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">관측·기록 유효성</text>
+<polyline points="360,1225 450,1225" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="450,1225 436.0,1219.0 436.0,1231.0" fill="#326AA1"/>
+<polyline points="880,970 1080,970 1080,1140 600,1140 600,1170" fill="none" stroke="#247D70" stroke-width="3"/>
+<polygon points="600,1170 606.0,1156.0 594.0,1156.0" fill="#247D70"/>
+<polyline points="600,1280 600,1340" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="600,1340 606.0,1326.0 594.0,1326.0" fill="#326AA1"/>
+<polyline points="210,1340 990,1340" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polyline points="210,1340 210,1400" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="210,1400 216.0,1386.0 204.0,1386.0" fill="#326AA1"/>
+<rect x="60" y="1400" width="300" height="135" rx="15" fill="#EAF5F0" stroke="#8AB8A9" stroke-width="2"/>
+<text x="210.0" y="1443.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">일치</text>
+<text x="210.0" y="1490.9599999999998" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">개수·품목 일치</text>
+<polyline points="600,1340 600,1400" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="600,1400 606.0,1386.0 594.0,1386.0" fill="#326AA1"/>
+<rect x="450" y="1400" width="300" height="135" rx="15" fill="#FFF5E7" stroke="#D9B383" stroke-width="2"/>
+<text x="600.0" y="1443.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">불일치</text>
+<text x="600.0" y="1490.9599999999998" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">누락·추가·품목 차이</text>
+<polyline points="990,1340 990,1400" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="990,1400 996.0,1386.0 984.0,1386.0" fill="#326AA1"/>
+<rect x="840" y="1400" width="300" height="135" rx="15" fill="#FFF5E7" stroke="#D9B383" stroke-width="2"/>
+<text x="990.0" y="1443.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">재검증 필요</text>
+<text x="990.0" y="1490.9599999999998" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">변경·만료·연결 단절</text>
+<polyline points="60,1640 1140,1640" fill="none" stroke="#D9E3EC" stroke-width="2"/>
+<text x="60" y="1684.78" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" fill="#52677B" text-anchor="start">비교 결과는 상태 확인에 사용하며, 물품 ID 확정·자동 DB 수정을 수행하지 않음</text>
+</svg>

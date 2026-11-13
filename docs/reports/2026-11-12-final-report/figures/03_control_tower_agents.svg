@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<rect width="100%" height="100%" fill="white"/>
+<text x="50" y="70.12" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="43" font-weight="700" text-anchor="start">관제탑 에이전트 구조</text>
+<text x="52" y="120.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="start">메인 AI의 근거 검토와 코드의 실행 조건 확인을 연결한 업무 흐름</text>
+<polyline points="50,148 1550,148" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<polyline points="450,290 600,290" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="600,290 587.0,284.0 587.0,296.0" fill="#3C6B9E"/>
+<rect x="50" y="210" width="400" height="150" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="250.0" y="255.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">키오스크 AI</text>
+<text x="250.0" y="296.68" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">습득 접수 · 회수 요청</text>
+<text x="250.0" y="336.37" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">사용자 수령 확인</text>
+<rect x="600" y="210" width="430" height="190" rx="16" fill="#FFF6DF" stroke="#CFB46A" stroke-width="2"/>
+<text x="815.0" y="259.4" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="35" font-weight="700" text-anchor="middle">메인 AI</text>
+<text x="815.0" y="296.68" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">요청 분배 · 응답 취합</text>
+<text x="815.0" y="336.37" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">다른 기록과 근거 대조</text>
+<text x="815.0" y="376.06" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">애매하면 추가 근거 확인</text>
+<polyline points="1030,280 1170,280" fill="none" stroke="#8A98AA" stroke-width="3" stroke-linejoin="round" stroke-dasharray="6 5"/>
+<polygon points="1170,280 1157.0,274.0 1157.0,286.0" fill="#8A98AA"/>
+<polygon points="1030,280 1043.0,286.0 1043.0,274.0" fill="#8A98AA"/>
+<rect x="1170" y="210" width="380" height="190" rx="16" fill="#F4F0FA" stroke="#B4A8CD" stroke-width="2"/>
+<text x="1360.0" y="254.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">로컬 sLLM (Mi:dm)</text>
+<text x="1360.0" y="295.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">다음에 부를 에이전트 선택</text>
+<text x="1360.0" y="331.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">결정을 쉬운 설명</text>
+<text x="1360.0" y="368.5" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">한 문장으로</text>
+<polyline points="510,355 510,955" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polyline points="510,355 600,355" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="600,355 587.0,349.0 587.0,361.0" fill="#3C6B9E"/>
+<polygon points="510,355 523.0,361.0 523.0,349.0" fill="#3C6B9E"/>
+<polyline points="450,505 510,505" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="510,505 497.0,499.0 497.0,511.0" fill="#3C6B9E"/>
+<polygon points="450,505 463.0,511.0 463.0,499.0" fill="#3C6B9E"/>
+<rect x="50" y="440" width="400" height="130" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="250.0" y="484.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">DB 에이전트</text>
+<text x="250.0" y="525.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">물건·접수·반환 기록 조회</text>
+<polyline points="450,655 510,655" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="510,655 497.0,649.0 497.0,661.0" fill="#3C6B9E"/>
+<polygon points="450,655 463.0,661.0 463.0,649.0" fill="#3C6B9E"/>
+<rect x="50" y="590" width="400" height="130" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="250.0" y="634.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">보관 칸 에이전트</text>
+<text x="250.0" y="675.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">보관 위치·칸 상태 대조</text>
+<polyline points="450,805 510,805" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="510,805 497.0,799.0 497.0,811.0" fill="#3C6B9E"/>
+<polygon points="450,805 463.0,811.0 463.0,799.0" fill="#3C6B9E"/>
+<rect x="50" y="740" width="400" height="130" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="250.0" y="784.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">매칭 에이전트</text>
+<text x="250.0" y="825.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">물건 특징·후보 근거 비교</text>
+<polyline points="450,955 510,955" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="510,955 497.0,949.0 497.0,961.0" fill="#3C6B9E"/>
+<polygon points="450,955 463.0,961.0 463.0,949.0" fill="#3C6B9E"/>
+<rect x="50" y="890" width="400" height="130" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="250.0" y="934.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">비전 에이전트</text>
+<text x="250.0" y="975.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">사진 분석·탑뷰 관측 확인</text>
+<text x="850" y="465.84" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="700" text-anchor="start">검토 결과</text>
+<polyline points="815,400 815,530" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="815,530 821.0,517.0 809.0,517.0" fill="#3C6B9E"/>
+<rect x="600" y="530" width="430" height="180" rx="16" fill="#FFF6DF" stroke="#CFB46A" stroke-width="2"/>
+<text x="815.0" y="573.52" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="28" font-weight="700" text-anchor="middle">코드 기반 실행 조건 검사</text>
+<text x="815.0" y="616.68" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">확인 정보 · 업무 상태</text>
+<text x="815.0" y="656.37" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">로봇 준비·정지 상태</text>
+<text x="815.0" y="696.06" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="400" text-anchor="middle">조건 충족 여부 판단</text>
+<polyline points="1030,620 1170,620" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1170,620 1157.0,614.0 1157.0,626.0" fill="#287F79"/>
+<text x="1100" y="596.0" fill="#287F79" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">충족</text>
+<rect x="1170" y="530" width="380" height="180" rx="16" fill="#EAF6F1" stroke="#8EBBA8" stroke-width="2"/>
+<text x="1360.0" y="575.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">로봇팔 에이전트</text>
+<text x="1360.0" y="615.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">원격 명령 전달</text>
+<text x="1360.0" y="651.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">로봇 PC · SO-101 실행</text>
+<text x="1360.0" y="688.5" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">진행 상태·결과 반환</text>
+<polyline points="815,710 815,820" fill="none" stroke="#A16D40" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="815,820 821.0,807.0 809.0,807.0" fill="#A16D40"/>
+<text x="841" y="771.0" fill="#A16D40" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="start">미충족 / 예외</text>
+<rect x="600" y="820" width="430" height="150" rx="16" fill="#FFF2E8" stroke="#D5AA87" stroke-width="2"/>
+<text x="815.0" y="864.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">보류 · 추가 확인</text>
+<text x="815.0" y="905.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">상태·중단 이유 기록</text>
+<text x="815.0" y="944.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">필요한 경우 직원 확인</text>
+<rect x="1170" y="820" width="380" height="150" rx="16" fill="#F6F8FA" stroke="#C7D1DE" stroke-width="2"/>
+<text x="1360.0" y="863.52" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="28" font-weight="700" text-anchor="middle">기본 시연 실행 방식</text>
+<text x="1360.0" y="905.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">저장된 8칸 티칭 시퀀스</text>
+<text x="1360.0" y="941.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">단계별 상태 보고</text>
+<text x="800" y="1076.68" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">대조 근거: 보관함 정답지 · 등록기계 역 정보 · 탑뷰 위치·관측</text>
+<polyline points="50,1128 1550,1128" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<text x="800" y="1168.32" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" text-anchor="middle">실행 허용은 코드가 판단하며, 모델의 설명은 실행 조건을 우회하지 않음  /  별도 채점 에이전트 없음</text>
+</svg>

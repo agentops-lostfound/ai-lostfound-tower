@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="700" viewBox="0 0 1600 700">
+<rect width="100%" height="100%" fill="white"/>
+<text x="50" y="70.12" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="43" font-weight="700" text-anchor="start">서비스 로봇의 현장 적용 확대</text>
+<text x="52" y="120.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="start">IFR World Robotics 2026 · 2025년 전문 서비스 로봇 공급업체 표본 조사</text>
+<polyline points="50,148 1550,148" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<rect x="50" y="200" width="480" height="260" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="290.0" y="245.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">전문 서비스 로봇</text>
+<text x="290" y="322.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="52" font-weight="700" text-anchor="middle">약 25만 대</text>
+<text x="290" y="407.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">2025년 출하 · 전년 대비 +24%</text>
+<rect x="560" y="200" width="480" height="260" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="800.0" y="245.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">운송·물류 분야</text>
+<text x="800" y="322.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="52" font-weight="700" text-anchor="middle">117,500대</text>
+<text x="800" y="407.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">2025년 판매 · 전년 대비 +21%</text>
+<rect x="1070" y="200" width="480" height="260" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1310.0" y="245.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">운송·물류 비중</text>
+<text x="1310" y="322.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="52" font-weight="700" text-anchor="middle">47%</text>
+<text x="1310" y="407.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">전문 서비스 로봇 중 비중</text>
+<text x="800" y="518.52" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="28" font-weight="700" text-anchor="middle">시사점: 정보 안내와 함께 물품 이동·전달을 연결하는 서비스 자동화</text>
+<text x="800" y="567.32" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" text-anchor="middle">조사 대상: 1,001개 제조사 중 238개 응답 업체. 전체 산업 추정치가 아니며 연도별 표본이 달라짐.</text>
+<polyline points="50,628 1550,628" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<text x="800" y="668.32" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" text-anchor="middle">출처: IFR, World Robotics 2026 발표자료 28–30쪽 및 공식 서비스 로봇 보도자료 · 2026.11.12 확인</text>
+</svg>

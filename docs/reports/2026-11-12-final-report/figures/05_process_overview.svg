@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="850" viewBox="0 0 1600 850">
+<rect width="100%" height="100%" fill="white"/>
+<text x="50" y="70.12" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="43" font-weight="700" text-anchor="start">AI 분실물 관제탑 공정 순서</text>
+<text x="52" y="120.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="start">업무 흐름 · 단계별 기록 · 로봇 동작과 사용자 수령의 구분</text>
+<polyline points="50,148 1550,148" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<polyline points="330,340 355,340" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="355,340 342.0,334.0 342.0,346.0" fill="#3C6B9E"/>
+<rect x="50" y="235" width="280" height="275" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="190.0" y="276.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">습득 접수·등록</text>
+<text x="190.0" y="320.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">장소 입력·촬영</text>
+<text x="190.0" y="359.06" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">사진 특징 추출</text>
+<text x="190.0" y="397.28" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">접수 정보 저장</text>
+<text x="190" y="208.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">제1공정</text>
+<polyline points="635,340 660,340" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="660,340 647.0,334.0 647.0,346.0" fill="#3C6B9E"/>
+<rect x="355" y="235" width="280" height="275" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="495.0" y="276.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">입고·보관</text>
+<text x="495.0" y="320.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">회수·도착 기록</text>
+<text x="495.0" y="359.06" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">보관 칸 배정</text>
+<text x="495.0" y="397.28" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">탑뷰·DB 대조</text>
+<text x="495" y="208.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">제2공정</text>
+<polyline points="940,340 965,340" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="965,340 952.0,334.0 952.0,346.0" fill="#3C6B9E"/>
+<rect x="660" y="235" width="280" height="275" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="800.0" y="276.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">검색·찾기 신청</text>
+<text x="800.0" y="320.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">자연어 설명</text>
+<text x="800.0" y="359.06" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">후보·확인 질문</text>
+<text x="800.0" y="397.28" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">찾기 신청</text>
+<text x="800" y="208.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">제3공정</text>
+<polyline points="1245,340 1270,340" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1270,340 1257.0,334.0 1257.0,346.0" fill="#3C6B9E"/>
+<rect x="965" y="235" width="280" height="275" rx="16" fill="#EAF6F1" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1105.0" y="276.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">확인·로봇 반환</text>
+<text x="1105.0" y="320.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">키오스크 확인</text>
+<text x="1105.0" y="359.06" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">실행 조건 검사</text>
+<text x="1105.0" y="397.28" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">집기·전달·HOME</text>
+<text x="1105" y="208.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">제4공정</text>
+<rect x="1270" y="235" width="280" height="275" rx="16" fill="#F1F6FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1410.0" y="276.0" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">수령·인계 완료</text>
+<text x="1410.0" y="320.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">제출보관함 수령</text>
+<text x="1410.0" y="359.06" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">물건 받았어요</text>
+<text x="1410.0" y="397.28" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">인계 완료 기록</text>
+<text x="1410" y="208.68" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">제5공정</text>
+<rect x="50" y="565" width="720" height="130" rx="16" fill="#F4F0FA" stroke="#A7BBD2" stroke-width="2"/>
+<text x="410.0" y="609.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">기록 관리</text>
+<text x="410.0" y="650.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">로봇 전달 완료와 사용자 수령 완료를 별도 기록</text>
+<rect x="800" y="565" width="750" height="130" rx="16" fill="#FFF6DF" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1175.0" y="609.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">예외 처리</text>
+<text x="1175.0" y="649.16" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="24" font-weight="400" text-anchor="middle">확인 불일치·불확실한 매칭·동작 오류 → 보류·직원 확인</text>
+<polyline points="50,778 1550,778" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<text x="800" y="818.32" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" text-anchor="middle">업무 흐름 설명도이며, 모든 단계의 실물 종단 검증 완료를 뜻하지 않음</text>
+</svg>

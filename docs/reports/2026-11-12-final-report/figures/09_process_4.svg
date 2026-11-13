@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1870" viewBox="0 0 1200 1870">
+<rect width="100%" height="100%" fill="white"/>
+<text x="60" y="81.12" font-family="Malgun Gothic, sans-serif" font-size="42" font-weight="700" fill="#18334B" text-anchor="start">제4공정 | 본센터 확인·로봇 반환</text>
+<text x="60" y="125.5" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" fill="#52677B" text-anchor="start">메인 AI 검토와 코드 검사를 거쳐 저장 시퀀스 실행</text>
+<polyline points="60,151 1140,151" fill="none" stroke="#D9E3EC" stroke-width="2"/>
+<rect x="90" y="190" width="600" height="120" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="390.0" y="235.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">키오스크 확인 정보 입력</text>
+<text x="390.0" y="283.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">찾기 번호 · 확인 정보</text>
+<rect x="90" y="355" width="600" height="120" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="390.0" y="400.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">메인 AI 검토</text>
+<text x="390.0" y="448.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">관련 에이전트 근거 대조</text>
+<polyline points="390,310 390,355" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="390,355 396.0,341.0 384.0,341.0" fill="#326AA1"/>
+<polyline points="390,475 390,535" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="390,535 396.0,521.0 384.0,521.0" fill="#326AA1"/>
+<polygon points="390,535 630.0,630.0 390,725 150.0,630.0" fill="#FFF5E7" stroke="#C29B68" stroke-width="2"/>
+<text x="390" y="617.34" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">실행 조건</text>
+<text x="390" y="657.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">충족?</text>
+<polyline points="630,630 805,630" fill="none" stroke="#966026" stroke-width="3"/>
+<polygon points="805,630 791.0,624.0 791.0,636.0" fill="#966026"/>
+<text x="718" y="612.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#966026" text-anchor="middle">아니요</text>
+<rect x="805" y="565" width="335" height="135" rx="15" fill="#FFF5E7" stroke="#D9B383" stroke-width="2"/>
+<text x="972.5" y="608.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">보류·추가 확인</text>
+<text x="972.5" y="655.96" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">필요 시 직원 확인</text>
+<polyline points="390,725 390,800" fill="none" stroke="#247D70" stroke-width="3"/>
+<polygon points="390,800 396.0,786.0 384.0,786.0" fill="#247D70"/>
+<text x="415" y="770.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#247D70" text-anchor="start">예</text>
+<rect x="90" y="800" width="600" height="115" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="390.0" y="845.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">보관 칸·저장 자세 조회</text>
+<text x="390.0" y="893.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">대상 칸과 pose_N 연결</text>
+<polyline points="390,915 390,970" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="390,970 396.0,956.0 384.0,956.0" fill="#326AA1"/>
+<rect x="90" y="970" width="600" height="150" rx="15" fill="#EFF5FB" stroke="#A9BFD5" stroke-width="2"/>
+<text x="390.0" y="1015.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">원격 시퀀스 실행</text>
+<text x="390.0" y="1063.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">접근 → 집기 → 제출보관함 전달</text>
+<text x="390.0" y="1100.16" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">→ HOME · 단계별 도착 확인</text>
+<polyline points="390,1120 390,1190" fill="none" stroke="#326AA1" stroke-width="3"/>
+<polygon points="390,1190 396.0,1176.0 384.0,1176.0" fill="#326AA1"/>
+<polygon points="390,1190 630.0,1285.0 390,1380 150.0,1285.0" fill="#FFF5E7" stroke="#C29B68" stroke-width="2"/>
+<text x="390" y="1292.64" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">정상 완료?</text>
+<polyline points="630,1285 805,1285" fill="none" stroke="#966026" stroke-width="3"/>
+<polygon points="805,1285 791.0,1279.0 791.0,1291.0" fill="#966026"/>
+<text x="717" y="1266.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#966026" text-anchor="middle">아니요</text>
+<rect x="805" y="1205" width="335" height="160" rx="15" fill="#FFF5E7" stroke="#D9B383" stroke-width="2"/>
+<text x="972.5" y="1248.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">정지·원인 기록</text>
+<text x="972.5" y="1295.9599999999998" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">정지 요청 · 연결 만료</text>
+<text x="972.5" y="1332.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">동작 오류</text>
+<polyline points="690,1045 973,1045 973,1205" fill="none" stroke="#966026" stroke-width="3" stroke-dasharray="10 8"/>
+<polygon points="973,1205 979.0,1191.0 967.0,1191.0" fill="#966026"/>
+<text x="821" y="1022.5" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" fill="#966026" text-anchor="start">실행 중 중단</text>
+<polyline points="973,1365 973,1450" fill="none" stroke="#966026" stroke-width="3"/>
+<polygon points="973,1450 979.0,1436.0 967.0,1436.0" fill="#966026"/>
+<rect x="805" y="1450" width="335" height="160" rx="15" fill="#FFF5E7" stroke="#D9B383" stroke-width="2"/>
+<text x="972.5" y="1493.94" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" fill="#18334B" text-anchor="middle">현장 확인·복귀</text>
+<text x="972.5" y="1540.9599999999998" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">조건 확인 후</text>
+<text x="972.5" y="1577.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">명시적 HOME 요청</text>
+<polyline points="390,1380 390,1480" fill="none" stroke="#247D70" stroke-width="3"/>
+<polygon points="390,1480 396.0,1466.0 384.0,1466.0" fill="#247D70"/>
+<text x="415" y="1432.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#247D70" text-anchor="start">예</text>
+<rect x="90" y="1480" width="600" height="120" rx="15" fill="#EAF5F0" stroke="#8AB8A9" stroke-width="2"/>
+<text x="390.0" y="1525.66" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" fill="#18334B" text-anchor="middle">전달 결과·HOME 결과 보고</text>
+<text x="390.0" y="1573.76" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="middle">제5공정의 수령 확인으로 연결</text>
+<text x="90" y="1685.36" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" fill="#52677B" text-anchor="start">동작·도착 완료와 사용자의 실제 수령 완료를 구분하여 관리</text>
+<polyline points="60,1770 1140,1770" fill="none" stroke="#D9E3EC" stroke-width="2"/>
+<text x="60" y="1814.78" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" fill="#52677B" text-anchor="start">정지·복귀 후 중단 작업을 자동 재실행하지 않음</text>
+<text x="60" y="1846.98" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" fill="#52677B" text-anchor="start">도식의 순서는 업무 흐름이며, 전체 실물 인계의 검증 완료를 뜻하지 않음</text>
+</svg>

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120">
+<rect width="100%" height="100%" fill="white"/>
+<text x="50" y="70.12" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="43" font-weight="700" text-anchor="start">챗봇 에이전트 구조</text>
+<text x="52" y="120.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="start">요청을 분류하고 필요한 작업을 실행한 뒤, 결과와 다음 행동을 안내</text>
+<polyline points="50,148 1550,148" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<polyline points="350,270 430,270" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="430,270 417.0,264.0 417.0,276.0" fill="#3C6B9E"/>
+<polyline points="730,270 810,270" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="810,270 797.0,264.0 797.0,276.0" fill="#3C6B9E"/>
+<polyline points="1110,270 1190,270" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1190,270 1177.0,264.0 1177.0,276.0" fill="#3C6B9E"/>
+<rect x="50" y="195" width="300" height="150" rx="16" fill="#F2EEFA" stroke="#B4A8CD" stroke-width="2"/>
+<text x="200.0" y="240.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">사용자 요청</text>
+<text x="200.0" y="280.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">질문 · 물건 설명</text>
+<text x="200.0" y="316.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">접수·관리 요청</text>
+<rect x="430" y="195" width="300" height="150" rx="16" fill="#F2EEFA" stroke="#B4A8CD" stroke-width="2"/>
+<text x="580.0" y="240.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">Coordinator</text>
+<text x="580.0" y="280.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">요청 유형 분류</text>
+<text x="580.0" y="316.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">안내 · 검색 · 접수</text>
+<rect x="810" y="195" width="300" height="150" rx="16" fill="#F2EEFA" stroke="#B4A8CD" stroke-width="2"/>
+<text x="960.0" y="240.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">Planner</text>
+<text x="960.0" y="280.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">필요 작업 구성</text>
+<text x="960.0" y="316.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">담당·실행 순서 지정</text>
+<rect x="1190" y="195" width="360" height="150" rx="16" fill="#F2EEFA" stroke="#B4A8CD" stroke-width="2"/>
+<text x="1370.0" y="240.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">Supervisor</text>
+<text x="1370.0" y="280.0" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">결과 확인 · 다음 작업</text>
+<text x="1370.0" y="316.75" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="400" text-anchor="middle">추가 질문 · 확인 · 종료</text>
+<polyline points="215,416 1385,416" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polyline points="1370,345 1370,416" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<text x="765" y="391.0" fill="#3C6B9E" font-family="Malgun Gothic, sans-serif" font-size="25" font-weight="700" text-anchor="middle">작업 배정</text>
+<polyline points="215,416 215,478" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="215,478 221.0,465.0 209.0,465.0" fill="#3C6B9E"/>
+<rect x="50" y="478" width="330" height="155" rx="16" fill="#EEF5FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="215.0" y="522.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">Researcher</text>
+<text x="215.0" y="563.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">안내 문서 검색</text>
+<text x="215.0" y="602.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">근거에 맞는 답변</text>
+<polyline points="215,633 215,700" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="215,700 221.0,687.0 209.0,687.0" fill="#287F79"/>
+<polyline points="605,416 605,478" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="605,478 611.0,465.0 599.0,465.0" fill="#3C6B9E"/>
+<rect x="440" y="478" width="330" height="155" rx="16" fill="#EEF5FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="605.0" y="522.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">Item Search</text>
+<text x="605.0" y="563.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">물건 특징 비교</text>
+<text x="605.0" y="602.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">후보 검색</text>
+<polyline points="605,633 605,700" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="605,700 611.0,687.0 599.0,687.0" fill="#287F79"/>
+<polyline points="995,416 995,478" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="995,478 1001.0,465.0 989.0,465.0" fill="#3C6B9E"/>
+<rect x="830" y="478" width="330" height="155" rx="16" fill="#EEF5FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="995.0" y="522.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">Intake</text>
+<text x="995.0" y="563.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">정보 수집·수정</text>
+<text x="995.0" y="602.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">최종 확인 후 접수</text>
+<polyline points="995,633 995,700" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="995,700 1001.0,687.0 989.0,687.0" fill="#287F79"/>
+<polyline points="1385,416 1385,478" fill="none" stroke="#3C6B9E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1385,478 1391.0,465.0 1379.0,465.0" fill="#3C6B9E"/>
+<rect x="1220" y="478" width="330" height="155" rx="16" fill="#EEF5FC" stroke="#A7BBD2" stroke-width="2"/>
+<text x="1385.0" y="522.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">Ops Analyst</text>
+<text x="1385.0" y="563.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">관제 기록 조회·분석</text>
+<text x="1385.0" y="602.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">관리자 요청 전용</text>
+<polyline points="1385,633 1385,700" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1385,700 1391.0,687.0 1379.0,687.0" fill="#287F79"/>
+<polyline points="215,700 1385,700" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polyline points="1385,700 1575,700 1575,367 1510,367 1510,345" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1510,345 1504.0,358.0 1516.0,358.0" fill="#287F79"/>
+<text x="840" y="745.16" fill="#287F79" font-family="Malgun Gothic, sans-serif" font-size="24" font-weight="700" text-anchor="start">Supervisor 확인 후</text>
+<text x="840" y="780.4399999999999" fill="#287F79" font-family="Malgun Gothic, sans-serif" font-size="24" font-weight="700" text-anchor="start">응답 구성</text>
+<polyline points="800,700 800,805" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="800,805 806.0,792.0 794.0,792.0" fill="#287F79"/>
+<rect x="600" y="805" width="400" height="150" rx="16" fill="#EAF6F1" stroke="#8EBBA8" stroke-width="2"/>
+<text x="800.0" y="851.04" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="31" font-weight="700" text-anchor="middle">Reporter</text>
+<text x="800.0" y="890.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">결과 정리</text>
+<text x="800.0" y="929.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">다음 행동 안내</text>
+<polyline points="1000,880 1120,880" fill="none" stroke="#287F79" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1120,880 1107.0,874.0 1107.0,886.0" fill="#287F79"/>
+<rect x="1120" y="805" width="430" height="150" rx="16" fill="#EAF6F1" stroke="#8EBBA8" stroke-width="2"/>
+<text x="1335.0" y="850.2" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="30" font-weight="700" text-anchor="middle">사용자 응답</text>
+<text x="1335.0" y="890.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">검색 결과 · 접수 결과</text>
+<text x="1335.0" y="929.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">추가 질문·확인 요청</text>
+<rect x="50" y="805" width="450" height="150" rx="16" fill="#F7F8FA" stroke="#B9C4D1" stroke-width="2" stroke-dasharray="8 6"/>
+<polyline points="62,813 488,813" fill="none" stroke="#B9C4D1" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 5"/>
+<polyline points="62,947 488,947" fill="none" stroke="#B9C4D1" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 5"/>
+<text x="275.0" y="849.36" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="29" font-weight="700" text-anchor="middle">Langfuse</text>
+<text x="275.0" y="890.84" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">프롬프트 버전 관리</text>
+<text x="275.0" y="929.0600000000001" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="26" font-weight="400" text-anchor="middle">실행 추적</text>
+<text x="800" y="1011.68" fill="#20334F" font-family="Malgun Gothic, sans-serif" font-size="27" font-weight="700" text-anchor="middle">언어 이해·설명: 로컬 모델   |   검색·저장·숫자 계산·실행 조건: 코드</text>
+<polyline points="50,1048 1550,1048" fill="none" stroke="#DBE3EC" stroke-width="2" stroke-linejoin="round"/>
+<text x="800" y="1088.32" fill="#53657A" font-family="Malgun Gothic, sans-serif" font-size="23" font-weight="400" text-anchor="middle">추가 질문과 사용자 확인이 필요하면 대화를 이어가며, 접수는 현재 초안의 최종 확인 후 요청</text>
+</svg>

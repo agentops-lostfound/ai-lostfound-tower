@@ -1,0 +1,12 @@
+단계	저장 자세명	동작 설명
+1	home	시작 기준 자세로 이동
+2	pose_N	대상 보관 칸의 접근 자세로 이동
+3	pose_N_open	집게를 연 자세로 이동
+4	pose_N_target	물건 집기 위치로 이동
+5	pose_N_close	집게를 닫아 물건 집기
+6	pose_N	대상 칸의 접근 자세로 복귀
+7	outlet_return_1	제출보관함 접근 자세로 이동
+8	close	물건을 유지한 채 제출보관함 전달 자세로 이동
+9	open	집게를 열어 물건 놓기
+10	outlet_return_1	제출보관함 접근 자세로 복귀
+11	home	원점 자세로 복귀
