@@ -55,7 +55,7 @@ class FixedCommandCorrectionTests(unittest.TestCase):
         target = self.reference.copy(); target[:5] += self.offset
         move = PoseMove(target, target, 100., 'test', arrival_target=self.reference,
                         arm_command_offsets=self.offset, arrival_tolerance=5.)
-        np.testing.assert_array_equal(move.arrival_tolerances, np.full(5, 5.))
+        np.testing.assert_array_equal(move.arrival_tolerances, [5., 7., 8., 5., 5.])
         for tick in range(1, 20):
             now = 100 + tick / 30
             move.heartbeat('test', now)

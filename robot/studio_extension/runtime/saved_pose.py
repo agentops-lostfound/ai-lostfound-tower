@@ -20,6 +20,8 @@ ARM_FOLLOWING_ERROR_LIMIT = 10.0
 # Residual motor error is expected even when re-requesting the current pose.
 # This is per arm joint in normalized units, independent of the tracking limit.
 ARM_ARRIVAL_TOLERANCE = 5.0
+ELBOW_ARRIVAL_TOLERANCE = 8.0
+SHOULDER_ARRIVAL_TOLERANCE = 7.0
 MAX_COMMAND_CORRECTION = 3.0
 
 
@@ -88,6 +90,9 @@ class PoseMove:
         self.arrival_tolerances[1] = shoulder_tolerance
         if arm_command_offsets is not None:
             self.arrival_tolerances[:] = arrival_tolerance
+        # Operator-approved elbow margin also applies to corrected teachings.
+        self.arrival_tolerances[2] = ELBOW_ARRIVAL_TOLERANCE
+        self.arrival_tolerances[1] = max(self.arrival_tolerances[1], SHOULDER_ARRIVAL_TOLERANCE)
         self.command_complete = bool(np.max(np.abs(self.target - self.command)) < 1e-5)
         self.token = token
         self.elapsed = 0.0

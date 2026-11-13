@@ -11,6 +11,7 @@ import time
 from robot.db_pose_sequence import sequence_for_target, stage_motion_options, validate_taught_pose_values
 from robot.joint_motion import JOINTS, vector
 from robot.tower_part import TowerRobot
+from robot.studio_extension.runtime.saved_pose import ELBOW_ARRIVAL_TOLERANCE, SHOULDER_ARRIVAL_TOLERANCE
 
 
 class AnimatedSimulation:
@@ -180,6 +181,10 @@ class SequenceExperiment:
             correction = self.command_corrections.get(self.command_plan[self.selected])
             if correction:
                 tolerance = correction['arrival_tolerance']
+            if joint == 'elbow_flex':
+                tolerance = ELBOW_ARRIVAL_TOLERANCE
+            if joint == 'shoulder_lift':
+                tolerance = max(tolerance, SHOULDER_ARRIVAL_TOLERANCE)
             error = measured - reference[key]
             axes.append({'joint': joint, 'measured': measured, 'reference': reference[key],
                          'command_target': self.robot.poses[self.command_plan[self.selected]][key] +
@@ -300,6 +305,8 @@ class SequenceExperiment:
                     'command_targets': [{key: value + self.command_corrections.get(name, {}).get('offsets', {}).get(key, 0)
                                          for key, value in self.robot.poses[name].items()} for name in self.command_plan],
                     'command_corrections': dict(self.command_corrections),
+                    'elbow_arrival_tolerance': ELBOW_ARRIVAL_TOLERANCE,
+                    'shoulder_arrival_tolerance': SHOULDER_ARRIVAL_TOLERANCE,
                     'motion_profiles': [self.motion_profiles.get(name) for name in self.command_plan],
                     'gripper_modes': ['hold' if stage_motion_options(self.plan, i) else 'pose'
                                       for i in range(len(self.plan))],

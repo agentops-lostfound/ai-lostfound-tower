@@ -107,9 +107,9 @@ class StudioSavedPoseTimingTests(unittest.TestCase):
                 move.heartbeat("test", now)
                 move.tick(np.zeros(6), now)
 
-    def test_same_pose_arrival_accepts_five_per_arm_joint_after_settling(self):
+    def test_same_pose_arrival_uses_shoulder_seven_elbow_eight_other_axes_five(self):
         for joint in range(5):
-            for error in (-5.01, -5.0, 2.26, 3.44, 5.0, 5.01):
+            for error in (-8.01, -8.0, -7.01, -7.0, -5.01, -5.0, 2.26, 3.44, 5.0, 5.01, 7.0, 7.01, 8.0, 8.01):
                 with self.subTest(joint=joint, error=error):
                     move = PoseMove(np.zeros(6), np.zeros(6), 100.0, 'test')
                     measured = np.zeros(6)
@@ -118,7 +118,7 @@ class StudioSavedPoseTimingTests(unittest.TestCase):
                     _, done = move.tick(measured, 100.0)
                     self.assertFalse(done)
                     _, done = move.tick(measured, 100.4)
-                    self.assertEqual(done, abs(error) <= 5.0)
+                    self.assertEqual(done, abs(error) <= (8.0 if joint == 2 else 7.0 if joint == 1 else 5.0))
 
     def test_arrival_settling_restarts_when_one_joint_leaves_margin(self):
         move = PoseMove(np.zeros(6), np.zeros(6), 100.0, 'test')

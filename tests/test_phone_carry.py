@@ -98,11 +98,11 @@ class PhoneCarryTests(unittest.TestCase):
         self.assertAlmostEqual(float(measured[1]), 34.80, places=4)
         self.assertAlmostEqual(float(move.arrival_target[1]), 29.09, places=4)
 
-    def test_other_arm_joints_still_require_five_and_tracking_limit_stays_ten(self):
+    def test_per_joint_arrival_margins_and_tracking_limit_stays_ten(self):
         for joint in (0, 2, 3, 4):
             move = PoseMove(np.zeros(6), np.zeros(6), 100, 'owner', shoulder_tolerance=8)
             measured = np.zeros(6)
-            measured[joint] = 5.1
+            measured[joint] = 8.1 if joint == 2 else 5.1
             for tick in range(1, 10):
                 _, done = move.tick(measured, 100 + tick * .1)
                 self.assertFalse(done)

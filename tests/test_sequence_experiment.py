@@ -92,7 +92,7 @@ class ExperimentTests(ExperimentFixture):
         self.model.runtime_state = {'connected': True, 'saved_pose_status': 'holding_target',
                                     'saved_pose_name': 'outlet_return_1_phone'}
         measured = dict(self.model.robot.poses['outlet_return_1'])
-        measured.update({'elbow_flex.pos': measured['elbow_flex.pos'] + 5.4,
+        measured.update({'elbow_flex.pos': measured['elbow_flex.pos'] + 8.1,
                          'shoulder_lift.pos': measured['shoulder_lift.pos'] + 7.7,
                          'gripper.pos': 44})
         for now in (100., 100.2, 101.1):
@@ -101,6 +101,7 @@ class ExperimentTests(ExperimentFixture):
                 waiting = self.model.snapshot()['arrival_wait']
                 self.assertEqual(waiting['blocked'], ['elbow_flex'])
                 self.assertEqual(waiting['axes'][1]['tolerance'], 8)
+                self.assertEqual(waiting['axes'][2]['tolerance'], 8)
         events = [e for e in self.model.events if e['event'] == 'stage_waiting']
         self.assertEqual(len(events), 2)
         self.assertTrue(self.model.running)
