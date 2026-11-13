@@ -429,6 +429,14 @@ class UiFixes1111Test(unittest.TestCase):
         self.assertNotIn('"휴대폰 웹" : "키오스크"', html)
         self.assertNotIn("키오스크와 같은 신고를", html)
 
+    def test_chat_agent_flow_reads_like_sentences_1113(self):
+        """11/13 챗봇 에이전트 흐름: '지금' 한 줄은 그림마다 따로, 기록 글은 내부용 칸을 빼고, 0ms 대신 <1ms"""
+        html = self.read("web/showcase/index.html")
+        for needle in ('const NOW = {tower:', 'function setNow(gname, html)', '$("agNow").innerHTML = NOW[name] || "";',
+                       'const TIDY_DROP = new Set(["agent", "path", "routing", "generation_status", "proposal_check"',
+                       'tidy("답", short(t.output))', 'tidy(node, draft(node, short(t.output)))', 'ms < 1 ? "<1ms"'):
+            self.assertIn(needle, html)
+
     def test_stable_layout_1112(self):
         """11/12 오후: 장면·보기를 바꿔도 키오스크 자리·크기가 같게 — 칸 나눔은 그대로 두고 패널만 감춤, 설명 3줄·바로가기 칸 자리 고정,
         휴대폰 장면도 같은 왼쪽 칸 폭, 탭·보기 단추 폭 고정"""

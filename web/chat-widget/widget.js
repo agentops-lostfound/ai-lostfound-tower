@@ -922,7 +922,8 @@
   // ── 11/8 작은 떠 있는 창 ─────────────────────────────────────
   // 한줄 설명: 창 자리를 "어느 구석에 붙어 있고(ax·ay), 그 구석에서 얼마나 떨어졌는지(dx·dy), 크기(w·h)"로 기억한다.
   // 화면 크기가 바뀌어도 같은 구석 기준으로 다시 놓고, 언제나 화면 안쪽으로 끌어 넣는다.
-  function vp() { return { w: window.innerWidth || 1024, h: window.innerHeight || 768 }; }
+  // 11/13 화면 키보드(web/ui/vkeyboard.js)가 올라와 있으면 그 높이만큼 뺀 곳까지만 화면으로 본다 — 창·입력칸이 키보드 밑에 깔리지 않게
+  function vp() { var k = Number(window.__vkHeight) || 0; return { w: window.innerWidth || 1024, h: Math.max(120, (window.innerHeight || 768) - k) }; }
   function isPhone() { return vp().w <= PHONE_MAX; }
   function gap() { return isPhone() ? Math.max(6, Math.floor(vp().w * 0.04)) : 16; }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -1159,6 +1160,7 @@
     if (typeof window.addEventListener === "function") {
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", onResize);
+      window.addEventListener("vk:resize", onResize);
     }
   }
 
