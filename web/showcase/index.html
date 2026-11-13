@@ -298,7 +298,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   <h1>AI 분실물 관제탑<small>통합 시연</small></h1>
   <nav class="scenes" role="tablist" aria-label="시연 장면">
     <button role="tab" data-scene="found" aria-selected="true" title="켜진 채로 한 번 더 누르면 중앙역 ⇄ 초량역"><span class="no">1</span>습득 · <span id="foundStn">중앙역</span> 키오스크<span class="swap" aria-hidden="true">⇄</span></button>
-    <button role="tab" data-scene="lost" aria-selected="false" title="역 키오스크 분실 접수 · 켜진 채로 한 번 더 누르면 키오스크 ⇄ 휴대폰 웹"><span class="no">2</span>분실 · <span id="lostWhere">키오스크</span><span class="swap" aria-hidden="true">⇄</span></button>
+    <button role="tab" data-scene="lost" aria-selected="false" title="분실 접수는 분실인 휴대폰 웹 하나로(11/13 통합)"><span class="no">2</span>분실 · <span id="lostWhere">휴대폰 웹</span></button>
     <button role="tab" data-scene="pickup" aria-selected="false"><span class="no">3</span>회수 · 본센터 키오스크</button>
   </nav>
   <!-- 11/12 발표 검토: 화면은 두 가지(키오스크 + DB·에이전트 요약 / 키오스크 크게) — 단추 하나로 오감. 로봇 작업대는 작은 단추로 -->
@@ -430,6 +430,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       `<div class="gf">${a.note} · 위 그림에서 지금 일하는 에이전트가 진하게 켜져요</div>`;
   }
   let scene = SCENES[qs.get("scene")] ? qs.get("scene") : "found";
+  if (scene === "lost") scene = "lostweb";   // 11/13 분실 접수는 휴대폰 웹 하나로 통합(?scene=lost 도 웹으로)
   let robotOpen = qs.get("scene") === "robot" || qs.get("robot") === "1";   // 11/12 로봇 작업대는 장면이 아니라 열고 닫는 창
   let camMode = ["server", "demo", "browser"].includes(qs.get("cam")) ? qs.get("cam") : null;   // null = 서버 설정을 보고 정함
   // 11/11 ① 습득 키오스크: 중앙역(KIOSK-A) ⇄ 초량역(KIOSK-C). ?kiosk=C 로 초량역부터. 서버 카메라가 없는 기계는 다른 기계 카메라를 빌림(camsrc)
@@ -470,6 +471,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   }
   function setScene(sc, fromKiosk) {
     if (!SCENES[sc]) sc = "found";
+    if (sc === "lost") sc = "lostweb";   // 11/13 분실 접수는 휴대폰 웹 하나로 통합
     scene = sc;
     const S = SCENES[sc];
     document.querySelectorAll(".scenes button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.scene === S.head)));
@@ -483,7 +485,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     $("cap").innerHTML = sc === "found" ? foundCap() : S.cap;
     if (S.label) $("kLabel").textContent = S.label;
     // 키오스크 안에도 같은 단추가 있음(분실 탭 [휴대폰 웹으로] · 회수 탭 [본센터 키오스크로]) → 여기는 휴대폰에서 돌아오는 단추만
-    const go = {lostweb: [["lost", "🏧 역 키오스크로 신고하기"]]}[sc] || [];
+    const go = [];   // 11/13 분실 접수는 휴대폰 웹 하나로 통합 — 역 키오스크로 돌아가는 단추 없음
     document.body.dataset.scene = sc;
     $("devgo").innerHTML = go.map(([to, t]) => `<button type="button" class="ghost" data-go="${to}">${t}</button>`).join("");
     setRobot(false);
@@ -537,7 +539,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const sc = b.dataset.scene;
     if (robotOpen && SCENES[scene].head === sc) { setRobot(false); return; }
     if (sc === "found" && scene === "found") swapFound();
-    else if (sc === "lost" && (scene === "lost" || scene === "lostweb")) setScene(scene === "lost" ? "lostweb" : "lost");   // ② 다시 누르면 키오스크 ⇄ 휴대폰
+    else if (sc === "lost") setScene("lostweb");   // 11/13 분실 접수는 휴대폰 웹 하나로 통합
     else if (sc === "pickup" && scene === "stationret") setScene("pickup");
     else setScene(sc);
   });

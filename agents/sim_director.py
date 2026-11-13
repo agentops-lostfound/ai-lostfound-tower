@@ -598,6 +598,8 @@ class SimDirector:
                 self.rep.progress(item_id, "Qwen 특징 분석", f"{_summary(feats)} · 비공개 특징은 확인 질문용으로만 저장")
                 self.board.stage("features", "done", _summary(feats))
                 self._talk_found(item_id, row)
+                if self.waiting_lost:                  # 11/13 진짜 키오스크 사진 접수도, 먼저 들어온 분실 신고와 닮았으면 찾기 요청으로 잇고 알림
+                    self._spawn(self._match_waiting, item_id)   # (가상 습득 _after_found 에만 있어서 실물 접수 때 알림이 오지 않던 것)
                 self._collect_store(sid, item_id)
             except Exception as e:
                 self.rep.alert(item_id, f"키오스크 습득 진행 오류({type(e).__name__})", "")
