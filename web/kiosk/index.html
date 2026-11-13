@@ -6,7 +6,7 @@
 <title>분실물 접수 키오스크</title>
 <link rel="stylesheet" href="/ui/theme.css?v=20261111a">
 <script src="/ui/theme.js"></script>
-<script src="/ui/vkeyboard.js?v=20261112c"></script>
+<script src="/ui/vkeyboard.js?v=20261113a"></script>
 <script src="/ui/phonefield.js?v=20261112a" defer></script>
 <style>
 /* 11/8 디자인 개편: 공통 토큰(/ui/theme.css 의 --ui-*)만 써서 라이트·다크 모두 같은 화면. 회색 바탕 위 흰 카드, 파란 주 버튼, 큰 글자.
@@ -1357,7 +1357,7 @@ const START_TAB = {ret: 'ret', lost: 'lost'}[Q.get('tab')] || (isCenter && Q.get
 if (START_TAB) tab(START_TAB); else startCam();
 </script>
 <!-- AI 챗봇(LF-5, 11/6): 머리말의 "AI 안내" 버튼으로 연다(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀). 공용 키오스크 모드 — 글자 크게, 창을 닫거나 90초 동안 조작이 없으면 대화를 지움 -->
-<script src="/chat-widget/widget.js?v=20261111a" data-mode="kiosk" defer></script>
+<script src="/chat-widget/widget.js?v=20261113a" data-mode="kiosk" defer></script>
 <script>
 // 11/10 화면 키보드(쿼티): 입력칸을 누르면 아래에 키오스크 키보드 — 터치로 누르거나, PC 키보드로 치면 같은 키가 눌려 보임(발표용)
 // 한글 두벌식·영문·숫자, 전화번호·가린 신분증 칸은 숫자 패드. 공통 부품 /ui/vkeyboard.js

@@ -308,6 +308,8 @@
     }
 
     function show(el) {
+      // 11/13 이미 이 칸에 키보드가 올라와 있으면 그대로 둔다 — 같은 칸에 초점이 다시 오면(창 크기가 바뀔 때 등) 조합 중이던 한글이 끊겨 'ㅎㅐㄴ드크림'처럼 들어갔다
+      if (st.el === el && kb.classList.contains("vk-on")) return;
       if (st.el && st.el !== el) st.el.classList.remove("vk-target-on");
       st.el = el; st.comp = false; st.shift = false; st.layer = "abc";
       st.kind = kindOf(el);
@@ -327,21 +329,23 @@
           if (over > 0) { box.dataset.vkPad = box.style.paddingBottom || "-"; box.style.paddingBottom = Math.ceil(over) + "px"; }
         }
         setTimeout(() => keepVisible(el), 50);
-      } else {                                                      // 폰 화면: iframe 안 페이지 아래를 키보드만큼 띄움
-        doc.body.style.paddingBottom = kb.offsetHeight + "px";
-        // 11/11 키오스크 분실 접수 탭(틀이 키보드 밑까지 이어짐): 틀 가운데로 올리면 칸이 키보드 밑에 남았다 →
-        // 틀에서 키보드에 가리지 않는 부분의 가운데로 칸을 올린다(폰 화면도 같은 계산)
+        notify(kb.offsetHeight);
+      } else {                                                      // 폰 화면
+        // 11/13 진짜 휴대폰처럼: 키보드가 올라오면 화면(틀 안 iframe) 높이를 그만큼 줄인다 — 전에는 페이지 아래에 여백만 넣어
+        //   화면에 고정된 창(챗봇 창 등)이 키보드 밑에 깔려 입력칸·[보내기]가 가려졌다. 높이가 줄면 그 창이 스스로 키보드 위로 맞춰진다
+        const win = doc.defaultView, fe = win && win.frameElement;
+        if (fe && opt.mount !== host.body) {
+          if (fe.dataset.vkFull == null) { fe.dataset.vkFull = String(fe.offsetHeight); fe.dataset.vkH = fe.style.height || "-"; }
+          fe.style.height = Math.max(120, Number(fe.dataset.vkFull) - kb.offsetHeight) + "px";
+        } else doc.body.style.paddingBottom = kb.offsetHeight + "px";
         setTimeout(() => {
-          const win = doc.defaultView, fe = win && win.frameElement;
+          if (st.el !== el) return;
           if (!fe) { el.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
-          // 키보드는 올라오는 중(움직임)일 수 있어 지금 위치 대신 다 올라온 위치(자리 아래 끝 - 키보드 높이)로 계산
-          const fr = fe.getBoundingClientRect();
-          const bottom = opt.mount && opt.mount !== host.body ? opt.mount.getBoundingClientRect().bottom : host.defaultView.innerHeight;
-          const kbTop = bottom - kb.offsetHeight;
-          const visible = Math.max(80, (kbTop > fr.top ? Math.min(fr.bottom, kbTop) : fr.bottom) - fr.top);
-          const r = el.getBoundingClientRect();
-          win.scrollBy({ top: r.top + r.height / 2 - visible / 2, behavior: "smooth" });
-        }, 50);
+          // 칸이 줄어든 화면 안에 다 보이면 그대로 둔다(고정된 창 안의 칸을 맞추려고 뒤 페이지를 움직이지 않게). 안 보일 때만 가운데로
+          const r = el.getBoundingClientRect(), h = win.innerHeight;
+          if (r.top >= 8 && r.bottom <= h - 8) return;
+          win.scrollBy({ top: r.top + r.height / 2 - h / 2, behavior: "smooth" });
+        }, 60);
       }
     }
     // 11/10 사람 조작 시뮬레이션: 본센터 키오스크에서 번호를 넣고 [물건 꺼내기]를 누르면 키보드가 단추를 덮고 있어
@@ -382,19 +386,35 @@
       if (Math.abs(delta) < 1) return;
       if (box) box.scrollTop += delta; else view.scrollBy(0, delta);
     }
+    // 11/13 화면에 고정된 창(챗봇 창)이 키보드 밑에 깔리지 않게: 키보드 높이를 알린다(창이 스스로 그 위로 맞춤 — web/chat-widget/widget.js)
+    function notify(h) {
+      try { const w = doc.defaultView; if (!w) return; w.__vkHeight = h; w.dispatchEvent(new w.CustomEvent("vk:resize", { detail: { height: h } })); } catch (_) { /* 알리지 못해도 키보드는 그대로 동작 */ }
+    }
     function hide() {
       kb.classList.remove("vk-on"); caret.hidden = true;
+      if (!opt.mount) notify(0);
       restorePads();
       if (st.el) st.el.classList.remove("vk-target-on");
       st.el = null; st.comp = false;
       host.body.style.paddingBottom = ""; if (doc !== host) doc.body.style.paddingBottom = "";
+      const fe = doc.defaultView && doc.defaultView.frameElement;    // 11/13 폰 화면: 줄였던 화면 높이를 되돌림
+      if (fe && fe.dataset.vkFull != null) { fe.style.height = fe.dataset.vkH === "-" ? "" : fe.dataset.vkH; delete fe.dataset.vkFull; delete fe.dataset.vkH; }
     }
 
     const target = (e) => (e.composedPath ? e.composedPath()[0] : e.target);
     // 11/12 Tab 으로 칸을 벗어나면(다른 단추로 초점) 키보드와 아래 여백을 닫는다 — 전에는 그대로 남아 화면 아래가 비어 보였다
     doc.addEventListener("focusin", (e) => { const el = target(e); if (usable(el)) show(el); else if (st.el && !kb.contains(el)) hide(); }, true);
     doc.addEventListener("pointerdown", (e) => {                    // 다른 곳을 누르면 닫기
-      const el = target(e); if (st.el && !usable(el) && !kb.contains(el)) hide();
+      const el = target(e);
+      // 11/13 바로 닫으면 화면 높이·챗봇 창이 그 순간 되돌아가며 누르던 단추([보내기])가 손가락 밑에서 움직여 눌림이 사라졌다
+      //   → 그 누름(click)이 끝난 뒤에 닫는다. 0.7초 안에 click 이 없으면(끌기 등) 그냥 닫는다
+      if (st.el && !usable(el) && !kb.contains(el)) {
+        const was = st.el; let t = 0;
+        const close = () => { doc.removeEventListener("click", close, true); clearTimeout(t); setTimeout(() => { if (st.el === was) hide(); }, 0); };
+        doc.addEventListener("click", close, true); t = setTimeout(close, 700);
+      }
+      // 11/13 초점이 이미 그 칸에 있으면 focusin 이 다시 오지 않는다(답을 받은 뒤·다른 곳을 눌러 키보드만 닫힌 뒤) → 칸을 누르면 언제나 키보드를 올림
+      else if (!st.el && usable(el) && !kb.contains(el)) show(el);
     }, true);
     // 11/12 칸 안을 누르면 그 자리로 커서(브라우저가 정한 선택을 읽음). 글자를 끌어 고르면 고른 부분을 바꿈
     const follow = (e) => { const el = target(e); if (st.el && el === st.el) setTimeout(() => { if (st.el !== el) return; const [a, b] = sel(); st.comp = false; st.pos = b; if (a === b) drawCaret(); else caret.hidden = true; }, 0); };

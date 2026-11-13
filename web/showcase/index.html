@@ -952,11 +952,16 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     $("agHint").textContent = g.hint + " · 일이 생긴 쪽으로 자동 전환";
     document.querySelectorAll("#agSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.g === graph)));
   }
-  const fmtMs = (ms) => ms >= 1000 ? (ms / 1000).toFixed(1) + "초" : ms + "ms";
+  const fmtMs = (ms) => ms >= 1000 ? (ms / 1000).toFixed(1) + "초" : ms < 1 ? "<1ms" : ms + "ms";   // 11/13 규칙으로 바로 끝난 단계가 '0ms'로 보이던 것
+  // 11/13 '지금' 한 줄은 그림(관제탑 / 챗봇)마다 따로 기억 — 챗봇 그림을 보는데 "키오스크에서 물건을 접수하면 시작돼요"가 떠 있었다
+  const NOW = {tower: "지금: 아직 주고받은 말이 없어요 — 키오스크에서 물건을 접수하면 시작돼요",
+               chat: "지금: 아직 질문이 없어요 — <b>AI 안내</b>에 물어보면 질문 → 분류 → 계획 → 답 순서로 켜져요"};
+  function setNow(gname, html) { NOW[gname] = html; if (graph === gname) $("agNow").innerHTML = html; }
   function showGraph(name, byUser) {
     if (byUser) holdUntil = Date.now() + USER_HOLD_MS;
     if (graph === name) return;
     graph = name; drawGraph(); renderGuides();
+    $("agNow").innerHTML = NOW[name] || "";
   }
   document.querySelectorAll("#agSeg button").forEach((b) => b.onclick = () => showGraph(b.dataset.g, true));
   function mark(gname, node, patch) {
@@ -996,7 +1001,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     const a = e.agent || {};
     // 11/12 '너무 빨라 이해가 어렵다' → 보내는 쪽 먼저 켜고 0.8초 뒤 받는 쪽, 각각 1.4초. 지금 무슨 일인지 위에 한 줄
     if (live) { follow("tower"); packet("tower", a.from, a.to); flashNode("tower", a.from, 1400); setTimeout(() => flashNode("tower", a.to, 1400), 800);
-      $("agNow").innerHTML = `<b>${esc(a.from)}</b> → <b>${esc(a.to)}</b> <span class="k">${esc(KIND[a.kind] || a.kind || "말")}</span> ${esc(String(e.body || "").slice(0, 90))}`; }
+      setNow("tower", `<b>${esc(a.from)}</b> → <b>${esc(a.to)}</b> <span class="k">${esc(KIND[a.kind] || a.kind || "말")}</span> ${esc(String(e.body || "").slice(0, 90))}`); }
     else { mark("tower", a.from, {cls: "done"}); mark("tower", a.to, {cls: "done"}); }
     agLine(`<div class="top"><span class="kind ${esc(a.kind || "")}">${esc(KIND[a.kind] || a.kind || "말")}</span><span class="who">${esc(a.from)}</span><span class="arrow">→</span>` +
       `<span class="who">${esc(a.to)}</span>${a.score != null ? `<span class="kind score">${a.score}점</span>` : ""}<span class="t">${clock(e.t)}</span></div><p>${esc(e.body)}</p>`);
@@ -1010,7 +1015,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
       if (!tower) { state.chat = {}; chatPrev = "질문"; chatReported = false; if (graph === "chat") drawGraph(); if (live) { chatSince = Date.now(); holdUntil = Math.min(holdUntil, Date.now()); } }
       const li = agLine(`${tower ? "메인 AI 판단" : "챗봇 질문"} ${esc(t.trace || "")}${t.langfuse ? " · Langfuse 기록" : ""}`); li.className = "msg sep";
       if (live) follow(gname);
-      if (!tower) mark("chat", "질문", {cls: live ? "on" : "done"});
+      if (!tower) { mark("chat", "질문", {cls: live ? "on" : "done"}); if (live) setNow("chat", "<b>질문</b>이 들어왔어요 — 무슨 말인지 분류하는 중"); }
       return;
     }
     if (t.kind === "trace_end") { if (!tower) { mark("chat", "답", {cls: "done", ms: t.ms}); mark("chat", "질문", {cls: "done"}); if (live) { chatSince = 0; chatEndAt = Date.now(); } } return; }
@@ -1022,7 +1027,8 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
         }
         if (live) packet("chat", "reporter", "답");
         mark("chat", "답", {cls: live ? "on" : "done"});
-        agLine(`<div class="top"><span class="kind gen">답</span><span class="who">화면에 표시</span><span class="t">전체 ${fmtMs(t.ms || 0)}</span></div><p>${esc(short(t.output))}</p>`);
+        agLine(`<div class="top"><span class="kind gen">답</span><span class="who">화면에 표시</span><span class="t">전체 ${fmtMs(t.ms || 0)}</span></div><p>${esc(tidy("답", short(t.output)))}</p>`);
+        setNow("chat", `<b>답</b>을 화면에 보냈어요 <span class="k">전체 ${fmtMs(t.ms || 0)}</span> ${esc(tidy("답", short(t.output)).slice(0, 70))}`);
       }
       return;
     }
@@ -1039,18 +1045,42 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     if (t.kind === "start") {
       if (live) { follow(gname); if (!tower) packet("chat", chatPrev, node); else if (node !== "메인 AI") packet("tower", "메인 AI", node); }
       mark(gname, node, {cls: live ? "run" : "done", ms: null});
+      if (!tower && live) setNow("chat", `<b>${esc(node)}</b> <span class="k">${esc(roleOf(gname, node))}</span> 일하는 중`);
     } else {
       mark(gname, node, {cls: t.error ? "err" : "done", ms: t.ms});
       if (!tower) { chatPrev = node; if (node === "reporter") chatReported = true; }
       else if (live && node !== "메인 AI") packet("tower", node, "메인 AI");
       agLine(`<div class="top"><span class="kind${t.error ? " err" : ""}">${esc(node)}</span><span class="who">${esc(roleOf(gname, node))}</span><span class="t">${fmtMs(t.ms || 0)}</span></div>` +
-        `<p>${esc(t.error ? t.error : draft(node, short(t.output)))}</p>`);
+        `<p>${esc(t.error ? t.error : tidy(node, draft(node, short(t.output))))}</p>`);
     }
   }
   // 일꾼(researcher 등)이 만든 글은 아직 '초안'이다 — 화면에 나가는 답은 reporter 가 정리한 것 하나뿐이라는 점이 보이게
   const draft = (node, text) => node === "reporter" ? text : text.replace(/(^|· )answer: /, "$1답 초안(reporter 가 정리하기 전): ");
   const roleOf = (gname, node) => (G[gname].nodes[node] || [])[2] || "";
   const short = (out) => String(out || "").slice(0, 260);      // 서버(observability.brief)가 이미 가리고 줄인 한 줄
+  // 11/13 챗봇 단계 글을 사람이 읽게: 서버가 보낸 '칸: 값 · 칸: 값'에서 내부용 칸(경로·검사 결과·JSON 덩어리)을 빼고 칸 이름을 우리말로
+  const TIDY_DROP = new Set(["agent", "path", "routing", "generation_status", "proposal_check", "executed", "validation", "proposal", "trace", "session", "mode"]);
+  const TIDY_NAME = {why: "이유", next: "다음", route: "갈래", status: "상태", intent: "의도", plan: "계획", steps: "순서", query: "찾는 말", found: "찾음", count: "개수", reason: "이유"};
+  const TIDY_VAL = {end: "끝", finish: "끝", guidance: "이용 안내", item_search: "물건 검색", intake: "대화 접수", clarification_needed: "되묻기", answered: "답함", ok: "정상"};
+  function tidy(node, text) {
+    const parts = String(text || "").split(" · "), out = [];
+    for (const part of parts) {
+      const m = /^([A-Za-z_]{2,24}): ?([\s\S]*)$/.exec(part);
+      if (!m) { if (out.length || !/^[\[{"]/.test(part.trim())) out.push(part); continue; }
+      const key = m[1], val = m[2].trim();
+      if (val.startsWith("//")) { out.push(part); continue; }          // 주소(http://…)는 칸이 아님
+      if (TIDY_DROP.has(key) || !val || val[0] === "{") continue;
+      if (val[0] === "[") {                                        // 목록(["a", "b"])은 풀어서 — 잘려 온 것도 괄호·따옴표만 걷어 냄
+        let list; try { list = JSON.parse(val); } catch (_) { list = null; }
+        const flat = Array.isArray(list) ? list.join(" → ") : val.replace(/[\[\]"]/g, "").trim();
+        if (flat) out.push(`${TIDY_NAME[key] || key}: ${TIDY_VAL[flat] || flat}`);
+        continue;
+      }
+      if (key === "answer") out.push(val);
+      else out.push(`${TIDY_NAME[key] || key}: ${TIDY_VAL[val] || val}`);
+    }
+    return out.join(" · ") || (parts.length > 1 ? "—" : String(text || ""));
+  }
 
   // ================= 이야기 진행 막대 =================
   let stories = [];
