@@ -12,6 +12,11 @@ def compact(text):
 
 def question_goal(question):
     q = compact(question)
+    # 서로 다른 정책을 함께 물으면 한 주제용 문장으로 다른 요청을 덮지 않는다.
+    policy_parts = [r'운영시간|영업시간|몇시', r'택배|배송|우편', r'대리|대신.*수령',
+                    r'보관기간|파기|삭제', r'수수료|비용|요금', r'센터.*(?:주소|위치|어디)']
+    if sum(bool(re.search(p, q)) for p in policy_parts) > 1:
+        return None
     # 복합 요청은 기존 주제 분리기가 각 부분을 처리한다. 한 답으로 덮지 않는다.
     # 11/12 "빨간색 립밤 있는지 보고 운영시간도", "파란 휴대폰 찾고 받는 순서도"도 복합(main 채점표 #223·#272)
     if (re.search(r'찾아줘|검색해줘|후보보여|있는지|있으면|찾고|찾아서', q) and re.search(r'그리고|[.。]|절차도|시간도|순서도|보고|하고|찾고|랑|같이|함께', q)

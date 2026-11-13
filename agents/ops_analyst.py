@@ -245,6 +245,15 @@ class OpsAnalyst:
         options = {'temperature': cfg['temperature'], 'num_predict': tokens}
         if context is not None:
             options['num_ctx'] = context
+        from agents.chat_dialogue import model_context
+        conversation = model_context()
+        if conversation:
+            try:
+                body = json.loads(user)
+            except (ValueError, TypeError):
+                body = None
+            body = body if isinstance(body, dict) else {'request': user}
+            user = json.dumps({**body, 'conversation_context': conversation}, ensure_ascii=False)
         payload = {'model': cfg['model'], 'stream': False, 'keep_alive': '5m', 'options': options,
                    'messages': [{'role': 'system', 'content': cfg['_system']}, {'role': 'user', 'content': user}]}
         if schema is not None:

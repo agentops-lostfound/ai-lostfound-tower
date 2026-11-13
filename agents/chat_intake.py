@@ -198,10 +198,10 @@ def detect_start(question: str, history=None) -> str | None:
 def unknown_fields(text):
     """명시적으로 모른다고 정정한 칸만 지운다. 다른 칸의 '모름'은 전파하지 않는다."""
     q = compact(text)
-    unknown = r'모르겠|모른|모름|몰라|기억.{0,8}안나|가물가물|언제인지못정'
+    unknown = r'모르겠|모른|모름|몰라|기억.{0,8}안나|가물가물|언제인지못정|확실하지않|확신.{0,4}(?:없|못)'
     result = set()
     for field, label in (('station', r'역|초량|중앙|부산'), ('when', r'날짜|언제|잃어버린때'),
-                         ('color', r'색'), ('place', r'주운곳|습득장소|주운위치')):
+                         ('color', r'색'), ('place', r'주운곳|습득장소|주운위치'), ('detail', r'특징|스티커|글자|무늬|로고')):
         for m in re.finditer(label, q):
             clause = re.split(r'[,.;]|날짜|언제|역|색|주운곳', q[m.end():], maxsplit=1)[0]
             if re.search(unknown, clause):
@@ -212,12 +212,17 @@ def unknown_fields(text):
 def extract(text: str, kind: str, want: str | None = None) -> dict:
     """말에서 빈칸 값 뽑기(규칙). want = 지금 묻고 있는 칸(짧은 답 "초량이요"·"어제"를 그 칸으로 읽는다)"""
     from agents.sim_world import query_features
-    t = normalize_terms(text or "")
+    raw_t = normalize_terms(text or "")
+    from agents.chat_turn import attribute_semantics
+    t = attribute_semantics(raw_t)
+    from agents.chat_dialogue import social_kind, wants_resume, meta_repair, guidance_followup, literal_attribute
+    if not literal_attribute(t) and (social_kind(t) or wants_resume(t) or meta_repair(t) or guidance_followup(t)):
+        return {}
     # 앞 물건과 별개의 새 요청을 한 문장에 말하면 새 요청의 설명만 채운다.
     if '별개고' in t:
         t = t.rsplit('별개고', 1)[-1]
     out: dict = {}
-    f = query_features(t)
+    f = query_features(raw_t)
     from agents.lost_input import text_features, correction_tail
     denied = r'(?:휴대폰|핸드폰|모형폰|립밤|핸드크림|보조배터리|검정|파랑|흰색)(?:은|는|이|가)?\s*아니(?:에요|예요|라고|고|라|야|다)?'
     feature_text = re.sub(denied, '', t)
@@ -250,7 +255,7 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
     if m:
         out["when"] = re.sub(r"\s+", " ", m.group(0)).strip()
     if kind == "lost":
-        marks = re.sub(r'[가-힣A-Za-z0-9]{1,8}\s*(?:스티커|키링|무늬|로고|글자|그림)(?:은|는|이|가)?\s*없고', '', effective)
+        marks = re.sub(r'[가-힣A-Za-z0-9]{1,8}\s*(?:스티커|키링|무늬|로고|글자|그림)(?:은|는|이|가)?\s*없고', '', correction_tail(raw_t) or raw_t)
         mk = MARK_RE.search(marks)
         if mk:
             out["detail"] = re.sub(r"\s+", " ", mk.group(1)).strip()
@@ -264,7 +269,7 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
             out["place"] = re.sub(r"\s+", " ", pm.group(1)).strip()
     if want and UNKNOWN_SAY.match(t.strip()):
         out[want] = "없음" if want == "detail" and re.match(r"^(?:없어요|없음)", t.strip()) else "모름"
-    unknown = r'모르겠|모른|모름|몰라|기억.{0,8}안나|가물가물|언제인지못정'
+    unknown = r'모르겠|모른|모름|몰라|기억.{0,8}안나|가물가물|언제인지못정|확실하지않|확신.{0,4}(?:없|못)'
     short = compact(t)
     uncertainty = bool(re.search(unknown, short))
     unknown_targets = unknown_fields(t)
@@ -278,14 +283,17 @@ def extract(text: str, kind: str, want: str | None = None) -> dict:
     if want in ('when', 'station') and uncertainty and not unknown_targets:
         out[want] = '모름'
     out.update({field: '모름' for field in unknown_targets if field != 'place' or kind == 'found'})
-    if want == 'detail' and re.search(r'(?:특징|스티커|글자).{0,22}(?:없|안\s*적혀|안\s*붙)', t):
+    if uncertainty and (want == 'detail' or 'detail' in unknown_targets) and re.search(r'특징|스티커|글자|무늬|로고', t):
+        out['detail'] = '모름'
+    elif want == 'detail' and re.search(r'(?:특징|스티커|글자).{0,22}(?:없|안\s*적혀|안\s*붙)', t):
         out['detail'] = '없음'
     elif want == "station" and kind == "lost" and not out and OTHER_STATION.match(t.strip()):
         # 11/10 목록에 없는 역("센텀시티역이요")을 말하면 같은 질문을 되풀이했다 → 그 역은 장소 확인에 쓸 수 없으니 '모름'과 같게 받고 다음으로
         out["station"] = "모름"
-    elif want in ("detail", "place") and not out and len(t.strip()) <= 30 and not LOST_SAY.search(t):
+    elif (want in ("detail", "place") and not out and len(t.strip()) <= 30 and not LOST_SAY.search(t)
+          and (literal_attribute(t) or not re.search(r'뭐|무엇|어디|왜|어떻게|물어|질문|돌아가|계속|하던|인사', compact(t)))):
         # 11/9 채점표: "아 오늘 아침이었어요"(때 고치기)가 특징 칸에도 통째로 들어갔다 → 이 말에서 다른 칸을 읽었으면 자유 답으로 쓰지 않음
-        out[want] = t.strip().rstrip(".!요").strip() or "모름"
+        out[want] = raw_t.strip().rstrip(".!요").strip() or "모름"
     return out
 
 
@@ -301,6 +309,51 @@ class IntakeAgent:
         """진행 중인 접수 대화(완료 결과 기억은 제외)"""
         s = self.sessions.get(sid)
         return s if s and s.get("stage") != "done" else None
+
+    def resume(self, sid, note=''):
+        """인사·안내 뒤 현재 질문을 재표시. 슬롯/버전/확인 승인을 변경하지 않는다."""
+        with self.sessions.lock(sid):
+            s = self.active(sid)
+            if not s:
+                return None
+            if s.get('stage') == 'uncertain':
+                return dict(s['last'])
+            return self._ask_next(sid, s, note=note, progress=False)
+
+    def retract_last_value(self, sid, locked=False):
+        """명시적으로 직전 말을 대답이 아니라고 정정했을 때만 미접수 값을 되돌린다."""
+        from contextlib import nullcontext
+        with (nullcontext() if locked else self.sessions.lock(sid)):
+            s = self.active(sid)
+            if not s or s.get('stage') not in ('collect', 'confirm'):
+                return None
+            edit = s.pop('last_free_edit', None)
+            if edit and s['slots'].get(edit['field']) == edit['value']:
+                if edit['previous'] is None:
+                    s['slots'].pop(edit['field'], None)
+                else:
+                    s['slots'][edit['field']] = edit['previous']
+                s['version'] = s.get('version', 0)+1
+                s['stage'] = 'collect'
+                s.pop('confirmation_token', None)
+                s.pop('confirm_version', None)
+            return self._ask_next(sid, s, note='인사나 설명을 정정하신 거군요. 접수 값으로 처리하지 않고 원래 질문을 이어갈게요.', progress=False)
+
+    def fill_explicit_clauses(self, sid, clauses):
+        """이용 안내와 함께 말한 명시적 사실만 갱신. 신분정보/확인/모델 추측은 사용하지 않는다."""
+        with self.sessions.lock(sid):
+            s = self.active(sid)
+            if not s or s.get('stage') not in ('collect', 'confirm') or s.get('kind') not in ('lost', 'found'):
+                return
+            before = dict(s['slots'])
+            for clause in clauses:
+                self._apply_rule(s, extract(clause, s['kind']), clause)
+            if before != s['slots']:
+                s['version'] = s.get('version', 0)+1
+                s.pop('confirmation_token', None)
+                s.pop('confirm_version', None)
+                s.pop('last_free_edit', None)
+                self.sessions.put(sid, s)
 
     def confirmation(self, sid, version=None):
         """화면에만 전달할 확인 값. 그래프·모델·trace에는 넣지 않는다."""
@@ -355,7 +408,10 @@ class IntakeAgent:
             self.sessions.drop(sid)
             s = None
         if s is None and (start == "status" or (start is None and detect_start(question) == "status")):
-            return self._status(question)
+            out = self._status(question)
+            if sid:
+                self.sessions.put(sid, {'kind': 'status', 'stage': 'done', 'last': out, 'slots': {}, 'log': []})
+            return out
         if s is None:
             kind = start or detect_start(question, prior)
             if kind is None:
@@ -396,7 +452,8 @@ class IntakeAgent:
                     if k in ("category", "color", "station", "when") and k not in s["slots"]:
                         s["slots"][k] = v
                         s["log"].append({"slot": k, "by": "earlier_message"})
-        q = (question or "").strip()
+        from agents.chat_turn import attribute_semantics
+        q = attribute_semantics((question or "").strip())
         if CANCEL.match(q) or (s['kind'] != 'cancel' and cancel_draft_requested(q)) or (s["kind"] == "cancel" and CANCEL_NO.match(q)):
             self.sessions.drop(sid)
             if s["kind"] == "cancel":
@@ -404,19 +461,39 @@ class IntakeAgent:
             return self._out("intake_cancelled", "접수를 취소했어요. 다른 궁금한 점이 있으면 물어보세요.", s, done=True)
         if not sid:
             return self._out("intake_failed", "대화 번호가 없어 접수를 이어 갈 수 없어요. 챗봇 창에서 다시 시작해 주세요.", s, done=True)
+        from agents.chat_dialogue import social_kind, wants_resume, meta_repair, intake_help
+        if not action and (note := intake_help(question, s)):
+            return self._ask_next(sid, s, note=note, progress=False)
+        if not action and meta_repair(q):
+            return self.retract_last_value(sid, locked=True)
+        if not action and (social_kind(q) or wants_resume(q)) and not (s['stage'] == 'confirm' and confirmation_requested(q, s.get('kind'))):
+            return self._ask_next(sid, s, note='이어서 도와드릴게요.', progress=False)
         if not action and social_ack(q):
             return self._ask_next(sid, s, note='감사해요. 준비되면 이어서 말씀해 주세요.', progress=False)
         recovering_confirmation = s['stage'] == 'confirm' and CONFIRM_HELP.fullmatch(compact(q))
         if not action and help_question(q) and not recovering_confirmation:
             # 절차 질문을 색·특징 값으로 저장하지 않는다. 감독이 안내 일꾼을 추가한다.
             return self._ask_next(sid, s, progress=False)
+        if not action and s['kind'] in ('lost', 'found') and s['stage'] in ('collect', 'confirm'):
+            fields = self._edit_fields(q, s)
+            if fields:
+                for field in fields:
+                    s['slots'].pop(field, None)
+                if 'category' in fields:
+                    for field in ('color', 'detail'):
+                        s['slots'].pop(field, None)
+                s['version'] = s.get('version', 0)+1
+                s['stage'] = 'collect'
+                for key in ('confirmation_token','confirm_version','last_free_edit'):
+                    s.pop(key, None)
+                return self._ask_next(sid, s, note='말씀하신 항목만 다시 확인할게요. 나머지 입력은 유지해요.')
         switch = corrected_role(q, s['kind']) if not action else None
         if switch:
             if s['stage'] == 'quiz':
                 return self._ask_next(sid, s, note='이미 물건 확인 질문을 진행 중이에요. 지금 확인을 마치거나 취소한 뒤 다른 신고를 시작해 주세요.', progress=False)
             s = {'kind': switch, 'slots': {k: v for k, v in s['slots'].items() if k in ('category', 'color')},
                  'stage': 'collect', 'asked': None, 'pending_id': None, 'log': [], 'version': s.get('version', 0)+1}
-            self._fill(s, q, None)
+            self._fill(s, question, None)
             self.sessions.put(sid, s)
             return self._ask_next(sid, s, note=f"{'분실 접수' if switch == 'lost' else '습득 신고'}로 바꿨어요. 장소와 필요한 정보를 다시 확인할게요.")
         from agents.lost_input import text_features
@@ -456,8 +533,25 @@ class IntakeAgent:
                              f"{other}를 따로 시작해 주세요. ") + out["answer"]
             return out
         before = dict(s["slots"])
-        self._fill(s, q, action)
+        asked = s.get('asked')
+        self._fill(s, question, action)
         progressed = s["slots"] != before
+        if progressed:
+            s.pop('last_free_edit', None)
+            if not action and asked in ('detail', 'place') and s['slots'].get(asked) != before.get(asked):
+                s['last_free_edit'] = {'field': asked, 'previous': before.get(asked), 'value': s['slots'].get(asked)}
+        note = ''
+        if not action and s['kind'] == 'lost' and OTHER_STATION.fullmatch(q) and not extract(q, 'lost').get('station'):
+            if asked == 'station':
+                note = ('말씀하신 역은 이 시연의 지원 역(초량·중앙·부산역)이 아니에요. '
+                        '다른 역을 잃어버린 역으로 바꾸지 않고, 역은 "모름"으로 두어 장소 확인에서 제외할게요.')
+            elif asked == 'when':
+                note = '역 이름을 다시 말씀하셨네요. 지금은 잃어버린 때를 묻고 있어요. 날짜를 모르면 "모름"이라고 해 주세요.'
+        if not action and asked == 'identity' and not progressed:
+            note = ('채팅에 적은 이름으로는 본인 확인을 처리하지 않아요. '
+                    '아래 전용 입력칸에 가상 이름과 숫자를 고른 뒤 [가려서 보내기]를 눌러 주세요. 실제 개인정보는 입력하지 마세요.')
+        if not note and not action and asked == 'when' and OTHER_STATION.fullmatch(q):
+            note = '역 이름은 확인했어요. 지금은 잃어버린 때를 묻고 있어요. 날짜를 모르면 "모름"이라고 해 주세요.'
         if progressed:            # 11/9 초안 번호: 값이 바뀌면 올라가고, 확인은 그 번호의 초안에만 유효
             s["version"] = s.get("version", 0) + 1
         if s["stage"] == "confirm" and not progressed and not confirmation_requested(q, s.get('kind')):
@@ -471,9 +565,30 @@ class IntakeAgent:
         if s["kind"] == "lost" and s["slots"].get("category") and not is_active_category(s["slots"]["category"]):
             self.sessions.drop(sid)
             return self._out("intake_failed", inactive_category_message(s["slots"]["category"]) + " — 역무실에 문의해 주세요.", s, done=True)
-        return self._ask_next(sid, s, progress=progressed)
+        return self._ask_next(sid, s, note=note, progress=progressed)
 
     # ---------- 빈칸 채우기 ----------
+    def _edit_fields(self, question, s):
+        """새 값 없는 명시적 항목 재입력 요청. 실제 문구나 단순 부정에는 적용하지 않는다."""
+        from agents.chat_dialogue import literal_attribute
+        if literal_attribute(question) or corrected_role(question, s['kind']):
+            return set()
+        action = r'고칠|고치|바꿀|바꾸|수정|정정|재입력|(?:다시|새로)?입력할|다시입력|다시물어|비우'
+        if not re.search(action, compact(question)):
+            return set()
+        values = extract(question, s['kind'])
+        labels = {'category':r'물건종류|품목|종류', 'color':r'색상|색', 'station':r'역',
+                  'when':r'날짜|잃어버린때', 'detail':r'특징|스티커|글자', 'place':r'주운곳|주운장소'}
+        from agents.chat_turn import declined_change
+        q = compact(question)
+        named = sorted((m.start(), m.end(), key) for key, label in labels.items() for m in re.finditer(label, q))
+        fields = set()
+        for i, (_, end, key) in enumerate(named):
+            segment = q[end:named[i+1][0] if i+1 < len(named) else len(q)]
+            if key in self._order(s) and key not in values and re.search(action, segment) and not declined_change(segment):
+                fields.add(key)
+        return fields
+
     def _fill(self, s: dict, q: str, action: dict | None) -> None:
         if action and action.get("type") == "identity":
             s["slots"]["identity"] = {"name_masked": action["name_masked"], "id_no_masked": action["id_no_masked"]}
@@ -486,6 +601,19 @@ class IntakeAgent:
                 s["log"].append({"slot": "claim_id", "by": "rule"})
             return
         rule = extract(q, s["kind"], s.get("asked"))
+        self._apply_rule(s, rule, q)
+        # 모델은 물건 종류/색의 비어 있는 칸에만 사용한다.
+        missing = [k for k in ("category", "color") if k not in s["slots"]]
+        if (self.brain is not None and missing and s.get("asked") in (None, "category", "color") and len(q) >= 6 and not detect_start(q)
+                and not confirmation_requested(q, s.get('kind')) and not CANCEL.match(q)):
+            for k, v in self._model_fill(q, s["kind"], missing).items():
+                if k == "color" and not COLOR_HINT.search(q):
+                    continue
+                if k not in s["slots"]:
+                    s["slots"][k] = v
+                    s["log"].append({"slot": k, "by": "model"})
+
+    def _apply_rule(self, s, rule, q):
         # 사용자가 직접 말한 값(규칙으로 읽은 것)은 이미 채운 칸도 고친다("중앙였던 것 같아요" → 역 바로잡기)
         for k, v in rule.items():
             if k in self._order(s) and k != "identity" and s["slots"].get(k) != v:
@@ -499,15 +627,6 @@ class IntakeAgent:
                 s["log"].append({"slot": k, "by": "rule"})
         # 11/9 실제 Mi:dm 시험: "분실 접수하기"(내용 없는 말)에 모델이 역을 '초량'으로 지어냄 → 모델은 내용 있는 말에서
         # 품목·색만, 그 칸을 묻는 중(또는 첫 말)일 때만, 빈 칸에만 채운다(역은 이름이 둘뿐이라 규칙으로만)
-        missing = [k for k in ("category", "color") if k not in s["slots"]]
-        if (self.brain is not None and missing and s.get("asked") in (None, "category", "color") and len(q) >= 6 and not detect_start(q)
-                and not confirmation_requested(q, s.get('kind')) and not CANCEL.match(q)):
-            for k, v in self._model_fill(q, s["kind"], missing).items():
-                if k == "color" and not COLOR_HINT.search(q):
-                    continue                          # 색 낱말이 없는데 색을 고르면 지어낸 것 → 버림
-                if k not in s["slots"]:
-                    s["slots"][k] = v
-                    s["log"].append({"slot": k, "by": "model"})
 
     def _model_fill(self, q: str, kind: str, missing: list[str]) -> dict:
         """규칙이 못 읽은 빈칸을 모델이 고를 값 목록 안에서만 채운다(코드가 다시 검사). 모델이 없거나 틀리면 빈 dict"""
@@ -574,7 +693,8 @@ class IntakeAgent:
                       "물건은 본센터에 계속 보관돼요(다시 찾기 요청할 수 있어요). 이미 방문해 반환이 시작된 요청은 취소할 수 없어요.")
             return self._out("intake_confirm", answer.strip(), s, progress=progress, choices=["네", "아니요"])
         what = "분실 접수" if s["kind"] == "lost" else "습득 신고"
-        tail = (" 접수하면 찾기 번호가 나오고, 부산역 본센터 키오스크에서 찾기 번호와 신분증으로 받을 수 있어요."
+        tail = (" 닮은 습득물과 연결되면 찾기 번호(C-)가 나와요. 아직 후보가 없으면 대기 번호(L-)를 받아요. "
+                "찾기 번호가 생겨도 본센터 도착·보관 상태와 본인·물건 확인 절차를 확인한 뒤 수령할 수 있어요."
                 if s["kind"] == "lost" else " 접수하면 접수 번호가 나와요. 물건은 그 역 키오스크(습득물 등록기계) 상자에 넣어 주세요.")
         answer = (note + "\n\n" if note else "") + f"{what} 내용을 확인해 주세요:\n{self._filled_text(s)}.\n" + tail.strip()
         return self._out("intake_confirm", answer.strip(), s, progress=progress, choices=["접수할게요", "고칠게요", "취소"])
@@ -624,12 +744,13 @@ class IntakeAgent:
         info = {"kind": "status", "stage": "done", "wait_id": wid, "state": st.get("state")}
         if st.get("state") == "matched":
             ans = (f"대기 번호 {wid} 는 닮은 습득물({st.get('item_id')})이 들어와 찾기 번호 {st['claim_id']} 로 이어졌어요. "
-                   "부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호와 신분증 번호 뒤 첫 자리(신고할 때 고른 숫자)를 넣어 주세요.")
+                   "찾기 번호 연결이 곧바로 수령 준비 완료를 뜻하지는 않아요. 본센터 도착·보관 상태를 먼저 확인해 주세요. "
+                   "준비가 끝나면 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호와 가상 신분증 번호 뒤 첫 자리(신고할 때 고른 숫자)를 넣고 화면의 확인 절차를 진행해 주세요.")
             info["claim_id"] = st["claim_id"]
         elif st.get("state") == "waiting":
             ans = f"대기 번호 {wid} 는 아직 닮은 습득물이 들어오지 않았어요. 들어오면 자동으로 찾기 번호가 만들어져요."
         else:
-            ans = f"대기 번호 {wid} 를 찾지 못했어요(관제탑을 다시 켜면 지워져요). 번호를 확인해 주세요."
+            ans = f"대기 번호 {wid} 의 조회 결과를 찾지 못했어요. 번호를 확인해 주세요. 이 답변만으로 신고가 없거나 지워졌다고 단정할 수는 없어요."
         return {"status": "intake_status", "answer": ans, "sources": [], "candidates": [], "choices": [],
                 "item_search_performed": False, "generation_used": False, "generation_status": "intake",
                 "method": "conversational_intake", "scope": "대화 접수", "intake": info}
@@ -721,9 +842,12 @@ class IntakeAgent:
                                 s, done=True, ids={"story_id": res.get("story_id")}))
         cid = self._result_id(res, 'claim_id')
         passed = res.get("quiz_passed")
-        return self._finish(sid, s, self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 "
-                         f"찾기 번호와 신분증 번호 뒤 첫 자리({self._id_digit(s)})를 넣으면 로봇팔이 물건을 꺼내 드려요."
-                         + ("" if passed else " 확인 질문이 맞지 않아 키오스크 대신 본센터 직원이 직접 확인한 뒤 꺼내 드려요.")
+        return self._finish(sid, s, self._out("intake_done", f"분실 접수가 끝났어요. 찾기 번호 {cid}. "
+                         "번호 발급만으로 수령 준비 완료를 뜻하지 않으니 본센터 도착·보관 상태를 확인해 주세요. "
+                         + ("준비가 끝나면 부산역 본센터 키오스크 '물건 찾으러 왔어요'에서 찾기 번호와 "
+                            "신고 때 고른 가상 신분증 번호 뒤 첫 숫자를 입력하고 화면의 본인·물건 확인 절차를 진행해 주세요. "
+                            "로봇이 제출보관함에 놓으면 물건을 꺼낸 뒤 [물건 받았어요]를 눌러 주세요." if passed else
+                            "확인 질문이 맞지 않아 키오스크 대신 본센터 직원이 직접 확인한 뒤 수령 절차를 진행해요.")
                          + f" 방문 전에 취소하려면 이 창에 '{cid} 취소'라고 말해 주세요.",
                          s, done=True, ids={"claim_id": cid, "story_id": res.get("story_id"), "item_id": res.get("item_id")}))
 

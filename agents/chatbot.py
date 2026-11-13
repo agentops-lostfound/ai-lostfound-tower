@@ -160,6 +160,8 @@ class Chatbot:
         self.ops = ops          # 관제 분석 에이전트(run(question) → {"report", ...}). 없으면 직원 관제 길은 닫힘
         self.brain = brain
         self.intake = intake if intake is not None else IntakeAgent(brain=brain)   # 창구 없으면 접수 대신 키오스크·웹 안내
+        from agents.chat_dialogue import DialogueMemory
+        self.dialogue = DialogueMemory()
         graph = StateGraph(ChatState)
         graph.add_node('coordinator', self._coordinator)
         graph.add_node('planner', self._planner)
@@ -195,6 +197,8 @@ class Chatbot:
         with node_step('coordinator', as_type='agent', input={'question': state['question']}) as obs:
             intent, routing = 'service', 'rule'
             if state.get('turn_reply'):
+                if state['turn_reply'].get('method') == 'receipt_next_step_guidance':
+                    return {'intent': 'service', 'routing': 'rule', 'path': ['coordinator']}
                 obs.update(output={'intent': 'conversation_repair', 'routing': 'rule'})
                 return {'intent': 'service', 'routing': 'rule', 'path': ['coordinator'], 'route': 'coordinator',
                         'result': {**state['turn_reply'], 'generation_used': False,
@@ -245,6 +249,8 @@ class Chatbot:
             planner_check = {'validation': 'not_requested', 'reason': 'rule_path'}
             if state.get('ops_turn'):
                 plan, routing = ['ops'], 'rule'
+            elif (state.get('turn_reply') or {}).get('method') == 'receipt_next_step_guidance':
+                plan, routing = ['guidance'], 'rule'
             elif state.get('intent') == 'intake':
                 plan, routing = ['intake'], 'rule'           # 접수 일꾼 먼저 — 안내가 더 필요한지는 supervisor 가 결과를 보고 정함
             elif state.get('intent') == 'off_topic':
@@ -479,7 +485,8 @@ class Chatbot:
         from agents.observability import node_step
         with node_step('researcher', as_type='retriever', input={'question': state.get('work_question') or state['question'],
                                                                  'task': state.get('task') or None}) as obs:
-            res = self._rag_ask(state)
+            res = (state.get('turn_reply') if (state.get('turn_reply') or {}).get('method') == 'receipt_next_step_guidance'
+                   else self._rag_ask(state))
             obs.update(output={'status': res.get('status'), 'generation_status': res.get('generation_status'),
                                'topics': [x.get('topic') for x in res.get('sources', [])], 'answer': res.get('answer', '')[:500]})
         return {'results': {**(state.get('results') or {}), 'guidance': res}, 'path': state.get('path', []) + ['researcher'], 'last': 'researcher'}
@@ -566,6 +573,10 @@ class Chatbot:
             out = self._report(state)
             res = out['result']
             offers = [o for o in (state.get('offers') or []) if o not in (res.get('choices') or [])]
+            if res.get('method') == 'receipt_next_step_guidance':
+                starts = {'분실 접수하기', '습득 신고하기'}
+                offers = [o for o in offers if o not in starts]
+                res = {**res, 'choices': [o for o in (res.get('choices') or []) if o not in starts]}
             if offers:
                 res = {**res, 'choices': (list(res.get('choices') or []) + offers)[:4]}
             out['result'] = {**res, 'decisions': state.get('decisions') or [],
@@ -675,7 +686,7 @@ class Chatbot:
         from agents.observability import conversation, step
         with conversation(session_id=session_id, tags=[channel]):
             with step('lost-found-chatbot', as_type='chain', input={'question': question}) as root:
-                out = self._ask(question, access_token, context, history, staff, session_id, intake_action)
+                out = self._ask(question, access_token, context, history, staff, session_id, intake_action, channel)
                 root.update(output={'answer': out.get('answer', '')[:800], 'agent': out.get('agent'),
                                     'path': out.get('agent_path'), 'routing': out.get('routing'),
                                     'generation_status': out.get('generation_status'),
@@ -684,27 +695,129 @@ class Chatbot:
         flush_soon()                 # 11/9 질문 하나가 끝나면 바로 Langfuse 로(관제탑을 끌 때까지 기다리지 않음)
         out = wallet_nudge(question, history, out)
         if out.get('status') == 'intake_confirm':
-            proof = self.intake.confirmation(session_id, (out.get('intake') or {}).get('draft_version'))
+            proof = self.intake.confirmation(self._intake_sid(session_id, channel, staff), (out.get('intake') or {}).get('draft_version'))
             if proof:
                 out = {**out, 'confirmation': proof}
         return out
 
-    def _ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, intake_action=None):
+    @staticmethod
+    def _intake_sid(sid, channel, staff=False):
+        kind = 'staff' if staff else channel
+        return f'{kind}:{sid}' if sid and kind != 'web' else sid
+
+    def _ask(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, intake_action=None, channel='web'):
+        from agents.chat_dialogue import bound_dialogue
+        # 클라이언트의 과거 대화도 먼저 검사한다. 서버에 현재 기록이 있으면 그 기록을 우선한다.
+        checked_history(history)
+        checked_turns(history)
+        checked_context(context)
+        from agents.chat_intake import check_action
+        action = check_action(intake_action)
+        with self.dialogue.turn(session_id, 'staff' if staff else channel) as frame:
+            if frame is None:
+                return {**self.guidance._response('clarification_needed', '앞서 보낸 말을 처리 중이에요. 응답이 나온 뒤 이어서 말씀해 주세요.', []),
+                        'agent': 'coordinator', 'context_used': False}
+            intake_sid = self._intake_sid(session_id, channel, staff)
+            task = lambda: self.intake.active(intake_sid)
+            before = task()
+            # 원문 신분정보는 기억하지 않는다. 액션의 가린 값·증표도 대화 기억에 넣지 않는다.
+            task_before = {'asked': before.get('asked')} if before else None
+            with bound_dialogue(frame, task):
+                out = self._ask_turn(question, access_token, context, frame.history(history), staff, intake_sid, action)
+                frame.bootstrap(history)
+                frame.observe(question, out, task_before, bool(action and action.get('type') == 'identity'))
+            return out
+
+    def _ask_turn(self, question, access_token=None, context=None, history=None, staff=False, session_id=None, intake_action=None):
         question = checked_text(question, '질문', 500)
         from agents.guidance import fix_typos
         question = fix_typos(question)          # 11/9 '지깝 일어버림' 같은 흔한 오타(앞 대화 해석·검색·모델 모두 바로잡힌 글을 봄)
         question = normalize_terms(question)
+        original_question = question
+        from agents.chat_turn import attribute_semantics
+        question = attribute_semantics(question)
+        from agents.chat_dialogue import selected_guidance
+        question = selected_guidance(question)
         context = checked_context(context)
         turns = checked_turns(history)          # 11/7 앞 질문 + 챗봇 답(모델 맥락용)
         history = checked_history(history)
+        from agents.chat_dialogue import current_frame, guidance_followup, wants_resume
+        from agents.chat_conversation import is_referential
+        prior = current_frame()
+        ops_followup = bool(staff and self.ops is not None and prior and prior.thread == 'ops' and prior.ops_question
+                            and (guidance_followup(question) or is_referential(question) or wants_resume(question)))
+        if ops_followup:
+            question = prior.ops_question+' '+question
         ops_turn = bool(staff and self.ops is not None and is_ops_question(question))
         intake_active = bool(not ops_turn and self.intake.wants(session_id, question))
-        cancelling = intake_active and cancel_draft_requested(question)
+        from agents.chat_turn import attribute_semantics
+        semantic_question = attribute_semantics(question)
+        cancelling = intake_active and cancel_draft_requested(semantic_question)
         active = self.intake.active(session_id) if intake_active else None
-        reply = None if ops_turn or cancelling else turn_reply(question, history, self.guidance,
+        reply = None if ops_turn or cancelling or intake_action else turn_reply(semantic_question, history, self.guidance,
             identity_pending=bool(active and active.get('asked') == 'identity'), intake_active=bool(active))
+        from agents.chat_dialogue import (current_frame, social_kind, social_reply, wants_resume,
+                                         guidance_followup, resolve_dialogue)
+        from agents.chat_turn import protected_reply, privacy_concern
+        frame = current_frame()
+        dialogue_used = ops_followup
+        protected = protected_reply(question, self.guidance) if not ops_turn and not cancelling else None
+        if protected and intake_action:
+            reply = protected
+        if active and not intake_action and not protected and active.get('stage') in ('collect', 'confirm'):
+            from agents.chat_dialogue import intake_help
+            if not reply and (note := intake_help(question, active)):
+                return {**(self.intake.resume(session_id, note=note) or {}), 'agent': 'intake', 'context_used': True}
+        compound_details = False
+        if not ops_turn and not cancelling and not intake_action and not protected:
+            from agents.chat_dialogue import meta_repair, explicit_detail_clauses
+            if active and active.get('stage') in ('collect', 'confirm') and meta_repair(question):
+                return {**(self.intake.retract_last_value(session_id) or {}), 'agent': 'intake', 'context_used': True}
+            if active and active.get('stage') in ('collect', 'confirm') and (help_question(question) or privacy_concern(question, history)):
+                clauses = explicit_detail_clauses(question)
+                if clauses:
+                    self.intake.fill_explicit_clauses(session_id, clauses)
+                    active = self.intake.active(session_id)
+                    compound_details = True
+            if active and active.get('stage') != 'uncertain' and (social_kind(question) or wants_resume(question)):
+                # 확인 표현은 기존 증표 검사에 맡긴다. 인사·재개 요청으로 승인하지 않는다.
+                from agents.chat_intake import confirmation_requested
+                if active.get('stage') != 'confirm' or not confirmation_requested(question, active.get('kind')):
+                    note = (social_reply(question, self.guidance, frame) or {}).get('answer', '이어서 도와드릴게요.')
+                    out = self.intake.resume(session_id, note=note)
+                    if out is None:
+                        out = self.guidance._response('clarification_needed', '진행 중인 접수가 바뀌었어요. 최신 응답을 확인해 주세요.', [])
+                    return {**out, 'agent': 'intake', 'context_used': True}
+            elif not active and not intake_active and social_kind(question):
+                if social_kind(question) != 'greeting' or (frame and frame.turns) or history or not GREET_RE.fullmatch(question.strip()):
+                    reply = social_reply(question, self.guidance, frame)
+            if not reply:
+                question, context, dialogue_used, reply = resolve_dialogue(question, context, self.guidance, active)
+                if frame and frame.thread == 'new_search':
+                    history, turns = [], []
+                from agents.chat_conversation import is_referential
+                if active and (guidance_followup(question) or is_referential(question)) and not dialogue_used and not reply:
+                    from agents.chat_dialogue import explain_field
+                    return {**(self.intake.resume(session_id, note=explain_field(active, self.guidance)) or {}),
+                            'agent': 'intake', 'context_used': True}
+            elif active and active.get('stage') != 'uncertain' and reply.get('sources'):
+                from agents.chat_turn import privacy_concern
+                if not privacy_concern(question, history) or compound_details:
+                    resumed = self.intake.resume(session_id, note=reply['answer']) or reply
+                    return {**resumed, 'sources': reply['sources'], 'agent': 'intake', 'context_used': True}
+        if not ops_turn and not intake_active and not intake_action and not reply:
+            from agents.chat_pickup_followup import pickup_reply
+            last = self.intake.sessions.get(session_id)
+            receipt = last.get('last') if last and last.get('stage') == 'done' else None
+            receipt = receipt or (frame.hint() if frame else None)
+            reply = pickup_reply(question, history, self.guidance, receipt)
         from agents.chat_answer_goal import question_goal
         intake_start = '' if ops_turn or intake_active or reply or question_goal(question) else (detect_start(question, history) or '')
+        if (intake_start == 'lost' and frame and frame.thread == 'search' and frame.search.get('category')
+                and not re.search(r'다른\s*물건|새\s*물건|별개', question)):
+            from agents.contracts import category_label
+            prior_item = ' '.join([frame.search.get('color', ''), category_label(frame.search['category'])]).strip()
+            history = [prior_item+' 찾아줘'] + history[-3:]
         if not ops_turn and not intake_active and not intake_start and not reply and found_statement(question):
             reply = {**self.guidance.ask(question), 'choices': ['습득 신고하기']}
             # 운영하지 않는 품목에는 접수 버튼을 제안하지 않는다.
@@ -736,7 +849,7 @@ class Chatbot:
             handlers = graph_callbacks()     # 11/7 Langfuse callback 방식: 그래프 칸별 기록(키 없으면 빈 목록 = 기록 안 함)
             # 접속 토큰은 contextvar 에만 있어 그래프 상태·기록에 들어가지 않는다(LangSmith 기록은 계속 끔)
             with tracing_context(enabled=False, parent=False), callbacks_active(bool(handlers)):
-                state = self.graph.invoke({'question': question, 'search_context': context, 'ops_turn': ops_turn,
+                state = self.graph.invoke({'question': original_question if intake_active or intake_start or intake_action else question, 'search_context': context, 'ops_turn': ops_turn,
                                            'history': turns if turns else history, 'questions': history,
                                            'session_id': session_id or '', 'intake_action': {'type': 'confirm'} if confirmation else intake_action,
                                            'intake_start': intake_start, 'intake_active': intake_active, 'turn_reply': reply or {}},
@@ -747,7 +860,7 @@ class Chatbot:
         return {**state['result'], 'agent': state['route'],
                 'supervisor_checks': state.get('supervisor_checks', []), 'worker_executions': state.get('worker_executions', 0),
                 'agent_path': state.get('path', []), 'routing': state.get('routing', 'rule'),
-                'context_used': bool(resolved),
+                'context_used': bool(resolved or dialogue_used),
                 'orchestration': 'langgraph_guidance_item_search_and_staff_ops' if self.ops is not None
                                  else 'langgraph_guidance_and_item_search'}
 

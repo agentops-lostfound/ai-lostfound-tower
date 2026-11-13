@@ -4,7 +4,7 @@ import unicodedata
 
 FOUND_SAY = re.compile(r"주웠|주운|주워|주움|줍(?:었|음|줍)|줏었|습득|발견(?:했|한)|떨어(?:져\s*있|뜨린)|놓여\s*있|놓고\s*간")
 LOST_SAY = re.compile(r"잃어버|잃었|잃긴|잊어버|분실|두고\s*(?:내|온)|놓고\s*내")
-PRIVATE = re.compile(r"주민(?:등록)?번호|신분증|개인정보|내정보|이름|실명|가린번호|마스킹|신분정보")
+PRIVATE = re.compile(r"주민(?:등록)?번호|신분증|개인정보|내정보|이름|실명|가린번호|마스킹|신분정보|가상정보|가짜정보")
 SECURITY = re.compile(r"털[리려린릴]|유출|해킹|도용|위험|불안|안전|괜찮|빼가|새나|새어|추적|팔려|보증|외부|넘어가")
 COMPLAINT = re.compile(r"멍청|답답|못알아|말귀|이해못|동문서답|엉뚱|바보|상관없는답|기계같|같은버튼.*나와|같은메뉴.*반복")
 THEFT = re.compile(r"뺏(?:겼|긴|겨|어)|빼앗(?:겼|긴|겨|기|아)|도난(?:당|신고|[.!?？]*$)|강탈(?:당|신고|[.!?？]*$)|도둑맞|훔쳐(?:갔|감|간|가버)|강제로.{0,16}가져|낚아채|협박당|날치기")
@@ -23,6 +23,21 @@ def normalize_terms(question):
     return question
 
 
+def attribute_semantics(question):
+    """명시적으로 물건에 적혀 있다고 보고한 인용문만 의도/물성 판단에서 제외한다.
+
+    인용문 바깥 명령은 그대로 검사한다. 따옴표만으로 권한 검사를 피할 수 없다.
+    """
+    quoted = re.compile(r'"[^"\n]{1,180}"|\x27[^\x27\n]{1,180}\x27|“[^”\n]{1,180}”|‘[^’\n]{1,180}’')
+    def mask(m):
+        before, after = question[max(0, m.start()-25):m.start()], question[m.end():m.end()+30]
+        if (re.search(r'스티커|글자|문구|로고', before)
+                and re.match(r'\s*(?:이?라고|라는|이란)?\s*(?:써|쓰여|적혀|적혀있|붙어)', after)):
+            return m.group(0)[0]+m.group(0)[-1]
+        return m.group(0)
+    return quoted.sub(mask, question)
+
+
 def explanation_only(question):
     q = compact(question)
     return bool(re.search(r'(?:방법|절차|뜻|설명)만|(?:절차를묻|말의뜻|말을설명)|(?:분실|습득)신고.*설명해|버튼의뜻|뜻이뭐|가정|예시|사용법연습|실제신고로받아두지'
@@ -32,10 +47,20 @@ def explanation_only(question):
 
 def cancel_draft_requested(question):
     q = compact(question)
+    if declined_change(q):
+        return False
     if re.search(r'취소(?:하지|안|말고)|취소.{0,8}(?:방법|가능|어떻게|되나|되요|돼요)|(?:어떻게|방법|절차).{0,8}취소', q):
         return False
     return bool(re.search(r'취소(?:해|하겠|합니다|할래|할게|바랍|요청)|(?:접수|등록|신고).{0,12}그만'
         r'|그만(?:할게|둘게|할래)|처음부터(?:다시)?(?:할래|시작)', q))
+
+
+def declined_change(question):
+    """취소/수정 동사의 부정 범위. 사용자의 원래 값은 이 판정으로 만들지 않는다."""
+    q = compact(question)
+    verb = r'취소|그만두|없애|삭제|제거|바꾸|바꿀|고치|고칠|수정|입력|해제|풀|빼|지우|찾'
+    negative = r'(?:지|진|지는)(?:마|말|않)|안할|안해|않을|않겠|필요없|생각없|원하지않|마음없'
+    return bool(re.search(r'(?:'+verb+r').{0,14}(?:'+negative+r')', q))
 
 
 def help_question(question):
@@ -60,7 +85,7 @@ def corrected_role(question, current):
         return None
     role = explicit_role(question)
     q = compact(question)
-    correction = re.search(r'아니|정정|바꿔|바꾸|전환|잘못', q)
+    correction = re.search(r'아니|말고|정정|바꿔|바꾸|바꿀|변경|전환|잘못', q)
     return role if role and role != current and correction else None
 
 
@@ -90,7 +115,7 @@ def privacy_concern(question, history=()):
         return False
     if '신분증' in question and not re.search(r'이름|주민|개인정보|마스킹|신분정보|입력|가상|원본|사진', question) and not SECURITY.search(question):
         return False
-    if not SECURITY.search(question) and not re.search(r'가상|가짜|만들어서|테스트데이터|원본|가린값|왜|이유|필요|첫숫자|앞자리|전체.*사진|실제.*적|동의안|입력하기싫', question):
+    if not SECURITY.search(question) and not re.search(r'가상|가짜|만들어서|테스트데이터|원본|가린값|왜|이유|필요|넣어야|입력해야|꼭.*입력|첫숫자|앞자리|전체.*사진|실제.*적|동의안|입력하기싫', question):
         return False
     # '그거 넣어도 안전해?'는 바로 앞 개인정보 질문에만 연결한다.
     return bool(PRIVATE.search(question) or
@@ -113,7 +138,7 @@ def found_statement(question):
 
 
 def protected_reply(question, guidance):
-    q = compact(question)
+    q = compact(attribute_semantics(question))
     def reply(answer, topics=()):
         return guidance._response('answered', answer, [d for d in guidance.documents if d['topic'] in topics])
     if (re.search(r'(?:인증|동의|본인확인).{0,8}(?:없이|안하고|하지않고)', q)
@@ -123,7 +148,7 @@ def protected_reply(question, guidance):
     if re.search(r'비밀번호|비번|암호|api키|apikey|토큰|token|시스템프롬프트|숨겨진프롬프트|환경변수|비밀값|비밀문자열|\.env', q) \
             and (not re.search(r'(?:전화번호|비밀번호).*(?:적|써|쓰|입력|넣)', q) or re.search(r'관리자|데이터베이스|서버|접속', q)):
         return reply('관리자 비밀번호·키·내부 프롬프트·환경설정은 알려 드릴 수 없어요. 이 대화로 직원 권한을 부여하거나 인증을 생략할 수도 없어요.')
-    owner = re.search(r'타인|남의|다른(?:사람|이용자)|주인|주운사람|찾는사람|분실인|직전사용자|이전사람|아까.*사람|등록한사람|명단|친구것', q)
+    owner = re.search(r'타인|남의|다른(?:사람|이용자)|옆사람|앞사람|뒷사람|주인|주운사람|찾는사람|분실인|직전사용자|이전사람|아까.*사람|등록한사람|명단|친구것', q)
     private = re.search(r'전화|연락처|주민|신분번호|이름|생년|얼굴|주소|어디사|실명|번호|접수(?:내용|내역)|명단', q)
     asks = re.search(r'알려|알수|보여|조회|궁금|줘|주세요|주실|볼래|볼수|검색|복원|붙여|뭐|받|누군지', q)
     storage = re.search(r'보관|지워|파기|삭제|남겨|남기|적어야', q)
@@ -229,7 +254,7 @@ def turn_reply(question, history, guidance, identity_pending=False, intake_activ
     if privacy_concern(question, history):
         docs = [d for d in guidance.documents if d['topic'] in ('privacy_input', 'masked_identity')]
         answer = (
-            '실제 주민등록번호는 입력하지 마세요. 이 화면은 교육용 시연이므로 가상 이름과 가상 신분증 숫자만 사용해 주세요. '
+            '실제 주민등록번호는 입력하지 마세요. 이 화면은 교육용 시연이므로 실제 개인정보 대신 가상 이름과 가상 신분증 숫자만 사용해 주세요. '
             '입력 양식은 이름·번호를 가린 값으로 보내지만, 마스킹만으로 유출 위험이 없다고 보장할 수는 없어요. '
             '프로젝트 DB 설계에는 가린 이름·번호를 기록하도록 되어 있어요.')
         if re.search(r'왜|이유|필요', q):
@@ -238,7 +263,7 @@ def turn_reply(question, history, guidance, identity_pending=False, intake_activ
             answer += ' 외부 서비스 전달 여부와 범위는 실제 연결 설정·처리방침 확인이 필요해요.'
         return guidance._response('answered', answer, docs)
     if explanation_only(question) and re.search(r'분실|습득|접수|신고|사이트|본인확인|확인버튼', q):
-        topics = ('reservation_change',) if '취소' in q else ('site_help',) if '사이트' in q else ('center_pickup',) if '본인확인' in q else ('chat_intake',)
+        topics = ('delivery',) if re.search(r'택배|배송|우편', q) else ('hours',) if re.search(r'운영시간|몇시', q) else ('reservation_change',) if '취소' in q else ('site_help',) if '사이트' in q else ('center_pickup',) if '본인확인' in q else ('chat_intake',)
         docs = [d for d in guidance.documents if d['topic'] in topics]
         return guidance._response('answered', '지금은 접수를 시작하지 않고 설명만 드릴게요. ' + '\n\n'.join(d['answer'] for d in docs), docs)
     if re.search(r'질문안할|잠깐.*기다|아직기다|잠깐멈춰|정리할시간|아직질문없|질문은아직없|그냥한말|잠깐놀란', q):

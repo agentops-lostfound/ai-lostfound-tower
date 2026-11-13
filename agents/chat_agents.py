@@ -43,6 +43,10 @@ class AgentBrain:
 
     def _ask(self, name: str, agent: str, schema: dict, user: dict) -> dict | None:
         """agent: 그래프 칸 이름(prompts.AGENT_PROMPTS). 11/9 칸마다 Langfuse config 의 model·temperature·use_llm 을 따른다"""
+        from agents.chat_dialogue import model_context
+        context = model_context()
+        if context:
+            user = {**user, 'conversation_context': context}
         system, prompt_obj, cfg = prompts.resolve(agent, model=self.model, temperature=0)
         if not cfg["use_llm"] or not cfg["model"]:
             return None                               # 이 칸은 모델을 쓰지 않음 → 규칙

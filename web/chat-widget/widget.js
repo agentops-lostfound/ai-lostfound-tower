@@ -15,7 +15,8 @@
  *   data-mode="staff"     직원 관리자 화면용(11/6): 이용 안내 + "오늘 반환 실패 원인?" 같은 관제 질문(관리자 로그인 필요, LangManus 구조 분석 에이전트)
  *   data-idle-reset="90"  아무 조작이 없으면 N초 뒤 대화를 지우고 창을 닫음(다음 사람에게 앞사람 대화가 보이지 않게). kiosk 기본 90, 웹은 0(끔)
  * 코드에서: window.LostFoundChat.open() / close() / toggle()
- * 대화 내용은 이 화면에만 있고 저장하지 않는다(새로 고침하면 사라짐). 스타일은 Shadow DOM 안에 가둬 화면 디자인을 건드리지 않는다.
+ * 웹 대화는 탭의 sessionStorage에 복원된다. 서버의 세션별 최근 대화/주제 요약은 10분 미사용 시 만료하고 요청 때 정리한다.
+ * 대화 지우기/키오스크 초기화는 세션 번호를 바꾸어 앞 대화를 이어받지 않는다. 스타일은 Shadow DOM 안에 가둔다.
  * 11/8 디자인 개편: 색·글꼴은 공통 토큰(/ui/theme.css 의 --ui-*)을 따른다(없는 화면은 대체값). 화면이 라이트/다크를 바꾸면(html data-theme) 위젯도 같이 바뀐다.
  * 11/9 창 밝기 단추(머리줄 ☀/🌙 그림): 이 창만 라이트·다크를 바꾼다. 고른 값은 창 자리와 같은 localStorage 칸(winKey)의 theme 에 기억하고,
  *   직접 고른 값이 있으면 화면 테마보다 우선한다. 화면과 같은 밝기로 다시 누르면 기억을 지우고 다시 화면을 따른다.
@@ -820,6 +821,7 @@
     if (intakeAction) body.intake_action = intakeAction;
     body.session_id = getSessionId();
     if (STAFF) body.mode = "staff";
+    else if (KIOSK) body.mode = "kiosk";
     var request = { controller: new AbortController(), version: conversationVersion, progress: progress };
     activeRequest = request;
     api("/chat/questions", body, request.controller, function (ev) {

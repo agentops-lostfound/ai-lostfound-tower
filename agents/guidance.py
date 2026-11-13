@@ -95,6 +95,8 @@ LOST_FOUND_RE = re.compile(r"분실|잃어|잃었|놓고|두고|습득|주웠|�
 
 def off_topic(question: str) -> bool:
     """분실물 서비스 밖 질문인가. question 은 소문자·공백 제거 전후 어느 것이든 된다(공백은 여기서 지움)"""
+    if re.fullmatch(r'\s*(?:지금|현재)\s*(?:몇\s*시|시각)(?:야|예요|에요|인가요|지|니|알려줘)?[?？.!~\s]*', question):
+        return True
     q = re.sub(r"\s+", "", (question or "").lower())
     if re.fullmatch(r"\d+(?:[+*/×÷=-]\d+)+(?:은|는|이|가|얼마|뭐야|몇)?[?？.!]*", q):
         return True
