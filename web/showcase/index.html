@@ -1055,7 +1055,19 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
 
   // ================= 이야기 진행 막대 =================
   let stories = [];
+  // 11/13 로봇 작업대를 보는 중에 로봇이 제출보관함에 물건을 놓으면(제출보관함 전달 끝 · 인계 전) 스스로 키오스크로 돌아와
+  // [물건 받았어요] 화면이 보이게 한다 — 전에는 발표자가 [← 키오스크로]를 눌러야 인계 화면이 보였다. 이야기마다 한 번, 바뀌는 순간에만
+  const waitSeen = {};
+  function backToKiosk() {
+    const st = stories.find((s) => s.kind === "lost");
+    if (!st) return;
+    const now = handoverWait(st), before = waitSeen[st.story_id];
+    waitSeen[st.story_id] = now;
+    if (!now || before !== false || !robotOpen) return;      // 처음 볼 때 이미 기다리는 중이면(새로고침) 건드리지 않음
+    setTimeout(() => { if (!robotOpen) return; if (SCENES[scene].head !== "pickup") setScene("pickup"); else setRobot(false); }, 2500);
+  }
   function renderSteps() {
+    backToKiosk();
     const want = (SCENES[scene] || {}).kind;
     const st = stories.find((s) => s.kind === want);
     const box = $("steps");
