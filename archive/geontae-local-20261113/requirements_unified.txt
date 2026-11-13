@@ -1,0 +1,4 @@
+# Shared local environment: team-repo/.venv (Python 3.12).
+# Desktop OpenCV is required for the section editor; do not add headless OpenCV.
+-r requirements_vision.txt
+-r team-repo/agents/requirements.txt
