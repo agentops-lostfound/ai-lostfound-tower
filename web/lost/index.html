@@ -258,7 +258,8 @@
               <option>1</option><option>2</option><option>3</option><option>4</option>
             </select></span>
           </div>
-          <p class="hint"><span id="maskLead">가려서 보내요(예):</span> <span class="mono" id="maskName">홍*동</span> <span class="mono" id="maskId">******-3******</span><br>본센터 키오스크에서는 뒤 첫 자리 숫자만 다시 넣어요.</p>
+          <input type="tel" id="phone" inputmode="tel" maxlength="13" placeholder="연락처 (찾는 물건이 들어오면 문자 알림)" autocomplete="off" data-phone style="margin-top:8px">
+          <p class="hint"><span id="maskLead">가려서 보내요(예):</span> <span class="mono" id="maskName">홍*동</span> <span class="mono" id="maskId">******-3******</span><br>본센터 키오스크에서는 뒤 첫 자리 숫자만 다시 넣어요. 연락처는 끝 4자리만 보내요.</p>
         </div>
         <label class="agree full"><input type="checkbox" id="agree">
           <span><b>가린 이름·가린 번호·물건 설명</b> 저장에 동의해요.<small>반환 뒤엔 찾기 기록만 남기고 지워요. 원문은 저장 안 해요.</small></span></label>
@@ -423,6 +424,7 @@ $('#form').addEventListener('submit', async e => {
   const color = state.color !== '기타' ? state.color : '';   // 11/8: '기타'를 '보라'로 바꿔 보내 주황 립밤을 못 찾던 것 → 색 없이 보내고 특징 글로 판단
   const text = [color, state.cat, feat, '잃어버렸어요', station ? station + '에서' : ''].filter(Boolean).join(' ');
   state.idMasked = `******-${$('#gender').value}******`;
+  state.phone = ($('#phone').value || '').replace(/\D/g, '');   // 11/13 신고 때 받은 연락처 — 물건이 아직 없으면 이 번호로 바로 알림 신청(다시 묻지 않음)
   $('#send').disabled = true; $('#send').textContent = '찾는 중…';
   try {
     // 11/10 '잘 모르겠어요'(역을 고르지 않음) → 관제탑이 장소를 다시 묻지 않고 확인 질문에서도 뺀다
@@ -473,6 +475,8 @@ function done(res) {
     if (window.PhoneField) PhoneField.enhance(np);
     np.addEventListener('input', () => { $('#notifyBtn').disabled = np.value.replace(/\D/g, '').length < 10; });
     $('#notifyBtn').addEventListener('click', () => notifyMe(np.value));
+    // 11/13 신고 때 연락처를 이미 받았으면 번호를 다시 묻지 않고 바로 알림 신청
+    if ((state.phone || '').length >= 10) { $('#notifyBox').hidden = true; notifyMe(state.phone); }
     startWaitPoll();
   } else if (res.staff) {
     card.className = 'card warn';
@@ -510,8 +514,8 @@ async function notifyMe(phone) {
     if (!r.ok) throw new Error();
     w.phone = `${d.slice(0, 3)}-****-${d.slice(-4)}`;
     $('#notifyBox').hidden = true;
-    const ok = $('#notifyOk'); ok.hidden = false; ok.textContent = `✅ 알림 신청 완료 · ${w.phone} 로 알려 드려요`;
-  } catch (_) { $('#notifyBtn').disabled = false; err($('#err1'), '알림 신청을 하지 못했어요. 잠시 뒤 다시 눌러 주세요.'); }
+    const ok = $('#notifyOk'); ok.hidden = false; ok.textContent = `✅ ${w.phone} 로 알려 드려요 — 물건이 들어오면 바로 알림`;
+  } catch (_) { $('#notifyBox').hidden = false; $('#notifyBtn').disabled = false; err($('#err1'), '알림 신청을 하지 못했어요. 잠시 뒤 다시 눌러 주세요.'); }
 }
 function startWaitPoll() {
   clearInterval(state.waitPoll);
@@ -528,13 +532,20 @@ function startWaitPoll() {
     } catch (_) {}
   }, 1500);
 }
+// 11/13 챗봇(AI에게 묻기)으로 분실 접수를 한 경우에도 물건이 들어오면 같은 알림을 띄운다 — 챗봇 창이 대기 번호·열쇠를 알려 줌(web/chat-widget/widget.js)
+window.addEventListener('lostfound-chat:wait', (e) => {
+  const d = e.detail || {};
+  if (!/^L-\d{8}-\d{4}$/.test(d.wait_id || '') || !/^[0-9a-f]{8,64}$/.test(d.wait_key || '')) return;
+  state.wait = {id: d.wait_id, key: d.wait_key, summary: '찾는 물건', phone: 'chat'};
+  startWaitPoll();
+});
 function sms(html) {
   let el = document.getElementById('sms');
   if (!el) { el = document.createElement('div'); el.id = 'sms'; el.className = 'sms'; el.setAttribute('role', 'status'); document.body.appendChild(el);
              el.addEventListener('click', () => el.classList.remove('on')); }
-  el.innerHTML = `<span class="ic" aria-hidden="true">💬</span><span class="bd"><span class="from">분실물 관제탑 <small>지금</small></span>${html}</span>`;
+  el.innerHTML = `<span class="ic" aria-hidden="true">💬</span><span class="bd"><span class="from">분실물 관제탑 <small>지금 · 누르면 닫혀요</small></span>${html}</span>`;
   requestAnimationFrame(() => el.classList.add('on'));
-  clearTimeout(sms.t); sms.t = setTimeout(() => el.classList.remove('on'), 12000);
+  // 11/13 알림은 누를 때까지 그대로 둔다 — 전에는 12초 뒤 사라져, 로봇 작업대(다른 화면)에서 물건을 등록하고 돌아오면 이미 없어 '알림이 안 온다'로 보였다
 }
 
 // 11/9 번호 복사(찾기·대기 번호). 복사가 막힌 기기면 번호를 선택해 둔다
@@ -602,6 +613,6 @@ function resetAll() {
 $('#again').addEventListener('click', resetAll);
 $('#clear').addEventListener('click', () => setTimeout(resetAll, 0));
 </script>
-<script src="/chat-widget/widget.js?v=20261111a" defer></script>
+<script src="/chat-widget/widget.js?v=20261113b" defer></script>
 </body>
 </html>

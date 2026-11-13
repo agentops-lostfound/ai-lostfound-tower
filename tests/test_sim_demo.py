@@ -523,6 +523,35 @@ class LostWebApiTest(unittest.TestCase):
         self.assertTrue(st["notify"])
         self.assertNotEqual(st["story_id"], w["story_id"])                               # 이어지는 찾기 요청 이야기
 
+    def test_wait_notify_fires_for_real_kiosk_photo_item(self):
+        """11/13 실측: 먼저 분실 신고(대기) → 진짜 키오스크 사진 접수(Qwen 작업자 경로)로 닮은 물건이 들어와도 알림이 오지 않았다.
+        가상 습득(_after_found)에만 대기 신고 연결이 있어서였다 → 키오스크 사진 경로(_after_kiosk)에서도 찾기 번호로 이어져야 한다"""
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi 필요")
+        import base64
+        from agents.api import build_app
+        svc = build_sim_service({**ENV, "TOWER_SIM_SEED": "none"})
+        c = TestClient(build_app(svc))
+        w = c.post("/sim/lost", json={"text": "파랑 립밤 잃어버렸어요", "visit": "kiosk", "name_masked": "홍*동",
+                                      "id_no_masked": "******-3******", "place_unknown": True}).json()
+        self.assertTrue(w["waiting"], w)
+        wid, key = w["wait_id"], w["wait_key"]
+        self.assertEqual(c.post(f"/sim/lost/wait/{wid}/notify", json={"key": key, "last4": "1234"}).json()["notify"], "****-1234")
+        jpg = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(64) + b"\xff\xd9").decode()
+        r = c.post("/api/kiosk/items", json={"machine_id": "KIOSK-A", "place_text": "편의점·매점 주변", "photo": jpg})
+        self.assertEqual(r.status_code, 200, r.text)
+        iid = r.json()["item_id"]
+        r = c.post(f"/api/kiosk/items/{iid}/features", json={"qwen": {"category": "lip_balm", "colors": ["blue"], "shape": "round stick",
+                                                                      "material": "plastic"}, "confidence": 0.9})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertTrue(svc.sim.wait_idle(20))
+        st = c.get(f"/sim/lost/wait/{wid}?key={key}").json()
+        self.assertEqual(st["state"], "matched", st)
+        self.assertTrue(st["claim_id"].startswith("C-"))
+        self.assertTrue(st["notify"])
+
     def test_home_page_lists_screens(self):
         """11/7 주소만 입력하면 Not Found 대신 화면 목록"""
         try:
@@ -541,7 +570,7 @@ class LostWebApiTest(unittest.TestCase):
     def test_lost_page_contract(self):
         html = (Path(__file__).resolve().parent.parent / "web/lost/index.html").read_text(encoding="utf-8")
         for needle in ("visit: 'kiosk'", "maskName(", "******-${$('#gender').value}******", "/sim/stories/",
-                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261111a" defer></script>', "부산역 본센터"):
+                       "data-chatbot-open", '<script src="/chat-widget/widget.js?v=20261113b" defer></script>', "부산역 본센터"):
             self.assertIn(needle, html)
         self.assertNotIn("저장되거나 역무실로 전송되지 않습니다", html)        # 예전 데모 양식 문구 제거
 

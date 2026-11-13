@@ -608,6 +608,10 @@
 
     // 11/9 접수 번호 복사(정연우 검토): 접수 완료 답의 찾기·접수·대기 번호
     var ik = res.intake || {};
+    // 11/13 챗봇으로 분실 접수(대기)를 끝내면 이 화면(분실인 웹)에 알려, 물건이 들어왔을 때 웹 신고와 똑같이 알림이 뜨게 한다
+    if (res.status === "intake_done" && ik.wait_id && ik.wait_key) {
+      try { window.dispatchEvent(new CustomEvent("lostfound-chat:wait", { detail: { wait_id: String(ik.wait_id), wait_key: String(ik.wait_key) } })); } catch (e) { /* 알리지 못해도 대화는 그대로 */ }
+    }
     var no = res.status === "intake_done" || res.status === "intake_status" ? (ik.claim_id || ik.wait_id || ik.item_id || "") : "";
     if (no && /^[A-Z]-\d{8}-\d{4}$/.test(no)) {
       var cp = el("button", "choice", no + " 복사");
@@ -922,7 +926,8 @@
   // ── 11/8 작은 떠 있는 창 ─────────────────────────────────────
   // 한줄 설명: 창 자리를 "어느 구석에 붙어 있고(ax·ay), 그 구석에서 얼마나 떨어졌는지(dx·dy), 크기(w·h)"로 기억한다.
   // 화면 크기가 바뀌어도 같은 구석 기준으로 다시 놓고, 언제나 화면 안쪽으로 끌어 넣는다.
-  function vp() { return { w: window.innerWidth || 1024, h: window.innerHeight || 768 }; }
+  // 11/13 화면 키보드(web/ui/vkeyboard.js)가 올라와 있으면 그 높이만큼 뺀 곳까지만 화면으로 본다 — 창·입력칸이 키보드 밑에 깔리지 않게
+  function vp() { var k = Number(window.__vkHeight) || 0; return { w: window.innerWidth || 1024, h: Math.max(120, (window.innerHeight || 768) - k) }; }
   function isPhone() { return vp().w <= PHONE_MAX; }
   function gap() { return isPhone() ? Math.max(6, Math.floor(vp().w * 0.04)) : 16; }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -1159,6 +1164,7 @@
     if (typeof window.addEventListener === "function") {
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", onResize);
+      window.addEventListener("vk:resize", onResize);
     }
   }
 

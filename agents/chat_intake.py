@@ -715,7 +715,9 @@ class IntakeAgent:
             wid = self._result_id(res, 'wait_id')
             return self._finish(sid, s, self._out("intake_done", f"분실 신고를 대기로 받아 두었어요. 대기 번호 {wid}. 아직 닮은 습득물이 들어오지 않았는데, "
                                 "들어오면 자동으로 찾기 번호가 만들어져요. 이 창에 대기 번호를 넣으면 상태를 알려 드려요.",
-                                s, done=True, ids={"wait_id": wid, "story_id": res.get("story_id")}))
+                                s, done=True, ids={"wait_id": wid, "story_id": res.get("story_id"),
+                                                   # 11/13 분실인 웹이 '물건이 들어왔어요' 알림을 띄우려면 결과를 물을 열쇠가 필요(웹 신고와 같은 열쇠)
+                                                   "wait_key": res.get("wait_key")}))
         if res.get("staff"):
             return self._finish(sid, s, self._out("intake_done", "닮은 후보가 여러 개라 자동으로 고르지 않았어요. 부산역 본센터 역무실에서 직원이 함께 확인해 드려요.",
                                 s, done=True, ids={"story_id": res.get("story_id")}))

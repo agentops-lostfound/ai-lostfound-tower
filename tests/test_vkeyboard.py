@@ -40,7 +40,7 @@ class HangulTest(unittest.TestCase):
 class WiringTest(unittest.TestCase):
     def test_kiosk_uses_keyboard(self):
         html = (ROOT / "web" / "kiosk" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('<script src="/ui/vkeyboard.js?v=20261112c"></script>', html)
+        self.assertIn('<script src="/ui/vkeyboard.js?v=20261113a"></script>', html)
         self.assertIn('<script src="/ui/phonefield.js?v=20261112a" defer></script>', html)
         self.assertIn('id="cphone"', html)
         self.assertIn('data-phone>', html)                          # 11/12 전화번호 세 칸
@@ -83,6 +83,33 @@ class WiringTest(unittest.TestCase):
         self.assertIn("if (r.top - delta < top) delta = r.top - top;", js)                # 칸 위가 잘리지 않게
         self.assertIn('e.key === "Escape" && st.el', js)
         self.assertIn("escDocs.add(w.parent.document)", js)                              # 바깥 통합 화면에서도 Esc
+
+
+class ChatPanelAboveKeyboardTest(unittest.TestCase):
+    """11/13 챗봇을 써 보니: 키보드가 창·입력칸을 덮고, 입력칸을 다시 눌러도 키보드가 안 올라왔다"""
+
+    def setUp(self):
+        self.vk = (ROOT / "web" / "ui" / "vkeyboard.js").read_text(encoding="utf-8")
+        self.widget = (ROOT / "web" / "chat-widget" / "widget.js").read_text(encoding="utf-8")
+
+    def test_phone_frame_shrinks_while_keyboard_is_up(self):
+        for needle in ('fe.dataset.vkFull = String(fe.offsetHeight)', 'Number(fe.dataset.vkFull) - kb.offsetHeight',
+                       'delete fe.dataset.vkFull'):
+            self.assertIn(needle, self.vk)
+
+    def test_tap_on_focused_field_reopens_keyboard(self):
+        self.assertIn('else if (!st.el && usable(el) && !kb.contains(el)) show(el);', self.vk)
+
+    def test_keyboard_closes_after_the_click_lands(self):
+        """바로 닫으면 창이 되돌아가며 누르던 [보내기]가 움직여 눌림이 사라진다 → click 뒤에 닫음"""
+        self.assertIn('doc.addEventListener("click", close, true); t = setTimeout(close, 700);', self.vk)
+        self.assertIn('setTimeout(() => { if (st.el === was) hide(); }, 0);', self.vk)
+
+    def test_kiosk_keyboard_tells_fixed_panels_its_height(self):
+        self.assertIn('w.__vkHeight = h; w.dispatchEvent(new w.CustomEvent("vk:resize"', self.vk)
+        self.assertIn('if (!opt.mount) notify(0);', self.vk)
+        self.assertIn('var k = Number(window.__vkHeight) || 0;', self.widget)
+        self.assertIn('window.addEventListener("vk:resize", onResize);', self.widget)
 
 
 if __name__ == "__main__":
