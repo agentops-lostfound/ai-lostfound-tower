@@ -412,6 +412,15 @@ class UiFixes1111Test(unittest.TestCase):
         for needle in ('id="goWeb"', 'id="goCenter"', "IN_SHOWCASE", "e.origin !== location.origin", "tellShowcase('kiosk-tab'"):
             self.assertIn(needle, k)
 
+    def test_robot_view_returns_to_kiosk_when_delivered_1113(self):
+        """11/13 로봇 작업대를 보던 중 제출보관함 전달이 끝나면 스스로 키오스크([물건 받았어요] 화면)로 돌아옴 —
+        이야기마다 바뀌는 순간에 한 번, 새로고침으로 처음 본 대기 상태는 건드리지 않음"""
+        html = self.read("web/showcase/index.html")
+        for needle in ("function backToKiosk()", "const now = handoverWait(st), before = waitSeen[st.story_id];",
+                       "if (!now || before !== false || !robotOpen) return;", "else setRobot(false); }, 2500);",
+                       "function renderSteps() {\n    backToKiosk();"):
+            self.assertIn(needle, html)
+
     def test_stable_layout_1112(self):
         """11/12 오후: 장면·보기를 바꿔도 키오스크 자리·크기가 같게 — 칸 나눔은 그대로 두고 패널만 감춤, 설명 3줄·바로가기 칸 자리 고정,
         휴대폰 장면도 같은 왼쪽 칸 폭, 탭·보기 단추 폭 고정"""
