@@ -543,9 +543,9 @@ function sms(html) {
   let el = document.getElementById('sms');
   if (!el) { el = document.createElement('div'); el.id = 'sms'; el.className = 'sms'; el.setAttribute('role', 'status'); document.body.appendChild(el);
              el.addEventListener('click', () => el.classList.remove('on')); }
-  el.innerHTML = `<span class="ic" aria-hidden="true">💬</span><span class="bd"><span class="from">분실물 관제탑 <small>지금</small></span>${html}</span>`;
+  el.innerHTML = `<span class="ic" aria-hidden="true">💬</span><span class="bd"><span class="from">분실물 관제탑 <small>지금 · 누르면 닫혀요</small></span>${html}</span>`;
   requestAnimationFrame(() => el.classList.add('on'));
-  clearTimeout(sms.t); sms.t = setTimeout(() => el.classList.remove('on'), 12000);
+  // 11/13 알림은 누를 때까지 그대로 둔다 — 전에는 12초 뒤 사라져, 로봇 작업대(다른 화면)에서 물건을 등록하고 돌아오면 이미 없어 '알림이 안 온다'로 보였다
 }
 
 // 11/9 번호 복사(찾기·대기 번호). 복사가 막힌 기기면 번호를 선택해 둔다
