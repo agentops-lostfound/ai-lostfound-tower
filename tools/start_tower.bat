@@ -34,6 +34,21 @@ for %%a in (%*) do if /i "%%a"=="nodb" set TOWER_SIM_DB=0
 if "%TOWER_SIM_DB%"=="0" echo [NODB] Virtual demo keeps records in memory only (team DB is not written).
 if "%TOWER_HOST%"=="0.0.0.0" echo [WARN] LAN mode: anyone on this network can open all pages incl. staff (no login). Test only, then restart without lan.
 if defined TOWER_RELOAD echo [DEV] Auto restart on code change (virtual demo memory resets each restart). Use plain start_tower.bat for the final demo.
+rem 11/13 Robot mode (any order): "sim" = virtual arm for this run even if .env has real robot values, "real" = stop unless .env has all real robot values, none = follow .env
+rem A single space overrides .env (tools/envfile.py keeps existing variables; the code strips spaces = empty = virtual arm). Clear leftovers first.
+if "%TOWER_ROBOT_SEQUENCE%"==" " set TOWER_ROBOT_SEQUENCE=
+if "%TOWER_ROBOT_PART%"==" " set TOWER_ROBOT_PART=
+if "%TOWER_ROBOT_TARGET%"==" " set TOWER_ROBOT_TARGET=
+set TOWER_ROBOT_WANT=
+for %%a in (%*) do if /i "%%a"=="sim" set TOWER_ROBOT_WANT=sim
+for %%a in (%*) do if /i "%%a"=="real" set TOWER_ROBOT_WANT=real
+if not "%TOWER_ROBOT_WANT%"=="sim" goto robot_check
+set "TOWER_ROBOT_SEQUENCE= "
+set "TOWER_ROBOT_PART= "
+set "TOWER_ROBOT_TARGET= "
+:robot_check
+python tools\robot_mode.py %TOWER_ROBOT_WANT%
+if errorlevel 2 goto run_done
 echo [2/2] 관제탑 API 켜기: http://127.0.0.1:8100/docs  (끄기: Ctrl+C 또는 창 닫기)
 rem --no-access-log: 요청마다 쓰는 로그를 끈다. 이 창 안을 클릭하면 Windows 가 '선택' 모드로 바꿔, 로그를 쓰는 순간 API 가 멈춘다(11/3 겪음). 멈췄으면 Esc
 rem 11/9 Ctrl+C hang fix: kiosk camera stream (MJPEG) never ends, so uvicorn waited forever. Force close after 3s if supported.
