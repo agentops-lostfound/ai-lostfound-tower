@@ -421,6 +421,14 @@ class UiFixes1111Test(unittest.TestCase):
                        "function renderSteps() {\n    backToKiosk();"):
             self.assertIn(needle, html)
 
+    def test_lost_tab_always_says_phone_web_1113(self):
+        """11/13 분실 접수 통합 뒤: ② 탭 이름이 다른 장면에서 '분실 · 키오스크'로 되돌아가던 문제 — 이름을 장면마다 바꾸지 않는다"""
+        html = self.read("web/showcase/index.html")
+        self.assertIn('분실 · <span id="lostWhere">휴대폰 웹</span>', html)
+        self.assertNotIn('$("lostWhere").textContent', html)
+        self.assertNotIn('"휴대폰 웹" : "키오스크"', html)
+        self.assertNotIn("키오스크와 같은 신고를", html)
+
     def test_stable_layout_1112(self):
         """11/12 오후: 장면·보기를 바꿔도 키오스크 자리·크기가 같게 — 칸 나눔은 그대로 두고 패널만 감춤, 설명 3줄·바로가기 칸 자리 고정,
         휴대폰 장면도 같은 왼쪽 칸 폭, 탭·보기 단추 폭 고정"""

@@ -394,7 +394,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     lost:   {frame: "fFound",  kind: "lost",  tab: "lost",  head: "lost", label: "역 키오스크",
              cap: "<b>역 키오스크 · 분실 접수</b><br>품목·색·역을 고르면 닮은 습득물을 찾고 → <code>claim</code> 표에 찾기 요청 · 아직 없으면 문자 알림 신청"},
     lostweb:{frame: "fLost",   kind: "lost",  head: "lost",
-             cap: "<b>분실인 휴대폰 · 분실인 웹</b><br>키오스크와 같은 신고를 휴대폰으로 · 물건이 들어오면 이 휴대폰에 문자 알림(시연)"},
+             cap: "<b>분실인 휴대폰 · 분실인 웹</b><br>분실 신고는 휴대폰 웹 하나로 · 물건이 들어오면 적어 둔 번호로 문자 알림(시연)"},
     stationret: {frame: "fFound", kind: "lost", tab: "ret", head: "pickup", label: "역 키오스크",
              cap: "<b>역 키오스크 · 회수 탭</b><br>물건은 부산역 본센터에서 받아요 → 아래 단추로 본센터 키오스크로"},
     pickup: {frame: "fPickup", kind: "lost", head: "pickup", label: "물건 나오는 곳",
@@ -475,7 +475,6 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
     scene = sc;
     const S = SCENES[sc];
     document.querySelectorAll(".scenes button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.scene === S.head)));
-    $("lostWhere").textContent = sc === "lostweb" ? "휴대폰 웹" : "키오스크";
     load(S.frame === "fFound" ? "found" : sc);
     const phone = sc === "lostweb";
     $("standKiosk").hidden = phone; $("standPhone").hidden = !phone;
