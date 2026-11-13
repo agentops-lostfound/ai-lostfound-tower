@@ -1,0 +1,12 @@
+# Relative to this file; populate images and matching YOLO txt labels.
+path: ../datasets/lostfound
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: phone
+  1: usb
+  2: lip_balm
+  3: hand_cream
+  4: card_wallet
+  5: power_bank

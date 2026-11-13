@@ -1,0 +1,14 @@
+model: yolo/weights/yolo26n.pt
+device: auto
+confidence: 0.25
+imgsz: 640
+crop_padding_px: 0
+output_dir: outputs
+aruco:
+  dictionary: DICT_4X4_50
+  # Physical corners in mm, in ArUco decoded order: TL, TR, BR, BL.
+  # Enter surveyed coordinates only. Empty means calibration unavailable.
+  markers_mm: {}
+  ransac_threshold_mm: 3.0
+  max_reprojection_error_mm: 3.0
+  min_inlier_ratio: 0.75
