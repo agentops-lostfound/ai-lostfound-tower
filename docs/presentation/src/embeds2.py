@@ -166,7 +166,7 @@ def solution():
 
 # ───────── 전체 구성: 역 · 관제탑 · 본센터(보관함 R 줄 설명) ─────────
 def system():
-    W, H, CYC = 1664, 650, 10
+    W, H, CYC = 1664, 650, 36
     css = ICSS + KIOSK
     css += f".bx{{position:absolute;border-radius:26px;padding:22px 26px}}.bx h4{{margin:0;font-size:24px;font-weight:800;color:#B5500A}}.bx h3{{margin:2px 0 0;font-size:28px;color:{INK};white-space:nowrap}}"
     css += f".ch{{background:#24324A;color:#F7F5F1;border-radius:12px;padding:9px 12px;font-size:21px;font-weight:700;white-space:nowrap}}.ch small{{display:block;color:{ACCL};font-weight:600;font-size:17px}}"
@@ -174,14 +174,14 @@ def system():
     css += f".hd{{position:absolute;top:60px;width:165px;text-align:center;margin:0}}.hd b{{display:block;font-size:30px;color:{INK}}}.hd span{{font-size:20px;color:{SUB}}}"
     css += f".rw{{position:absolute;left:840px;width:96px;margin:0;font-size:20px;color:{SUB};line-height:1.25;font-weight:700}}"
     css += f".lb{{position:absolute;margin:0;font-size:22px;font-weight:800;color:{INK};text-align:center}}"
-    css += ".dot{position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);animation:mv 2.2s linear infinite}"
-    css += "@keyframes mv{from{offset-distance:0%}to{offset-distance:100%}}"
+    css += ".dot{position:absolute;left:0;top:0;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:" + ACC + ";box-shadow:0 0 0 6px rgba(240,106,0,.25);offset-rotate:0deg;opacity:0}"
+    css += "@keyframes mv{from{offset-distance:0%}to{offset-distance:100%}}@keyframes fl{to{stroke-dashoffset:-16}}"
     base = css
     # 왼쪽: 역 키오스크 · 분실인 휴대폰
     body = f'<svg width="{W}" height="{H}" style="position:absolute;left:0;top:0">'
     paths = ["M300 170 C340 170 340 250 380 250", "M300 500 C340 500 340 400 380 400", "M720 330 C760 330 760 520 800 520"]
-    for d in paths:
-        body += f'<path d="{d}" fill="none" stroke="#C9C1B3" stroke-width="4" stroke-dasharray="8 8"/>'
+    for d in paths:  # 점선이 흐르는 방향 = 정보가 가는 방향(역·분실인 → 관제탑 → 본센터)
+        body += f'<path d="{d}" fill="none" stroke="#C9C1B3" stroke-width="4" stroke-dasharray="8 8" style="animation:fl 3.5s linear infinite;opacity:.8"/>'
     body += "</svg>"
     body += (f'<div class="bx" style="left:0;top:20px;width:300px;height:300px;background:{CARD};border:2px solid {LINE}"><h4>역 2곳</h4><h3>습득물 등록기계</h3></div>'
              f'<div class="kio" style="left:40px;top:140px"></div><div class="kio" style="left:170px;top:140px"></div>'
@@ -191,18 +191,26 @@ def system():
              f'<div style="margin:16px 8px;height:20px;border-radius:8px;background:{ACCL}"></div><div style="margin:0 8px 8px;height:14px;border-radius:6px;background:#4B5568"></div><div style="margin:0 8px;height:14px;width:40px;border-radius:6px;background:#4B5568"></div></div>')
     # 가운데: 관제탑 PC
     chips = [("관제탑 서버", "포트 8100"), ("팀 DB", "PostgreSQL"), ("sLLM", "Mi:dm 2.0 mini"), ("VLM", "Qwen3-VL"), ("기록 · 알림", "Langfuse·디스코드")]
-    body += (f'<div class="bx" style="left:380px;top:20px;width:340px;height:620px;background:{INK};display:flex;flex-direction:column;gap:12px;animation:tp 2.6s infinite">'
+    body += (f'<div class="bx" style="left:380px;top:20px;width:340px;height:620px;background:{INK};display:flex;flex-direction:column;gap:12px;animation:tp 5s ease-in-out infinite">'
              f'<h4 style="color:{ACCL}">관제탑 PC</h4><h3 style="color:#F7F5F1;margin-bottom:10px">AI 관제탑</h3>'
              + "".join(f'<div class="ch">{a}<small>{b}</small></div>' for a, b in chips) + "</div>")
-    css += kf("tp", [(0, "box-shadow:0 0 0 0 rgba(240,106,0,.45)"), (70, "box-shadow:0 0 0 18px rgba(240,106,0,0)"), (100, "box-shadow:0 0 0 0 rgba(240,106,0,0)")])
-    for d in paths:
-        for k in (0, 1):
-            body += f'<div class="dot" style="offset-path:path(\'{d}\');animation-delay:{-1.1 * k}s"></div>'
+    css += kf("tp", [(0, "box-shadow:0 0 0 0 rgba(240,106,0,.22)"), (60, "box-shadow:0 0 0 12px rgba(240,106,0,0)"), (100, "box-shadow:0 0 0 0 rgba(240,106,0,0)")])
+    # 관계: 역 키오스크 → 관제탑(접수·사진 보고, 주황) / 분실인 ⇄ 관제탑(찾기 요청 주황 ↑, 안내·찾기 번호 초록 ↓)
+    #       관제탑 ⇄ 본센터(반환 지시 초록 →, 완료 보고 주황 ←)
+    flows = [(paths[0], "#F06A00", "go", 0), (paths[0], "#F06A00", "go", -1.5),
+             (paths[1], "#F06A00", "go", 0), (paths[1], "#2E9E5B", "bk", 0),
+             (paths[2], "#2E9E5B", "go", -1.5), (paths[2], "#F06A00", "bk", -1.5)]
+    css += ("@keyframes go{0%{offset-distance:0%;opacity:0}8%{opacity:.85}42%{offset-distance:100%;opacity:.85}50%{offset-distance:100%;opacity:0}100%{offset-distance:100%;opacity:0}}"
+            "@keyframes bk{0%{offset-distance:100%;opacity:0}50%{offset-distance:100%;opacity:0}58%{opacity:.85}92%{offset-distance:0%;opacity:.85}100%{offset-distance:0%;opacity:0}}")
+    for d, col, kf_, dl in flows:
+        body += (f'<div class="dot" style="offset-path:path(\'{d}\');background:{col};box-shadow:0 0 0 4px {col}26;opacity:0;'
+                 f'animation:{kf_} 6s ease-in-out infinite;animation-delay:{dl * 2}s"></div>')
+    body += ('<div style="position:absolute;left:0;bottom:-2px;width:800px;display:none"></div>')
     _bl, _cl = body, css
     body, css = "", base
     # 오른쪽: 본센터 — 실제 작업대처럼 위 제출보관함 · 가운데 보관함 · 아래 로봇팔
     body += f'<div class="bx" style="left:800px;top:0;width:864px;height:650px;background:{SOFT};border:3px solid {ACC}"><h4>부산역 본센터</h4><h3>보관 · 반환 구역</h3></div>'
-    css += kf("ob", [(0, "box-shadow:none"), (58, "box-shadow:none"), (62, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (90, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (96, "box-shadow:none"), (100, "box-shadow:none")])
+    css += kf("ob", [(0, "box-shadow:none"), (60, "box-shadow:none"), (64, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (90, "box-shadow:0 0 0 10px rgba(240,106,0,.3)"), (96, "box-shadow:none"), (100, "box-shadow:none")])
     body += (f'<div style="position:absolute;left:1205px;top:26px;width:170px;height:104px;border-radius:14px;background:#FFFFFF;border:4px dashed {ACC};animation:ob {CYC}s infinite"></div>'
              f'<p class="lb" style="left:1390px;top:54px;width:150px;text-align:left;font-size:22px;color:#B5500A">제출보관함</p>')
     cols = [("R1", "휴대폰"), ("R2", "보조배터리"), ("R3", "핸드크림"), ("R4", "립밤")]
@@ -210,21 +218,21 @@ def system():
     for i, (r, nm) in enumerate(cols):
         body += f'<p class="hd" style="left:{gx[i]}px;top:136px"><b style="{"color:" + ACC if r == "R4" else ""}">{r}</b><span>{nm}</span></p>'
         for j in range(2):
-            body += f'<div class="cell" style="left:{gx[i]}px;top:{210 + j * 102}px;{"animation:c41 10s infinite" if (i, j) == (3, 0) else ""}"></div>'
+            body += f'<div class="cell" style="left:{gx[i]}px;top:{210 + j * 102}px;{"animation:c41 36s infinite" if (i, j) == (3, 0) else ""}"></div>'
     body += '<p class="rw" style="top:232px">-1<br>먼 칸</p><p class="rw" style="top:334px">-2<br>로봇 쪽</p>'
     fill = {(0, 0): "phone", (0, 1): "white", (1, 0): "batt", (2, 0): "cream"}
     for (i, j), k in fill.items():
-        rot = "transform:rotate(45deg)" if k in ("phone", "white") else ("transform:rotate(-35deg)" if k == "cream" else "")
+        rot = "transform:rotate(45deg)"  # 휴대폰·보조배터리·핸드크림 모두 '/'(핸드크림은 뚜껑이 왼쪽 아래)
         body += item(k, gx[i] + 82, 210 + j * 102 + 46, rot)
     css += kf("c41", [(0, "border:2px dashed #D6C9B5"), (4, f"border:4px solid {ACC};box-shadow:0 0 0 8px rgba(240,106,0,.25)"), (34, f"border:4px solid {ACC};box-shadow:0 0 0 8px rgba(240,106,0,.25)"), (40, "border:2px dashed #D6C9B5;box-shadow:none"), (100, "border:2px dashed #D6C9B5")])
     css += kf("tip", [(0, "opacity:0;transform:translateY(6px)"), (5, "opacity:1;transform:none"), (34, "opacity:1"), (39, "opacity:0"), (100, "opacity:0")])
     body += (f'<div style="position:absolute;left:1452px;top:388px;padding:6px 10px;border-radius:12px;background:{INK};color:#F7F5F1;font-size:17px;font-weight:700;white-space:nowrap;animation:tip {CYC}s infinite;opacity:0;z-index:3">'
              f'<b style="color:{ACCL}">R4-1</b> = 4번 줄 · 먼 칸</div>')
     # 칸에 있는 립밤(집기 전) · 제출보관함의 립밤(놓은 뒤)
-    css += kf("b0", [(0, "opacity:1"), (34, "opacity:1"), (35, "opacity:0"), (97, "opacity:0"), (100, "opacity:1")])
-    css += kf("b2", [(0, "opacity:0"), (70, "opacity:0"), (71, "opacity:1"), (93, "opacity:1"), (97, "opacity:0"), (100, "opacity:0")])
+    css += kf("b0", [(0, "opacity:1"), (40.4, "opacity:1"), (40.9, "opacity:0"), (97, "opacity:0"), (100, "opacity:1")])
+    css += kf("b2", [(0, "opacity:0"), (74.5, "opacity:0"), (75.0, "opacity:1"), (93, "opacity:1"), (97, "opacity:0"), (100, "opacity:0")])
     body += f'<div style="position:absolute;left:0;top:0;animation:b0 {CYC}s infinite">{item("balm", 1547, 256)}</div>'
-    body += f'<div style="position:absolute;left:0;top:0;animation:b2 {CYC}s infinite">{item("balm", 1290, 78)}</div>'
+    body += f'<div style="position:absolute;left:0;top:0;animation:b2 {CYC}s infinite">{item("balm", 1290, 78, "transform:rotate(90deg)")}</div>'
     # SO-101 로봇팔: 위에서는 ① 어깨 회전(방향)만, 옆에서는 ②③④ 굽힘(마디 길이 고정)
     import arm
     body += (f'<div style="position:absolute;left:1238px;top:508px;width:104px;height:104px;border-radius:50%;background:radial-gradient(circle,#4B5568 0 28%,#C3CBD6 29% 62%,#E3E8EF 63% 100%);border:4px solid #9AA6B8;box-shadow:inset 0 0 0 8px #D9DEE6"></div>'
@@ -236,7 +244,7 @@ def system():
                 f'<p style="position:absolute;left:12px;top:152px;margin:0;font-size:15px;font-weight:800;color:#B5500A">옆에서 본 모습</p></div>')
     body += (f'<p style="position:absolute;left:1368px;top:612px;width:290px;margin:0;font-size:14px;line-height:1.3;color:#4A5568;font-weight:700">① 어깨 회전 ② 어깨 ③ 팔꿈치<br>④ 손목 굽힘 ⑤ 손목 회전 ⑥ 집게</p>')
     # 본센터 키오스크(왼쪽 아래)
-    css += kf("ka", [(0, "opacity:0"), (64, "opacity:0;transform:scale(.4)"), (69, "opacity:1;transform:scale(1)"), (93, "opacity:1"), (99, "opacity:0")])
+    css += kf("ka", [(0, "opacity:0"), (80, "opacity:0;transform:scale(.4)"), (84, "opacity:1;transform:scale(1)"), (93, "opacity:1"), (99, "opacity:0")])
     body += (f'<div class="kio" style="left:858px;top:440px"></div><p class="lb" style="left:826px;top:572px;width:150px;font-size:20px">본센터<br>키오스크</p>'
              f'<div style="position:absolute;left:924px;top:424px;width:44px;height:44px;border-radius:50%;background:#2E9E5B;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;animation:ka {CYC}s infinite;opacity:0">✓</div>')
     return (wrap(800, H, _cl, _bl), wrap(864, H, css, '<div style="position:absolute;left:-800px;top:0;width:1664px;height:650px">' + body + "</div>"), wrap(288, 176, ICSS + scss, sidecard), wrap(864, H, re.search(r'\.i-balm\{[^}]*\}', ICSS).group(0) + tacss, '<div style="position:absolute;left:-800px;top:0;width:1664px;height:650px">' + tahtml + "</div>"))
