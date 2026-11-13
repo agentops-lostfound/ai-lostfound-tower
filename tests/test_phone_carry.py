@@ -37,18 +37,15 @@ class PhoneCarryTests(unittest.TestCase):
         self.assertEqual(commands[9], 'outlet_return_1')
         self.assertEqual(commands[10], 'home')
 
-    def test_seven_keeps_special_grip_and_eight_remains_uncompensated(self):
+    def test_seven_compensates_common_arm_route_and_eight_remains_uncompensated(self):
         original = taught_poses()
         commands, poses, _ = execution_plan(expected_sequence(7), original)
-        self.assertEqual(commands[5:9], ['pose_7_return_phone', 'outlet_return_1_78_phone',
-                                        'close_78_phone', 'open_phone'])
-        grip = original['pose_7_close']['gripper.pos']
-        for index in (4, 5, 6, 7):
-            self.assertEqual(poses[commands[index]]['gripper.pos'], grip)
-        for joint in original['close_78']:
+        self.assertEqual(commands[5:9], ['pose_7_phone', 'outlet_return_1_phone',
+                                        'close_phone', 'open_phone'])
+        for joint in original['close']:
             if joint != 'gripper.pos':
                 self.assertEqual(poses[commands[7]][joint], poses[commands[8]][joint])
-        self.assertEqual(commands[9], 'outlet_return_1_78')
+        self.assertEqual(commands[9], 'outlet_return_1')
         self.assertEqual(execution_plan(expected_sequence(8), original)[0], expected_sequence(8))
 
     def test_unsafe_configuration_collision_and_joint_limit_are_rejected(self):

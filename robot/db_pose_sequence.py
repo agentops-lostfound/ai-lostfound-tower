@@ -38,16 +38,14 @@ def sequence_for_target(target, *, sequence_path=None):
     profile = profiles.get(pose + '_pick')
     if not isinstance(profile, dict) or profile.get('slot_id') != slot or profile.get('approach_pose') != pose:
         raise ValueError('DB 칸에 대응하는 티칭 시퀀스가 없습니다')
-    returning = pose + '_return' if number in (7, 8) else pose
-    names = [pose + '_open', pose + '_target', pose + '_close', returning]
+    names = [pose + '_open', pose + '_target', pose + '_close', pose]
     steps = profile.get('steps')
     if (not isinstance(steps, list) or len(steps) != 4
             or any(not isinstance(step, dict) for step in steps)
             or [step.get('pose_name') for step in steps] != names
             or any(step.get('captured') is not True or step.get('requires_reteach') for step in steps)):
         raise ValueError('집기 4단계의 티칭이 완료되지 않았거나 순서가 다릅니다')
-    outlet = (['outlet_return_1_78', 'close_78', 'open', 'outlet_return_1_78', 'home']
-              if number in (7, 8) else list(OUTLET_SEQUENCE))
+    outlet = list(OUTLET_SEQUENCE)
     if profile.get('outlet_sequence', outlet) != outlet:
         raise ValueError('티칭 시퀀스의 배출구 순서가 다릅니다')
     sequence = ['home', pose, *names, *outlet]
@@ -63,15 +61,20 @@ def validate_taught_pose_values(sequence, poses):
         if name not in poses:
             raise ValueError('시퀀스 저장 자세 없음: ' + name)
         vector(poses[name])
-    closing = 'close_78' if 'close_78' in sequence else 'close'
+    closing = 'close'
     if any(poses['open'][joint + '.pos'] != poses[closing][joint + '.pos'] for joint in JOINTS[:5]):
         raise ValueError('open과 배출구 close의 팔 5축이 다릅니다. 같은 배출 위치로 맞추세요')
-    if closing == 'close_78':
-        number = 7 if 'pose_7_close' in sequence else 8
-        names = [f'pose_{number}_close', f'pose_{number}_return', 'outlet_return_1_78', 'close_78']
-        grip = poses[names[0]]['gripper.pos']
-        if any(poses[name]['gripper.pos'] != grip for name in names):
-            raise ValueError('7·8번 전용 복귀·운반의 그리퍼 목표가 다릅니다')
+
+
+def stage_motion_options(sequence, index):
+    """Reuse common arm poses without changing the held grip on routes 7/8.
+
+    Indices are zero-based. Preserve the commanded closure, including when an
+    object prevents the measured gripper from reaching that commanded value.
+    """
+    if len(sequence) == 11 and sequence[1] in ('pose_7', 'pose_8') and index in (5, 6, 7):
+        return {'include_gripper': False}
+    return {}
 
 
 def trigger_db_sequence(item_id, target_lookup, robot):
@@ -109,16 +112,21 @@ class SimulatedPoseMotion:
         self.events = []
         self.stop_count = 0
 
-    def move(self, pose, duration, cancelled):
+    def move(self, pose, duration, cancelled, *, include_gripper=True):
         from robot.joint_motion import vector
         from robot.studio_extension.runtime.saved_pose import PoseMove
         start = self.time
         token = f'sim-{len(self.events)}'
         profile = self.profiles.get(pose)
-        move = PoseMove(self.current, vector(self.poses[pose]), self.time, token, duration,
-            arrival_target=vector(self.poses[profile['reference_pose']]) if profile else None,
+        target = vector(self.poses[pose])
+        arrival = vector(self.poses[profile['reference_pose']]) if profile else list(target)
+        if not include_gripper:
+            target[5] = arrival[5] = float(self.current[5])
+        move = PoseMove(self.current, target, self.time, token, duration,
+            arrival_target=arrival,
             shoulder_tolerance=profile['shoulder_tolerance'] if profile else 5)
-        self.events.append({'event': 'requested', 'pose': pose, 'time': round(self.time, 3)})
+        self.events.append({'event': 'requested', 'pose': pose, 'time': round(self.time, 3),
+                            'include_gripper': include_gripper, 'gripper_target': target[5]})
         while True:
             if cancelled.is_set():
                 raise InterruptedError('모의 이동 취소')

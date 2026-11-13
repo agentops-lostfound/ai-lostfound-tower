@@ -266,6 +266,63 @@ class RemoteHttpTests(unittest.TestCase):
                 self.assertTrue(result['test_only'])
                 self.assertEqual(target['item_id'], 'TEST')
 
+    def test_old_return_plan_is_rejected_before_any_job_or_motion(self):
+        self.client.arm_local()
+        self.engine.sequence_plans['R4-2'][5] = 'pose_8_return'
+        target = {'ok': True, 'item_id': 'TEST', 'number': 8, 'pose_name': 'pose_8', 'slot_id': 'R4-2'}
+        result = self.client.robot_run_sequence(target)
+        self.assertFalse(result['ok'])
+        self.assertIn('Sequence plan mismatch before motion', result['reason'])
+        self.assertIn('stage 6', result['reason'])
+        self.assertEqual(self.engine.jobs, {})
+        self.assertEqual(self.robot.calls, [])
+        self.assertTrue(self.engine.armed)
+
+    def test_peer_without_plan_advertisement_is_rejected_before_submission(self):
+        self.client.arm_local()
+        real = self.client.request
+        posts = []
+        def older_peer(path, body=None):
+            result = real(path, body)
+            if path == '/v1/health':
+                result.pop('sequence_plans', None)
+            if path == '/v1/jobs':
+                posts.append(body)
+            return result
+        self.client.request = older_peer
+        target = {'ok': True, 'item_id': 'TEST', 'number': 8, 'pose_name': 'pose_8', 'slot_id': 'R4-2'}
+        result = self.client.robot_run_sequence(target)
+        self.assertFalse(result['ok'])
+        self.assertIn('missing', result['reason'])
+        self.assertEqual(posts, [])
+        self.assertEqual(self.engine.jobs, {})
+
+    def test_progress_failure_keeps_detail_job_and_rejected_stage_without_secret(self):
+        from tests.sequence_fixtures import expected_sequence
+        plan = expected_sequence(8)
+        target = {'ok': True, 'item_id': 'TEST', 'number': 8, 'pose_name': 'pose_8', 'slot_id': 'R4-2'}
+        event = {'event': 'stage_started', 'index': 6, 'total': 11,
+                 'pose_name': 'pose_8', 'command_pose': 'pose_8'}
+        def replies(path, body=None):
+            if path == '/v1/health':
+                return {'mode': 'simulation', 'armed': True, 'instance': 'test',
+                        'sequence_plans': {'R4-2': plan}}
+            if path == '/v1/jobs':
+                return {'job_id': body['job_id'], 'events': [event], 'status': 'running'}
+            self.fail(path)
+        self.client.request = replies
+        self.client.robot_stop = Mock(return_value={'ok': True})
+        def reject(_):
+            raise ValueError('expected pose_8_return; credential=' + self.token)
+        result = self.client.robot_run_sequence(target, progress=reject)
+        self.assertFalse(result['ok'])
+        self.assertIn('expected pose_8_return', result['reason'])
+        self.assertNotIn(self.token, json.dumps(result))
+        self.assertEqual(result['failed_progress'], event)
+        uuid.UUID(result['job_id'])
+        self.client.robot_stop.assert_called_once()
+        self.assertTrue(self.client.faulted)
+
     def test_only_new_local_arming_epoch_allows_an_explicit_call_after_uncertain_delivery(self):
         self.client.arm_local()
         real = self.client.request
@@ -315,6 +372,138 @@ class RemoteHttpTests(unittest.TestCase):
         self.assertFalse(result['ok'])
         self.assertEqual(posts, [])
         self.assertEqual(self.robot.calls, [])
+
+    def test_default_response_timeout_is_five_seconds(self):
+        opener = Mock()
+        opener.open.return_value.__enter__ = Mock(return_value=Mock(read=Mock(return_value=b'{}')))
+        opener.open.return_value.__exit__ = Mock(return_value=False)
+        client = RemoteTowerRobot(url=self.url, token=self.token, opener=opener)
+        client.health()
+        self.assertEqual(opener.open.call_args.kwargs['timeout'], 5)
+
+    def test_delayed_status_response_keeps_heartbeats_and_executes_once(self):
+        self.robot.block = True
+        self.client.arm_local()
+        original_get = self.server.RequestHandlerClass.do_GET
+        renewals = []
+        request = self.client.request
+        def observe(path, body=None, **kwargs):
+            result = request(path, body, **kwargs)
+            if path.endswith('/heartbeat'):
+                renewals.append(body.copy())
+            return result
+        self.client.request = observe
+        def delayed_get(handler):
+            if handler.path.startswith('/v1/jobs/'):
+                time.sleep(2.2)  # Exceeds the old 2s response deadline.
+                self.robot.release.set()
+            original_get(handler)
+        with patch.object(self.server.RequestHandlerClass, 'do_GET', delayed_get):
+            result = self.client.robot_go_pose('pose_1', 'R1-1')
+        self.assertTrue(result['ok'], result)
+        self.assertGreaterEqual(len(renewals), 2)
+        self.assertEqual(len(self.robot.calls), 1)
+        self.assertEqual(len(self.engine.jobs), 1)
+        count = len(renewals)
+        time.sleep(.3)
+        self.assertEqual(len(renewals), count, 'Finished job must not keep renewing')
+
+    def test_progress_callback_does_not_starve_five_second_lease(self):
+        self.client.arm_local()
+        self.engine.clock = lambda: self.now
+        self.now = 100.
+        renewed = threading.Event()
+        request = self.client.request
+        def observe(path, body=None, **kwargs):
+            result = request(path, body, **kwargs)
+            if path.endswith('/heartbeat'):
+                renewed.set()
+            return result
+        self.client.request = observe
+        def taught(target, progress):
+            progress({'event': 'stage_started', 'index': 1, 'total': 11, 'pose_name': 'home'})
+            self.robot.release.wait(3)
+            return {'ok': not self.robot.cancelled.is_set()}
+        self.robot.robot_run_sequence = taught
+        def slow_progress(event):
+            self.now += 6  # A coupled heartbeat would already have expired.
+            renewed.clear()
+            try:
+                self.assertTrue(renewed.wait(1), 'No heartbeat while progress callback was blocked')
+                self.engine.expire()
+                self.assertFalse(self.robot.cancelled.is_set())
+            finally:
+                self.robot.release.set()
+        target = {'ok': True, 'item_id': 'TEST', 'number': 1, 'pose_name': 'pose_1', 'slot_id': 'R1-1'}
+        result = self.client.robot_run_sequence(target, progress=slow_progress)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(self.engine.lease, 5.)
+
+    def test_heartbeat_loss_stops_without_resubmitting(self):
+        from robot.remote_client import _Heartbeat
+        self.robot.block = True
+        self.client.arm_local()
+        request = self.client.request
+        def disconnected_lease(path, body=None, **kwargs):
+            if path.endswith('/heartbeat'):
+                raise urllib.error.URLError('lease channel unavailable')
+            return request(path, body, **kwargs)
+        self.client.request = disconnected_lease
+        with patch.object(_Heartbeat, 'interval', .01), patch.object(_Heartbeat, 'retry_seconds', .05):
+            result = self.client.robot_go_pose('pose_1', 'R1-1')
+        self.assertFalse(result['ok'])
+        self.assertIn('Heartbeat failed', result['reason'])
+        self.assertTrue(result['stop_confirmed'])
+        self.assertFalse(self.engine.armed)
+        self.assertEqual(len(self.robot.calls), 1)
+        self.assertEqual(len(self.engine.jobs), 1)
+
+    def test_brief_heartbeat_timeout_retries_only_lease(self):
+        from robot.remote_client import _Heartbeat
+        self.robot.block = True
+        self.client.arm_local()
+        request = self.client.request
+        attempts = []
+        def delayed_lease(path, body=None, **kwargs):
+            if path.endswith('/heartbeat'):
+                attempts.append(body.copy())
+                if len(attempts) == 1:
+                    raise TimeoutError('brief delay')
+                result = request(path, body, **kwargs)
+                self.robot.release.set()
+                return result
+            return request(path, body, **kwargs)
+        self.client.request = delayed_lease
+        with patch.object(_Heartbeat, 'interval', .01):
+            result = self.client.robot_go_pose('pose_1', 'R1-1')
+        self.assertTrue(result['ok'], result)
+        self.assertGreaterEqual(len(attempts), 2)
+        self.assertEqual(len(self.engine.jobs), 1)
+
+    def test_stop_still_cancels_during_blocked_status_read(self):
+        self.robot.block = True
+        self.client.arm_local()
+        blocked, release = threading.Event(), threading.Event()
+        request = self.client.request
+        def slow_read(path, body=None, **kwargs):
+            if path.startswith('/v1/jobs/') and not path.endswith('/heartbeat'):
+                blocked.set()
+                release.wait(2)
+            return request(path, body, **kwargs)
+        self.client.request = slow_read
+        results = []
+        thread = threading.Thread(target=lambda: results.append(self.client.robot_go_pose('pose_1', 'R1-1')))
+        thread.start()
+        try:
+            self.assertTrue(blocked.wait(1))
+            self.assertTrue(self.client.robot_stop()['ok'])
+            self.assertTrue(self.robot.cancelled.is_set())
+        finally:
+            release.set()
+            thread.join(3)
+        self.assertFalse(thread.is_alive())
+        self.assertFalse(results[0]['ok'])
+        self.assertEqual(len(self.robot.calls), 1)
 
 
 if __name__ == '__main__':

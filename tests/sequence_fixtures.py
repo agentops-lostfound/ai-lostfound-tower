@@ -13,17 +13,10 @@ def taught_poses():
         poses[f'pose_{n}'] = approach
         poses[f'pose_{n}_open'] = {**approach, 'gripper.pos': 70.0}
         poses[f'pose_{n}_target'] = {**approach, 'shoulder_lift.pos': 20.0, 'gripper.pos': 70.0}
-        poses[f'pose_{n}_close'] = {**poses[f'pose_{n}_target'], 'gripper.pos': 35.575 if n in (7, 8) else 4.0}
-        if n in (7, 8):
-            poses[f'pose_{n}_return'] = {**approach, 'gripper.pos': 35.575}
-    poses['outlet_return_1_78'] = {**poses['outlet_return_1'], 'gripper.pos': 35.575}
-    poses['close_78'] = {**poses['close'], 'gripper.pos': 35.575}
+        poses[f'pose_{n}_close'] = {**poses[f'pose_{n}_target'], 'gripper.pos': {7: 9.35, 8: 9.62}.get(n, 4.0)}
     return poses
 
 
 def expected_sequence(n):
-    returning = f'pose_{n}_return' if n in (7, 8) else f'pose_{n}'
-    outlet = 'outlet_return_1_78' if n in (7, 8) else 'outlet_return_1'
-    closing = 'close_78' if n in (7, 8) else 'close'
     return ['home', f'pose_{n}', f'pose_{n}_open', f'pose_{n}_target', f'pose_{n}_close',
-            returning, outlet, closing, 'open', outlet, 'home']
+            f'pose_{n}', 'outlet_return_1', 'close', 'open', 'outlet_return_1', 'home']

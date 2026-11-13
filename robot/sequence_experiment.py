@@ -8,7 +8,7 @@ from pathlib import Path
 import threading
 import time
 
-from robot.db_pose_sequence import sequence_for_target, validate_taught_pose_values
+from robot.db_pose_sequence import sequence_for_target, stage_motion_options, validate_taught_pose_values
 from robot.joint_motion import JOINTS, vector
 from robot.tower_part import TowerRobot
 
@@ -21,12 +21,16 @@ class AnimatedSimulation:
         self.observe = observe
         self.current = np.array(vector(poses['home']), dtype=float)
 
-    def move(self, pose, duration, cancelled):
+    def move(self, pose, duration, cancelled, *, include_gripper=True):
         from robot.studio_extension.runtime.saved_pose import PoseMove
         token = 'sequence-panel-simulation'
         profile = self.profiles.get(pose)
-        move = PoseMove(self.current, vector(self.poses[pose]), time.monotonic(), token, duration,
-            arrival_target=vector(self.poses[profile['reference_pose']]) if profile else None,
+        target = vector(self.poses[pose])
+        arrival = vector(self.poses[profile['reference_pose']]) if profile else list(target)
+        if not include_gripper:
+            target[5] = arrival[5] = float(self.current[5])
+        move = PoseMove(self.current, target, time.monotonic(), token, duration,
+            arrival_target=arrival,
             shoulder_tolerance=profile['shoulder_tolerance'] if profile else 5)
         while True:
             if cancelled.is_set():
@@ -115,6 +119,8 @@ class SequenceExperiment:
             robot.motion = self.motion
             self.robot, self.plan, self.target = robot, plan, target
             self.command_plan, self.motion_profiles = commands, profiles
+            from robot.command_correction import load_command_corrections
+            self.command_corrections = load_command_corrections(robot.poses) if self.live else {}
             self.seconds, self.source = seconds, source
             self.statuses = ['대기'] * len(plan)
             self.selected = 0
@@ -171,9 +177,13 @@ class SequenceExperiment:
             if type(measured) not in (int, float) or not math.isfinite(measured):
                 return None
             tolerance = profile['shoulder_tolerance'] if joint == 'shoulder_lift' and profile else 5
+            correction = self.command_corrections.get(self.command_plan[self.selected])
+            if correction:
+                tolerance = correction['arrival_tolerance']
             error = measured - reference[key]
             axes.append({'joint': joint, 'measured': measured, 'reference': reference[key],
-                         'command_target': self.robot.poses[self.command_plan[self.selected]][key],
+                         'command_target': self.robot.poses[self.command_plan[self.selected]][key] +
+                                           (correction['offsets'].get(key, 0) if correction else 0),
                          'error': error, 'tolerance': tolerance, 'outside': abs(error) > tolerance})
         return {'index': self.selected, 'pose': self.plan[self.selected],
                 'command_pose': self.command_plan[self.selected], 'axes': axes,
@@ -207,6 +217,10 @@ class SequenceExperiment:
                     self.runtime_state.get('saved_pose_motion_profiles', {}).get(name)
                     for name in self.command_plan if name.endswith('_phone')):
                 raise ValueError('Studio 휴대폰 보정값이 로컬 설정과 다릅니다')
+            if self.live and any(self.command_corrections.get(name) !=
+                    self.runtime_state.get('saved_pose_command_corrections', {}).get(name)
+                    for name in self.command_plan):
+                raise ValueError('Studio 고정 명령 보정값이 로컬 설정과 다릅니다')
             if mode not in ('step', 'all') or type(index) is not int or not 0 <= index < len(self.plan):
                 raise ValueError('실행할 단계를 선택하세요')
             if self.lease_seconds is not None and time.monotonic() - self.last_ui > self.lease_seconds:
@@ -233,7 +247,8 @@ class SequenceExperiment:
                     self._record('stage_start', index=current, pose=self.plan[current],
                                  command_pose=self.command_plan[current],
                                  compensation=self.motion_profiles.get(self.command_plan[current]))
-                self.motion.move(self.command_plan[current], self.seconds, self.robot.cancelled)
+                self.motion.move(self.command_plan[current], self.seconds, self.robot.cancelled,
+                                 **stage_motion_options(self.plan, current))
                 if self.robot.cancelled.is_set():
                     raise InterruptedError('정지 요청')
                 with self.lock:
@@ -282,8 +297,13 @@ class SequenceExperiment:
                     'joints': dict(self.joints), 'actions': dict(self.actions), 'target': dict(goal),
                     'targets': [dict(self.robot.poses[name]) for name in self.plan],
                     'command_plan': list(self.command_plan),
-                    'command_targets': [dict(self.robot.poses[name]) for name in self.command_plan],
+                    'command_targets': [{key: value + self.command_corrections.get(name, {}).get('offsets', {}).get(key, 0)
+                                         for key, value in self.robot.poses[name].items()} for name in self.command_plan],
+                    'command_corrections': dict(self.command_corrections),
                     'motion_profiles': [self.motion_profiles.get(name) for name in self.command_plan],
+                    'gripper_modes': ['hold' if stage_motion_options(self.plan, i) else 'pose'
+                                      for i in range(len(self.plan))],
+                    'carry_gripper': self.robot.poses[self.plan[4]]['gripper.pos'],
                     'arrival_wait': self.waiting_diagnostics(),
                     'packet_age': None if self.last_packet is None else round(time.monotonic() - self.last_packet, 2),
                     'runtime_state': dict(self.runtime_state), 'events': list(self.events)}

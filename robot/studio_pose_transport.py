@@ -73,7 +73,7 @@ class StudioPoseTransport:
 
     def _ready(self, sock, pose=None, cancelled=None):
         deadline = self.clock() + 10  # Worker attachment only, not an arrival deadline.
-        state, observed = None, None
+        state, observed, positions = None, None, None
         while self.clock() < deadline:
             if cancelled is not None and cancelled.is_set():
                 raise InterruptedError('정지 요청으로 이동 취소')
@@ -85,6 +85,7 @@ class StudioPoseTransport:
             if message.get('event') == 'observation':
                 self._check_observation(message)
                 observed = self.clock()
+                positions = dict(message['data'])
             if message.get('event') == 'state':
                 state = message.get('data') or {}
             if state and state.get('connected') and observed is not None and self.clock() - observed <= 0.5:
@@ -106,8 +107,19 @@ class StudioPoseTransport:
                         if (not config['enabled'] or expected['reference_pose'] is None
                                 or state.get('saved_pose_motion_profiles', {}).get(pose) != expected):
                             raise ValueError('Studio 휴대폰 보정값이 로컬 설정과 다릅니다')
-                return
+                return {'state': state, 'positions': positions}
         raise ValueError('Studio 연결·관측을 확인하지 못했습니다')
+
+    def snapshot(self, cancelled):
+        """Read current metadata/joints without changing control or sending motion."""
+        sock = self._open()
+        try:
+            result = self._ready(sock, cancelled=cancelled)
+            if result['state'].get('saved_pose_robot_id') != self.follower:
+                raise ValueError('복귀 대상 팔과 현재 관측의 팔이 다릅니다')
+            return result
+        finally:
+            sock.close()
 
     @staticmethod
     def _check_observation(message):

@@ -20,6 +20,25 @@ ARM_FOLLOWING_ERROR_LIMIT = 10.0
 # Residual motor error is expected even when re-requesting the current pose.
 # This is per arm joint in normalized units, independent of the tracking limit.
 ARM_ARRIVAL_TOLERANCE = 5.0
+MAX_COMMAND_CORRECTION = 3.0
+
+
+def checked_command_correction(profile, reference):
+    """A measured, fixed arm-command correction tied to one exact teaching."""
+    if not np.array_equal(vector(profile['reference']), np.asarray(reference)):
+        raise ValueError('Command correction belongs to a different teaching')
+    offsets = profile['offsets']
+    if set(offsets) != set(KEYS[:5]) or any(type(v) not in (int, float) for v in offsets.values()):
+        raise ValueError('Command correction requires exactly five arm offsets')
+    values = np.array([offsets[key] for key in KEYS[:5]], dtype=float)
+    tolerance = profile['arrival_tolerance']
+    if (not np.isfinite(values).all() or np.any(np.abs(values) > MAX_COMMAND_CORRECTION)
+            or type(tolerance) not in (int, float) or not .25 <= tolerance <= ARM_ARRIVAL_TOLERANCE):
+        raise ValueError('Command correction exceeds its validated bounds')
+    corrected = np.asarray(reference).copy()
+    corrected[:5] += values
+    vector(dict(zip(KEYS, corrected)))
+    return values, tolerance
 
 
 def vector(values):
@@ -35,7 +54,8 @@ class PoseMove:
     """Bounded joint interpolation with measured arrival and a client lease."""
 
     def __init__(self, start, target, now, token, duration_seconds=MOVE_DURATION_SECONDS,
-                 *, arrival_target=None, shoulder_tolerance=ARM_ARRIVAL_TOLERANCE):
+                 *, arrival_target=None, shoulder_tolerance=ARM_ARRIVAL_TOLERANCE,
+                 arm_command_offsets=None, arrival_tolerance=None):
         if duration_seconds not in (3, 4, 5):
             raise ValueError("Movement duration must be 3, 4 or 5 seconds")
         self.duration_seconds = float(duration_seconds)
@@ -48,10 +68,26 @@ class PoseMove:
                 or not ARM_ARRIVAL_TOLERANCE <= shoulder_tolerance <= 8):
             raise ValueError("Invalid arrival reference or shoulder tolerance")
         delta = self.target - self.arrival_target
-        if np.any(np.abs(delta[[0, 2, 3, 4, 5]]) > 1e-5) or not -3 <= delta[1] <= 0:
-            raise ValueError("Only bounded negative shoulder compensation is allowed")
+        if arm_command_offsets is None:
+            if np.any(np.abs(delta[[0, 2, 3, 4, 5]]) > 1e-5) or not -3 <= delta[1] <= 0:
+                raise ValueError("Only bounded negative shoulder compensation is allowed")
+            if arrival_tolerance is not None:
+                raise ValueError('A precision arrival margin requires a measured command correction')
+        else:
+            arm_command_offsets = np.asarray(arm_command_offsets, dtype=float)
+            if arm_command_offsets.shape != (5,):
+                raise ValueError('Command correction requires exactly five arm offsets')
+            offsets, arrival_tolerance = checked_command_correction({
+                'reference': dict(zip(KEYS, self.arrival_target)),
+                'offsets': dict(zip(KEYS[:5], map(float, arm_command_offsets))),
+                'arrival_tolerance': arrival_tolerance,
+            }, self.arrival_target)
+            if abs(delta[5]) > 1e-5 or not np.allclose(delta[:5], offsets, atol=1e-5, rtol=0):
+                raise ValueError('Command target differs from the measured correction')
         self.arrival_tolerances = np.full(5, ARM_ARRIVAL_TOLERANCE)
         self.arrival_tolerances[1] = shoulder_tolerance
+        if arm_command_offsets is not None:
+            self.arrival_tolerances[:] = arrival_tolerance
         self.command_complete = bool(np.max(np.abs(self.target - self.command)) < 1e-5)
         self.token = token
         self.elapsed = 0.0
@@ -120,6 +156,7 @@ class SavedPoseMixin:
         self._pose_observed_at = None
         self._saved_poses = {}
         self._pose_motion_profiles = {}
+        self._pose_command_corrections = {}
         self._pose_robot_id = None
         self._pose_episode_finalizing = False
         try:
@@ -138,9 +175,15 @@ class SavedPoseMixin:
                 if abs(checked.target[1] - reference[1] - profile['shoulder_offset']) > 1e-5:
                     raise ValueError("Compensated shoulder differs from profile")
                 self._pose_motion_profiles[name] = profile
+            for name, profile in data.get('command_corrections', {}).items():
+                if name not in self._saved_poses or name in self._pose_motion_profiles:
+                    raise ValueError('Command correction requires an ordinary saved teaching')
+                checked_command_correction(profile, self._saved_poses[name])
+                self._pose_command_corrections[name] = profile
         except (OSError, ValueError, KeyError, TypeError) as exc:
             self._saved_poses = {}
             self._pose_motion_profiles = {}
+            self._pose_command_corrections = {}
             self._pose_error = "Saved poses unavailable: " + str(exc)
 
     def _saved_pose_state(self):
@@ -149,7 +192,8 @@ class SavedPoseMixin:
                     saved_pose_robot_id=self._pose_robot_id, approach_pose=self._approach_pose,
                     saved_pose_token=self._pose_move.token if self._pose_move else None,
                     saved_pose_profile_names=list(self._pose_motion_profiles),
-                    saved_pose_motion_profiles=dict(self._pose_motion_profiles))
+                    saved_pose_motion_profiles=dict(self._pose_motion_profiles),
+                    saved_pose_command_corrections=dict(self._pose_command_corrections))
 
     def leader_positions(self):
         if (not self._leader_reads_enabled or self._leader_failures or self._last_leader_action is None
@@ -213,16 +257,23 @@ class SavedPoseMixin:
             if self._pose_last_output is not None:
                 start[5] = self._pose_last_output[5]
             target = self._saved_poses[name].copy()
+            correction = self._pose_command_corrections.get(name)
+            options = {}
+            if correction:
+                offsets, tolerance = checked_command_correction(correction, target)
+                target[:5] += offsets
+                options = {'arm_command_offsets': offsets, 'arrival_tolerance': tolerance}
             if not command.include_gripper:
                 target[5] = start[5]
             profile = self._pose_motion_profiles.get(name)
             if name.endswith('_phone') and profile is None:
                 raise ValueError("Phone carry arrival profile is missing")
-            arrival = self._saved_poses[profile['reference_pose']].copy() if profile else target.copy()
+            arrival = self._saved_poses[profile['reference_pose']].copy() if profile else self._saved_poses[name].copy()
             if not command.include_gripper:
                 arrival[5] = start[5]
             self._pose_move = PoseMove(start, target, now, command.token, command.duration_seconds,
-                arrival_target=arrival, shoulder_tolerance=profile['shoulder_tolerance'] if profile else ARM_ARRIVAL_TOLERANCE)
+                arrival_target=arrival, shoulder_tolerance=profile['shoulder_tolerance'] if profile else ARM_ARRIVAL_TOLERANCE,
+                **options)
             self._approach_pose = None
             self._pose_name = name
             self._pose_status = "moving"

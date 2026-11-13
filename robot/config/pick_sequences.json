@@ -334,61 +334,63 @@
         {
           "pose_name": "pose_7_open",
           "captured": true,
-          "captured_at": "2026-11-10T11:37:37.890653+09:00",
-          "sample_count": 45,
-          "max_arm_delta_from_approach_normalized": 21.380245208740234,
-          "description": "어프로치에서 그리퍼 열기"
+          "captured_at": "2026-11-11T12:26:10.203074+09:00",
+          "sample_count": 6,
+          "description": "립밤 수동 티칭: pose_7_open",
+          "updated_at": "2026-11-11T12:31:04.926070+09:00"
         },
         {
           "pose_name": "pose_7_target",
           "captured": true,
-          "description": "그리퍼를 연 채 집기 타겟으로 이동",
-          "captured_at": "2026-11-10T11:38:45.057329+09:00",
-          "sample_count": 44
+          "description": "립밤 수동 티칭: pose_7_target",
+          "captured_at": "2026-11-11T12:27:30.428177+09:00",
+          "sample_count": 6,
+          "updated_at": "2026-11-11T12:31:04.926589+09:00"
         },
         {
           "pose_name": "pose_7_close",
           "captured": true,
-          "gripper_value_source": "measured_current",
-          "description": "타겟에서 그리퍼 닫기",
-          "captured_at": "2026-11-10T11:40:17.596973+09:00",
-          "sample_count": 44
+          "description": "립밤 수동 티칭: pose_7_close",
+          "captured_at": "2026-11-11T12:28:09.915553+09:00",
+          "sample_count": 6,
+          "updated_at": "2026-11-11T12:31:04.927154+09:00"
         },
         {
-          "step_name": "pose_7_return",
-          "pose_name": "pose_7_return",
+          "pose_name": "pose_7",
           "captured": true,
-          "reuse_existing_pose": false,
-          "description": "그리퍼를 닫은 채 어프로치로 복귀",
-          "derived_from": "pose_7",
-          "gripper_value_source": "pose_7_close.gripper.pos",
-          "gripper_override": {
-            "reference_pose": "pose_7_close",
-            "value": 35.574981689453125,
-            "updated_at": "2026-11-10T11:43:46.354227+09:00"
-          }
+          "reuse_existing_pose": true,
+          "description": "집게 닫힘 명령을 유지하며 공용 어프로치로 복귀",
+          "include_gripper": false,
+          "captured_at": "2026-11-11T12:24:35.770762+09:00",
+          "sample_count": 6,
+          "updated_at": "2026-11-11T12:31:04.927674+09:00"
         }
       ],
       "outlet_sequence": [
-        "outlet_return_1_78",
-        "close_78",
+        "outlet_return_1",
+        "close",
         "open",
-        "outlet_return_1_78",
+        "outlet_return_1",
         "home"
       ],
-      "carry_gripper_value": 35.574981689453125,
       "full_sequence": [
         "home",
         "pose_7",
         "pose_7_open",
         "pose_7_target",
         "pose_7_close",
-        "pose_7_return",
-        "outlet_return_1_78",
-        "close_78",
+        "pose_7",
+        "outlet_return_1",
+        "close",
         "open",
-        "outlet_return_1_78",
+        "outlet_return_1",
         "home"
+      ],
+      "carry_gripper_source": "pose_7_close.gripper.pos",
+      "preserve_gripper_stages": [
+        6,
+        7,
+        8
       ]
     },
     "pose_8_pick": {
@@ -398,86 +400,67 @@
         {
           "pose_name": "pose_8_open",
           "captured": true,
-          "description": "어프로치에서 그리퍼 열기",
-          "captured_at": "2026-11-10T11:47:11.647267+09:00",
-          "sample_count": 45,
-          "max_arm_delta_from_approach_normalized": 44.63980293273926
+          "description": "립밤 수동 티칭: pose_8_open",
+          "captured_at": "2026-11-11T11:36:15.882243+09:00",
+          "sample_count": 6,
+          "updated_at": "2026-11-11T11:41:38.826697+09:00"
         },
         {
           "pose_name": "pose_8_target",
           "captured": true,
-          "description": "그리퍼를 연 채 집기 타겟으로 이동",
-          "captured_at": "2026-11-10T11:48:30.005488+09:00",
-          "sample_count": 44
+          "description": "립밤 수동 티칭: pose_8_target",
+          "captured_at": "2026-11-11T11:37:29.789905+09:00",
+          "sample_count": 6,
+          "updated_at": "2026-11-11T11:41:38.826697+09:00",
+          "arm_retargeted_at": "2026-11-11T12:05:18.228527+09:00",
+          "arm_sample_count": 6,
+          "gripper_retained": true
         },
         {
           "pose_name": "pose_8_close",
           "captured": true,
-          "gripper_value_source": "pose_7_close.gripper.pos",
-          "gripper_override": {
-            "reference_pose": "pose_7_close",
-            "value": 35.574981689453125,
-            "updated_at": "2026-11-10T11:43:46.354227+09:00"
-          },
-          "description": "타겟에서 그리퍼 닫기",
-          "captured_at": "2026-11-10T11:50:09.649301+09:00",
-          "sample_count": 45
+          "description": "립밤 수동 티칭: pose_8_close",
+          "captured_at": "2026-11-11T11:38:15.150333+09:00",
+          "sample_count": 6,
+          "updated_at": "2026-11-11T11:41:38.826697+09:00",
+          "arm_retargeted_at": "2026-11-11T12:05:18.228527+09:00",
+          "arm_sample_count": 6,
+          "gripper_retained": true
         },
         {
-          "step_name": "pose_8_return",
-          "pose_name": "pose_8_return",
+          "pose_name": "pose_8",
           "captured": true,
-          "reuse_existing_pose": false,
-          "derived_from": "pose_8",
-          "gripper_value_source": "pose_7_close.gripper.pos",
-          "description": "그리퍼를 닫은 채 어프로치로 복귀"
+          "reuse_existing_pose": true,
+          "description": "집게 닫힘 명령을 유지하며 공용 어프로치로 복귀",
+          "include_gripper": false
         }
       ],
       "outlet_sequence": [
-        "outlet_return_1_78",
-        "close_78",
+        "outlet_return_1",
+        "close",
         "open",
-        "outlet_return_1_78",
+        "outlet_return_1",
         "home"
       ],
-      "carry_gripper_value": 35.574981689453125,
       "full_sequence": [
         "home",
         "pose_8",
         "pose_8_open",
         "pose_8_target",
         "pose_8_close",
-        "pose_8_return",
-        "outlet_return_1_78",
-        "close_78",
+        "pose_8",
+        "outlet_return_1",
+        "close",
         "open",
-        "outlet_return_1_78",
+        "outlet_return_1",
         "home"
+      ],
+      "carry_gripper_source": "pose_8_close.gripper.pos",
+      "preserve_gripper_stages": [
+        6,
+        7,
+        8
       ]
-    }
-  },
-  "transport_profiles": {
-    "grip_78": {
-      "gripper_value": 35.574981689453125,
-      "gripper_value_source": "pose_7_close.gripper.pos",
-      "applies_to": [
-        "pose_7_pick",
-        "pose_8_pick"
-      ],
-      "derived_poses": {
-        "pose_7_return": "pose_7",
-        "pose_8_return": "pose_8",
-        "outlet_return_1_78": "outlet_return_1",
-        "close_78": "close"
-      },
-      "outlet_sequence": [
-        "outlet_return_1_78",
-        "close_78",
-        "open",
-        "outlet_return_1_78",
-        "home"
-      ],
-      "created_at": "2026-11-10T11:43:46.354227+09:00"
     }
   },
   "control_mode": "taught"

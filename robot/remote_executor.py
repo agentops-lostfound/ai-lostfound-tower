@@ -39,13 +39,18 @@ def validate_job(operation, arguments):
         if set(arguments) != {'target'}:
             raise ValueError('A DB target is required')
         sequence_for_target(arguments['target'])
+    elif operation == 'home':
+        if arguments and (set(arguments) != {'empty_gripper_confirmed'} or arguments['empty_gripper_confirmed'] is not True):
+            raise ValueError('Explicit empty-gripper recovery confirmation required')
     elif arguments:
         raise ValueError('This operation takes no arguments')
 
 
 class Executor:
     def __init__(self, factory, *, live=False, readiness=None, lease_seconds=5., clock=time.monotonic,
-                 allowed_slots=()):
+                 allowed_slots=(), joint_telemetry=None):
+        from robot.joint_telemetry import JointTelemetry
+        self.joint_telemetry = joint_telemetry if joint_telemetry is not None else JointTelemetry()
         self.factory, self.live, self.readiness = factory, live, readiness
         self.clock, self.lease = clock, lease_seconds
         self.instance = str(uuid.uuid4())
@@ -58,13 +63,22 @@ class Executor:
         self.active = None
         self.closed = threading.Event()
         self.allowed_slots = frozenset(allowed_slots)
+        from agents.storage import SLOT_NUMBERS
+        from robot.db_pose_sequence import sequence_for_target
+        # Snapshot the runner's plan at startup so old/new peers can compare
+        # before a job is submitted, rather than discovering it after a pick.
+        self.sequence_plans = {slot: sequence_for_target({
+            'ok': True, 'slot_id': slot, 'number': number, 'pose_name': f'pose_{number}'})
+            for slot, number in SLOT_NUMBERS.items()}
 
     def health(self):
         with self.lock:
             return {'instance': self.instance, 'mode': 'live' if self.live else 'simulation',
                     'armed': self.armed, 'active_job': self.active,
+                    'home_recovery': True,
                     'stop_uncertain': self.uncertain_stop,
-                    'sequence_slots': sorted(self.allowed_slots) if self.live else 'simulation'}
+                    'sequence_slots': sorted(self.allowed_slots) if self.live else 'simulation',
+                    'sequence_plans': {slot: list(plan) for slot, plan in self.sequence_plans.items()}}
 
     def arm(self):
         with self.lock:
@@ -102,10 +116,19 @@ class Executor:
                 if old['fingerprint'] != fingerprint:
                     raise ValueError('Job ID reused for different work')
                 return self.status(job_id)
-            if not self.armed or self.active is not None or self.closed.is_set():
+            recovery = operation == 'home'
+            if ((not self.armed and not recovery) or self.active is not None or self.closed.is_set()
+                    or (recovery and self.uncertain_stop)):
                 raise ValueError('Executor disarmed or busy')
             if len(self.jobs) + len(self.cancelled_ids) >= 1024:
                 raise ValueError('Job history full; inspect and restart locally')
+            if recovery:
+                # HOME is explicitly requested through the staff-confirmed recovery path.
+                # It does not arm pickup operations or revive the cancelled backend.
+                backend = self.factory()
+                if getattr(backend, 'error', ''):
+                    raise ValueError('Robot pose/configuration check failed')
+                self.backend = backend  # Preserve an existing local arm; HOME never grants a new one.
             job = {'job_id': job_id, 'fingerprint': fingerprint, 'operation': operation,
                    'arguments': json.loads(json.dumps(arguments)), 'status': 'pending',
                    'result': None, 'stop_confirmed': None, 'heartbeat': self.clock(),
@@ -264,6 +287,8 @@ def make_server(executor, token, *, host='127.0.0.1', port=8767, allow_clients=(
             try:
                 if self.path == '/v1/health':
                     return self.reply(200, executor.health())
+                if self.path == '/v1/joints':
+                    return self.reply(200, executor.joint_telemetry.snapshot(executor.instance))
                 prefix = '/v1/jobs/'
                 if self.path.startswith(prefix):
                     job_id = str(uuid.UUID(self.path[len(prefix):]))
@@ -335,6 +360,8 @@ def main():
     parser.add_argument('--tls-cert', type=Path)
     parser.add_argument('--tls-key', type=Path)
     parser.add_argument('--poses', type=Path, default=Path(__file__).resolve().parents[1] / 'outputs/robot_panel_live/poses.json')
+    parser.add_argument('--joint-calibration', type=Path,
+                        help='Read-only follower_id/calibration JSON snapshot for telemetry degrees')
     args = parser.parse_args()
     if not ipaddress.ip_address(args.host).is_loopback and not args.allow_client:
         parser.error('LAN binding requires --allow-client with the tower IP')
@@ -355,7 +382,16 @@ def main():
     from agents.storage import SLOT_NUMBERS
     if any(slot not in SLOT_NUMBERS for slot in args.allow_slot):
         parser.error('--allow-slot must name a robot storage slot R1-1 through R4-2')
-    executor = Executor(factory, live=args.live, readiness=readiness, allowed_slots=args.allow_slot)
+    from robot.joint_telemetry import JointTelemetry, StudioJointReader, load_coordinates
+    coordinates = None
+    if args.live and args.joint_calibration:
+        try:
+            coordinates = load_coordinates(args.joint_calibration, follower)
+        except (OSError, KeyError, TypeError, ValueError):
+            print('Joint calibration unavailable; telemetry degrees will be null', flush=True)
+    telemetry = JointTelemetry(coordinates=coordinates)
+    executor = Executor(factory, live=args.live, readiness=readiness, allowed_slots=args.allow_slot,
+                        joint_telemetry=telemetry)
     server = make_server(executor, os.environ.get('TOWER_REMOTE_ROBOT_TOKEN', ''),
                          host=args.host, port=args.port, allow_clients=args.allow_client)
     if args.tls_cert:
@@ -364,12 +400,17 @@ def main():
         context.load_cert_chain(args.tls_cert, args.tls_key)
         server.socket = context.wrap_socket(server.socket, server_side=True)
     threading.Thread(target=executor.monitor, daemon=True).start()
+    reader = StudioJointReader(telemetry, follower, container, distribution) if args.live else None
+    if reader is not None:
+        reader.start()
     print(f"{'LIVE' if args.live else 'SIMULATION'} remote executor on {args.host}:{server.server_port}; DISARMED", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        if reader is not None:
+            reader.close()
         executor.close()
         server.server_close()
 

@@ -78,14 +78,24 @@ class DbSequenceTests(unittest.TestCase):
         self.assertEqual(result['completed'], [])
         self.motion.move.assert_not_called()
 
-    def test_release_must_not_lower_arm_and_special_grip_must_not_change(self):
+    def test_release_must_not_lower_arm(self):
         self.robot.poses['open']['shoulder_lift.pos'] += 10.0
         self.assertFalse(self.robot.run_pose_sequence_test(self.target())['ok'])
         self.motion.move.assert_not_called()
-        self.robot.poses['open']['shoulder_lift.pos'] -= 10.0
-        self.robot.poses['pose_8_return']['gripper.pos'] = 4.0
-        self.assertFalse(self.robot.run_pose_sequence_test(self.target('R4-2'))['ok'])
-        self.motion.move.assert_not_called()
+
+    def test_each_lipbalm_route_preserves_its_own_closure_until_release(self):
+        for slot, n in (('R4-1', 7), ('R4-2', 8)):
+            with self.subTest(slot=slot):
+                result = simulate_trigger(slot, self.path)
+                self.assertTrue(result['ok'], result.get('reason'))
+                moves = [event for event in result['events'] if event['event'] == 'requested']
+                closed = self.poses[f'pose_{n}_close']['gripper.pos']
+                self.assertEqual([event['include_gripper'] for event in moves],
+                                 [True] * 5 + [False] * 3 + [True] * 3)
+                for i in (4, 5, 6, 7):
+                    self.assertAlmostEqual(moves[i]['gripper_target'], closed, places=5)
+                self.assertEqual(moves[8]['gripper_target'], self.poses['open']['gripper.pos'])
+                self.assertEqual(moves[9]['gripper_target'], self.poses['outlet_return_1']['gripper.pos'])
 
     def test_failure_in_middle_stops_and_does_not_execute_remaining_stages(self):
         self.motion.move.side_effect = [None, RuntimeError('simulated failure')]
