@@ -7,8 +7,56 @@ import os
 import threading
 import time
 from urllib.parse import urlsplit
+import urllib.error
 import urllib.request
 import uuid
+
+
+class _Heartbeat:
+    """Renew only this job, independently of status reads and progress callbacks."""
+    interval = .25
+    timeout = 1.
+    retry_seconds = 3.
+
+    def __init__(self, client, instance, job_id):
+        self.client, self.instance, self.job_id = client, instance, job_id
+        self.done = threading.Event()
+        self.error = None
+        self.thread = threading.Thread(target=self._run, daemon=True, name='robot-heartbeat')
+
+    def start(self):
+        self.thread.start()
+
+    def _run(self):
+        last_ok = time.monotonic()
+        while not self.done.wait(self.interval):
+            if self.client.stop_requested.is_set():
+                return
+            try:
+                row = self.client.request(f'/v1/jobs/{self.job_id}/heartbeat',
+                                          {'instance': self.instance}, timeout=self.timeout)
+                if row.get('job_id') != self.job_id:
+                    raise ValueError('Heartbeat returned another job')
+                if row.get('status') in ('completed', 'failed', 'cancelled'):
+                    return
+                last_ok = time.monotonic()
+            except Exception as exc:
+                # Short retries apply only to lease renewal, never movement submission.
+                transient = isinstance(exc, (TimeoutError, OSError)) and not isinstance(exc, urllib.error.HTTPError)
+                if transient and time.monotonic()-last_ok < self.retry_seconds:
+                    continue
+                if not self.done.is_set():
+                    self.error = exc
+                return  # The executor still stops after its unchanged five-second lease.
+
+    def check(self):
+        if self.error is not None:
+            raise RuntimeError(f'Heartbeat failed: {self.error}') from self.error
+
+    def close(self):
+        self.done.set()
+        self.thread.join(self.timeout + .5)
+        # Any late HTTP response remains fenced to the old instance/job ID.
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -38,7 +86,7 @@ class RemoteTowerRobot:
         self.fault_instance = None
         self.stop_generation = 0
 
-    def request(self, path, body=None, *, timeout=2):
+    def request(self, path, body=None, *, timeout=5):
         if self.error:
             raise ValueError(self.error)
         req = urllib.request.Request(self.url + path, headers={
@@ -72,6 +120,7 @@ class RemoteTowerRobot:
             return {'ok': False, 'reason': 'Another remote operation is running'}
         submitted = False
         failed_progress = None
+        heartbeat = None
         try:
             with self.lock:
                 generation = self.stop_generation
@@ -108,10 +157,17 @@ class RemoteTowerRobot:
             submitted = True  # Delivery may precede an HTTP response failure.
             job = self.request('/v1/jobs', {'instance': instance, 'job_id': job_id,
                 'operation': operation, 'arguments': arguments, 'approved': True})
+            if job.get('job_id') != job_id:
+                raise ValueError('Executor returned another job')
+            if job.get('status') not in ('completed', 'failed', 'cancelled'):
+                heartbeat = _Heartbeat(self, instance, job_id)
+                heartbeat.start()
             delivered = 0
             while True:
                 if self.stop_requested.is_set():
                     raise InterruptedError('Remote stop requested')
+                if heartbeat:
+                    heartbeat.check()
                 if job.get('job_id') != job_id:
                     raise ValueError('Executor returned another job')
                 if progress is not None:
@@ -123,6 +179,10 @@ class RemoteTowerRobot:
                         progress(event)
                         failed_progress = None
                         delivered += 1
+                        if self.stop_requested.is_set():
+                            raise InterruptedError('Remote stop requested')
+                        if heartbeat:
+                            heartbeat.check()
                 if job.get('status') in ('completed', 'failed', 'cancelled'):
                     result = job.get('result')
                     if not isinstance(result, dict) or type(result.get('ok')) is not bool:
@@ -134,9 +194,10 @@ class RemoteTowerRobot:
                 # This is a control lease, not an arrival timeout. Never
                 # resubmit a command with a fresh ID after uncertain delivery.
                 self.sleep(.25)
-                self.request(f'/v1/jobs/{job_id}/heartbeat', {'instance': instance})
                 job = self.request(f'/v1/jobs/{job_id}')
         except (Exception, KeyboardInterrupt) as exc:
+            if heartbeat:
+                heartbeat.close()
             self.faulted = True
             self.fault_instance = self.active[0] if self.active else locals().get('state', {}).get('instance')
             stopped = self.robot_stop() if submitted else {'ok': False}
@@ -153,6 +214,8 @@ class RemoteTowerRobot:
                     ('event', 'index', 'total', 'pose_name', 'command_pose')}
             return result
         finally:
+            if heartbeat:
+                heartbeat.close()
             with self.lock:
                 self.active = None
             self.operation.release()
