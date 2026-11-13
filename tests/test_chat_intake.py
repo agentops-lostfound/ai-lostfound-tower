@@ -307,6 +307,10 @@ class ReviewFixesTest(unittest.TestCase):
         self.assertEqual(r["status"], "intake_done", r["answer"])
         wid = r["intake"]["wait_id"]
         self.assertRegex(wid, r"^L-\d{8}-\d{4}$")
+        # 11/13 챗봇 접수도 분실인 화면이 '물건이 들어왔어요' 알림을 띄울 수 있게 조회 열쇠를 함께 준다(웹 신고와 같은 열쇠)
+        key = r["intake"]["wait_key"]
+        self.assertRegex(key, r"^[0-9a-f]{16}$")
+        self.assertEqual(svc.sim.wait_poll(wid, key)["state"], "waiting")
         r = ui_ask(bot, f"{wid} 어떻게 됐어요?", session_id="lf-other")
         self.assertIn("아직", r["answer"])
         for q in ("주운 물건 신고하고 싶어요", "초량 5번 출구 앞에서 빨간 핸드크림", "접수할게요"):
@@ -316,6 +320,11 @@ class ReviewFixesTest(unittest.TestCase):
         st = svc.sim.wait_status(wid)
         self.assertEqual(st["state"], "matched", st)
         self.assertEqual(st["item_id"], f["intake"]["item_id"])
+        got = svc.sim.wait_poll(wid, key)           # 분실인 화면이 묻는 것과 같은 조회 → 알림에 쓸 찾기 번호
+        self.assertEqual((got["state"], got["claim_id"]), ("matched", st["claim_id"]))
+        from agents import observability
+        self.assertNotIn(key, observability.brief({"status": "intake_done", "wait_id": wid, "wait_key": key}))
+        self.assertEqual(observability.mask(data={"wait_key": key})["wait_key"], "[열쇠]")
         r = ui_ask(bot, f"{wid} 어떻게 됐어요?", session_id="lf-other2")
         self.assertIn(st["claim_id"], r["answer"])
 

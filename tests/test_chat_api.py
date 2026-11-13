@@ -275,9 +275,9 @@ class WidgetPlacementTest(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent / "web"
         kiosk = (root / "kiosk/index.html").read_text(encoding="utf-8")
         lost = (root / "lost/index.html").read_text(encoding="utf-8")
-        self.assertIn('<script src="/chat-widget/widget.js?v=20261113a" data-mode="kiosk" defer></script>', kiosk)
+        self.assertIn('<script src="/chat-widget/widget.js?v=20261113b" data-mode="kiosk" defer></script>', kiosk)
         self.assertIn("data-chatbot-open", kiosk)          # 머리말 버튼(동그란 버튼은 화면 버튼과 겹칠 수 있어 안 씀)
-        self.assertIn('<script src="/chat-widget/widget.js?v=20261113a" defer></script>', lost)
+        self.assertIn('<script src="/chat-widget/widget.js?v=20261113b" defer></script>', lost)
         self.assertIn("data-chatbot-open", lost)
 
     def test_widget_kiosk_options(self):
