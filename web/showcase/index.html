@@ -1059,7 +1059,7 @@ small.alias{color:var(--ui-text-3,#8b95a1);font-size:.86em;font-weight:500;white
   const roleOf = (gname, node) => (G[gname].nodes[node] || [])[2] || "";
   const short = (out) => String(out || "").slice(0, 260);      // 서버(observability.brief)가 이미 가리고 줄인 한 줄
   // 11/13 챗봇 단계 글을 사람이 읽게: 서버가 보낸 '칸: 값 · 칸: 값'에서 내부용 칸(경로·검사 결과·JSON 덩어리)을 빼고 칸 이름을 우리말로
-  const TIDY_DROP = new Set(["agent", "path", "routing", "generation_status", "proposal_check", "executed", "validation", "proposal", "trace", "session", "mode"]);
+  const TIDY_DROP = new Set(["wait_key", "agent", "path", "routing", "generation_status", "proposal_check", "executed", "validation", "proposal", "trace", "session", "mode"]);
   const TIDY_NAME = {why: "이유", next: "다음", route: "갈래", status: "상태", intent: "의도", plan: "계획", steps: "순서", query: "찾는 말", found: "찾음", count: "개수", reason: "이유"};
   const TIDY_VAL = {end: "끝", finish: "끝", guidance: "이용 안내", item_search: "물건 검색", intake: "대화 접수", clarification_needed: "되묻기", answered: "답함", ok: "정상", search: "물건 검색", items_not_found: "후보 없음", items_found: "후보 찾음"};
   function tidy(node, text) {

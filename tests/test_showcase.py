@@ -433,9 +433,18 @@ class UiFixes1111Test(unittest.TestCase):
         """11/13 챗봇 에이전트 흐름: '지금' 한 줄은 그림마다 따로, 기록 글은 내부용 칸을 빼고, 0ms 대신 <1ms"""
         html = self.read("web/showcase/index.html")
         for needle in ('const NOW = {tower:', 'function setNow(gname, html)', '$("agNow").innerHTML = NOW[name] || "";',
-                       'const TIDY_DROP = new Set(["agent", "path", "routing", "generation_status", "proposal_check"',
+                       'const TIDY_DROP = new Set(["wait_key", "agent", "path", "routing", "generation_status", "proposal_check"',
                        'tidy("답", short(t.output))', 'tidy(node, draft(node, short(t.output)))', 'ms < 1 ? "<1ms"'):
             self.assertIn(needle, html)
+
+    def test_chat_wait_intake_tells_lost_page_1113(self):
+        """11/13 챗봇으로 분실 접수(대기)를 해도 물건이 들어오면 분실인 웹에 알림 — 챗봇 창이 대기 번호·열쇠를 화면에 알림"""
+        w = self.read("web/chat-widget/widget.js")
+        self.assertIn('res.status === "intake_done" && ik.wait_id && ik.wait_key', w)
+        self.assertIn('new CustomEvent("lostfound-chat:wait", { detail: { wait_id: String(ik.wait_id), wait_key: String(ik.wait_key) } })', w)
+        lost = self.read("web/lost/index.html")
+        self.assertIn("window.addEventListener('lostfound-chat:wait'", lost)
+        self.assertIn("state.wait = {id: d.wait_id, key: d.wait_key, summary: '찾는 물건', phone: 'chat'};", lost)
 
     def test_stable_layout_1112(self):
         """11/12 오후: 장면·보기를 바꿔도 키오스크 자리·크기가 같게 — 칸 나눔은 그대로 두고 패널만 감춤, 설명 3줄·바로가기 칸 자리 고정,

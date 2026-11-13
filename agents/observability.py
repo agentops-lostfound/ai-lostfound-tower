@@ -29,6 +29,8 @@ PRIVATE = [
     (re.compile(r"\b01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}\b"), "[전화번호]"),
     (re.compile(r"\b\d{6}[-\s]?[1-8]\d{6}\b"), "[주민번호]"),
     (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), "[이메일]"),
+    # 11/13 대기 분실 신고의 조회 열쇠(챗봇 접수 결과에 실려 분실인 화면으로만 감) — 화면 기록에 내지 않음
+    (re.compile(r"(wait_key['\"]?\s*[:=]\s*['\"]?)[0-9a-f]{8,64}"), r"\1[열쇠]"),
 ]
 
 
@@ -47,7 +49,7 @@ def mask(*, data=None, **_kwargs):
     if isinstance(data, tuple):
         return [mask(data=x) for x in data]
     if isinstance(data, dict):
-        return {k: mask(data=v) for k, v in data.items()}
+        return {k: ("[열쇠]" if k == "wait_key" and v else mask(data=v)) for k, v in data.items()}
     return data
 
 

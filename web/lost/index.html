@@ -532,6 +532,13 @@ function startWaitPoll() {
     } catch (_) {}
   }, 1500);
 }
+// 11/13 챗봇(AI에게 묻기)으로 분실 접수를 한 경우에도 물건이 들어오면 같은 알림을 띄운다 — 챗봇 창이 대기 번호·열쇠를 알려 줌(web/chat-widget/widget.js)
+window.addEventListener('lostfound-chat:wait', (e) => {
+  const d = e.detail || {};
+  if (!/^L-\d{8}-\d{4}$/.test(d.wait_id || '') || !/^[0-9a-f]{8,64}$/.test(d.wait_key || '')) return;
+  state.wait = {id: d.wait_id, key: d.wait_key, summary: '찾는 물건', phone: 'chat'};
+  startWaitPoll();
+});
 function sms(html) {
   let el = document.getElementById('sms');
   if (!el) { el = document.createElement('div'); el.id = 'sms'; el.className = 'sms'; el.setAttribute('role', 'status'); document.body.appendChild(el);
@@ -606,6 +613,6 @@ function resetAll() {
 $('#again').addEventListener('click', resetAll);
 $('#clear').addEventListener('click', () => setTimeout(resetAll, 0));
 </script>
-<script src="/chat-widget/widget.js?v=20261113a" defer></script>
+<script src="/chat-widget/widget.js?v=20261113b" defer></script>
 </body>
 </html>
