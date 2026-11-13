@@ -483,6 +483,11 @@ class GroundedRag:
                                                                   'required_fact_groups': generation_requirements(question, passages),
                                                                   **({'feedback': feedback} if feedback else {})}, ensure_ascii=False)}],
             'options': {'temperature': cfg['temperature'], 'num_predict': 400, 'num_ctx': 4096}, 'keep_alive': '5m'}
+        from agents.chat_dialogue import model_context
+        context = model_context()
+        if context:
+            message = json.loads(payload['messages'][1]['content'])
+            payload['messages'][1]['content'] = json.dumps({**message, 'conversation_context': context}, ensure_ascii=False)
         usage = prompts.record_usage('researcher', cfg, prompt_obj)
         with step('reporter-writer-retry' if feedback else 'reporter-writer', as_type='generation', model=cfg['model'], input=payload['messages'], prompt=prompt_obj,
                   metadata={'prompt_usage': usage},

@@ -30,6 +30,8 @@ def compact(text):
 
 
 def natural_question(question):
+    from agents.chat_turn import attribute_semantics
+    question = attribute_semantics(question)
     replacements = [
         (r'사진\s*(첨부|업로드)', '사진 올리기'),
         (r'사진\s*(?:을\s*)?(?:(?:어디서|어디에|어떻게)\s*)?(?:넣|올리|올려|올릴|등록)', '사진 올리기'),
@@ -159,6 +161,7 @@ def resolve_turn(question, history, context, guidance):
         attribute_turn = any(previous_features.get(k) not in (None, '확인 불가', '없음') for k in ('category', 'color'))
         if search_intent(previous) or (inherited and attribute_turn and re.search(r'(?:은|는|으로)[?？.!\s]*$', previous)):
             inherited, warnings = search_context(previous, inherited)
+            inherited = {k: v for k, v in inherited.items() if v not in (None, '확인 불가', '없음')}
             if warnings:
                 inherited = {}
         else:
@@ -173,7 +176,8 @@ def resolve_turn(question, history, context, guidance):
         or (correction and len(bare) <= 32 and not re.search(r'[?？]', bare))
     has_attribute = any(features.get(k) not in (None, '확인 불가', '없음') for k in ('category', 'color'))
     elliptical = bool(re.match(r'^(그럼|그러면|그건|그거|이번엔|이번에는)', q) or (has_attribute and re.fullmatch(r'.{1,20}(?:은|는|으로)(?:요)?[?？.!]*', q)))   # 11/9 '지갑은요?'
-    inherited = inherited or context
+    # 현재 검토/서버 상태를 기준으로 한다. 품목 없는 짧은 과거 발화가 '확인 불가'로 덮지 않는다.
+    inherited = {**inherited, **context} if context.get('category') else inherited
     retry_search = bool(re.fullmatch(r'(?:그럼|그러면)?(?:다시|한번더)(?:찾아줘|찾아주세요|검색해줘)[?？.!]*', q))
     fragment_search = (fragment and has_attribute) or (search_intent(question) and features.get('category') == '확인 불가') or retry_search
     if inherited.get('category') and fragment_search and not warnings:

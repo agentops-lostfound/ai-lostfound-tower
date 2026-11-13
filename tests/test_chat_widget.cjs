@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-function setup(questionFetch,otherFetch){
+function setup(questionFetch,otherFetch,mode='web'){
  const timers=new Map(),calls=[];let timerId=0;
  const doc={readyState:'complete',activeElement:null,addEventListener(){}};
  class Element{
@@ -20,7 +20,7 @@ function setup(questionFetch,otherFetch){
   querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
  }
  doc.body=new Element('body');doc.createElement=tag=>new Element(tag);doc.querySelector=sel=>doc.body.querySelector(sel);
- doc.currentScript={src:'http://127.0.0.1:8100/chat-widget/widget.js',getAttribute(){return null;}};
+ doc.currentScript={src:'http://127.0.0.1:8100/chat-widget/widget.js',getAttribute(name){return name==='data-mode'?mode:null;}};
  const window={};
  const context=vm.createContext({document:doc,window,location:new URL('http://127.0.0.1:8100/lost'),URL,AbortController,
   Event:class{constructor(type){this.type=type;}preventDefault(){}},
@@ -31,6 +31,18 @@ function setup(questionFetch,otherFetch){
  return {doc,root,get,calls,timers,window,clear(){root.querySelectorAll('button').find(n=>n.textContent==='대화 지우기').dispatchEvent({type:'click'});},open(){window.LostFoundChat.open();for(const [id,t] of [...timers])if(t.delay===0){timers.delete(id);t.fn();}},send(q){get('textarea').value=q;get('form').dispatchEvent({type:'submit',preventDefault(){}});}};
 }
 const ok=answer=>({ok:true,json:async()=>({answer,agent:'guidance',status:'answered',sources:[]})});
+
+test('channel and a fresh conversation identity reach the server',async()=>{
+ for(const mode of ['web','kiosk','staff']){
+  const s=setup(()=>Promise.resolve(ok('안내')),undefined,mode);
+  s.open();await tick();s.send('립밤 찾아줘');await tick();
+  assert.equal(s.calls[0].body.mode,mode==='web'?undefined:mode);
+  const old=s.calls[0].body.session_id;
+  s.clear();s.send('흰색은?');await tick();
+  assert.notEqual(s.calls[1].body.session_id,old);
+  assert.equal(s.calls[1].body.history.length,0);
+ }
+});
 
 test('identity form warns to use synthetic details and sends only masked values',async()=>{
  const s=setup((_init,n)=>n===1?Promise.resolve({ok:true,json:async()=>({answer:'가상 정보만 입력해 주세요',agent:'intake',status:'intake_question',form:{kind:'identity'}})}):Promise.resolve(ok('확인')));
