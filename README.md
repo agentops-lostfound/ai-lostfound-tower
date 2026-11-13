@@ -19,6 +19,8 @@
 
 ## 시작하기
 
+**새 PC에서 관제탑을 처음 켤 때는 [새 PC에서 관제탑 다시 세우기](docs/handoff/2026-11-13-new-pc-setup.md)를 위에서 아래로 따라 합니다**(가상 팔로 안전하게 켜는 순서, `.env` 값을 다시 받는 곳, 안전 수칙).
+
 Physical AI Studio의 저장 자세·복귀 기능을 다른 PC에 설치하려면 [Studio 공유 파일과 설치 순서](docs/handoff/studio-shared-install.md)를 따릅니다. 설치 압축본과 저장 자세는 저장소에 포함되며, Studio 자체와 장비 설정은 별도로 준비합니다.
 
 ```bash
