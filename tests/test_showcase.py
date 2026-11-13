@@ -445,6 +445,7 @@ class UiFixes1111Test(unittest.TestCase):
         lost = self.read("web/lost/index.html")
         self.assertIn("window.addEventListener('lostfound-chat:wait'", lost)
         self.assertIn("state.wait = {id: d.wait_id, key: d.wait_key, summary: '찾는 물건', phone: 'chat'};", lost)
+        self.assertNotIn("sms.t = setTimeout", lost)      # 알림은 누를 때까지 남는다(다른 화면에 다녀와도 보이게)
 
     def test_stable_layout_1112(self):
         """11/12 오후: 장면·보기를 바꿔도 키오스크 자리·크기가 같게 — 칸 나눔은 그대로 두고 패널만 감춤, 설명 3줄·바로가기 칸 자리 고정,
