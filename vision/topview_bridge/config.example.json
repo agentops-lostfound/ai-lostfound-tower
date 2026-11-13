@@ -1,0 +1,24 @@
+{
+  "studio_url": "http://127.0.0.1:7860",
+  "tower_url": "http://10.10.21.21:8080",
+  "project_id": "REPLACE_WITH_STUDIO_PROJECT_ID",
+  "environment_id": "REPLACE_WITH_STUDIO_ENVIRONMENT_ID",
+  "camera_name": "topview",
+  "camera_id": "REPLACE_WITH_TOPVIEW_CAMERA_ID",
+  "image_size_px": [1280, 720],
+  "regions": {
+    "R1-1": [0, 0, 320, 360], "R1-2": [0, 360, 320, 720],
+    "R2-1": [320, 0, 640, 360], "R2-2": [320, 360, 640, 720],
+    "R3-1": [640, 0, 960, 360], "R3-2": [640, 360, 960, 720],
+    "R4-1": [960, 0, 1280, 360], "R4-2": [960, 360, 1280, 720]
+  },
+  "anchors": {},
+  "calibration_version": "uncalibrated-template",
+  "anchor_tolerance_px": 12,
+  "boundary_margin_px": 10,
+  "interval_seconds": 15,
+  "max_result_age_seconds": 90,
+  "wsl_distribution": "Ubuntu-24.04",
+  "container": "physical-ai-studio-cuda",
+  "container_root": "/tmp/lf-topview-bridge"
+}
